@@ -1,0 +1,60 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One concurrent deployment; don't cancel in-progress runs.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Pass --base so Vite prefixes all asset URLs with /copad/
+      # (GitHub Pages serves project repos under /<repo-name>/).
+      # OAuth redirect URIs in your provider settings must match:
+      #   https://adriendellagaspera.github.io/copad/redirect.html
+      - run: npm run build -- --base=/copad/
+        env:
+          VITE_PCLOUD_CLIENT_ID: ${{ secrets.VITE_PCLOUD_CLIENT_ID }}
+          VITE_DROPBOX_APP_KEY: ${{ secrets.VITE_DROPBOX_APP_KEY }}
+          VITE_WEBDAV_URL: ${{ secrets.VITE_WEBDAV_URL }}
+          VITE_PROXY_URL: ${{ secrets.VITE_PROXY_URL }}
+          VITE_ROOM: ${{ secrets.VITE_ROOM }}
+          VITE_ROOM_PASSWORD: ${{ secrets.VITE_ROOM_PASSWORD }}
+          VITE_SIGNALING_URL: ${{ secrets.VITE_SIGNALING_URL }}
+          VITE_STORAGE_BACKEND: ${{ secrets.VITE_STORAGE_BACKEND }}
+          # Redirect URI used by both pCloud and Dropbox OAuth.
+          VITE_REDIRECT_URI: https://adriendellagaspera.github.io/copad/redirect.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

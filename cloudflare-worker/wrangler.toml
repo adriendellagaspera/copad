@@ -1,0 +1,10 @@
+name = "collab-files-proxy"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+# Comma-separated host allowlist (suffix match). Leave empty = permissive (NOT
+# recommended in production). Add your Nextcloud/WebDAV host here.
+# pcloud.com covers the content hosts (cNNN.pcloud.com); dropboxapi.com is only
+# needed if you also route Dropbox through the proxy.
+ALLOWED_HOSTS = "pcloud.com,api.pcloud.com,eapi.pcloud.com,dropboxapi.com,cloud.exemple.fr"
