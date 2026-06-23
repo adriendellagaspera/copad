@@ -5,30 +5,37 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
     "preview": "vite preview",
-    "signaling": "node node_modules/y-webrtc/bin/server.js"
+    "signaling": "node node_modules/y-webrtc/bin/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test"
   },
   "dependencies": {
-    "@tiptap/extension-collaboration": "^3.27.1",
-    "@tiptap/extension-collaboration-caret": "^3.27.1",
-    "@tiptap/pm": "^3.27.1",
-    "@tiptap/react": "^3.27.1",
-    "@tiptap/starter-kit": "^3.27.1",
-    "@tiptap/y-tiptap": "^3.0.5",
     "pcloud-sdk-js": "^2.0.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "prosemirror-commands": "^1.7.1",
+    "prosemirror-inputrules": "^1.5.1",
+    "prosemirror-keymap": "^1.2.3",
+    "prosemirror-model": "^1.25.9",
+    "prosemirror-schema-basic": "^1.2.4",
+    "prosemirror-schema-list": "^1.5.1",
+    "prosemirror-state": "^1.4.4",
+    "prosemirror-view": "^1.41.9",
+    "svelte": "^5.56.4",
+    "y-prosemirror": "^1.3.7",
     "y-webrtc": "^10.3.0",
     "yjs": "^13.6.31"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@types/node": "^20.19.43",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "^5.6.3",
-    "vite": "^5.4.11",
-    "vite-plugin-node-polyfills": "^0.22.0"
+    "happy-dom": "^20.10.6",
+    "svelte-check": "^4.7.0",
+    "vite": "^8.1.0",
+    "vite-plugin-node-polyfills": "^0.28.0",
+    "vitest": "^4.1.9"
   }
 }

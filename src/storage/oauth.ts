@@ -1,70 +1,51 @@
-// Shared OAuth helpers for the authorization-code (PKCE) flow used by Dropbox.
-// The popup lands on /redirect.html, which posts the code back here.
-
-function base64url(buf: ArrayBuffer): string {
-  return btoa(String.fromCharCode(...new Uint8Array(buf)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+/** Generate a random base64url string of `len` bytes. */
+function randomString(len = 32): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(len));
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
 
-export function randomString(len = 64): string {
-  const bytes = new Uint8Array(len);
-  crypto.getRandomValues(bytes);
-  return base64url(bytes.buffer).slice(0, len);
+/** Return { verifier, challenge } for OAuth 2 PKCE. */
+export async function pkceChallenge(): Promise<{ verifier: string; challenge: string }> {
+  const verifier = randomString(48);
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  const challenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  return { verifier, challenge };
 }
 
-export async function pkceChallenge(verifier: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(verifier),
-  );
-  return base64url(digest);
-}
-
-// Opens the provider's consent screen in a popup and resolves with the returned
-// authorization code (rejecting on state mismatch or if the popup is closed).
+/** Open an OAuth popup and wait for the code to be posted back. */
 export function openOAuthPopup(authUrl: string, expectedState: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const popup = window.open(authUrl, "oauth", "width=600,height=720");
+    const popup = window.open(authUrl, 'oauth', 'width=520,height=640');
     if (!popup) {
-      reject(new Error("Popup blocked by the browser"));
+      reject(new Error('Popup blocked — allow popups for this site'));
       return;
     }
 
-    const onMessage = (ev: MessageEvent) => {
-      if (ev.origin !== location.origin) return;
-      const data = ev.data as { type?: string; code?: string; state?: string };
-      if (!data || data.type !== "oauth-code") return;
+    const timeout = setTimeout(() => {
       cleanup();
-      if (expectedState && data.state !== expectedState) {
-        reject(new Error("OAuth: invalid state"));
-        return;
-      }
-      if (!data.code) {
-        reject(new Error("OAuth: missing code"));
-        return;
-      }
-      resolve(data.code);
-    };
+      reject(new Error('OAuth timed out'));
+    }, 5 * 60_000);
 
-    const timer = setInterval(() => {
-      if (popup.closed) {
-        cleanup();
-        reject(new Error("OAuth window closed"));
-      }
-    }, 500);
+    function onMessage(event: MessageEvent) {
+      if (event.origin !== location.origin) return;
+      if (event.data?.type !== 'oauth-code') return;
+      if (event.data.state !== expectedState) return;
+      cleanup();
+      resolve(event.data.code as string);
+    }
 
-    const cleanup = () => {
-      clearInterval(timer);
-      window.removeEventListener("message", onMessage);
-      try {
-        popup.close();
-      } catch {
-        /* ignore */
-      }
-    };
+    function cleanup() {
+      clearTimeout(timeout);
+      window.removeEventListener('message', onMessage);
+      popup.close();
+    }
 
-    window.addEventListener("message", onMessage);
+    window.addEventListener('message', onMessage);
   });
 }

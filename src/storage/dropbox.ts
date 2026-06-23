@@ -1,106 +1,103 @@
-import type { StorageAdapter } from "./types";
-import { netFetch } from "./net";
-import { openOAuthPopup, pkceChallenge, randomString } from "./oauth";
+import type { StorageAdapter } from './types.js';
+import { pkceChallenge, openOAuthPopup } from './oauth.js';
 
-// Dropbox officially supports the PKCE flow for SPAs: the code exchange and the
-// content endpoints accept cross-origin browser requests, so no backend is needed.
-const APP_KEY = import.meta.env.VITE_DROPBOX_APP_KEY;
-const REDIRECT_URI =
-  import.meta.env.VITE_REDIRECT_URI || `${location.origin}/redirect.html`;
-const FILE_PATH = import.meta.env.VITE_DROPBOX_FILE_PATH || "/collab-doc.ydoc";
-const TOKEN_KEY = "storage.dropbox.token";
+const FILE_PATH = '/copad/document.yjs';
+const STORAGE_KEY = 'storage.dropbox.token';
+const AUTH_URL = 'https://www.dropbox.com/oauth2/authorize';
+const TOKEN_URL = 'https://api.dropboxapi.com/oauth2/token';
+const UPLOAD_URL = 'https://content.dropboxapi.com/2/files/upload';
+const DOWNLOAD_URL = 'https://content.dropboxapi.com/2/files/download';
 
 export class DropboxAdapter implements StorageAdapter {
-  readonly id = "dropbox";
-  readonly label = "Dropbox";
+  readonly id = 'dropbox';
+  readonly label = 'Dropbox';
+
+  private token(): string | null {
+    return localStorage.getItem(STORAGE_KEY);
+  }
 
   isAuthenticated(): boolean {
-    return !!localStorage.getItem(TOKEN_KEY);
+    return !!this.token();
   }
 
   async connect(): Promise<void> {
-    if (!APP_KEY) throw new Error("VITE_DROPBOX_APP_KEY is not set");
+    const APP_KEY = import.meta.env.VITE_DROPBOX_APP_KEY;
+    if (!APP_KEY) throw new Error('VITE_DROPBOX_APP_KEY is not set');
 
-    const verifier = randomString();
-    const state = randomString(24);
-    const authUrl = new URL("https://www.dropbox.com/oauth2/authorize");
-    authUrl.searchParams.set("client_id", APP_KEY);
-    authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("code_challenge", await pkceChallenge(verifier));
-    authUrl.searchParams.set("code_challenge_method", "S256");
-    authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
-    authUrl.searchParams.set("state", state);
+    const REDIRECT_URI =
+      import.meta.env.VITE_REDIRECT_URI ?? `${location.origin}/redirect.html`;
 
-    const code = await openOAuthPopup(authUrl.toString(), state);
-    await this.exchangeCode(code, verifier);
-  }
+    const { verifier, challenge } = await pkceChallenge();
+    const state = crypto.randomUUID();
 
-  private async exchangeCode(code: string, verifier: string): Promise<void> {
-    const body = new URLSearchParams({
-      code,
-      grant_type: "authorization_code",
-      client_id: APP_KEY!,
-      code_verifier: verifier,
+    const params = new URLSearchParams({
+      client_id: APP_KEY,
+      response_type: 'code',
       redirect_uri: REDIRECT_URI,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+      state,
+      token_access_type: 'offline',
     });
-    const res = await netFetch("https://api.dropboxapi.com/oauth2/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
+
+    const code = await openOAuthPopup(`${AUTH_URL}?${params}`, state);
+
+    const res = await fetch(TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        grant_type: 'authorization_code',
+        client_id: APP_KEY,
+        redirect_uri: REDIRECT_URI,
+        code_verifier: verifier,
+      }),
     });
-    if (!res.ok) throw new Error(`Dropbox token (${res.status})`);
-    const json = (await res.json()) as { access_token: string };
-    localStorage.setItem(TOKEN_KEY, json.access_token);
+
+    if (!res.ok) throw new Error(`Dropbox token exchange failed: ${res.status}`);
+    const data = await res.json() as { access_token: string };
+    localStorage.setItem(STORAGE_KEY, data.access_token);
   }
 
   disconnect(): void {
-    localStorage.removeItem(TOKEN_KEY);
-  }
-
-  private token(): string {
-    const t = localStorage.getItem(TOKEN_KEY);
-    if (!t) throw new Error("Dropbox: not connected");
-    return t;
-  }
-
-  async save(bytes: Uint8Array): Promise<void> {
-    const res = await netFetch("https://content.dropboxapi.com/2/files/upload", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.token()}`,
-        "Dropbox-API-Arg": JSON.stringify({
-          path: FILE_PATH,
-          mode: "overwrite",
-          mute: true,
-        }),
-        "Content-Type": "application/octet-stream",
-      },
-      body: new Blob([bytes as BlobPart]),
-    });
-    if (!res.ok) throw new Error(`Dropbox upload (${res.status})`);
+    localStorage.removeItem(STORAGE_KEY);
   }
 
   async load(): Promise<Uint8Array | null> {
-    try {
-      const res = await netFetch(
-        "https://content.dropboxapi.com/2/files/download",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${this.token()}`,
-            "Dropbox-API-Arg": JSON.stringify({ path: FILE_PATH }),
-          },
-        },
-      );
-      if (res.status === 409) return null; // path/not_found (normal first run)
-      if (!res.ok) {
-        console.warn(`Dropbox download (${res.status})`);
-        return null;
-      }
-      return new Uint8Array(await res.arrayBuffer());
-    } catch (err) {
-      console.warn("Dropbox load failed (starting with empty doc):", err);
-      return null;
-    }
+    const tok = this.token();
+    if (!tok) throw new Error('Dropbox: not connected');
+
+    const res = await fetch(DOWNLOAD_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${tok}`,
+        'Dropbox-API-Arg': JSON.stringify({ path: FILE_PATH }),
+      },
+    });
+
+    if (res.status === 409) return null; // file not found
+    if (!res.ok) throw new Error(`Dropbox load failed: ${res.status}`);
+    return new Uint8Array(await res.arrayBuffer());
+  }
+
+  async save(bytes: Uint8Array): Promise<void> {
+    const tok = this.token();
+    if (!tok) throw new Error('Dropbox: not connected');
+
+    const res = await fetch(UPLOAD_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${tok}`,
+        'Content-Type': 'application/octet-stream',
+        'Dropbox-API-Arg': JSON.stringify({
+          path: FILE_PATH,
+          mode: 'overwrite',
+          mute: true,
+        }),
+      },
+      body: bytes,
+    });
+
+    if (!res.ok) throw new Error(`Dropbox save failed: ${res.status}`);
   }
 }
