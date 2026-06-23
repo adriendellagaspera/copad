@@ -3,6 +3,23 @@
 **Real-time collaborative rich-text editing on your own file storage** — Dropbox,
 WebDAV/Nextcloud, pCloud, and more. Backend-agnostic, peer-to-peer, ~$0/month to run.
 
+## Why not Dropbox Paper / Notion / Google Docs?
+
+Those are great products. Copad is for a different situation:
+
+| | Copad | Dropbox Paper / Notion / Google Docs |
+|---|---|---|
+| **Where the file lives** | A real file in your own storage folder | Provider's servers, proprietary format |
+| **Storage backend** | Dropbox, Nextcloud, pCloud, any WebDAV | Locked to one provider |
+| **Works on self-hosted storage** | ✅ (Nextcloud, ownCloud, any WebDAV) | ❌ |
+| **Open the doc without the app** | ✅ (it's a file in your folder) | ❌ |
+| **Open source / self-hostable** | ✅ | ❌ |
+| **Cost** | ~$0 (your existing storage) | Subscription |
+
+The core difference: **the document is a file you own**, sitting in a folder you already pay for, on a service you already chose. No new subscription, no lock-in, no data leaving your storage provider.
+
+Copad won't match Paper or Notion on polish (no comments, version history, or templates — yet). The trade-off is full ownership and portability.
+
 ## How it works
 
 File storage services (Dropbox, Nextcloud, pCloud…) are great at durability but have
