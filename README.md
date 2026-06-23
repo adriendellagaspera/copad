@@ -1,5 +1,7 @@
 # Copad
 
+> **⚠️ Work in progress.** The architecture is solid but the stack is being reconsidered (see [issues](https://github.com/adriendellagaspera/copad/issues)). Not ready for production use.
+
 I wanted to collaborate on a file in my pCloud. Nothing let me. So I built this.
 
 **Real-time collaborative rich-text editing on your own file storage** — pCloud,
