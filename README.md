@@ -1,7 +1,9 @@
 # Copad
 
-**Real-time collaborative rich-text editing on your own file storage** — Dropbox,
-WebDAV/Nextcloud, pCloud, and more. Backend-agnostic, peer-to-peer, ~$0/month to run.
+I wanted to collaborate on a file in my pCloud. Nothing let me. So I built this.
+
+**Real-time collaborative rich-text editing on your own file storage** — pCloud,
+Dropbox, WebDAV/Nextcloud, and more. Backend-agnostic, peer-to-peer, ~$0/month to run.
 
 ## Why not Dropbox Paper / Notion / Google Docs?
 
