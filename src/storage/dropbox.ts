@@ -3,7 +3,6 @@ import { pkceChallenge, openOAuthPopup } from './oauth.js';
 
 const FILE_PATH = '/copad/document.yjs';
 const STORAGE_KEY = 'storage.dropbox.token';
-const APP_KEY_KEY = 'storage.dropbox.appKey';
 const AUTH_URL = 'https://www.dropbox.com/oauth2/authorize';
 const TOKEN_URL = 'https://api.dropboxapi.com/oauth2/token';
 const UPLOAD_URL = 'https://content.dropboxapi.com/2/files/upload';
@@ -13,15 +12,6 @@ function token(): string | null {
   return localStorage.getItem(STORAGE_KEY);
 }
 
-function resolveAppKey(creds?: Record<string, string>): string {
-  return (
-    (import.meta.env.VITE_DROPBOX_APP_KEY as string | undefined) ||
-    creds?.appKey ||
-    localStorage.getItem(APP_KEY_KEY) ||
-    ''
-  );
-}
-
 export function dropboxStorage(): Storage {
   return {
     id: 'dropbox',
@@ -29,15 +19,9 @@ export function dropboxStorage(): Storage {
 
     isAuthenticated: () => !!token(),
 
-    get credentialFields() {
-      if (resolveAppKey()) return undefined;
-      return [{ name: 'appKey', label: 'Dropbox App Key', placeholder: 'your-app-key' }];
-    },
-
-    async connect(creds?) {
-      const appKey = resolveAppKey(creds);
-      if (!appKey) throw new Error('A Dropbox App Key is required — create one at dropbox.com/developers');
-      if (creds?.appKey) localStorage.setItem(APP_KEY_KEY, creds.appKey);
+    async connect() {
+      const APP_KEY = import.meta.env.VITE_DROPBOX_APP_KEY;
+      if (!APP_KEY) throw new Error('VITE_DROPBOX_APP_KEY is not set');
 
       const REDIRECT_URI =
         import.meta.env.VITE_REDIRECT_URI ?? `${location.origin}/redirect.html`;
@@ -46,7 +30,7 @@ export function dropboxStorage(): Storage {
       const state = crypto.randomUUID();
 
       const params = new URLSearchParams({
-        client_id: appKey,
+        client_id: APP_KEY,
         response_type: 'code',
         redirect_uri: REDIRECT_URI,
         code_challenge: challenge,
@@ -63,7 +47,7 @@ export function dropboxStorage(): Storage {
         body: new URLSearchParams({
           code,
           grant_type: 'authorization_code',
-          client_id: appKey,
+          client_id: APP_KEY,
           redirect_uri: REDIRECT_URI,
           code_verifier: verifier,
         }),

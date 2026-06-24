@@ -14,8 +14,8 @@ export function backends(): Storage[] {
   const netFetch = proxyUrl ? proxiedFetch(proxyUrl) : directFetch;
 
   const result: Storage[] = [];
-  result.push(pcloudStorage(netFetch));
-  result.push(dropboxStorage());
+  if (import.meta.env.VITE_PCLOUD_CLIENT_ID) result.push(pcloudStorage(netFetch));
+  if (import.meta.env.VITE_DROPBOX_APP_KEY)  result.push(dropboxStorage());
   // WebDAV requires a CORS proxy — hide it when none is configured.
   if (proxyUrl) result.push(webdavStorage(netFetch));
   // File System Access API: Chrome/Edge only, no env var needed.
