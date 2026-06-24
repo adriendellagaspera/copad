@@ -8,6 +8,8 @@ export interface CredentialField {
 export interface Storage {
   readonly id: string;
   readonly label: string;
+  /** Set when this backend cannot be used in the current browser environment. */
+  readonly unavailableReason?: string;
   isAuthenticated(): boolean;
   readonly credentialFields?: CredentialField[];
   connect(creds?: Record<string, string>): Promise<void>;

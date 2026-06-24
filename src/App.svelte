@@ -16,8 +16,9 @@
   const color = COLORS[Math.floor((Date.now() / 1000) % COLORS.length)];
 
   const storageBackends = backends();
+  const availableBackends = storageBackends.filter(s => !s.unavailableReason);
   let storage = $state<Storage | null>(
-    storageBackends.find(s => s.id === DEFAULT_BACKEND) ?? storageBackends[0] ?? null
+    availableBackends.find(s => s.id === DEFAULT_BACKEND) ?? availableBackends[0] ?? null
   );
   let name = $state('Anonymous');
   let connected = $state(untrack(() => storage?.isAuthenticated() ?? false));
@@ -49,7 +50,9 @@
   // ── Storage ────────────────────────────────────────────────────────────────
 
   function pick(id: string) {
-    storage = storageBackends.find(s => s.id === id) ?? null;
+    const s = storageBackends.find(s => s.id === id);
+    if (s?.unavailableReason) return;
+    storage = s ?? null;
     connected = storage?.isAuthenticated() ?? false;
     creds = {};
     error = '';
@@ -101,7 +104,9 @@
             disabled={connected}
           >
             {#each storageBackends as s (s.id)}
-              <option value={s.id}>{s.label}</option>
+              <option value={s.id} disabled={!!s.unavailableReason} title={s.unavailableReason}>
+                {s.label}{s.unavailableReason ? ' (unavailable)' : ''}
+              </option>
             {/each}
           </select>
         </label>
