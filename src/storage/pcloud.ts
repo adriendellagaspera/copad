@@ -4,6 +4,7 @@ import type { Fetch } from '../network/types.js';
 
 const FILE_PATH = '/copad/document.yjs';
 const STORAGE_KEY = 'storage.pcloud';
+const CLIENT_ID_KEY = 'storage.pcloud.clientId';
 
 interface PCloudSession {
   token: string;
@@ -19,6 +20,15 @@ function session(): PCloudSession | null {
   }
 }
 
+function resolveClientId(creds?: Record<string, string>): string {
+  return (
+    (import.meta.env.VITE_PCLOUD_CLIENT_ID as string | undefined) ||
+    creds?.clientId ||
+    localStorage.getItem(CLIENT_ID_KEY) ||
+    ''
+  );
+}
+
 export function pcloudStorage(netFetch: Fetch): Storage {
   return {
     id: 'pcloud',
@@ -26,10 +36,19 @@ export function pcloudStorage(netFetch: Fetch): Storage {
 
     isAuthenticated: () => !!session(),
 
-    async connect() {
+    get credentialFields() {
+      if (resolveClientId()) return undefined;
+      return [{ name: 'clientId', label: 'pCloud Client ID', placeholder: 'your-client-id' }];
+    },
+
+    async connect(creds?) {
+      const clientId = resolveClientId(creds);
+      if (!clientId) throw new Error('A pCloud Client ID is required — create one at pcloud.com/oauth2-apps');
+      if (creds?.clientId) localStorage.setItem(CLIENT_ID_KEY, creds.clientId);
+
       await new Promise<void>((resolve, reject) => {
         pcloudSdk.oauth.popup(
-          import.meta.env.VITE_PCLOUD_CLIENT_ID,
+          clientId,
           (token: string, locationid?: number) => {
             const host =
               (locationid ?? 1) === 2 ? 'eapi.pcloud.com' : 'api.pcloud.com';
