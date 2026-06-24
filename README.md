@@ -49,8 +49,9 @@ StorageAdapter ── Dropbox | WebDAV/Nextcloud | pCloud | …
 Everything goes through one interface — [`src/storage/types.ts`](src/storage/types.ts):
 
 ```ts
-interface StorageAdapter {
+interface Storage {
   id: string; label: string;
+  unavailableReason?: string;             // set when the browser can't support this backend
   isAuthenticated(): boolean;
   credentialFields?: CredentialField[];   // form fields (WebDAV); absent for OAuth
   connect(creds?): Promise<void>;         // OAuth popup or applies credentials
@@ -67,18 +68,19 @@ Adapters in [`src/storage/`](src/storage/):
 | **Dropbox** | OAuth2 **PKCE** (popup) | ✅ CORS OK (token + content) | No |
 | **pCloud** | OAuth token (popup) | ⚠️ upload OK, read CORS-iffy | For reads only |
 | **WebDAV / Nextcloud** | Basic (app password) | ❌ no CORS by default | Yes (unless server is CORS-enabled) |
+| **Local file** | None (File System Access API) | ✅ Chrome/Edge only | No |
 
-**Adding a backend** (Google Drive, S3/R2, OneDrive…) = write a class that implements
-`StorageAdapter` and register it in [`src/storage/index.ts`](src/storage/index.ts).
+**Adding a backend** (Google Drive, S3/R2, OneDrive…) = write a factory function returning
+a `Storage` and register it in [`src/storage/index.ts`](src/storage/index.ts).
 
 ## The optional shared proxy
 
-For backends without CORS support, [`cloudflare-worker/`](cloudflare-worker/) is a
+For backends without CORS support, [`src/network/cloudflare-proxy/`](src/network/cloudflare-proxy/) is a
 **generic forward proxy**: the app sends its request to `<proxy>/__proxy` with the
 real target URL in the `x-target-url` header, and the worker forwards it with CORS
 headers added. Enable it via `VITE_PROXY_URL`. Runs on Cloudflare's free tier (100k req/day).
 
-> ⚠️ Restrict the proxy with `ALLOWED_HOSTS` in [`wrangler.toml`](cloudflare-worker/wrangler.toml)
+> ⚠️ Restrict the proxy with `ALLOWED_HOSTS` in [`src/network/cloudflare-proxy/wrangler.toml`](src/network/cloudflare-proxy/wrangler.toml)
 > so it can't be used as an open relay. Credentials that transit it stay on **your** worker.
 
 ## Quick start (local)
@@ -105,7 +107,7 @@ Pick a **Storage** backend in the header and connect it to enable save/restore.
 
 ### Set up WebDAV / Nextcloud
 
-1. Deploy the proxy ([`cloudflare-worker/`](cloudflare-worker/)) and set `VITE_PROXY_URL` (add your domain to `ALLOWED_HOSTS`).
+1. Deploy the proxy ([`src/network/cloudflare-proxy/`](src/network/cloudflare-proxy/)) and set `VITE_PROXY_URL` (add your domain to `ALLOWED_HOSTS`).
 2. In the app, choose **WebDAV / Nextcloud**, enter the folder URL (`https://…/remote.php/dav/files/USER/Collab`), your username, and a **Nextcloud app password**.
 
 ### Set up pCloud
@@ -144,7 +146,7 @@ you only host a static frontend and a tiny signaling server.
 
 1. **Frontend**: `npm run build` → deploy `dist/`. GitHub Actions workflow included — see [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
 2. **Signaling**: deploy `node_modules/y-webrtc/bin/server.js` (Fly.io, Render…) over `wss://` and set `VITE_SIGNALING_URL`.
-3. **(Optional) Proxy**: `cd cloudflare-worker && npx wrangler deploy`, then set `VITE_PROXY_URL`.
+3. **(Optional) Proxy**: `cd src/network/cloudflare-proxy && npx wrangler deploy`, then set `VITE_PROXY_URL`.
 4. Set `VITE_ROOM_PASSWORD` to end-to-end encrypt the P2P channel.
 
 ## Known limitations / future directions
@@ -158,23 +160,29 @@ you only host a static frontend and a tiny signaling server.
 ```
 src/
   storage/
-    types.ts     # StorageAdapter interface
-    net.ts       # fetch with optional proxy
+    types.ts     # Storage interface (the port)
     oauth.ts     # PKCE helpers + OAuth popup
     pcloud.ts    # pCloud adapter
     dropbox.ts   # Dropbox adapter (PKCE)
     webdav.ts    # WebDAV / Nextcloud adapter
+    local.ts     # Local file adapter (File System Access API, Chrome/Edge)
     index.ts     # registry of configured backends
+  network/
+    types.ts                # Fetch type alias
+    direct.ts               # pass-through fetch
+    cloudflare-proxy/       # generic CORS proxy (optional, Cloudflare Worker)
+  collaboration/
+    types.ts     # Collab + CollabConnect interfaces (the ports)
+    webrtc.ts    # y-webrtc peer-to-peer adapter
   editor/
     schema.ts    # ProseMirror schema (basic + lists + strike mark)
     plugins.ts   # keymap + input rules
     commands.ts  # toolbar commands + isMarkActive / isNodeActive helpers
     schema.test.ts
-  Editor.svelte  # Yjs + y-webrtc + ProseMirror + autosave / leader election
+  Editor.svelte  # ProseMirror + Yjs binding + autosave / leader election
   Toolbar.svelte # rich-text toolbar (Svelte 5 $derived active states)
-  App.svelte     # backend picker + connect UI
+  App.svelte     # room management, storage picker, connect UI, webrtc wiring
   redirect.ts    # OAuth popup landing page (pCloud + Dropbox)
-cloudflare-worker/ # generic CORS proxy (optional, free)
 ```
 
 ## License
