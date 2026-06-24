@@ -1,22 +1,22 @@
-import { PCloudAdapter } from './pcloud.js';
-import { DropboxAdapter } from './dropbox.js';
-import { WebDavAdapter } from './webdav.js';
-import { LocalAdapter } from './local.js';
-import type { StorageAdapter } from './types.js';
+import { pcloudStorage } from './pcloud.js';
+import { dropboxStorage } from './dropbox.js';
+import { webdavStorage } from './webdav.js';
+import { localFsStorage } from './local.js';
+import type { Storage } from './types.js';
 
-export type { StorageAdapter };
+export type { Storage };
 
-/** Returns all adapters available in this environment. */
-export function availableAdapters(): StorageAdapter[] {
-  const adapters: StorageAdapter[] = [];
-  if (import.meta.env.VITE_PCLOUD_CLIENT_ID) adapters.push(new PCloudAdapter());
-  if (import.meta.env.VITE_DROPBOX_APP_KEY)  adapters.push(new DropboxAdapter());
+/** Returns all storage backends available in this environment. */
+export function backends(): Storage[] {
+  const result: Storage[] = [];
+  if (import.meta.env.VITE_PCLOUD_CLIENT_ID) result.push(pcloudStorage());
+  if (import.meta.env.VITE_DROPBOX_APP_KEY)  result.push(dropboxStorage());
   // WebDAV requires a CORS proxy — hide it when none is configured.
-  if (import.meta.env.VITE_PROXY_URL)         adapters.push(new WebDavAdapter());
+  if (import.meta.env.VITE_PROXY_URL)         result.push(webdavStorage());
   // File System Access API: Chrome/Edge only, no env var needed.
   if (typeof window !== 'undefined' && 'showSaveFilePicker' in window)
-    adapters.push(new LocalAdapter());
-  return adapters;
+    result.push(localFsStorage());
+  return result;
 }
 
 export const DEFAULT_BACKEND = import.meta.env.VITE_STORAGE_BACKEND ?? '';

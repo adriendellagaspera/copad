@@ -5,7 +5,7 @@ export interface CredentialField {
   placeholder?: string;
 }
 
-export interface StorageAdapter {
+export interface Storage {
   readonly id: string;
   readonly label: string;
   isAuthenticated(): boolean;

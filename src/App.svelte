@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { availableAdapters, DEFAULT_BACKEND } from './storage/index.js';
-  import type { StorageAdapter } from './storage/types.js';
+  import { backends, DEFAULT_BACKEND } from './storage/index.js';
+  import type { Storage } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
   import Editor from './Editor.svelte';
 
@@ -15,12 +15,12 @@
   const COLORS = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'];
   const color = COLORS[Math.floor((Date.now() / 1000) % COLORS.length)];
 
-  const adapters = availableAdapters();
-  let adapter = $state<StorageAdapter | null>(
-    adapters.find(a => a.id === DEFAULT_BACKEND) ?? adapters[0] ?? null
+  const storageBackends = backends();
+  let storage = $state<Storage | null>(
+    storageBackends.find(s => s.id === DEFAULT_BACKEND) ?? storageBackends[0] ?? null
   );
   let name = $state('Anonymous');
-  let connected = $state(untrack(() => adapter?.isAuthenticated() ?? false));
+  let connected = $state(untrack(() => storage?.isAuthenticated() ?? false));
   let creds = $state<Record<string, string>>({});
   let busy = $state(false);
   let error = $state('');
@@ -49,18 +49,18 @@
   // ── Storage ────────────────────────────────────────────────────────────────
 
   function pick(id: string) {
-    adapter = adapters.find(a => a.id === id) ?? null;
-    connected = adapter?.isAuthenticated() ?? false;
+    storage = storageBackends.find(s => s.id === id) ?? null;
+    connected = storage?.isAuthenticated() ?? false;
     creds = {};
     error = '';
   }
 
   async function authenticate() {
-    if (!adapter) return;
+    if (!storage) return;
     busy = true;
     error = '';
     try {
-      await adapter.connect(adapter.credentialFields ? creds : undefined);
+      await storage.connect(storage.credentialFields ? creds : undefined);
       connected = true;
     } catch (e) {
       error = (e as Error).message;
@@ -70,7 +70,7 @@
   }
 
   function deauthenticate() {
-    adapter?.disconnect();
+    storage?.disconnect();
     connected = false;
   }
 </script>
@@ -92,16 +92,16 @@
         />
       </label>
       <button class="btn-new" onclick={newRoom} title="New document">New</button>
-      {#if adapters.length > 0}
+      {#if storageBackends.length > 0}
         <label>
           Storage
           <select
-            value={adapter?.id ?? ''}
+            value={storage?.id ?? ''}
             onchange={e => pick(e.currentTarget.value)}
             disabled={connected}
           >
-            {#each adapters as a (a.id)}
-              <option value={a.id}>{a.label}</option>
+            {#each storageBackends as s (s.id)}
+              <option value={s.id}>{s.label}</option>
             {/each}
           </select>
         </label>
@@ -109,16 +109,16 @@
     </div>
   </header>
 
-  {#if adapter}
+  {#if storage}
     <section class="connect">
       {#if connected}
         <div class="connected">
-          <span>✓ Connected to {adapter.label}</span>
+          <span>✓ Connected to {storage.label}</span>
           <button onclick={deauthenticate}>Disconnect</button>
         </div>
-      {:else if adapter.credentialFields}
+      {:else if storage.credentialFields}
         <form class="creds" onsubmit={e => { e.preventDefault(); authenticate(); }}>
-          {#each adapter.credentialFields as f (f.name)}
+          {#each storage.credentialFields as f (f.name)}
             <input
               type={f.type ?? 'text'}
               placeholder={f.placeholder ?? f.label}
@@ -127,12 +127,12 @@
             />
           {/each}
           <button class="primary" type="submit" disabled={busy}>
-            {busy ? 'Connecting…' : `Connect ${adapter.label}`}
+            {busy ? 'Connecting…' : `Connect ${storage.label}`}
           </button>
         </form>
       {:else}
         <button class="primary" onclick={authenticate} disabled={busy}>
-          {busy ? 'Connecting…' : `Connect ${adapter.label}`}
+          {busy ? 'Connecting…' : `Connect ${storage.label}`}
         </button>
       {/if}
       {#if error}<p class="error">{error}</p>{/if}
@@ -147,6 +147,6 @@
   {/if}
 
   {#key room}
-    <Editor {name} {color} {room} {connect} adapter={connected ? adapter : null} />
+    <Editor {name} {color} {room} {connect} storage={connected ? storage : null} />
   {/key}
 </div>
