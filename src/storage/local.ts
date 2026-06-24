@@ -16,17 +16,23 @@ declare global {
 // can't be re-granted without a user gesture anyway).
 let handle: FileSystemFileHandle | null = null;
 
-const FS_ACCESS_UNAVAILABLE =
-  typeof window === 'undefined' || !('showSaveFilePicker' in window)
-    ? 'Requires a browser that supports the File System Access API (Chrome/Edge). ' +
-      'On Brave, try lowering Shields for this site.'
-    : undefined;
+function fsAccessUnavailableReason(): string | undefined {
+  if (typeof window === 'undefined' || !('showSaveFilePicker' in window)) {
+    const isBrave = (navigator as Navigator & { brave?: unknown }).brave != null;
+    return isBrave
+      ? 'Brave is blocking the File System Access API. ' +
+        'Lower Shields for this site and reload, or go to brave://settings/content/filesystem ' +
+        'and allow this origin.'
+      : 'Requires a browser that supports the File System Access API (Chrome/Edge).';
+  }
+  return undefined;
+}
 
 export function localFsStorage(): Storage {
   return {
     id: 'local',
     label: 'Local file',
-    unavailableReason: FS_ACCESS_UNAVAILABLE,
+    get unavailableReason() { return fsAccessUnavailableReason(); },
 
     isAuthenticated: () => handle !== null,
 
