@@ -19,21 +19,24 @@
   } = $props();
 
   const configurable = $derived(backends.filter(s => s.configFields && s.configFields.length > 0));
+  const connectable = $derived(backends.filter(s => !s.configFields || s.configFields.length === 0));
 
   // Per-backend busy/error state — keyed by backend id.
   let busy = $state<Record<string, boolean>>({});
   let errors = $state<Record<string, string>>({});
+  // Per-backend credential inputs — keyed by backend id then field name.
+  let creds = $state<Record<string, Record<string, string>>>({});
 
   function setConfig(s: Storage, name: string, value: string) {
     s.setConfig?.(name, value);
     onchange?.();
   }
 
-  async function connect(s: Storage) {
+  async function connect(s: Storage, c?: Record<string, string>) {
     busy = { ...busy, [s.id]: true };
     errors = { ...errors, [s.id]: '' };
     try {
-      await s.connect();
+      await s.connect(c);
       onconnect?.(s);
     } catch (e) {
       errors = { ...errors, [s.id]: (e as Error).message };
@@ -119,5 +122,58 @@
     {#if configurable.length === 0}
       <p class="settings-empty">No storage backends require configuration.</p>
     {/if}
+
+    {#each connectable as s (s.id)}
+      {@const authed = s.isAuthenticated()}
+      <section class="backend" class:focused={s.id === focusId}>
+        <div class="backend-head">
+          <span class="backend-name">{s.label}</span>
+          {#if authed}
+            <span class="badge ok">Connected</span>
+          {:else if s.unavailableReason}
+            <span class="badge unavailable">Unavailable</span>
+          {:else}
+            <span class="badge">Ready</span>
+          {/if}
+        </div>
+        {#if s.blurb}<p class="backend-blurb">{s.blurb}</p>{/if}
+
+        {#if s.unavailableReason}
+          <p class="unavailable-reason">{s.unavailableReason}</p>
+        {:else if authed}
+          <div class="backend-actions">
+            <button onclick={() => disconnect(s)}>Disconnect</button>
+          </div>
+        {:else}
+          {#if s.credentialFields}
+            <form class="creds" onsubmit={e => { e.preventDefault(); connect(s, creds[s.id] ?? {}); }}>
+              {#each s.credentialFields as f (f.name)}
+                <label class="field">
+                  <span class="field-label">{f.label}</span>
+                  <input
+                    type={f.type ?? 'text'}
+                    placeholder={f.placeholder ?? ''}
+                    value={creds[s.id]?.[f.name] ?? ''}
+                    oninput={e => { creds = { ...creds, [s.id]: { ...(creds[s.id] ?? {}), [f.name]: e.currentTarget.value } }; }}
+                  />
+                </label>
+              {/each}
+              <div class="backend-actions">
+                <button class="primary" type="submit" disabled={busy[s.id]}>
+                  {busy[s.id] ? 'Connecting…' : `Connect ${s.label}`}
+                </button>
+              </div>
+            </form>
+          {:else}
+            <div class="backend-actions">
+              <button class="primary" onclick={() => connect(s)} disabled={busy[s.id]}>
+                {busy[s.id] ? 'Connecting…' : `Connect ${s.label}`}
+              </button>
+            </div>
+          {/if}
+          {#if errors[s.id]}<p class="error">{errors[s.id]}</p>{/if}
+        {/if}
+      </section>
+    {/each}
   </div>
 {/if}
