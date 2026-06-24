@@ -51,7 +51,6 @@
 
   function pick(id: string) {
     const s = storageBackends.find(s => s.id === id);
-    if (s?.unavailableReason) return;
     storage = s ?? null;
     connected = storage?.isAuthenticated() ?? false;
     creds = {};
@@ -104,7 +103,7 @@
             disabled={connected}
           >
             {#each storageBackends as s (s.id)}
-              <option value={s.id} disabled={!!s.unavailableReason} title={s.unavailableReason}>
+              <option value={s.id}>
                 {s.label}{s.unavailableReason ? ' (unavailable)' : ''}
               </option>
             {/each}
@@ -121,6 +120,8 @@
           <span>✓ Connected to {storage.label}</span>
           <button onclick={deauthenticate}>Disconnect</button>
         </div>
+      {:else if storage.unavailableReason}
+        <p class="hint">{storage.unavailableReason}</p>
       {:else if storage.credentialFields}
         <form class="creds" onsubmit={e => { e.preventDefault(); authenticate(); }}>
           {#each storage.credentialFields as f (f.name)}
