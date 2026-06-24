@@ -65,78 +65,20 @@ input[type="text"], input:not([type]), input[type="password"], select {
   font-size: 1rem;
 }
 
-/* ── Storage pills ── */
+/* ── Inline link button (hint text, status bar) ── */
 
-.pills {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+button.link, button.status-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  color: inherit;
+  border-radius: 0;
 }
-
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.7rem;
-  border: 1px solid #d4d4d4;
-  border-radius: 999px;
-  background: #fff;
-  font-size: 0.875rem;
-  color: #333;
-}
-
-.pill .pill-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #c4c4c4;
-  flex-shrink: 0;
-}
-
-.pill.ready .pill-dot { background: #f59e0b; }
-.pill.connected .pill-dot { background: #16a34a; }
-.pill.setup .pill-dot { background: #c4c4c4; }
-
-.pill.selected {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 1px #2563eb;
-}
-
-.pill.unavailable {
-  opacity: 0.5;
-  text-decoration: line-through;
-}
-
-.pill-tag {
-  font-size: 0.7rem;
-  color: #888;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-.pill.connected .pill-tag { color: #16a34a; }
-
-/* ── Connect panel ── */
-
-.connect {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.needs-setup {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.875rem;
-  color: #555;
-}
-
-.muted {
-  margin: 0;
-  font-size: 0.875rem;
-  color: #888;
-}
+button.link { color: #2563eb; }
+button.status-link { color: #888; font-size: 0.75rem; }
 
 .connected {
   display: flex;
@@ -429,3 +371,11 @@ button.primary:hover:not(:disabled) { background: #1d4ed8; }
   font-weight: 400;
 }
 .field-help { color: #888; font-size: 0.75rem; line-height: 1.4; }
+
+.backend-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
