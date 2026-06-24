@@ -1,12 +1,11 @@
-import type { StorageAdapter } from "./types";
-import { PCloudAdapter } from "./pcloud";
-import { DropboxAdapter } from "./dropbox";
-import { WebDavAdapter } from "./webdav";
+import { PCloudAdapter } from './pcloud.js';
+import { DropboxAdapter } from './dropbox.js';
+import { WebDavAdapter } from './webdav.js';
+import type { StorageAdapter } from './types.js';
 
-export type { StorageAdapter, CredentialField } from "./types";
+export type { StorageAdapter };
 
-// Build the list of usable backends. OAuth adapters need their app id configured;
-// WebDAV is always offered because its credentials are entered at runtime.
+/** Returns all adapters that have been configured (env vars present). */
 export function availableAdapters(): StorageAdapter[] {
   const adapters: StorageAdapter[] = [];
   if (import.meta.env.VITE_PCLOUD_CLIENT_ID) adapters.push(new PCloudAdapter());
@@ -15,4 +14,4 @@ export function availableAdapters(): StorageAdapter[] {
   return adapters;
 }
 
-export const DEFAULT_BACKEND = import.meta.env.VITE_STORAGE_BACKEND || "";
+export const DEFAULT_BACKEND = import.meta.env.VITE_STORAGE_BACKEND ?? '';

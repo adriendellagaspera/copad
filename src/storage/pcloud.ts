@@ -1,101 +1,98 @@
-import * as pcloudSdk from "pcloud-sdk-js";
-import type { StorageAdapter } from "./types";
-import { netFetch } from "./net";
+import pcloudSdk from 'pcloud-sdk-js';
+import type { StorageAdapter } from './types.js';
+import { netFetch, hasProxy } from './net.js';
 
-const CLIENT_ID = import.meta.env.VITE_PCLOUD_CLIENT_ID;
-const REDIRECT_URI =
-  import.meta.env.VITE_REDIRECT_URI || `${location.origin}/redirect.html`;
-const FILE_NAME = import.meta.env.VITE_PCLOUD_FILE_NAME || "collab-doc.ydoc";
-const FOLDER_ID = import.meta.env.VITE_PCLOUD_FOLDER_ID || "0";
-const KEY = "storage.pcloud";
+const FILE_PATH = '/copad/document.yjs';
+const STORAGE_KEY = 'storage.pcloud';
 
-type Session = { token: string; host: string };
+interface PCloudSession {
+  token: string;
+  host: string;
+}
 
 export class PCloudAdapter implements StorageAdapter {
-  readonly id = "pcloud";
-  readonly label = "pCloud";
+  readonly id = 'pcloud';
+  readonly label = 'pCloud';
 
-  private session(): Session | null {
-    const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as Session) : null;
+  private session(): PCloudSession | null {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as PCloudSession) : null;
+    } catch {
+      return null;
+    }
   }
 
   isAuthenticated(): boolean {
     return !!this.session();
   }
 
-  connect(): Promise<void> {
-    if (!CLIENT_ID) {
-      return Promise.reject(new Error("VITE_PCLOUD_CLIENT_ID is not set"));
-    }
-    return new Promise((resolve, reject) => {
-      try {
-        pcloudSdk.oauth.initOauthToken({
-          client_id: CLIENT_ID,
-          redirect_uri: REDIRECT_URI,
-          response_type: "token",
-          // Called with (access_token, locationid) at runtime; locationid 2 == EU.
-          receiveToken: (token: string, locationid?: number) => {
-            const host =
-              (locationid ?? 1) === 2
-                ? "https://eapi.pcloud.com"
-                : "https://api.pcloud.com";
-            localStorage.setItem(KEY, JSON.stringify({ token, host }));
-            resolve();
-          },
-        });
-      } catch (err) {
-        reject(err);
-      }
+  async connect(): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      pcloudSdk.oauth.popup(
+        import.meta.env.VITE_PCLOUD_CLIENT_ID,
+        (token: string, locationid?: number) => {
+          const host =
+            (locationid ?? 1) === 2 ? 'eapi.pcloud.com' : 'api.pcloud.com';
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, host }));
+          resolve();
+        },
+        (err: unknown) => reject(new Error(`pCloud auth failed: ${String(err)}`))
+      );
     });
   }
 
   disconnect(): void {
-    localStorage.removeItem(KEY);
-  }
-
-  async save(bytes: Uint8Array): Promise<void> {
-    const s = this.session();
-    if (!s) throw new Error("pCloud: not connected");
-
-    const form = new FormData();
-    form.append("file", new Blob([bytes as BlobPart]), FILE_NAME);
-
-    const url =
-      `${s.host}/uploadfile?access_token=${encodeURIComponent(s.token)}` +
-      `&folderid=${encodeURIComponent(FOLDER_ID)}` +
-      `&filename=${encodeURIComponent(FILE_NAME)}&nopartial=1`;
-
-    const res = await fetch(url, { method: "POST", body: form });
-    const json = await res.json();
-    if (json.result !== 0) {
-      throw new Error(`pCloud uploadfile (${json.result}): ${json.error}`);
-    }
+    localStorage.removeItem(STORAGE_KEY);
   }
 
   async load(): Promise<Uint8Array | null> {
     const s = this.session();
-    if (!s) throw new Error("pCloud: not connected");
+    if (!s) throw new Error('pCloud: not connected');
 
     try {
-      const link =
-        `${s.host}/getfilelink?access_token=${encodeURIComponent(s.token)}` +
-        `&path=/${encodeURIComponent(FILE_NAME)}&forcedownload=1`;
-      const res = await fetch(link);
-      const json = await res.json();
+      const meta = await fetch(
+        `https://${s.host}/getfilelink?path=${encodeURIComponent(FILE_PATH)}&auth=${s.token}`
+      ).then(r => r.json() as Promise<Record<string, unknown>>);
 
-      if (json.result === 2009) return null; // file not found (normal first run)
-      if (json.result !== 0) {
-        console.warn(`pCloud getfilelink (${json.result}): ${json.error}`);
+      if (meta['result'] !== 0) return null;
+
+      const hosts = meta['hosts'] as string[];
+      const path = meta['path'] as string;
+      const contentUrl = `https://${hosts[0]}${path}`;
+
+      const res = await netFetch(contentUrl);
+      if (!res.ok) {
+        console.warn('pCloud load failed (starting with empty doc):', res.status);
         return null;
       }
-
-      // The content host may block CORS — route through the proxy if configured.
-      const bin = await netFetch(`https://${json.hosts[0]}${json.path}`);
-      return new Uint8Array(await bin.arrayBuffer());
-    } catch (err) {
-      console.warn("pCloud load failed (starting with empty doc):", err);
+      return new Uint8Array(await res.arrayBuffer());
+    } catch (e) {
+      console.warn('pCloud load failed (starting with empty doc):', e);
       return null;
     }
+  }
+
+  async save(bytes: Uint8Array): Promise<void> {
+    const s = this.session();
+    if (!s) throw new Error('pCloud: not connected');
+
+    if (!hasProxy) {
+      console.warn(
+        'pCloud save: no VITE_PROXY_URL set — request may fail due to CORS'
+      );
+    }
+
+    const form = new FormData();
+    form.append('filename', 'document.yjs');
+    form.append('path', '/copad');
+    form.append('nopartial', '1');
+    form.append('file', new Blob([bytes as BlobPart]));
+
+    const res = await netFetch(
+      `https://${s.host}/uploadfile?auth=${s.token}`,
+      { method: 'POST', body: form }
+    );
+    if (!res.ok) throw new Error(`pCloud save failed: ${res.status}`);
   }
 }

@@ -1,17 +1,18 @@
-// OAuth popup landing page. Handles both flows on the same redirect URL:
-//   - Authorization-code (Dropbox): ?code=... → post it back to the opener.
-//   - pCloud token flow: handled by the pCloud SDK.
-import * as pcloudSdk from "pcloud-sdk-js";
+import pcloudSdk from 'pcloud-sdk-js';
 
 const params = new URLSearchParams(location.search);
-const code = params.get("code");
+const code = params.get('code');
 
 if (code) {
+  // Dropbox PKCE — post the code back to the opener and close.
   window.opener?.postMessage(
-    { type: "oauth-code", code, state: params.get("state") },
-    location.origin,
+    { type: 'oauth-code', code, state: params.get('state') },
+    location.origin
   );
   window.close();
 } else {
+  // pCloud — let the SDK handle the token from the hash.
+  // popup() with no args is correct in the redirect-receiver context; types misdeclare its arity.
+  // @ts-expect-error
   pcloudSdk.oauth.popup();
 }

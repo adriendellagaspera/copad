@@ -32,10 +32,10 @@ no concept of real-time collaboration. Copad separates the two concerns:
 - **Real-time collaboration** → [Yjs](https://github.com/yjs/yjs) (CRDT) + [y-webrtc](https://github.com/yjs/y-webrtc): edits merge without conflicts and travel **peer-to-peer** — no server in the data path.
 - **Persistence** → a swappable `StorageAdapter`: loads the document on startup, autosaves on changes. The storage layer only ever sees an **opaque binary blob** (the Yjs snapshot) — it knows nothing about CRDTs.
 
-The editor is [TipTap v3](https://tiptap.dev) (bold, headings, lists, quotes, code…).
+The editor is built on [ProseMirror](https://prosemirror.net) (schema, keymap, input rules — bold, italic, strike, headings, lists, quotes, inline code) and wrapped in a [Svelte 5](https://svelte.dev) UI.
 
 ```
-TipTap editor
+ProseMirror editor (Svelte 5)
    │
    ▼
   Yjs  ──── y-webrtc (P2P) ────►  other browsers  (live merge + cursors)
@@ -165,9 +165,14 @@ src/
     dropbox.ts   # Dropbox adapter (PKCE)
     webdav.ts    # WebDAV / Nextcloud adapter
     index.ts     # registry of configured backends
-  Editor.tsx     # Yjs + y-webrtc + TipTap + autosave / leader election
-  Toolbar.tsx    # rich-text toolbar
-  App.tsx        # backend picker + connect UI
+  editor/
+    schema.ts    # ProseMirror schema (basic + lists + strike mark)
+    plugins.ts   # keymap + input rules
+    commands.ts  # toolbar commands + isMarkActive / isNodeActive helpers
+    schema.test.ts
+  Editor.svelte  # Yjs + y-webrtc + ProseMirror + autosave / leader election
+  Toolbar.svelte # rich-text toolbar (Svelte 5 $derived active states)
+  App.svelte     # backend picker + connect UI
   redirect.ts    # OAuth popup landing page (pCloud + Dropbox)
 cloudflare-worker/ # generic CORS proxy (optional, free)
 ```
