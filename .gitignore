@@ -7,4 +7,5 @@ dist
 *.tsbuildinfo
 .claude/
 /e2e/test-results/
+/test-results/
 /playwright-report/
