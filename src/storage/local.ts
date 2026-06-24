@@ -32,6 +32,7 @@ export function localFsStorage(): Storage {
   return {
     id: 'local',
     label: 'Local file',
+    blurb: 'Saves to a file on your device (Chrome/Edge).',
     get unavailableReason() { return fsAccessUnavailableReason(); },
 
     isAuthenticated: () => handle !== null,

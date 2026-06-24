@@ -1,10 +1,10 @@
 import pcloudSdk from 'pcloud-sdk-js';
 import type { Storage } from './types.js';
+import { configStore } from './config.js';
 import type { Fetch } from '../network/types.js';
 
 const FILE_PATH = '/copad/document.yjs';
 const STORAGE_KEY = 'storage.pcloud';
-const CLIENT_ID_KEY = 'storage.pcloud.clientId';
 
 interface PCloudSession {
   token: string;
@@ -20,31 +20,34 @@ function session(): PCloudSession | null {
   }
 }
 
-function resolveClientId(creds?: Record<string, string>): string {
-  return (
-    (import.meta.env.VITE_PCLOUD_CLIENT_ID as string | undefined) ||
-    creds?.clientId ||
-    localStorage.getItem(CLIENT_ID_KEY) ||
-    ''
-  );
-}
+// Persisted under `storage.pcloud.clientId` — same key the old connect form used.
+const cfg = configStore('pcloud', [
+  {
+    name: 'clientId',
+    label: 'Client ID',
+    placeholder: 'your-client-id',
+    help: 'Register an OAuth app at pcloud.com/oauth2-apps, then paste its Client ID here.',
+    env: import.meta.env.VITE_PCLOUD_CLIENT_ID as string | undefined,
+  },
+]);
 
 export function pcloudStorage(netFetch: Fetch): Storage {
   return {
     id: 'pcloud',
     label: 'pCloud',
+    blurb: 'Saves to a /copad folder in your pCloud via OAuth.',
+
+    configFields: cfg.fields,
+    config: cfg.config,
+    setConfig: cfg.setConfig,
+    configLocked: cfg.configLocked,
+    configured: cfg.configured,
 
     isAuthenticated: () => !!session(),
 
-    get credentialFields() {
-      if (resolveClientId()) return undefined;
-      return [{ name: 'clientId', label: 'pCloud Client ID', placeholder: 'your-client-id' }];
-    },
-
-    async connect(creds?) {
-      const clientId = resolveClientId(creds);
-      if (!clientId) throw new Error('A pCloud Client ID is required — create one at pcloud.com/oauth2-apps');
-      if (creds?.clientId) localStorage.setItem(CLIENT_ID_KEY, creds.clientId);
+    async connect() {
+      const clientId = cfg.config('clientId');
+      if (!clientId) throw new Error('Add a pCloud Client ID in Settings first.');
 
       await new Promise<void>((resolve, reject) => {
         pcloudSdk.oauth.popup(

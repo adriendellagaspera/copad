@@ -97,12 +97,15 @@ npm run dev                 # http://localhost:5173
 ```
 
 Open two tabs: type in one, it appears in the other with live cursors.
-Pick a **Storage** backend in the header and connect it to enable save/restore.
+Pick a **Storage** backend from the pills under the header and connect it to
+enable save/restore. App keys (Dropbox, pCloud) can be set either via `.env`
+(below) or at runtime in the in-app **Settings** (⚙) panel — runtime values are
+saved in the browser, and an `.env` value locks the field as deployment-managed.
 
 ### Set up Dropbox (recommended)
 
 1. Create an app at https://www.dropbox.com/developers/apps → Scoped access, permissions `files.content.read` + `files.content.write`.
-2. Under *Settings*, copy the **App key** into `.env` (`VITE_DROPBOX_APP_KEY`).
+2. Under *Settings*, copy the **App key** — either into `.env` (`VITE_DROPBOX_APP_KEY`) or into the app's Settings (⚙) panel.
 3. Under *OAuth 2 → Redirect URIs*, add your redirect URL(s) — see table below.
 
 ### Set up WebDAV / Nextcloud
@@ -112,7 +115,7 @@ Pick a **Storage** backend in the header and connect it to enable save/restore.
 
 ### Set up pCloud
 
-Create an app at https://docs.pcloud.com → *My applications*, copy the **Client ID** into `VITE_PCLOUD_CLIENT_ID`, and add your redirect URL. The US/EU region is detected automatically from the OAuth response.
+Create an app at https://docs.pcloud.com → *My applications*, copy the **Client ID** into `VITE_PCLOUD_CLIENT_ID` (or into the app's Settings ⚙ panel), and add your redirect URL. The US/EU region is detected automatically from the OAuth response.
 
 ### OAuth redirect URIs
 
