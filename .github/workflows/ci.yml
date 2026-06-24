@@ -2,16 +2,14 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -19,6 +17,14 @@ jobs:
 
       - run: npm ci
 
-      # Type-check + bundle. No secrets needed: OAuth backends are skipped when
-      # their env vars are absent; WebDAV is always included.
+      # Type-check .ts files
+      - run: npx tsc --noEmit
+
+      # Type-check .svelte files
+      - run: npm run check
+
+      # Unit tests (schema + storage adapters)
+      - run: npm test
+
+      # Build without secrets — WebDAV adapter is always available
       - run: npm run build
