@@ -28,3 +28,25 @@ jobs:
 
       # Build without secrets — WebDAV adapter is always available
       - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Install Playwright's Chromium browser and its system dependencies
+      - run: npx playwright install --with-deps chromium
+
+      # Build the app so `npm run preview` can serve it
+      - run: npm run build
+
+      # Run e2e tests (playwright.config.ts starts the preview + signaling servers)
+      - run: npx playwright test
+        env:
+          CI: true
