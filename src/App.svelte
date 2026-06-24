@@ -67,12 +67,29 @@
 
   // ── Storage ────────────────────────────────────────────────────────────────
 
+  type Status = 'unavailable' | 'setup' | 'ready' | 'connected';
+
+  function statusOf(s: Storage): Status {
+    void tick; // reactive dependency
+    if (s.unavailableReason) return 'unavailable';
+    if (!isConfigured(s)) return 'setup';
+    if (s.isAuthenticated()) return 'connected';
+    return 'ready';
+  }
+
   function pick(id: string) {
     const s = storageBackends.find(s => s.id === id);
-    storage = s ?? null;
-    connected = storage?.isAuthenticated() ?? false;
+    if (!s || s.unavailableReason) return;
+    storage = s;
+    connected = s.isAuthenticated();
     creds = {};
     error = '';
+  }
+
+  function onPill(s: Storage) {
+    if (s.unavailableReason) return;
+    pick(s.id);
+    if (statusOf(s) === 'setup') openSettings(s.id);
   }
 
   async function authenticate() {
@@ -114,25 +131,30 @@
         />
       </label>
       <button class="btn-new" onclick={newRoom} title="New document">New</button>
-      {#if storageBackends.length > 0}
-        <label>
-          Storage
-          <select
-            value={storage?.id ?? ''}
-            onchange={e => pick(e.currentTarget.value)}
-            disabled={connected}
-          >
-            {#each storageBackends as s (s.id)}
-              <option value={s.id}>
-                {s.label}{s.unavailableReason ? ' (unavailable)' : ''}
-              </option>
-            {/each}
-          </select>
-        </label>
-      {/if}
       <button class="icon-btn" onclick={() => openSettings()} title="Settings" aria-label="Settings">⚙</button>
     </div>
   </header>
+
+  {#if storageBackends.length > 0}
+    <div class="pills" role="group" aria-label="Storage backend">
+      {#each storageBackends as s (s.id)}
+        {@const st = statusOf(s)}
+        <button
+          class="pill {st}"
+          class:selected={storage?.id === s.id}
+          disabled={st === 'unavailable'}
+          title={s.unavailableReason ?? s.blurb ?? s.label}
+          onclick={() => onPill(s)}
+        >
+          <span class="pill-dot" aria-hidden="true"></span>
+          {s.label}
+          {#if st === 'connected'}<span class="pill-tag">✓</span>
+          {:else if st === 'setup'}<span class="pill-tag">setup</span>
+          {:else if st === 'unavailable'}<span class="pill-tag">n/a</span>{/if}
+        </button>
+      {/each}
+    </div>
+  {/if}
 
   {#if storage}
     <section class="connect">
