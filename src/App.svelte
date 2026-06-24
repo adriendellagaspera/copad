@@ -12,11 +12,33 @@
     adapters.find(a => a.id === DEFAULT_BACKEND) ?? adapters[0] ?? null
   );
   let name = $state('Anonymous');
-  // untrack: read initial auth state without making Svelte track adapter as a dependency here.
   let connected = $state(untrack(() => adapter?.isAuthenticated() ?? false));
   let creds = $state<Record<string, string>>({});
   let busy = $state(false);
   let error = $state('');
+
+  // ── Document / room ────────────────────────────────────────────────────────
+
+  const DEFAULT_ROOM = import.meta.env.VITE_ROOM ?? 'copad-demo';
+
+  function roomFromUrl(): string {
+    return new URLSearchParams(location.search).get('room') || DEFAULT_ROOM;
+  }
+
+  let room = $state(roomFromUrl());
+
+  function goToRoom(id: string) {
+    const r = id.trim() || DEFAULT_ROOM;
+    const qs = r === DEFAULT_ROOM ? '' : `?room=${encodeURIComponent(r)}`;
+    history.pushState({}, '', location.pathname + qs);
+    room = r;
+  }
+
+  function newRoom() {
+    goToRoom(Math.random().toString(36).slice(2, 10));
+  }
+
+  // ── Storage ────────────────────────────────────────────────────────────────
 
   function pick(id: string) {
     adapter = adapters.find(a => a.id === id) ?? null;
@@ -53,6 +75,15 @@
         Name
         <input bind:value={name} />
       </label>
+      <label class="room-label">
+        Doc
+        <input
+          value={room}
+          onchange={e => goToRoom(e.currentTarget.value)}
+          onkeydown={e => e.key === 'Enter' && e.currentTarget.blur()}
+        />
+      </label>
+      <button class="btn-new" onclick={newRoom} title="New document">New</button>
       {#if adapters.length > 0}
         <label>
           Storage
@@ -107,5 +138,7 @@
     </p>
   {/if}
 
-  <Editor {name} {color} adapter={connected ? adapter : null} />
+  {#key room}
+    <Editor {name} {color} {room} adapter={connected ? adapter : null} />
+  {/key}
 </div>

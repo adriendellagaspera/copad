@@ -102,6 +102,9 @@ button.primary {
 }
 button.primary:hover:not(:disabled) { background: #1d4ed8; }
 
+.room-label input { font-family: monospace; width: 9rem; }
+.btn-new { font-size: 0.8rem; padding: 0.25rem 0.6rem; }
+
 .error {
   color: #dc2626;
   font-size: 0.875rem;
