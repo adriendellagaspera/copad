@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
-  import { isConfigured } from './storage/types.js';
   import type { Storage } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
   import Editor from './Editor.svelte';
@@ -18,21 +16,25 @@
   const color = COLORS[Math.floor((Date.now() / 1000) % COLORS.length)];
 
   const storageBackends = backends();
-  const availableBackends = storageBackends.filter(s => !s.unavailableReason);
-  let storage = $state<Storage | null>(
-    availableBackends.find(s => s.id === DEFAULT_BACKEND) ?? availableBackends[0] ?? null
-  );
-  let name = $state('Anonymous');
-  let connected = $state(untrack(() => storage?.isAuthenticated() ?? false));
-  let creds = $state<Record<string, string>>({});
-  let busy = $state(false);
-  let error = $state('');
 
-  // Bumped when config/auth state changes outside Svelte's reactivity (localStorage).
+  // Start with whichever backend is already authenticated (returning user),
+  // falling back to the env-var default or the first available.
+  function initialStorage(): Storage | null {
+    const authed = storageBackends.find(s => s.isAuthenticated());
+    if (authed) return authed;
+    const byDefault = storageBackends.find(s => !s.unavailableReason && s.id === DEFAULT_BACKEND);
+    return byDefault ?? storageBackends.find(s => !s.unavailableReason) ?? null;
+  }
+
+  let storage = $state<Storage | null>(initialStorage());
+  let name = $state('Anonymous');
+
+  // Bumped when localStorage state changes (config saved, auth token stored).
   let tick = $state(0);
   const bump = () => { tick += 1; };
 
-  let backendConfigured = $derived(tick >= 0 && !!storage && isConfigured(storage));
+  // Derived so bump() after connect/disconnect recomputes automatically.
+  let connected = $derived(tick >= 0 && !!storage && storage.isAuthenticated());
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
@@ -42,6 +44,15 @@
   function openSettings(id = '') {
     settingsFocus = id;
     settingsOpen = true;
+  }
+
+  function afterConnect(s: Storage) {
+    storage = s;
+    bump();
+  }
+
+  function afterDisconnect(_s: Storage) {
+    bump();
   }
 
   // ── Document / room ────────────────────────────────────────────────────────
@@ -63,54 +74,6 @@
 
   function newRoom() {
     goToRoom(Math.random().toString(36).slice(2, 10));
-  }
-
-  // ── Storage ────────────────────────────────────────────────────────────────
-
-  type Status = 'unavailable' | 'setup' | 'ready' | 'connected';
-
-  function statusOf(s: Storage): Status {
-    void tick; // reactive dependency
-    if (s.unavailableReason) return 'unavailable';
-    if (!isConfigured(s)) return 'setup';
-    if (s.isAuthenticated()) return 'connected';
-    return 'ready';
-  }
-
-  function pick(id: string) {
-    const s = storageBackends.find(s => s.id === id);
-    if (!s || s.unavailableReason) return;
-    storage = s;
-    connected = s.isAuthenticated();
-    creds = {};
-    error = '';
-  }
-
-  function onPill(s: Storage) {
-    if (s.unavailableReason) return;
-    pick(s.id);
-    if (statusOf(s) === 'setup') openSettings(s.id);
-  }
-
-  async function authenticate() {
-    if (!storage) return;
-    busy = true;
-    error = '';
-    try {
-      await storage.connect(storage.credentialFields ? creds : undefined);
-      connected = true;
-      bump();
-    } catch (e) {
-      error = (e as Error).message;
-    } finally {
-      busy = false;
-    }
-  }
-
-  function deauthenticate() {
-    storage?.disconnect();
-    connected = false;
-    bump();
   }
 </script>
 
@@ -135,73 +98,25 @@
     </div>
   </header>
 
-  {#if storageBackends.length > 0}
-    <div class="pills" role="group" aria-label="Storage backend">
-      {#each storageBackends as s (s.id)}
-        {@const st = statusOf(s)}
-        <button
-          class="pill {st}"
-          class:selected={storage?.id === s.id}
-          disabled={st === 'unavailable'}
-          title={s.unavailableReason ?? s.blurb ?? s.label}
-          onclick={() => onPill(s)}
-        >
-          <span class="pill-dot" aria-hidden="true"></span>
-          {s.label}
-          {#if st === 'connected'}<span class="pill-tag">✓</span>
-          {:else if st === 'setup'}<span class="pill-tag">setup</span>
-          {:else if st === 'unavailable'}<span class="pill-tag">n/a</span>{/if}
-        </button>
-      {/each}
-    </div>
-  {/if}
 
-  {#if storage}
-    <section class="connect">
-      {#if connected}
-        <div class="connected">
-          <span>✓ Connected to {storage.label}</span>
-          <button onclick={deauthenticate}>Disconnect</button>
-        </div>
-      {:else if storage.unavailableReason}
-        <p class="hint">{storage.unavailableReason}</p>
-      {:else if !backendConfigured}
-        <div class="needs-setup">
-          <span>{storage.label} needs an app key.</span>
-          <button class="primary" onclick={() => openSettings(storage!.id)}>Open Settings</button>
-        </div>
-      {:else if storage.credentialFields}
-        <form class="creds" onsubmit={e => { e.preventDefault(); authenticate(); }}>
-          {#each storage.credentialFields as f (f.name)}
-            <input
-              type={f.type ?? 'text'}
-              placeholder={f.placeholder ?? f.label}
-              value={creds[f.name] ?? ''}
-              oninput={e => { creds = { ...creds, [f.name]: e.currentTarget.value }; }}
-            />
-          {/each}
-          <button class="primary" type="submit" disabled={busy}>
-            {busy ? 'Connecting…' : `Connect ${storage.label}`}
-          </button>
-        </form>
-      {:else}
-        <button class="primary" onclick={authenticate} disabled={busy}>
-          {busy ? 'Connecting…' : `Connect ${storage.label}`}
-        </button>
-      {/if}
-      {#if error}<p class="error">{error}</p>{/if}
-    </section>
-  {/if}
 
   {#if !connected}
     <p class="hint">
       You can collaborate <strong>right now</strong> — P2P, no server.
-      Connect a storage backend to <strong>save &amp; restore</strong> the document across sessions.
+      Set up a storage backend in <button class="link" onclick={() => openSettings()}>Settings ⚙</button>
+      to <strong>save &amp; restore</strong> the document across sessions.
     </p>
   {/if}
 
   {#key room}
-    <Editor {name} {color} {room} {connect} storage={connected ? storage : null} />
+    <Editor
+      {name}
+      {color}
+      {room}
+      {connect}
+      storage={connected ? storage : null}
+      onstoragestatus={() => openSettings()}
+    />
   {/key}
 </div>
 
@@ -210,4 +125,6 @@
   bind:open={settingsOpen}
   focusId={settingsFocus}
   onchange={bump}
+  onconnect={afterConnect}
+  ondisconnect={afterDisconnect}
 />

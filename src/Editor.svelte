@@ -17,9 +17,10 @@
     color: string;
     room: string;
     connect: CollabConnect;
+    onstoragestatus?: () => void;
   };
 
-  let { storage, name, color, room, connect }: Props = $props();
+  let { storage, name, color, room, connect, onstoragestatus }: Props = $props();
 
   const SAVE_DEBOUNCE = 3_000;
 
@@ -126,7 +127,7 @@
     {#if storage?.isAuthenticated()}
       · {storage.label} ✓
     {:else}
-      · storage not connected
+      · <button class="status-link" onclick={onstoragestatus}>storage not connected</button>
     {/if}
   </div>
   <div class="content" bind:this={editorEl}></div>
