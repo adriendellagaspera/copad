@@ -8,18 +8,18 @@
   import { schema } from './editor/schema.js';
   import { buildPlugins } from './editor/plugins.js';
   import Toolbar from './Toolbar.svelte';
-  import type { StorageAdapter } from './storage/types.js';
+  import type { Storage } from './storage/types.js';
   import type { CollabConnect } from './collaboration/types.js';
 
   type Props = {
-    adapter: StorageAdapter | null;
+    storage: Storage | null;
     name: string;
     color: string;
     room: string;
     connect: CollabConnect;
   };
 
-  let { adapter, name, color, room, connect }: Props = $props();
+  let { storage, name, color, room, connect }: Props = $props();
 
   const SAVE_DEBOUNCE = 3_000;
 
@@ -51,14 +51,14 @@
 
   // Load from storage when adapter becomes available (or changes to a different backend).
   $effect(() => {
-    if (!adapter?.isAuthenticated() || !view || loadedFrom === adapter.id) return;
-    const id = adapter.id;
-    adapter.load()
-      .then(bytes => {
+    if (!storage?.isAuthenticated() || !view || loadedFrom === storage.id) return;
+    const id = storage.id;
+    storage.load()
+      .then((bytes: Uint8Array | null) => {
         if (bytes) Y.applyUpdate(collab.doc, bytes);
         loadedFrom = id;
       })
-      .catch(e => console.warn('Copad: load failed, starting with current state', e));
+      .catch((e: unknown) => console.warn('Copad: load failed, starting with current state', e));
   });
 
   // Only the peer with the lowest clientID persists to storage (prevents write races).
@@ -68,14 +68,14 @@
   };
 
   const flush = (): void => {
-    if (!adapter?.isAuthenticated() || !isLeader()) return;
-    adapter.save(Y.encodeStateAsUpdate(collab.doc)).catch((e: Error) =>
+    if (!storage?.isAuthenticated() || !isLeader()) return;
+    storage.save(Y.encodeStateAsUpdate(collab.doc)).catch((e: Error) =>
       console.warn('Copad: autosave failed', e)
     );
   };
 
   collab.doc.on('update', () => {
-    if (!adapter?.isAuthenticated()) return;
+    if (!storage?.isAuthenticated()) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flush, SAVE_DEBOUNCE);
   });
@@ -123,8 +123,8 @@
   <div class="status">
     <span class="dot"></span>
     {peers} peer(s) connected · room "{room}"
-    {#if adapter?.isAuthenticated()}
-      · {adapter.label} ✓
+    {#if storage?.isAuthenticated()}
+      · {storage.label} ✓
     {:else}
       · storage not connected
     {/if}
