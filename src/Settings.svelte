@@ -164,6 +164,15 @@
                 </button>
               </div>
             </form>
+          {:else if s.id === 'local'}
+            <div class="backend-actions">
+              <button class="primary" onclick={() => connect(s)} disabled={busy[s.id]}>
+                {busy[s.id] ? 'Opening…' : 'Open file'}
+              </button>
+              <button onclick={() => connect(s, { mode: 'new' })} disabled={busy[s.id]}>
+                New file
+              </button>
+            </div>
           {:else}
             <div class="backend-actions">
               <button class="primary" onclick={() => connect(s)} disabled={busy[s.id]}>
