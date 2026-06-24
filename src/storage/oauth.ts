@@ -43,7 +43,7 @@ export function openOAuthPopup(authUrl: string, expectedState: string): Promise<
     function cleanup() {
       clearTimeout(timeout);
       window.removeEventListener('message', onMessage);
-      popup.close();
+      popup!.close();
     }
 
     window.addEventListener('message', onMessage);

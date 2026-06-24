@@ -90,7 +90,7 @@ export class WebDavAdapter implements StorageAdapter {
         Authorization: `Basic ${c.auth}`,
         'Content-Type': 'application/octet-stream',
       },
-      body: bytes,
+      body: bytes as unknown as BodyInit,
     });
 
     if (![200, 201, 204].includes(res.status))

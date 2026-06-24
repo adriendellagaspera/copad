@@ -35,8 +35,11 @@
   const yFragment = ydoc.getXmlFragment('prosemirror');
 
   let editorEl = $state<HTMLDivElement | undefined>();
-  let view = $state<EditorView | null>(null);
-  let editorState = $state<EditorState | null>(null);
+  // $state.raw: track reference changes for reactivity but don't proxy the
+  // EditorView/EditorState objects themselves — ProseMirror objects are not
+  // designed to be deeply proxied.
+  let view = $state.raw<EditorView | null>(null);
+  let editorState = $state.raw<EditorState | null>(null);
   let peers = $state(1);
   let loadedFrom = $state<string | null>(null);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -97,9 +100,14 @@
 
     view = new EditorView(editorEl!, {
       state,
+      // ProseMirror calls dispatchTransaction with the EditorView as `this`,
+      // so we use `this` here instead of closing over the outer `view` variable.
+      // Closing over `view` would fail on the first call because ProseMirror
+      // invokes dispatchTransaction during construction before `view` is assigned.
       dispatchTransaction(tr: Transaction) {
-        const next = view!.state.apply(tr);
-        view!.updateState(next);
+        const self = this as unknown as EditorView;
+        const next = self.state.apply(tr);
+        self.updateState(next);
         editorState = next;
       },
     });

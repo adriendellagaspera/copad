@@ -12,5 +12,7 @@ if (code) {
   window.close();
 } else {
   // pCloud — let the SDK handle the token from the hash.
+  // popup() with no args is correct in the redirect-receiver context; types misdeclare its arity.
+  // @ts-expect-error
   pcloudSdk.oauth.popup();
 }

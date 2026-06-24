@@ -95,7 +95,7 @@ export class DropboxAdapter implements StorageAdapter {
           mute: true,
         }),
       },
-      body: bytes,
+      body: bytes as unknown as BodyInit,
     });
 
     if (!res.ok) throw new Error(`Dropbox save failed: ${res.status}`);
