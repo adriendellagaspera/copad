@@ -16,8 +16,7 @@ export function backends(): Storage[] {
   const result: Storage[] = [];
   result.push(pcloudStorage(netFetch));
   result.push(dropboxStorage());
-  // WebDAV requires a CORS proxy — hide it when none is configured.
-  if (proxyUrl) result.push(webdavStorage(netFetch));
+  result.push(webdavStorage(netFetch));
   // Always offer local-file storage; it self-reports unavailableReason when
   // the File System Access API is absent (e.g. Firefox, Safari, Brave Shields).
   result.push(localFsStorage());

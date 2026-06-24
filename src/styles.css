@@ -349,6 +349,16 @@ button.primary:hover:not(:disabled) { background: #1d4ed8; }
   background: #f0fdf4;
   border-color: #bbf7d0;
 }
+.badge.unavailable {
+  color: #6b7280;
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+.unavailable-reason {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
 
 .settings .field {
   display: flex;
