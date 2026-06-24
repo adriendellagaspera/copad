@@ -1,6 +1,6 @@
 # Copad
 
-> **⚠️ Work in progress.** The architecture is solid but the stack is being reconsidered (see [issues](https://github.com/adriendellagaspera/copad/issues)). Not ready for production use.
+> **⚠️ Work in progress.** Not ready for production use.
 
 I wanted to collaborate on a file in my pCloud. Nothing let me. So I built this.
 
