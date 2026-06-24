@@ -1,9 +1,11 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
+  import { isConfigured } from './storage/types.js';
   import type { Storage } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
   import Editor from './Editor.svelte';
+  import Settings from './Settings.svelte';
 
   const connect = webrtcCollab({
     signaling: (import.meta.env.VITE_SIGNALING_URL ?? 'ws://localhost:4444')
@@ -25,6 +27,22 @@
   let creds = $state<Record<string, string>>({});
   let busy = $state(false);
   let error = $state('');
+
+  // Bumped when config/auth state changes outside Svelte's reactivity (localStorage).
+  let tick = $state(0);
+  const bump = () => { tick += 1; };
+
+  let backendConfigured = $derived(tick >= 0 && !!storage && isConfigured(storage));
+
+  // ── Settings ───────────────────────────────────────────────────────────────
+
+  let settingsOpen = $state(false);
+  let settingsFocus = $state('');
+
+  function openSettings(id = '') {
+    settingsFocus = id;
+    settingsOpen = true;
+  }
 
   // ── Document / room ────────────────────────────────────────────────────────
 
@@ -64,6 +82,7 @@
     try {
       await storage.connect(storage.credentialFields ? creds : undefined);
       connected = true;
+      bump();
     } catch (e) {
       error = (e as Error).message;
     } finally {
@@ -74,6 +93,7 @@
   function deauthenticate() {
     storage?.disconnect();
     connected = false;
+    bump();
   }
 </script>
 
@@ -110,6 +130,7 @@
           </select>
         </label>
       {/if}
+      <button class="icon-btn" onclick={() => openSettings()} title="Settings" aria-label="Settings">⚙</button>
     </div>
   </header>
 
@@ -122,6 +143,11 @@
         </div>
       {:else if storage.unavailableReason}
         <p class="hint">{storage.unavailableReason}</p>
+      {:else if !backendConfigured}
+        <div class="needs-setup">
+          <span>{storage.label} needs an app key.</span>
+          <button class="primary" onclick={() => openSettings(storage!.id)}>Open Settings</button>
+        </div>
       {:else if storage.credentialFields}
         <form class="creds" onsubmit={e => { e.preventDefault(); authenticate(); }}>
           {#each storage.credentialFields as f (f.name)}
@@ -156,3 +182,10 @@
     <Editor {name} {color} {room} {connect} storage={connected ? storage : null} />
   {/key}
 </div>
+
+<Settings
+  backends={storageBackends}
+  bind:open={settingsOpen}
+  focusId={settingsFocus}
+  onchange={bump}
+/>

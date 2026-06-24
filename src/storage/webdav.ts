@@ -34,6 +34,7 @@ export function webdavStorage(netFetch: Fetch): Storage {
   return {
     id: 'webdav',
     label: 'WebDAV / Nextcloud',
+    blurb: 'Saves to any WebDAV server (Nextcloud, ownCloud…) using a login.',
     credentialFields,
 
     isAuthenticated: () => !!conf(),
