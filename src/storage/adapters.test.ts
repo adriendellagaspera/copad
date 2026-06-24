@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { dropboxStorage } from './dropbox.js';
 import { webdavStorage } from './webdav.js';
 import type { Storage } from './types.js';
+import type { Fetch } from '../network/types.js';
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -78,7 +79,7 @@ describe('dropboxStorage', () => {
 
 describe('webdavStorage', () => {
   let storage: Storage;
-  beforeEach(() => { storage = webdavStorage(); });
+  beforeEach(() => { storage = webdavStorage(mockFetch as unknown as Fetch); });
 
   it('is not authenticated before connect', () => {
     expect(storage.isAuthenticated()).toBe(false);

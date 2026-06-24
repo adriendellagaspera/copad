@@ -1,6 +1,6 @@
 import pcloudSdk from 'pcloud-sdk-js';
 import type { Storage } from './types.js';
-import { netFetch, hasProxy } from './net.js';
+import type { Fetch } from '../network/types.js';
 
 const FILE_PATH = '/copad/document.yjs';
 const STORAGE_KEY = 'storage.pcloud';
@@ -19,7 +19,7 @@ function session(): PCloudSession | null {
   }
 }
 
-export function pcloudStorage(): Storage {
+export function pcloudStorage(netFetch: Fetch): Storage {
   return {
     id: 'pcloud',
     label: 'pCloud',
@@ -75,12 +75,6 @@ export function pcloudStorage(): Storage {
     async save(bytes) {
       const s = session();
       if (!s) throw new Error('pCloud: not connected');
-
-      if (!hasProxy) {
-        console.warn(
-          'pCloud save: no VITE_PROXY_URL set — request may fail due to CORS'
-        );
-      }
 
       const form = new FormData();
       form.append('filename', 'document.yjs');

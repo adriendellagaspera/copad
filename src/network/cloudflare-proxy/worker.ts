@@ -7,8 +7,13 @@
  *
  * Route: /__proxy  (GET, POST, PUT, DELETE, HEAD, PROPFIND)
  */
+
+interface Env {
+  ALLOWED_HOSTS?: string;
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname !== '/__proxy') {
       return new Response('Not found', { status: 404 });
@@ -46,4 +51,4 @@ export default {
       headers: responseHeaders,
     });
   },
-};
+} satisfies ExportedHandler<Env>;
