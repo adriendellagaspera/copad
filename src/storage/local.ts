@@ -4,8 +4,14 @@ import type { Storage } from './types.js';
 // and not yet in TypeScript's lib.dom.d.ts at this version.
 declare global {
   interface Window {
-    showOpenFilePicker(opts?: { multiple?: boolean }): Promise<FileSystemFileHandle[]>;
-    showSaveFilePicker(opts?: { suggestedName?: string }): Promise<FileSystemFileHandle>;
+    showOpenFilePicker(opts?: {
+      multiple?: boolean;
+      types?: Array<{ description: string; accept: Record<string, string[]> }>;
+    }): Promise<FileSystemFileHandle[]>;
+    showSaveFilePicker(opts?: {
+      suggestedName?: string;
+      types?: Array<{ description: string; accept: Record<string, string[]> }>;
+    }): Promise<FileSystemFileHandle>;
   }
 }
 
@@ -36,10 +42,11 @@ export function localFsStorage(): Storage {
     isAuthenticated: () => handle !== null,
 
     async connect(creds?: Record<string, string>) {
+      const types = [{ description: 'Copad document', accept: { 'application/octet-stream': ['.yjs'] } }];
       if (creds?.mode === 'new') {
-        handle = await window.showSaveFilePicker({ suggestedName: 'document.yjs' });
+        handle = await window.showSaveFilePicker({ suggestedName: 'document.yjs', types });
       } else {
-        [handle] = await window.showOpenFilePicker();
+        [handle] = await window.showOpenFilePicker({ types });
       }
     },
 
