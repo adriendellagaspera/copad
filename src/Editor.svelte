@@ -5,36 +5,29 @@
   import { EditorView } from 'prosemirror-view';
   import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from 'y-prosemirror';
   import * as Y from 'yjs';
-  import { WebrtcProvider } from 'y-webrtc';
   import { schema } from './editor/schema.js';
   import { buildPlugins } from './editor/plugins.js';
   import Toolbar from './Toolbar.svelte';
   import type { StorageAdapter } from './storage/types.js';
+  import type { CollabConnect } from './collaboration/types.js';
 
   type Props = {
     adapter: StorageAdapter | null;
     name: string;
     color: string;
     room: string;
+    connect: CollabConnect;
   };
 
-  let { adapter, name, color, room }: Props = $props();
+  let { adapter, name, color, room, connect }: Props = $props();
 
-  const ROOM_PASSWORD: string | undefined = import.meta.env.VITE_ROOM_PASSWORD;
-  const SIGNALING: string[] = (import.meta.env.VITE_SIGNALING_URL ?? 'ws://localhost:4444')
-    .split(',')
-    .map((s: string) => s.trim());
   const SAVE_DEBOUNCE = 3_000;
 
-  // Yjs + WebRTC — created once for the lifetime of this component.
-  const ydoc = new Y.Doc();
-  // untrack: room is intentionally read once — {#key room} in the parent
+  // Collab session — created once for the lifetime of this component.
+  // untrack: both props are intentionally read once — {#key room} in the parent
   // remounts this component whenever room changes.
-  const provider = new WebrtcProvider(untrack(() => room), ydoc, {
-    signaling: SIGNALING,
-    password: ROOM_PASSWORD,
-  });
-  const yFragment = ydoc.getXmlFragment('prosemirror');
+  const collab = untrack(() => connect)(untrack(() => room));
+  const yFragment = collab.doc.getXmlFragment('prosemirror');
 
   let editorEl = $state<HTMLDivElement | undefined>();
   // $state.raw: track reference changes for reactivity but don't proxy the
@@ -47,13 +40,13 @@
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Track peer count via awareness.
-  provider.awareness.on('change', () => {
-    peers = provider.awareness.getStates().size || 1;
+  collab.awareness.on('change', () => {
+    peers = collab.awareness.getStates().size || 1;
   });
 
   // Sync display name + cursor color with other peers.
   $effect(() => {
-    provider.awareness.setLocalStateField('user', { name, color });
+    collab.awareness.setLocalStateField('user', { name, color });
   });
 
   // Load from storage when adapter becomes available (or changes to a different backend).
@@ -62,7 +55,7 @@
     const id = adapter.id;
     adapter.load()
       .then(bytes => {
-        if (bytes) Y.applyUpdate(ydoc, bytes);
+        if (bytes) Y.applyUpdate(collab.doc, bytes);
         loadedFrom = id;
       })
       .catch(e => console.warn('Copad: load failed, starting with current state', e));
@@ -70,18 +63,18 @@
 
   // Only the peer with the lowest clientID persists to storage (prevents write races).
   const isLeader = (): boolean => {
-    const ids = [...provider.awareness.getStates().keys()];
-    return ids.length === 0 || ydoc.clientID === Math.min(...ids);
+    const ids = [...collab.awareness.getStates().keys()];
+    return ids.length === 0 || collab.doc.clientID === Math.min(...ids);
   };
 
   const flush = (): void => {
     if (!adapter?.isAuthenticated() || !isLeader()) return;
-    adapter.save(Y.encodeStateAsUpdate(ydoc)).catch((e: Error) =>
+    adapter.save(Y.encodeStateAsUpdate(collab.doc)).catch((e: Error) =>
       console.warn('Copad: autosave failed', e)
     );
   };
 
-  ydoc.on('update', () => {
+  collab.doc.on('update', () => {
     if (!adapter?.isAuthenticated()) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flush, SAVE_DEBOUNCE);
@@ -94,7 +87,7 @@
       schema,
       plugins: [
         ySyncPlugin(yFragment),
-        yCursorPlugin(provider.awareness),
+        yCursorPlugin(collab.awareness),
         yUndoPlugin(),
         ...buildPlugins(schema),
       ],
@@ -121,8 +114,7 @@
     clearTimeout(saveTimer);
     window.removeEventListener('beforeunload', flush);
     view?.destroy();
-    provider.destroy();
-    ydoc.destroy();
+    collab.destroy();
   });
 </script>
 

@@ -2,7 +2,15 @@
   import { untrack } from 'svelte';
   import { availableAdapters, DEFAULT_BACKEND } from './storage/index.js';
   import type { StorageAdapter } from './storage/types.js';
+  import { webrtcCollab } from './collaboration/webrtc.js';
   import Editor from './Editor.svelte';
+
+  const connect = webrtcCollab({
+    signaling: (import.meta.env.VITE_SIGNALING_URL ?? 'ws://localhost:4444')
+      .split(',')
+      .map((s: string) => s.trim()),
+    password: import.meta.env.VITE_ROOM_PASSWORD,
+  });
 
   const COLORS = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'];
   const color = COLORS[Math.floor((Date.now() / 1000) % COLORS.length)];
@@ -47,7 +55,7 @@
     error = '';
   }
 
-  async function connect() {
+  async function authenticate() {
     if (!adapter) return;
     busy = true;
     error = '';
@@ -61,7 +69,7 @@
     }
   }
 
-  function disconnect() {
+  function deauthenticate() {
     adapter?.disconnect();
     connected = false;
   }
@@ -106,10 +114,10 @@
       {#if connected}
         <div class="connected">
           <span>✓ Connected to {adapter.label}</span>
-          <button onclick={disconnect}>Disconnect</button>
+          <button onclick={deauthenticate}>Disconnect</button>
         </div>
       {:else if adapter.credentialFields}
-        <form class="creds" onsubmit={e => { e.preventDefault(); connect(); }}>
+        <form class="creds" onsubmit={e => { e.preventDefault(); authenticate(); }}>
           {#each adapter.credentialFields as f (f.name)}
             <input
               type={f.type ?? 'text'}
@@ -123,7 +131,7 @@
           </button>
         </form>
       {:else}
-        <button class="primary" onclick={connect} disabled={busy}>
+        <button class="primary" onclick={authenticate} disabled={busy}>
           {busy ? 'Connecting…' : `Connect ${adapter.label}`}
         </button>
       {/if}
@@ -139,6 +147,6 @@
   {/if}
 
   {#key room}
-    <Editor {name} {color} {room} adapter={connected ? adapter : null} />
+    <Editor {name} {color} {room} {connect} adapter={connected ? adapter : null} />
   {/key}
 </div>
