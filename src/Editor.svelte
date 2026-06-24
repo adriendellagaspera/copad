@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { EditorState } from 'prosemirror-state';
   import type { Transaction } from 'prosemirror-state';
   import { EditorView } from 'prosemirror-view';
@@ -15,11 +15,11 @@
     adapter: StorageAdapter | null;
     name: string;
     color: string;
+    room: string;
   };
 
-  let { adapter, name, color }: Props = $props();
+  let { adapter, name, color, room }: Props = $props();
 
-  const ROOM = import.meta.env.VITE_ROOM ?? 'copad-demo';
   const ROOM_PASSWORD: string | undefined = import.meta.env.VITE_ROOM_PASSWORD;
   const SIGNALING: string[] = (import.meta.env.VITE_SIGNALING_URL ?? 'ws://localhost:4444')
     .split(',')
@@ -28,7 +28,9 @@
 
   // Yjs + WebRTC — created once for the lifetime of this component.
   const ydoc = new Y.Doc();
-  const provider = new WebrtcProvider(ROOM, ydoc, {
+  // untrack: room is intentionally read once — {#key room} in the parent
+  // remounts this component whenever room changes.
+  const provider = new WebrtcProvider(untrack(() => room), ydoc, {
     signaling: SIGNALING,
     password: ROOM_PASSWORD,
   });
@@ -128,7 +130,7 @@
   <Toolbar {view} {editorState} />
   <div class="status">
     <span class="dot"></span>
-    {peers} peer(s) connected · room "{ROOM}"
+    {peers} peer(s) connected · room "{room}"
     {#if adapter?.isAuthenticated()}
       · {adapter.label} ✓
     {:else}
