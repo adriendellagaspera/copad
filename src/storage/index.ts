@@ -18,9 +18,9 @@ export function backends(): Storage[] {
   if (import.meta.env.VITE_DROPBOX_APP_KEY)  result.push(dropboxStorage());
   // WebDAV requires a CORS proxy — hide it when none is configured.
   if (proxyUrl) result.push(webdavStorage(netFetch));
-  // File System Access API: Chrome/Edge only, no env var needed.
-  if (typeof window !== 'undefined' && 'showSaveFilePicker' in window)
-    result.push(localFsStorage());
+  // Always offer local-file storage; it self-reports unavailableReason when
+  // the File System Access API is absent (e.g. Firefox, Safari, Brave Shields).
+  result.push(localFsStorage());
   return result;
 }
 
