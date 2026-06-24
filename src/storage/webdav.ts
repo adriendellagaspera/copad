@@ -1,5 +1,5 @@
 import type { Storage, CredentialField } from './types.js';
-import { netFetch, hasProxy } from './net.js';
+import type { Fetch } from '../network/types.js';
 
 const FILE_NAME = 'document.yjs';
 const STORAGE_KEY = 'storage.webdav';
@@ -30,7 +30,7 @@ const credentialFields: CredentialField[] = [
   { name: 'password', label: 'App password', type: 'password' },
 ];
 
-export function webdavStorage(): Storage {
+export function webdavStorage(netFetch: Fetch): Storage {
   return {
     id: 'webdav',
     label: 'WebDAV / Nextcloud',
@@ -44,12 +44,6 @@ export function webdavStorage(): Storage {
         throw new Error('URL and username are required');
 
       const auth = btoa(`${username}:${password}`);
-
-      if (!hasProxy) {
-        console.warn(
-          'WebDAV connect: no VITE_PROXY_URL set — cross-origin requests will likely fail'
-        );
-      }
 
       const res = await netFetch(baseUrl.replace(/\/$/, ''), {
         method: 'HEAD',
