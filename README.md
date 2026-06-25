@@ -29,7 +29,9 @@ Copad won't match Paper or Notion on polish (no comments, version history, or te
 File storage services (Dropbox, Nextcloud, pCloud…) are great at durability but have
 no concept of real-time collaboration. Copad separates the two concerns:
 
-- **Real-time collaboration** → [Yjs](https://github.com/yjs/yjs) (CRDT) + [y-webrtc](https://github.com/yjs/y-webrtc): edits merge without conflicts and travel **peer-to-peer** — no server in the data path.
+- **Real-time collaboration** → [Yjs](https://github.com/yjs/yjs) (CRDT) over a swappable transport: edits merge without conflicts. Two transports ship behind the same `Collab` port:
+  - **[y-webrtc](https://github.com/yjs/y-webrtc) (default)** — **peer-to-peer**, no server in the data path. Needs STUN, and a TURN relay on mobile/symmetric NAT.
+  - **[y-websocket](https://github.com/yjs/y-websocket) hub (opt-in)** — every client connects to one central relay. No WebRTC, so **no STUN/TURN and no NAT traversal** — the reliable choice for mobile / restrictive networks. Set `VITE_COLLAB_TRANSPORT=websocket` (+ a hub URL) to switch (the server is then in the data path, so end-to-end encryption no longer applies).
 - **Persistence** → a swappable `StorageAdapter`: loads the document on startup, autosaves on changes. The storage layer only ever sees an **opaque binary blob** (the Yjs snapshot) — it knows nothing about CRDTs.
 
 The editor is built on [ProseMirror](https://prosemirror.net) (schema, keymap, input rules — bold, italic, strike, headings, lists, quotes, inline code) and wrapped in a [Svelte 5](https://svelte.dev) UI.
@@ -148,44 +150,46 @@ you only host a static frontend and a tiny signaling server.
 ## Deployment (production, free)
 
 1. **Frontend**: `npm run build` → deploy `dist/`. GitHub Actions workflow included — see [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
-2. **Signaling** (required for real-time collab): deploy the `signaling/` subfolder (standalone Node.js app — only depends on `ws`). See [Deploying the signaling server](#deploying-the-signaling-server) below. Once deployed, set the GitHub secret `VITE_SIGNALING_URL` to its `wss://` URL. It **must** be `wss://` — browsers block insecure `ws://` from an `https://` page (mixed content). If left unset, the app shows a warning banner and real-time collaboration stays disabled.
+2. **A collaboration server** (required for real-time collab) — none ships in this repo; deploy the upstream server for your transport (see [Deploying a collaboration server](#deploying-a-collaboration-server)):
+   - **WebRTC** (`VITE_COLLAB_TRANSPORT=webrtc`, the default): a y-webrtc signaling server; set `VITE_SIGNALING_URL` to its `wss://` URL. Peers connect P2P; on mobile/restrictive networks you'll also want a TURN relay (`VITE_TURN_URL`…).
+   - **WebSocket hub** (`VITE_COLLAB_TRANSPORT=websocket`): a y-websocket hub; set `VITE_WEBSOCKET_URL` to its `wss://` URL. No WebRTC, so **no STUN/TURN** — works on any network.
+
+   The URL **must** be `wss://` — browsers block insecure `ws://` from an `https://` page (mixed content). If the selected transport's server is unset, the app shows a warning banner and real-time collaboration stays disabled.
 3. **(Optional) Proxy**: `cd src/network/cloudflare-proxy && npx wrangler deploy`, then set `VITE_PROXY_URL`.
-4. Set `VITE_ROOM_PASSWORD` to end-to-end encrypt the P2P channel.
+4. Set `VITE_ROOM_PASSWORD` to end-to-end encrypt the P2P channel (WebRTC transport only — the WebSocket hub sees plaintext updates).
 
-### Deploying the signaling server
+### Deploying a collaboration server
 
-The `signaling/` directory is a self-contained Node.js app (only depends on `ws`) that can be deployed independently — no link to the frontend project's `node_modules`.
+No server code lives in this repo — both transports run an **upstream package's bundled
+server**, so deploying is just `npm install` + run its bin on any Node host (Render, Fly.io,
+a VPS):
 
-**Option A — Render (free tier, simplest)**
+| Transport | Package | Bin | Reads |
+|---|---|---|---|
+| WebRTC (signaling) | [`y-webrtc`](https://github.com/yjs/y-webrtc) | `y-webrtc-signaling` | `PORT` |
+| WebSocket (hub) | [`@y/websocket-server`](https://github.com/yjs/y-websocket-server) | `y-websocket-server` | `HOST`, `PORT` |
 
-1. Go to [render.com](https://render.com) → New → Web Service → connect your repo.
-2. Set **Root Directory** to `signaling`.
-3. Build command: `npm install` — Start command: `npm start`.
-4. Copy the generated URL → set it as `VITE_SIGNALING_URL=wss://your-app.onrender.com` in GitHub Secrets.
+Create a folder with a 3-line `package.json` and deploy it (Render → New Web Service;
+Fly.io → `fly launch`; or any VPS):
 
-Or use the included `signaling/render.yaml` for the Render Blueprint flow.
-
-**Option B — Fly.io (always-on)**
-
-```bash
-cd signaling
-fly launch          # first time: creates the app, edit fly.toml app name
-fly deploy          # subsequent deploys
+```json
+{
+  "dependencies": { "@y/websocket-server": "^0.1.5" },
+  "scripts": { "start": "y-websocket-server" }
+}
 ```
 
-Then set `VITE_SIGNALING_URL=wss://your-app-name.fly.dev` in GitHub Secrets.
+Swap in `"y-webrtc": "^10"` / `"start": "y-webrtc-signaling"` for the signaling server. The
+host runs `npm install` (so `node_modules` lives there, not in this repo) then `npm start`;
+set `HOST=0.0.0.0` if the platform needs it. The hub answers `okay` to an HTTP healthcheck.
+Copy the resulting `wss://` URL into `VITE_WEBSOCKET_URL` (or `VITE_SIGNALING_URL`).
 
-**Verify**
-
-```bash
-curl https://your-signaling-server.example   # should print "okay"
-```
-
-Once the secret is set and the frontend redeployed, the app's status pill changes from "Connecting…" to "No peers yet" when the signaling server is reachable.
+**Locally**, no setup needed — `npm run signaling` and `npm run collab` run the same bins
+(`ws://localhost:4444` and `ws://localhost:1234`).
 
 ## Known limitations / future directions
 
-- **WebRTC behind strict NAT**: public STUN is enough for most home/office networks. Mobile carriers use CGNAT / symmetric NAT, where STUN fails — configure a TURN relay via `VITE_TURN_URL` / `VITE_TURN_USERNAME` / `VITE_TURN_CREDENTIAL` (see `.env.example`). Run e.g. [coturn](https://github.com/coturn/coturn) or use a hosted provider.
+- **WebRTC behind strict NAT**: public STUN is enough for most home/office networks. Mobile carriers use CGNAT / symmetric NAT, where STUN fails — either configure a TURN relay via `VITE_TURN_URL` / `VITE_TURN_USERNAME` / `VITE_TURN_CREDENTIAL` (run e.g. [coturn](https://github.com/coturn/coturn) or a hosted provider), **or** sidestep WebRTC entirely by switching to the WebSocket hub (`VITE_COLLAB_TRANSPORT=websocket`, see above) — no STUN/TURN required.
 - **OAuth token in the browser**: acceptable for a small app; the proxy can keep secrets server-side for a harder security posture.
 - **Single authority**: if you want zero CORS/leader issues, replace y-webrtc with a small Yjs server ([Hocuspocus](https://tiptap.dev/docs/hocuspocus/introduction) / Cloudflare Durable Object) that persists via the same `StorageAdapter`.
 
@@ -207,7 +211,9 @@ src/
     cloudflare-proxy/       # generic CORS proxy (optional, Cloudflare Worker)
   collaboration/
     types.ts     # Collab + CollabConnect interfaces (the ports)
-    webrtc.ts    # y-webrtc peer-to-peer adapter
+    webrtc.ts    # y-webrtc peer-to-peer adapter (default transport)
+    websocket.ts # y-websocket hub adapter (opt-in via VITE_COLLAB_TRANSPORT=websocket)
+    config.ts    # transport / signaling / ICE resolution from env
   editor/
     schema.ts    # ProseMirror schema (basic + lists + strike mark)
     plugins.ts   # keymap + input rules
@@ -215,9 +221,12 @@ src/
     schema.test.ts
   Editor.svelte  # ProseMirror + Yjs binding + autosave / leader election
   Toolbar.svelte # rich-text toolbar (Svelte 5 $derived active states)
-  App.svelte     # room management, storage picker, connect UI, webrtc wiring
+  App.svelte     # room management, storage picker, connect UI, collab transport wiring
   redirect.ts    # OAuth popup landing page (pCloud + Dropbox)
 ```
+
+The collaboration servers are not vendored here — they're upstream packages run via their
+bins (`y-webrtc-signaling`, `y-websocket-server`). See "Deploying a collaboration server".
 
 ## License
 
