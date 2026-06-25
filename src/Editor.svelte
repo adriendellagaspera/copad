@@ -9,12 +9,12 @@
   import { buildPlugins } from './editor/plugins.js';
   import Toolbar from './Toolbar.svelte';
   import type { Storage, StorageAccess } from './storage/types.js';
-  import type { CollabConnect, SessionRole, PeerUser, PeerAwarenessState } from './collaboration/types.js';
+  import type { CollabConnect, SessionRole, DisplayName, CursorColor, PeerUser, PeerAwarenessState } from './collaboration/types.js';
 
   type Props = {
     storage: Storage | null;
-    name: string;
-    color: string;
+    name: DisplayName;
+    color: CursorColor;
     room: string;
     role?: SessionRole;
     connect: CollabConnect;

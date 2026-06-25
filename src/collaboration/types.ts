@@ -4,10 +4,16 @@ import type { Awareness } from 'y-protocols/awareness';
 /** Whether a peer may edit the document in this session. */
 export type SessionRole = 'writer' | 'reader';
 
+/** The name a peer chose to display next to their cursor. */
+export type DisplayName = string & { readonly _brand: 'DisplayName' };
+
+/** A CSS colour string (e.g. `#e11d48`) used to render peer cursors. */
+export type CursorColor = string & { readonly _brand: 'CursorColor' };
+
 /** Display identity of a peer, consumed by yCursorPlugin. */
 export interface PeerUser {
-  readonly name: string;
-  readonly color: string;
+  readonly name: DisplayName;
+  readonly color: CursorColor;
 }
 
 /**

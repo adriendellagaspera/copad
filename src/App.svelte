@@ -2,7 +2,7 @@
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { Storage } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
-  import type { SessionRole } from './collaboration/types.js';
+  import type { SessionRole, DisplayName, CursorColor } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
 
@@ -13,8 +13,8 @@
     password: import.meta.env.VITE_ROOM_PASSWORD,
   });
 
-  const COLORS = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'];
-  const color = COLORS[Math.floor((Date.now() / 1000) % COLORS.length)];
+  const COLORS: CursorColor[] = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'] as CursorColor[];
+  const color: CursorColor = COLORS[Math.floor((Date.now() / 1000) % COLORS.length)];
 
   const storageBackends = backends();
 
@@ -28,7 +28,8 @@
   }
 
   let storage = $state<Storage | null>(initialStorage());
-  let name = $state('Anonymous');
+  // Cast at the IO boundary: user-typed strings enter the domain as DisplayName here.
+  let name = $state<DisplayName>('Anonymous' as DisplayName);
 
   // Bumped when localStorage state changes (config saved, auth token stored).
   let tick = $state(0);
@@ -92,7 +93,7 @@
     <div class="controls">
       <label>
         Name
-        <input bind:value={name} />
+        <input value={name} oninput={e => { name = e.currentTarget.value as DisplayName; }} />
       </label>
       <label class="room-label">
         Doc
