@@ -1,4 +1,4 @@
-import type { Storage, CredentialField, SessionCredentials } from './types.js';
+import type { Storage, CredentialField, SessionCredentials, DocContent } from './types.js';
 import type { Fetch } from '../network/types.js';
 
 const FILE_NAME = 'document.yjs';
@@ -39,6 +39,8 @@ export function webdavStorage(netFetch: Fetch): Storage {
 
     isAuthenticated: () => !!conf(),
 
+    contentFormat: 'binary',
+
     async connect(creds: SessionCredentials = {}) {
       const { baseUrl = '', username = '', password = '' } = creds;
       if (!baseUrl.trim() || !username.trim())
@@ -62,7 +64,7 @@ export function webdavStorage(netFetch: Fetch): Storage {
       localStorage.removeItem(STORAGE_KEY);
     },
 
-    async load() {
+    async load(): Promise<DocContent | null> {
       const c = conf();
       if (!c) throw new Error('WebDAV: not connected');
 
@@ -72,10 +74,11 @@ export function webdavStorage(netFetch: Fetch): Storage {
 
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`WebDAV load failed: ${res.status}`);
-      return new Uint8Array(await res.arrayBuffer());
+      return { format: 'binary', bytes: new Uint8Array(await res.arrayBuffer()) };
     },
 
-    async save(bytes) {
+    async save(content: DocContent): Promise<void> {
+      if (content.format !== 'binary') throw new Error('WebDAV storage expects binary content');
       const c = conf();
       if (!c) throw new Error('WebDAV: not connected');
 
@@ -85,7 +88,7 @@ export function webdavStorage(netFetch: Fetch): Storage {
           Authorization: `Basic ${c.auth}`,
           'Content-Type': 'application/octet-stream',
         },
-        body: bytes as unknown as BodyInit,
+        body: content.bytes as unknown as BodyInit,
       });
 
       if (![200, 201, 204].includes(res.status))

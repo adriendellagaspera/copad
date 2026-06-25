@@ -1,4 +1,4 @@
-import type { Storage, SessionCredentials } from './types.js';
+import type { Storage, SessionCredentials, DocContent } from './types.js';
 
 // showOpenFilePicker is part of the File System Access API Living Standard
 // and not yet in TypeScript's lib.dom.d.ts at this version.
@@ -41,6 +41,8 @@ export function localFsStorage(): Storage {
 
     isAuthenticated: () => handle !== null,
 
+    contentFormat: 'binary',
+
     async connect(creds?: SessionCredentials) {
       const types = [{ description: 'Copad document', accept: { 'application/octet-stream': ['.yjs'] } }];
       if (creds?.mode === 'new') {
@@ -54,17 +56,18 @@ export function localFsStorage(): Storage {
       handle = null;
     },
 
-    async load() {
+    async load(): Promise<DocContent | null> {
       if (!handle) throw new Error('Local: not connected');
       const file = await handle.getFile();
       if (file.size === 0) return null;
-      return new Uint8Array(await file.arrayBuffer());
+      return { format: 'binary', bytes: new Uint8Array(await file.arrayBuffer()) };
     },
 
-    async save(bytes) {
+    async save(content: DocContent): Promise<void> {
+      if (content.format !== 'binary') throw new Error('Local storage expects binary content');
       if (!handle) throw new Error('Local: not connected');
       const writable = await handle.createWritable();
-      await writable.write(bytes as unknown as FileSystemWriteChunkType);
+      await writable.write(content.bytes as unknown as FileSystemWriteChunkType);
       await writable.close();
     },
   };

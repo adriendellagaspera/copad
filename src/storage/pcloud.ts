@@ -1,5 +1,5 @@
 import pcloudSdk from 'pcloud-sdk-js';
-import type { Storage } from './types.js';
+import type { Storage, DocContent } from './types.js';
 import { configStore } from './config.js';
 import type { Fetch } from '../network/types.js';
 
@@ -45,6 +45,8 @@ export function pcloudStorage(netFetch: Fetch): Storage {
 
     isAuthenticated: () => !!session(),
 
+    contentFormat: 'binary',
+
     async connect() {
       const clientId = cfg.config('clientId');
       if (!clientId) throw new Error('Add a pCloud Client ID in Settings first.');
@@ -67,7 +69,7 @@ export function pcloudStorage(netFetch: Fetch): Storage {
       localStorage.removeItem(STORAGE_KEY);
     },
 
-    async load() {
+    async load(): Promise<DocContent | null> {
       const s = session();
       if (!s) throw new Error('pCloud: not connected');
 
@@ -87,14 +89,15 @@ export function pcloudStorage(netFetch: Fetch): Storage {
           console.warn('pCloud load failed (starting with empty doc):', res.status);
           return null;
         }
-        return new Uint8Array(await res.arrayBuffer());
+        return { format: 'binary', bytes: new Uint8Array(await res.arrayBuffer()) };
       } catch (e) {
         console.warn('pCloud load failed (starting with empty doc):', e);
         return null;
       }
     },
 
-    async save(bytes) {
+    async save(content: DocContent): Promise<void> {
+      if (content.format !== 'binary') throw new Error('pCloud storage expects binary content');
       const s = session();
       if (!s) throw new Error('pCloud: not connected');
 
@@ -102,7 +105,7 @@ export function pcloudStorage(netFetch: Fetch): Storage {
       form.append('filename', 'document.yjs');
       form.append('path', '/copad');
       form.append('nopartial', '1');
-      form.append('file', new Blob([bytes as BlobPart]));
+      form.append('file', new Blob([content.bytes as BlobPart]));
 
       const res = await netFetch(
         `https://${s.host}/uploadfile?auth=${s.token}`,
