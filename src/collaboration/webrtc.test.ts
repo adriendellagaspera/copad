@@ -7,6 +7,8 @@ vi.mock('y-webrtc', () => {
     handlers: Record<string, ((...a: unknown[]) => void)[]> = {};
     connected = true;
     synced = false;
+    // Mirror the real provider's room: peer presence is read from these.
+    room = { webrtcConns: new Map<string, unknown>(), bcConns: new Set<string>() };
     constructor() {
       (globalThis as Record<string, unknown>).__wp = this;
     }
@@ -30,18 +32,36 @@ const provider = (): any => (globalThis as Record<string, unknown>).__wp;
 const ROOM = 'room' as RoomId;
 
 describe('webrtcCollab status mapping', () => {
-  it('emits the current status immediately and on change', () => {
+  it('maps connecting → waiting → connected as signaling and peers change', () => {
     const collab = webrtcCollab({ signaling: ['ws://x'] })(ROOM);
     const seen: string[] = [];
     collab.onStatus((s) => seen.push(s));
 
-    // connected getter is true initially → 'connected'
-    expect(seen[0]).toBe('connected');
+    // Attached to signaling (connected=true) but no peers → 'waiting', not 'connected'.
+    expect(seen[0]).toBe('waiting');
 
-    // provider reports it stopped looking for peers → 'connecting'
+    // A peer joins → 'connected'.
+    provider().room.webrtcConns.set('peer-1', {});
+    provider().emit('peers', {});
+    expect(seen.at(-1)).toBe('connected');
+
+    // Signaling drops → 'connecting'.
     provider().connected = false;
     provider().emit('status', { connected: false });
     expect(seen.at(-1)).toBe('connecting');
+
+    collab.destroy();
+  });
+
+  it('counts same-browser (BroadcastChannel) peers as connected', () => {
+    const collab = webrtcCollab({ signaling: ['ws://x'] })(ROOM);
+    let status = '';
+    collab.onStatus((s) => (status = s));
+
+    expect(status).toBe('waiting');
+    provider().room.bcConns.add('tab-2');
+    provider().emit('peers', {});
+    expect(status).toBe('connected');
 
     collab.destroy();
   });
