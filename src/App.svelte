@@ -11,9 +11,10 @@
   const theme = createTheme();
 
   const connect = webrtcCollab({
-    signaling: (import.meta.env.VITE_SIGNALING_URL ?? 'ws://localhost:4444')
+    signaling: (import.meta.env.VITE_SIGNALING_URL || 'ws://localhost:4444')
       .split(',')
-      .map((s: string) => s.trim()),
+      .map((s: string) => s.trim())
+      .filter(Boolean),
     password: import.meta.env.VITE_ROOM_PASSWORD,
   });
 
