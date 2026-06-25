@@ -2,6 +2,7 @@ import { pcloudStorage } from './pcloud.js';
 import { dropboxStorage } from './dropbox.js';
 import { webdavStorage } from './webdav.js';
 import { localFsStorage } from './local.js';
+import { githubStorage } from './github.js';
 import type { Storage } from './types.js';
 import { directFetch } from '../network/direct.js';
 import { proxiedFetch } from '../network/cloudflare-proxy/index.js';
@@ -20,6 +21,7 @@ export function backends(): Storage[] {
   // Always offer local-file storage; it self-reports unavailableReason when
   // the File System Access API is absent (e.g. Firefox, Safari, Brave Shields).
   result.push(localFsStorage());
+  result.push(githubStorage());
   return result;
 }
 
