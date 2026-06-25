@@ -34,8 +34,16 @@ export interface PeerAwarenessState {
   readonly canPersist: boolean;
 }
 
-/** Transport-level connection status, surfaced to the UI status pill. */
-export type ConnStatus = 'connecting' | 'connected' | 'offline';
+/**
+ * Transport-level connection status, surfaced to the UI status pill.
+ *
+ * - `connecting` — not yet attached to a signaling server.
+ * - `waiting`    — attached to signaling but no peer is present yet (you're
+ *                  alone in the room; share the link to collaborate).
+ * - `connected`  — at least one peer is present, so edits flow in real time.
+ * - `offline`    — the browser reports no network connection.
+ */
+export type ConnStatus = 'connecting' | 'waiting' | 'connected' | 'offline';
 
 export interface Collab {
   readonly doc: Y.Doc;

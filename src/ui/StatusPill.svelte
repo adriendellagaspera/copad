@@ -23,8 +23,13 @@
     if (conn === 'offline')
       return { label: 'Offline', tone: 'warn', icon: 'offline', title: 'No network connection' };
     if (conn === 'connecting')
-      return { label: 'Connecting…', tone: 'muted', icon: 'spinner', title: 'Connecting to peers' };
-    // connected
+      return {
+        label: 'Connecting…',
+        tone: 'muted',
+        icon: 'spinner',
+        title: 'Connecting to the signaling server',
+      };
+    // connected or waiting — save status is orthogonal and takes precedence while active.
     if (hasStorage) {
       const where = storageLabel ?? 'storage';
       if (saveStatus === 'error')
@@ -33,8 +38,22 @@
         return { label: 'Saving…', tone: 'muted', icon: 'spinner', title: `Saving to ${where}` };
       if (saveStatus === 'saved')
         return { label: 'Saved', tone: 'ok', icon: 'check', title: `Saved to ${where}` };
+      if (conn === 'waiting')
+        return {
+          label: 'No peers yet',
+          tone: 'muted',
+          icon: 'cloud',
+          title: `Connected — share the link to collaborate. Autosaving to ${where}`,
+        };
       return { label: 'Synced', tone: 'ok', icon: 'cloud', title: `Synced — saving to ${where}` };
     }
+    if (conn === 'waiting')
+      return {
+        label: 'No peers yet',
+        tone: 'muted',
+        icon: 'live',
+        title: 'Connected to signaling — share the link to invite collaborators',
+      };
     return {
       label: 'Live',
       tone: 'accent',

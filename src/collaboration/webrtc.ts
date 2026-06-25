@@ -18,12 +18,21 @@ export function webrtcCollab(opts: {
     const syncedFns = new Set<(b: boolean) => void>();
     let synced = false;
 
-    // `webrtc.connected` means "the room is open and looking for peers" (it does
-    // not imply a physical peer). That, plus the browser's online state, is the
-    // honest signal we can offer a P2P client.
+    // `webrtc.connected` means "attached to a signaling server" — it does NOT
+    // imply a physical peer. So we report `connecting` until signaling attaches,
+    // then `waiting` while alone in the room, and only `connected` once a peer
+    // is actually present. That distinction tells a user whether signaling is
+    // broken (stuck on `connecting`) or simply nobody else has joined yet.
+    const hasPeers = (): boolean => {
+      const room = webrtc.room;
+      if (!room) return false;
+      return (room.webrtcConns?.size ?? 0) + (room.bcConns?.size ?? 0) > 0;
+    };
+
     const computeStatus = (): ConnStatus => {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
-      return webrtc.connected ? 'connected' : 'connecting';
+      if (!webrtc.connected) return 'connecting';
+      return hasPeers() ? 'connected' : 'waiting';
     };
 
     const emitStatus = (): void => {
