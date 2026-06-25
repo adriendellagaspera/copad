@@ -45,9 +45,19 @@ export interface PeerAwarenessState {
  */
 export type ConnStatus = 'connecting' | 'waiting' | 'connected' | 'offline';
 
+/**
+ * Which kind of transport backs a `Collab` session:
+ * - `p2p` — WebRTC, edits travel peer-to-peer (no server in the data path).
+ * - `hub` — y-websocket, edits are relayed through a central server.
+ * Surfaced in the UI so a user knows whether the server sees their content.
+ */
+export type Transport = 'p2p' | 'hub';
+
 export interface Collab {
   readonly doc: Y.Doc;
   readonly awareness: Awareness;
+  /** The transport kind backing this session (for UI display). */
+  readonly transport: Transport;
   /** Subscribe to transport connection status. Fires immediately with the
    *  current value, then on every change. Returns an unsubscribe function. */
   onStatus(fn: (status: ConnStatus) => void): () => void;

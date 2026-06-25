@@ -65,6 +65,7 @@ export function webrtcCollab(opts: {
     return {
       doc,
       awareness: webrtc.awareness,
+      transport: 'p2p',
       onStatus(fn) {
         statusFns.add(fn);
         fn(computeStatus());

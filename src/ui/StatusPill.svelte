@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ConnStatus } from '../collaboration/types.js';
+  import type { ConnStatus, Transport } from '../collaboration/types.js';
   import type { SaveStatus } from './types.js';
 
   let {
@@ -7,60 +7,79 @@
     saveStatus,
     hasStorage,
     storageLabel,
+    transport,
     onclick,
   }: {
     conn: ConnStatus;
     saveStatus: SaveStatus;
     hasStorage: boolean;
     storageLabel?: string;
+    transport: Transport;
     onclick?: () => void;
   } = $props();
 
   type Tone = 'muted' | 'ok' | 'warn' | 'danger' | 'accent';
   type Icon = 'offline' | 'spinner' | 'check' | 'cloud' | 'live';
 
-  const state = $derived.by((): { label: string; tone: Tone; icon: Icon; title: string } => {
-    if (conn === 'offline')
-      return { label: 'Offline', tone: 'warn', icon: 'offline', title: 'No network connection' };
-    if (conn === 'connecting')
-      return {
-        label: 'Connecting…',
-        tone: 'muted',
-        icon: 'spinner',
-        title: 'Connecting to the signaling server',
-      };
-    // connected or waiting — save status is orthogonal and takes precedence while active.
-    if (hasStorage) {
-      const where = storageLabel ?? 'storage';
-      if (saveStatus === 'error')
-        return { label: 'Save failed', tone: 'danger', icon: 'cloud', title: `Could not save to ${where}` };
-      if (saveStatus === 'saving')
-        return { label: 'Saving…', tone: 'muted', icon: 'spinner', title: `Saving to ${where}` };
-      if (saveStatus === 'saved')
-        return { label: 'Saved', tone: 'ok', icon: 'check', title: `Saved to ${where}` };
+  // A short badge + sentence describing the transport, woven into the live states
+  // so a user can tell at a glance whether the server sees their content.
+  const isP2P = $derived(transport === 'p2p');
+  const tag = $derived(isP2P ? 'P2P' : 'Relay');
+  const transportTitle = $derived(
+    isP2P
+      ? 'Peer-to-peer — edits travel directly between browsers, no server in the data path'
+      : 'Relayed — edits travel through the collaboration server',
+  );
+
+  const state = $derived.by(
+    (): { label: string; tone: Tone; icon: Icon; title: string; tag?: string } => {
+      if (conn === 'offline')
+        return { label: 'Offline', tone: 'warn', icon: 'offline', title: 'No network connection' };
+      if (conn === 'connecting')
+        return {
+          label: 'Connecting…',
+          tone: 'muted',
+          icon: 'spinner',
+          title: isP2P
+            ? 'Connecting to the signaling server'
+            : 'Connecting to the collaboration server',
+        };
+      // connected or waiting — save status is orthogonal and takes precedence while active.
+      if (hasStorage) {
+        const where = storageLabel ?? 'storage';
+        if (saveStatus === 'error')
+          return { label: 'Save failed', tone: 'danger', icon: 'cloud', title: `Could not save to ${where}` };
+        if (saveStatus === 'saving')
+          return { label: 'Saving…', tone: 'muted', icon: 'spinner', title: `Saving to ${where}` };
+        if (saveStatus === 'saved')
+          return { label: 'Saved', tone: 'ok', icon: 'check', title: `Saved to ${where}` };
+        if (conn === 'waiting')
+          return {
+            label: 'No peers yet',
+            tone: 'muted',
+            icon: 'cloud',
+            title: `Connected — share the link to collaborate. Autosaving to ${where}`,
+            tag,
+          };
+        return { label: 'Synced', tone: 'ok', icon: 'cloud', title: `Synced — saving to ${where}`, tag };
+      }
       if (conn === 'waiting')
         return {
           label: 'No peers yet',
           tone: 'muted',
-          icon: 'cloud',
-          title: `Connected — share the link to collaborate. Autosaving to ${where}`,
+          icon: 'live',
+          title: `${transportTitle}. Share the link to invite collaborators`,
+          tag,
         };
-      return { label: 'Synced', tone: 'ok', icon: 'cloud', title: `Synced — saving to ${where}` };
-    }
-    if (conn === 'waiting')
       return {
-        label: 'No peers yet',
-        tone: 'muted',
+        label: 'Live',
+        tone: 'accent',
         icon: 'live',
-        title: 'Connected to signaling — share the link to invite collaborators',
+        title: `${transportTitle}. Connect storage to save across sessions`,
+        tag,
       };
-    return {
-      label: 'Live',
-      tone: 'accent',
-      icon: 'live',
-      title: 'Peer-to-peer — connect storage to save across sessions',
-    };
-  });
+    },
+  );
 </script>
 
 <svelte:element
@@ -85,6 +104,9 @@
     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1.5A3.5 3.5 0 0 1 18 18Z" /></svg>
   {/if}
   <span class="pill-label">{state.label}</span>
+  {#if state.tag}
+    <span class="transport-tag" title={transportTitle}>{state.tag}</span>
+  {/if}
 </svelte:element>
 
 <style>
@@ -128,6 +150,18 @@
   }
   .pill svg {
     display: block;
+  }
+  .transport-tag {
+    font-size: var(--fs-200, 0.6875rem);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    padding-left: 0.3rem;
+    margin-left: 0.05rem;
+    border-left: 1px solid currentColor;
+    /* keep the divider subtle against the pill background */
+    border-color: color-mix(in srgb, currentColor 35%, transparent);
   }
   .spinner {
     width: 12px;

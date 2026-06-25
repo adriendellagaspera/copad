@@ -60,6 +60,7 @@ export function websocketCollab(opts: { url: string }): CollabConnect {
     return {
       doc,
       awareness: provider.awareness,
+      transport: 'hub',
       onStatus(fn) {
         statusFns.add(fn);
         fn(computeStatus());
