@@ -30,11 +30,19 @@ vi.mock('y-websocket', () => {
       this.room = room;
       (globalThis as Record<string, unknown>).__wsp = this;
     }
+    disconnectCount = 0;
+    connectCount = 0;
     on(ev: string, fn: (...a: unknown[]) => void) {
       (this.handlers[ev] ||= []).push(fn);
     }
     emit(ev: string, arg?: unknown) {
       (this.handlers[ev] || []).forEach((fn) => fn(arg));
+    }
+    disconnect() {
+      this.disconnectCount++;
+    }
+    connect() {
+      this.connectCount++;
     }
     destroy() {}
   }
@@ -130,5 +138,23 @@ describe('websocketCollab status mapping', () => {
     (globalThis as Record<string, unknown>).__idb = undefined;
     websocketCollab({ url: HUB })(ROOM);
     expect((globalThis as Record<string, unknown>).__idb).toBeUndefined();
+  });
+
+  it('reconnect drops and re-attaches the provider', () => {
+    const collab = websocketCollab({ url: HUB })(ROOM);
+    collab.reconnect?.();
+    expect(provider().disconnectCount).toBe(1);
+    expect(provider().connectCount).toBe(1);
+    collab.destroy();
+  });
+
+  it('getDiagnostics reports the hub transport', async () => {
+    const collab = websocketCollab({ url: HUB })(ROOM);
+    provider().wsconnected = true;
+    const d = await collab.getDiagnostics?.();
+    expect(d?.transport).toBe('hub');
+    expect(d?.signaling).toBe(true);
+    expect(d?.connections).toEqual([]);
+    collab.destroy();
   });
 });

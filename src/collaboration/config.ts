@@ -7,7 +7,7 @@
 // 2. An insecure ws:// server on an https:// page — browsers block this as
 //    mixed content, so the signaling socket never opens.
 
-import type { SignalingUrl, WebsocketUrl, RoomId } from './types.js';
+import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, RoomId } from './types.js';
 import type { RoomAccess } from './roomAccess.js';
 import type { RoomCipher } from './roomCipher.js';
 import { publicAccess, sitePassword, roomPassword } from './roomAccess.js';
@@ -132,11 +132,22 @@ export function resolveWebsocket(
 }
 
 /**
- * Build the ICE server list for WebRTC. A public STUN server is enough for most
- * home/office NATs; a TURN relay is needed for restrictive networks — notably
- * mobile carriers (CGNAT / symmetric NAT), where STUN alone fails and
- * desktop↔phone sessions never connect.
+ * Public TURN relay used out-of-the-box when no TURN is configured, so a
+ * desktop↔mobile session can still connect through carrier NAT. This is the free
+ * OpenRelay project (metered.ca): best-effort and rate-limited — fine for a demo,
+ * but configure your own (env or Settings) for anything serious. Disable via
+ * `{ defaultTurn: false }`.
  */
+export const DEFAULT_TURN: RTCIceServer = {
+  urls: [
+    'turn:openrelay.metered.ca:80',
+    'turn:openrelay.metered.ca:443',
+    'turns:openrelay.metered.ca:443',
+  ],
+  username: 'openrelayproject',
+  credential: 'openrelayproject',
+};
+
 /**
  * Parse `VITE_ROOM_AUTH` into a typed {@link RoomAccess} — the single place
  * where the raw env string crosses the domain boundary. Unknown values fall
@@ -165,24 +176,39 @@ export function resolveRoomCipher(access: RoomAccess): RoomCipher {
   return { password: (room: RoomId) => access.credential(room) };
 }
 
-export function resolveIceServers(env: {
-  VITE_STUN_URL?: string;
-  VITE_TURN_URL?: string;
-  VITE_TURN_USERNAME?: string;
-  VITE_TURN_CREDENTIAL?: string;
-}): RTCIceServer[] {
+/**
+ * Build the ICE server list for WebRTC. A public STUN server is enough for most
+ * home/office NATs; a TURN relay is needed for restrictive networks — notably
+ * mobile carriers (CGNAT / symmetric NAT), where STUN alone fails and
+ * desktop↔phone sessions never connect. When no TURN is configured we fall back
+ * to a public relay so it "just works" — unless `defaultTurn` is false.
+ */
+export function resolveIceServers(
+  env: {
+    VITE_STUN_URL?: string;
+    VITE_TURN_URL?: string;
+    VITE_TURN_USERNAME?: string;
+    VITE_TURN_CREDENTIAL?: string;
+  },
+  opts: { defaultTurn?: boolean } = {},
+): RTCIceServer[] {
   const servers: RTCIceServer[] = [];
 
   // VITE_STUN_URL="" (explicitly empty) disables the STUN default on purpose.
-  const stun = list(env.VITE_STUN_URL ?? DEFAULT_STUN);
+  // Brand the validated lists here (list() is shared, so it returns plain
+  // strings); they erase back to string[] when handed to RTCIceServer below.
+  const stun = list(env.VITE_STUN_URL ?? DEFAULT_STUN) as StunUrl[];
   if (stun.length) servers.push({ urls: stun });
 
-  const turnUrls = list(env.VITE_TURN_URL);
+  const turnUrls = list(env.VITE_TURN_URL) as TurnUrl[];
   if (turnUrls.length) {
     const turn: RTCIceServer = { urls: turnUrls };
     if (env.VITE_TURN_USERNAME) turn.username = env.VITE_TURN_USERNAME;
     if (env.VITE_TURN_CREDENTIAL) turn.credential = env.VITE_TURN_CREDENTIAL;
     servers.push(turn);
+  } else if (opts.defaultTurn !== false) {
+    // No TURN configured — fall back to the public relay for restrictive NATs.
+    servers.push(DEFAULT_TURN);
   }
 
   return servers;

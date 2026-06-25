@@ -73,6 +73,21 @@
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
+.status .diag-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  border-radius: var(--r-2, 4px);
+  cursor: pointer;
+}
+.status .diag-btn:hover {
+  color: var(--text-muted);
+  background: var(--surface-3);
+}
 
 /* Legacy decorative dot kept as a fallback before StatusPill lands. */
 .dot {

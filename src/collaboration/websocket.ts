@@ -84,6 +84,19 @@ export function websocketCollab(opts: WebsocketCollabOptions): CollabConnect {
         fn(synced);
         return () => syncedFns.delete(fn);
       },
+      reconnect() {
+        provider.disconnect();
+        provider.connect();
+      },
+      async getDiagnostics() {
+        // No per-peer carriage on the hub — everyone talks to the same server.
+        return {
+          transport: 'hub' as const,
+          signaling: !!provider.wsconnected,
+          peers: Math.max(0, provider.awareness.getStates().size - 1),
+          connections: [],
+        };
+      },
       destroy() {
         if (typeof window !== 'undefined') {
           window.removeEventListener('online', onNetwork);

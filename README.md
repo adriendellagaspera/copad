@@ -190,7 +190,7 @@ Copy the resulting `wss://` URL into `VITE_WEBSOCKET_URL` (or `VITE_SIGNALING_UR
 
 ## Known limitations / future directions
 
-- **WebRTC behind strict NAT**: public STUN is enough for most home/office networks. Mobile carriers use CGNAT / symmetric NAT, where STUN fails — either configure a TURN relay via `VITE_TURN_URL` / `VITE_TURN_USERNAME` / `VITE_TURN_CREDENTIAL` (run e.g. [coturn](https://github.com/coturn/coturn) or a hosted provider), **or** sidestep WebRTC entirely by switching to the WebSocket hub (`VITE_COLLAB_TRANSPORT=websocket`, see above) — no STUN/TURN required.
+- **WebRTC behind strict NAT**: public STUN is enough for most home/office networks. Mobile carriers use CGNAT / symmetric NAT, where STUN fails and a TURN relay is needed. Copad ships with a free **public default relay** so desktop↔mobile works out of the box (best-effort/rate-limited), and lets you bring your own — via `VITE_TURN_URL` / `VITE_TURN_USERNAME` / `VITE_TURN_CREDENTIAL`, **at runtime** in Settings → Connection, or self-hosted [coturn](https://github.com/coturn/coturn) (see [`turn/`](turn/)). The status bar's connection panel (📊 icon) shows whether each peer is **Direct** or **Relayed via TURN**, with a Reconnect button. Or sidestep WebRTC entirely with the WebSocket hub (`VITE_COLLAB_TRANSPORT=websocket`) — no STUN/TURN required.
 - **OAuth token in the browser**: acceptable for a small app; the proxy can keep secrets server-side for a harder security posture.
 - **Single authority**: if you want zero CORS/leader issues, replace y-webrtc with a small Yjs server ([Hocuspocus](https://tiptap.dev/docs/hocuspocus/introduction) / Cloudflare Durable Object) that persists via the same `StorageAdapter`.
 

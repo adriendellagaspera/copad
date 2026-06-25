@@ -15,6 +15,14 @@ export type SignalingUrl = string & { readonly _brand: 'SignalingUrl' };
  *  validation — the central relay that carries edits on the hub transport. */
 export type WebsocketUrl = string & { readonly _brand: 'WebsocketUrl' };
 
+/** A STUN server URL validated by `resolveIceServers()`. STUN only reveals a
+ *  peer's public address; it never carries media. */
+export type StunUrl = string & { readonly _brand: 'StunUrl' };
+
+/** A TURN relay URL validated by `resolveIceServers()`. TURN relays media when
+ *  direct/STUN paths fail (carrier / symmetric NAT). */
+export type TurnUrl = string & { readonly _brand: 'TurnUrl' };
+
 /** The name a peer chose to display next to their cursor. */
 export type DisplayName = string & { readonly _brand: 'DisplayName' };
 
@@ -61,6 +69,23 @@ export type ConnStatus = 'connecting' | 'waiting' | 'connected' | 'offline';
  */
 export type Transport = 'p2p' | 'hub';
 
+/** How a single peer connection is carried — surfaced in the diagnostics panel. */
+export interface PeerConnectionInfo {
+  readonly id: string;
+  /** `direct` = host/srflx candidate; `relay` = routed through a TURN server. */
+  readonly type: 'direct' | 'relay' | 'unknown';
+}
+
+/** A snapshot of the live connection, for the diagnostics panel. */
+export interface Diagnostics {
+  readonly transport: Transport;
+  /** Attached to the signaling / collaboration server. */
+  readonly signaling: boolean;
+  readonly peers: number;
+  /** Per-peer carriage (WebRTC only; empty for the hub). */
+  readonly connections: PeerConnectionInfo[];
+}
+
 export interface Collab {
   readonly doc: Y.Doc;
   readonly awareness: Awareness;
@@ -72,6 +97,10 @@ export interface Collab {
   /** Subscribe to whether the doc has synced with at least one peer. Fires
    *  immediately, then on every change. Returns an unsubscribe function. */
   onSynced(fn: (synced: boolean) => void): () => void;
+  /** Force a transport reconnect (drop + re-attach). */
+  reconnect?(): void;
+  /** Snapshot the live connection for the diagnostics panel. */
+  getDiagnostics?(): Promise<Diagnostics>;
   destroy(): void;
 }
 

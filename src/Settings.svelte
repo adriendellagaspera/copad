@@ -3,6 +3,8 @@
   import type { StorageBackend } from './storage/index.js';
   import { isConfigured } from './storage/auth.js';
 
+  import type { TurnPrefs } from './collaboration/turn.js';
+
   let {
     backends,
     open = $bindable(false),
@@ -10,6 +12,8 @@
     localCache = true,
     onCacheChange,
     onCacheClear,
+    turnPrefs,
+    onTurnChange,
     onchange,
     onconnect,
     ondisconnect,
@@ -20,6 +24,8 @@
     localCache?: boolean;
     onCacheChange?: (on: boolean) => void;
     onCacheClear?: () => void | Promise<void>;
+    turnPrefs?: TurnPrefs;
+    onTurnChange?: (p: TurnPrefs) => void;
     onchange?: () => void;
     onconnect?: (b: StorageBackend) => void;
     ondisconnect?: (b: StorageBackend) => void;
@@ -33,6 +39,17 @@
     } finally {
       clearing = false;
     }
+  }
+
+  // Local, editable copy of the TURN settings — (re)synced from the prop when the
+  // drawer opens, committed back on "Apply".
+  const EMPTY_TURN: TurnPrefs = { url: '', username: '', credential: '', useDefault: true };
+  let turn = $state<TurnPrefs>({ ...EMPTY_TURN });
+  $effect(() => {
+    if (open) turn = { ...EMPTY_TURN, ...turnPrefs };
+  });
+  function applyTurn() {
+    onTurnChange?.({ ...turn, url: turn.url.trim() });
   }
 
   const configurable = $derived(
@@ -131,6 +148,51 @@
         </button>
       </div>
     </section>
+
+    {#if onTurnChange}
+      <section class="backend">
+        <div class="backend-head">
+          <span class="backend-name">Connection (WebRTC)</span>
+        </div>
+        <p class="backend-blurb">
+          Peer-to-peer needs a TURN relay to connect across mobile carrier networks
+          (CGNAT / symmetric NAT). A free public relay is used by default; add your
+          own for reliability. Changes apply on the next reconnect.
+        </p>
+        <label class="toggle">
+          <input
+            type="checkbox"
+            checked={turn.useDefault}
+            onchange={e => (turn = { ...turn, useDefault: e.currentTarget.checked })}
+          />
+          <span>Use a public TURN relay when none is configured</span>
+        </label>
+        <label class="field">
+          <span class="field-label">TURN URL(s)</span>
+          <input
+            placeholder="turns:your-turn.example:5349"
+            value={turn.url}
+            oninput={e => (turn = { ...turn, url: e.currentTarget.value })}
+          />
+          <small class="field-help">Comma-separated. Overrides both the default and any deployment TURN.</small>
+        </label>
+        <label class="field">
+          <span class="field-label">TURN username</span>
+          <input value={turn.username} oninput={e => (turn = { ...turn, username: e.currentTarget.value })} />
+        </label>
+        <label class="field">
+          <span class="field-label">TURN credential</span>
+          <input
+            type="password"
+            value={turn.credential}
+            oninput={e => (turn = { ...turn, credential: e.currentTarget.value })}
+          />
+        </label>
+        <div class="backend-actions">
+          <button class="primary" onclick={applyTurn}>Apply &amp; reconnect</button>
+        </div>
+      </section>
+    {/if}
 
     {#snippet filenameField(b: StorageBackend)}
       {#if b.storage.setFilename}

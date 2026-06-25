@@ -1,5 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolveSignaling, resolveIceServers, resolveWebsocket, resolveTransport, resolveRoomAccess, resolveRoomCipher } from './config.js';
+import {
+  resolveSignaling,
+  resolveIceServers,
+  resolveWebsocket,
+  resolveTransport,
+  resolveRoomAccess,
+  resolveRoomCipher,
+  DEFAULT_TURN,
+} from './config.js';
 import type { RoomId } from './types.js';
 
 // Stubs for secretLink (called when VITE_ROOM_AUTH=secret-link)
@@ -96,11 +104,20 @@ describe('resolveWebsocket', () => {
 });
 
 describe('resolveIceServers', () => {
-  it('returns the default public STUN server when nothing is set', () => {
-    expect(resolveIceServers({})).toEqual([{ urls: ['stun:stun.l.google.com:19302'] }]);
+  it('falls back to STUN + the public default TURN when nothing is set', () => {
+    expect(resolveIceServers({})).toEqual([
+      { urls: ['stun:stun.l.google.com:19302'] },
+      DEFAULT_TURN,
+    ]);
   });
 
-  it('appends a TURN server with credentials when configured', () => {
+  it('omits the default TURN when defaultTurn is false', () => {
+    expect(resolveIceServers({}, { defaultTurn: false })).toEqual([
+      { urls: ['stun:stun.l.google.com:19302'] },
+    ]);
+  });
+
+  it('a configured TURN overrides the public default', () => {
     const ice = resolveIceServers({
       VITE_TURN_URL: 'turn:relay.example:3478',
       VITE_TURN_USERNAME: 'user',
@@ -123,8 +140,12 @@ describe('resolveIceServers', () => {
     ]);
   });
 
-  it('disables STUN when explicitly set to empty', () => {
-    expect(resolveIceServers({ VITE_STUN_URL: '' })).toEqual([]);
+  it('disables STUN when explicitly set to empty (default TURN still applies)', () => {
+    expect(resolveIceServers({ VITE_STUN_URL: '' })).toEqual([DEFAULT_TURN]);
+  });
+
+  it('returns nothing when STUN is empty and default TURN is off', () => {
+    expect(resolveIceServers({ VITE_STUN_URL: '' }, { defaultTurn: false })).toEqual([]);
   });
 });
 
