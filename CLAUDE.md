@@ -80,7 +80,7 @@ This codebase uses **functional naming** — no OO suffixes.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `VITE_SIGNALING_URL` | no | WebRTC signaling server(s), comma-separated (default: `ws://localhost:4444`) |
+| `VITE_SIGNALING_URL` | no | WebRTC signaling server(s), comma-separated. `ws://localhost:4444` default applies **only on a local host**; on a deployed origin it's empty (warning banner shown) — must be `wss://` (browsers block `ws://` from https as mixed content). Resolved by `resolveSignaling()` in `src/collaboration/config.ts`. |
 | `VITE_ROOM_PASSWORD` | no | Shared password for y-webrtc encryption |
 | `VITE_ROOM` | no | Default room name (default: `copad-demo`) |
 | `VITE_DROPBOX_APP_KEY` | no | Locks the Dropbox app key; otherwise set it at runtime in Settings |
@@ -88,3 +88,7 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_PROXY_URL` | for WebDAV | CORS proxy URL |
 | `VITE_WEBDAV_URL` | no | Pre-fill the WebDAV URL input |
 | `VITE_STORAGE_BACKEND` | no | Default storage backend id |
+
+## Signaling server
+
+`signaling/` is a standalone Node.js app (only dep: `ws`) deployable independently. `npm run signaling` runs `signaling/server.js` directly. Deploy to Render or Fly.io — see README "Deploying the signaling server".

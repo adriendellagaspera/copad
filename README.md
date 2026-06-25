@@ -148,9 +148,40 @@ you only host a static frontend and a tiny signaling server.
 ## Deployment (production, free)
 
 1. **Frontend**: `npm run build` → deploy `dist/`. GitHub Actions workflow included — see [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
-2. **Signaling**: deploy `node_modules/y-webrtc/bin/server.js` (Fly.io, Render…) over `wss://` and set `VITE_SIGNALING_URL`.
+2. **Signaling** (required for real-time collab): deploy the `signaling/` subfolder (standalone Node.js app — only depends on `ws`). See [Deploying the signaling server](#deploying-the-signaling-server) below. Once deployed, set the GitHub secret `VITE_SIGNALING_URL` to its `wss://` URL. It **must** be `wss://` — browsers block insecure `ws://` from an `https://` page (mixed content). If left unset, the app shows a warning banner and real-time collaboration stays disabled.
 3. **(Optional) Proxy**: `cd src/network/cloudflare-proxy && npx wrangler deploy`, then set `VITE_PROXY_URL`.
 4. Set `VITE_ROOM_PASSWORD` to end-to-end encrypt the P2P channel.
+
+### Deploying the signaling server
+
+The `signaling/` directory is a self-contained Node.js app (only depends on `ws`) that can be deployed independently — no link to the frontend project's `node_modules`.
+
+**Option A — Render (free tier, simplest)**
+
+1. Go to [render.com](https://render.com) → New → Web Service → connect your repo.
+2. Set **Root Directory** to `signaling`.
+3. Build command: `npm install` — Start command: `npm start`.
+4. Copy the generated URL → set it as `VITE_SIGNALING_URL=wss://your-app.onrender.com` in GitHub Secrets.
+
+Or use the included `signaling/render.yaml` for the Render Blueprint flow.
+
+**Option B — Fly.io (always-on)**
+
+```bash
+cd signaling
+fly launch          # first time: creates the app, edit fly.toml app name
+fly deploy          # subsequent deploys
+```
+
+Then set `VITE_SIGNALING_URL=wss://your-app-name.fly.dev` in GitHub Secrets.
+
+**Verify**
+
+```bash
+curl https://your-signaling-server.example   # should print "okay"
+```
+
+Once the secret is set and the frontend redeployed, the app's status pill changes from "Connecting…" to "No peers yet" when the signaling server is reachable.
 
 ## Known limitations / future directions
 
