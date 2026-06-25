@@ -39,6 +39,12 @@ jobs:
           # If unset, real-time collab is disabled and a warning banner is shown.
           VITE_SIGNALING_URL:     ${{ secrets.VITE_SIGNALING_URL }}
           VITE_ROOM:              copad-demo
+          # WebRTC NAT traversal — STUN falls back to public Google default.
+          # TURN is needed for restrictive networks (mobile carriers / symmetric NAT).
+          VITE_STUN_URL:          ${{ secrets.VITE_STUN_URL }}
+          VITE_TURN_URL:          ${{ secrets.VITE_TURN_URL }}
+          VITE_TURN_USERNAME:     ${{ secrets.VITE_TURN_USERNAME }}
+          VITE_TURN_CREDENTIAL:   ${{ secrets.VITE_TURN_CREDENTIAL }}
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
