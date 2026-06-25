@@ -8,9 +8,10 @@ Copad follows **hexagonal architecture** (ports & adapters) with a **functional 
 
 | Port | File | Description |
 |------|------|-------------|
-| `Storage` | `src/storage/types.ts` | Persist and restore the Y.Doc binary snapshot |
+| `Storage` | `src/storage/types.ts` | Persist and restore document bytes for a backend's target file |
 | `Collab` | `src/collaboration/types.ts` | Provide a shared Y.Doc and awareness channel |
 | `CollabConnect` | `src/collaboration/types.ts` | Factory type: `(room: string) => Collab` |
+| `Codec` | `src/format/types.ts` | Convert file bytes ⟷ the shared Y.Doc, selected by filename extension |
 
 ### Adapters (implementations)
 
@@ -31,6 +32,22 @@ Copad follows **hexagonal architecture** (ports & adapters) with a **functional 
 - renders the storage **pills** + connect *action zone*, and the `Settings.svelte` drawer
 
 `Editor.svelte` knows only the ports — it never imports y-webrtc or any storage backend directly.
+
+### File formats (the `Codec` port)
+
+A backend moves *bytes*; a **codec** (`src/format/`) turns those bytes into the shared `Y.Doc` and back. The codec is chosen from the target **filename's extension** (`codecForFilename()`), so format support is entirely backend-agnostic.
+
+| Codec | Extensions | Notes |
+|-------|-----------|-------|
+| `yjsCodec` | `.yjs` | **Native default.** Full CRDT state (history + content) — the only format that round-trips collaborative merge. Fallback for unknown extensions. |
+| `textCodec` | `.txt` | Plain text; one paragraph per line. Formatting flattened. |
+| `markdownCodec` | `.md`, `.markdown` | CommonMark + GFM strikethrough (`~~`). |
+| `htmlCodec` | `.html`, `.htm` | ProseMirror DOM parser/serializer; **needs a DOM** (browser only). |
+| `jsonCodec` | `.json` | ProseMirror document JSON; lossless for our schema. |
+
+- Content codecs reconcile into the shared doc via y-prosemirror's `prosemirrorToYXmlFragment` (the same diff reconciler as `ySyncPlugin`), so importing replaces content cleanly — no duplicated leading paragraph. Shared PM↔Y helpers live in `src/format/pm.ts`.
+- Each backend reports its target filename via `Storage.filename()`. **Local** takes it from the picked file; **cloud** backends expose `setFilename()` (a "File name" input in Settings, persisted by `filenameStore()` in `src/storage/filename.ts`). The extension picks the format; it takes effect on connect.
+- Adding a format = add one codec file + register it in `src/format/index.ts`. The Local file picker (`knownExtensions()`) and Settings copy update automatically.
 
 ### Config vs. credentials
 

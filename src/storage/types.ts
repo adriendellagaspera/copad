@@ -68,6 +68,14 @@ export interface Storage {
   /** True when all required configuration is present (ready to connect). */
   configured?(): boolean;
 
+  // ── Target file / format ───────────────────────────────────────────────────
+  // The filename's extension selects the codec (see src/format). Backends that
+  // omit these default to `document.yjs` (the native Copad format).
+  /** Effective target filename including extension, e.g. `notes.md`. */
+  filename?(): string;
+  /** Change the target filename. Absent where the name is fixed by the backend. */
+  setFilename?(name: string): void;
+
   // ── Per-session authentication ─────────────────────────────────────────────
   isAuthenticated(): boolean;
   /** Session credentials collected on the connect form (e.g. WebDAV login). */

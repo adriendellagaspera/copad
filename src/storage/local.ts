@@ -1,4 +1,5 @@
 import type { Storage, SessionCredentials, DocContent } from './types.js';
+import { knownExtensions } from '../format/index.js';
 
 // showOpenFilePicker is part of the File System Access API Living Standard
 // and not yet in TypeScript's lib.dom.d.ts at this version.
@@ -36,15 +37,23 @@ export function localFsStorage(): Storage {
   return {
     id: 'local',
     label: 'Local file',
-    blurb: 'Saves to a file on your device (Chrome/Edge).',
+    blurb: 'Opens any text file on your device — .yjs, .md, .txt, .html, .json (Chrome/Edge).',
     get unavailableReason() { return fsAccessUnavailableReason(); },
+
+    // The picked file's name selects the codec; `.yjs` is the native default.
+    filename: () => handle?.name ?? 'document.yjs',
 
     isAuthenticated: () => handle !== null,
 
     contentFormat: 'binary',
 
     async connect(creds?: SessionCredentials) {
-      const types = [{ description: 'Copad document', accept: { 'application/octet-stream': ['.yjs'] } }];
+      const types = [
+        {
+          description: 'Copad / text documents',
+          accept: { 'application/octet-stream': knownExtensions() },
+        },
+      ];
       if (creds?.mode === 'new') {
         handle = await window.showSaveFilePicker({ suggestedName: 'document.yjs', types });
       } else {

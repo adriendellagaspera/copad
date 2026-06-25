@@ -4,10 +4,10 @@
   import type { Transaction } from 'prosemirror-state';
   import { EditorView } from 'prosemirror-view';
   import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from 'y-prosemirror';
-  import * as Y from 'yjs';
   import { schema } from './editor/schema.js';
   import { buildPlugins } from './editor/plugins.js';
   import Toolbar from './Toolbar.svelte';
+  import { codecForFilename } from './format/index.js';
   import type { Storage, StorageAccess, DocContent } from './storage/types.js';
   import type { CollabConnect, RoomId, SessionRole, DisplayName, CursorColor, PeerUser, PeerAwarenessState } from './collaboration/types.js';
 
@@ -76,47 +76,18 @@
     collab.awareness.setLocalState(state);
   });
 
-  function textToYjs(doc: Y.Doc, text: string): void {
-    doc.transact(() => {
-      const fragment = doc.getXmlFragment('prosemirror');
-      fragment.delete(0, fragment.length);
-      const para = new Y.XmlElement('paragraph');
-      const content = new Y.XmlText();
-      content.insert(0, text);
-      para.insert(0, [content]);
-      fragment.insert(0, [para]);
-    });
-  }
-
-  function yjsToText(doc: Y.Doc): string {
-    type XmlNode = Y.XmlElement | Y.XmlText | Y.XmlFragment;
-    const collectText = (node: XmlNode): string => {
-      if (node instanceof Y.XmlText) return node.toString();
-      let out = '';
-      for (const child of (node as unknown as Iterable<XmlNode>)) {
-        out += collectText(child);
-      }
-      if (node instanceof Y.XmlElement &&
-          (node.nodeName === 'paragraph' || node.nodeName === 'heading')) {
-        out += '\n';
-      }
-      return out;
-    };
-    return collectText(doc.getXmlFragment('prosemirror')).trim();
-  }
-
   // Load from storage when adapter becomes available (or changes to a different backend).
   $effect(() => {
     if (!storage?.isAuthenticated() || !view || loadedFrom === storage.id) return;
     const id = storage.id;
+    const codec = codecForFilename(storage.filename?.() ?? 'document.yjs');
     storage.load()
-      .then((content: DocContent | null) => {
+      .then(async (content: DocContent | null) => {
         if (content) {
-          if (content.format === 'binary') {
-            Y.applyUpdate(collab.doc, content.bytes);
-          } else {
-            textToYjs(collab.doc, content.text);
-          }
+          const bytes = content.format === 'binary'
+            ? content.bytes
+            : new TextEncoder().encode(content.text);
+          await codec.decode(bytes, collab.doc);
         }
         loadedFrom = id;
       })
@@ -137,13 +108,17 @@
   };
 
   const flush = (): void => {
-    if (!storage?.isAuthenticated() || !isLeader()) return;
-    const content: DocContent = storage.contentFormat === 'text'
-      ? { format: 'text', text: yjsToText(collab.doc) }
-      : { format: 'binary', bytes: Y.encodeStateAsUpdate(collab.doc) };
-    storage.save(content).catch((e: Error) =>
-      console.warn('Copad: autosave failed', e)
-    );
+    const s = storage;
+    if (!s?.isAuthenticated() || !isLeader()) return;
+    const codec = codecForFilename(s.filename?.() ?? 'document.yjs');
+    Promise.resolve(codec.encode(collab.doc))
+      .then((bytes) => {
+        const content: DocContent = s.contentFormat === 'text'
+          ? { format: 'text', text: new TextDecoder().decode(bytes) }
+          : { format: 'binary', bytes };
+        return s.save(content);
+      })
+      .catch((e: Error) => console.warn('Copad: autosave failed', e));
   };
 
   collab.doc.on('update', () => {

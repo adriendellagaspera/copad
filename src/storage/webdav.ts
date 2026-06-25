@@ -1,7 +1,8 @@
 import type { Storage, CredentialField, SessionCredentials, DocContent } from './types.js';
 import type { Fetch } from '../network/types.js';
+import { filenameStore } from './filename.js';
 
-const FILE_NAME = 'document.yjs';
+const fileName = filenameStore('webdav');
 const STORAGE_KEY = 'storage.webdav';
 
 interface WebDavConf {
@@ -37,6 +38,9 @@ export function webdavStorage(netFetch: Fetch): Storage {
     blurb: 'Saves to any WebDAV server (Nextcloud, ownCloud…) using a login.',
     credentialFields,
 
+    filename: () => fileName.get(),
+    setFilename: fileName.set,
+
     isAuthenticated: () => !!conf(),
 
     contentFormat: 'binary',
@@ -68,7 +72,7 @@ export function webdavStorage(netFetch: Fetch): Storage {
       const c = conf();
       if (!c) throw new Error('WebDAV: not connected');
 
-      const res = await netFetch(`${c.baseUrl}/${FILE_NAME}`, {
+      const res = await netFetch(`${c.baseUrl}/${fileName.get()}`, {
         headers: { Authorization: `Basic ${c.auth}` },
       });
 
@@ -82,7 +86,7 @@ export function webdavStorage(netFetch: Fetch): Storage {
       const c = conf();
       if (!c) throw new Error('WebDAV: not connected');
 
-      const res = await netFetch(`${c.baseUrl}/${FILE_NAME}`, {
+      const res = await netFetch(`${c.baseUrl}/${fileName.get()}`, {
         method: 'PUT',
         headers: {
           Authorization: `Basic ${c.auth}`,
