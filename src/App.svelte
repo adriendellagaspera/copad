@@ -2,6 +2,7 @@
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { Storage } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
+  import type { SessionRole } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
 
@@ -63,7 +64,15 @@
     return new URLSearchParams(location.search).get('room') || DEFAULT_ROOM;
   }
 
+  // Role is fixed for the session — it comes from the URL so the host can share
+  // a read-only link (?role=reader). Cooperative only: a modified client could
+  // ignore it, but it's appropriate for trusted collaborators.
+  function roleFromUrl(): SessionRole {
+    return new URLSearchParams(location.search).get('role') === 'reader' ? 'reader' : 'writer';
+  }
+
   let room = $state(roomFromUrl());
+  const sessionRole: SessionRole = roleFromUrl();
 
   function goToRoom(id: string) {
     const r = id.trim() || DEFAULT_ROOM;
@@ -113,6 +122,7 @@
       {name}
       {color}
       {room}
+      role={sessionRole}
       {connect}
       storage={connected ? storage : null}
       onstoragestatus={() => openSettings()}
