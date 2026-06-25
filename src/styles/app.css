@@ -387,3 +387,33 @@ button.status-link {
   flex-wrap: wrap;
   margin-top: 0.25rem;
 }
+
+/* ── Responsive & touch ── */
+
+@media (max-width: 720px) {
+  .app {
+    padding: var(--sp-4) var(--sp-3) var(--sp-6);
+    gap: var(--sp-3);
+  }
+  .controls {
+    width: 100%;
+  }
+  .controls > label {
+    flex: 1 1 140px;
+  }
+  .controls > label input,
+  .controls > label select {
+    flex: 1;
+    width: auto;
+  }
+  .room-label input {
+    width: auto;
+  }
+}
+
+/* Comfortable hit targets on touch devices. */
+@media (pointer: coarse) {
+  button {
+    min-height: 40px;
+  }
+}
