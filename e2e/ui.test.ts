@@ -29,3 +29,24 @@ test('share dialog copies the invite link', async ({ page, context }) => {
   const clip = await page.evaluate(() => navigator.clipboard.readText());
   expect(clip).toContain('room=pw-share');
 });
+
+test('slash menu inserts a heading', async ({ page }) => {
+  await page.goto('/?room=pw-slash');
+  const ed = page.locator('.ProseMirror');
+  await ed.waitFor();
+  await ed.click();
+  await page.keyboard.type('/head');
+  await page.locator('.slash-menu').waitFor();
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('My title');
+  await expect(page.locator('.ProseMirror h1')).toContainText('My title');
+});
+
+test('word count reflects typed text', async ({ page }) => {
+  await page.goto('/?room=pw-wc');
+  const ed = page.locator('.ProseMirror');
+  await ed.waitFor();
+  await ed.click();
+  await page.keyboard.type('one two three');
+  await expect(page.locator('.wordcount')).toContainText('3 words');
+});

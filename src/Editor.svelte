@@ -6,9 +6,14 @@
   import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from 'y-prosemirror';
   import { schema } from './editor/schema.js';
   import { buildPlugins } from './editor/plugins.js';
+  import { slashMenuPlugin } from './editor/ui/slashMenu.js';
+  import { placeholderPlugin } from './editor/ui/placeholder.js';
   import Toolbar from './Toolbar.svelte';
   import { codecForFilename } from './format/index.js';
+  import SlashMenu from './editor/ui/SlashMenu.svelte';
   import LinkPopover from './editor/ui/LinkPopover.svelte';
+  import WordCount from './editor/ui/WordCount.svelte';
+  import Outline from './editor/ui/Outline.svelte';
   import StatusPill from './ui/StatusPill.svelte';
   import PresenceBar from './ui/PresenceBar.svelte';
   import type { PeerUser, SaveStatus } from './ui/types.js';
@@ -199,6 +204,8 @@
         ySyncPlugin(yFragment),
         yCursorPlugin(collab.awareness),
         yUndoPlugin(),
+        slashMenuPlugin(),
+        placeholderPlugin('Write something, or press “/” for commands…'),
         ...buildPlugins(schema),
       ],
     });
@@ -243,10 +250,13 @@
       storageLabel={storage?.label}
       onclick={storage?.isAuthenticated() ? undefined : onstoragestatus}
     />
-    <span class="spacer"></span>
     <PresenceBar {users} />
     <span class="peer-count">{peers} {peers === 1 ? 'peer' : 'peers'}</span>
+    <span class="spacer"></span>
+    <WordCount {editorState} />
+    <Outline {view} {editorState} />
   </div>
   <div class="content" bind:this={editorEl}></div>
+  <SlashMenu {view} {editorState} />
   <LinkPopover {view} />
 </div>
