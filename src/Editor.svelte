@@ -8,6 +8,7 @@
   import { buildPlugins } from './editor/plugins.js';
   import Toolbar from './Toolbar.svelte';
   import { codecForFilename } from './format/index.js';
+  import LinkPopover from './editor/ui/LinkPopover.svelte';
   import StatusPill from './ui/StatusPill.svelte';
   import PresenceBar from './ui/PresenceBar.svelte';
   import type { PeerUser, SaveStatus } from './ui/types.js';
@@ -233,7 +234,7 @@
 </script>
 
 <div class="editor">
-  <Toolbar {view} {editorState} />
+  <Toolbar {view} {editorState} {toasts} />
   <div class="status">
     <StatusPill
       {conn}
@@ -247,4 +248,5 @@
     <span class="peer-count">{peers} {peers === 1 ? 'peer' : 'peers'}</span>
   </div>
   <div class="content" bind:this={editorEl}></div>
+  <LinkPopover {view} />
 </div>
