@@ -23,7 +23,7 @@ let handle: FileSystemFileHandle | null = null;
 function fsAccessUnavailableReason(): string | undefined {
   if (typeof window === 'undefined') return 'Not in a browser context.';
   if ('showOpenFilePicker' in window) return undefined;
-  if (!window.isSecureContext) {
+  if (!isSecureContext) {
     return 'The File System Access API requires a secure context. ' +
       'Open this app via https:// or http://localhost instead of a plain HTTP URL.';
   }
