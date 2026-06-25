@@ -46,7 +46,7 @@ describe('dropboxStorage', () => {
   it('save calls Dropbox upload endpoint', async () => {
     localStorage.setItem('storage.dropbox.token', 'tok');
     mockFetch.mockResolvedValueOnce({ ok: true } as Response);
-    await storage.save(new Uint8Array([1, 2, 3]));
+    await storage.save({ format: 'binary', bytes: new Uint8Array([1, 2, 3]) });
     expect(mockFetch).toHaveBeenCalledWith(
       'https://content.dropboxapi.com/2/files/upload',
       expect.objectContaining({ method: 'POST' })
@@ -67,7 +67,7 @@ describe('dropboxStorage', () => {
       status: 200,
       arrayBuffer: () => Promise.resolve(bytes.buffer),
     } as unknown as Response);
-    expect(await storage.load()).toEqual(bytes);
+    expect(await storage.load()).toEqual({ format: 'binary', bytes });
   });
 
   it('load throws when not authenticated', async () => {
@@ -128,7 +128,7 @@ describe('webdavStorage', () => {
   it('save calls PUT', async () => {
     localStorage.setItem('storage.webdav', JSON.stringify({ baseUrl: 'https://x', auth: 'y' }));
     mockFetch.mockResolvedValueOnce({ status: 201, ok: true } as Response);
-    await storage.save(new Uint8Array([1, 2, 3]));
+    await storage.save({ format: 'binary', bytes: new Uint8Array([1, 2, 3]) });
     expect(mockFetch).toHaveBeenCalledWith(
       'https://x/document.yjs',
       expect.objectContaining({ method: 'PUT' })

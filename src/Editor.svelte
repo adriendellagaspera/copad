@@ -8,7 +8,7 @@
   import { schema } from './editor/schema.js';
   import { buildPlugins } from './editor/plugins.js';
   import Toolbar from './Toolbar.svelte';
-  import type { Storage, StorageAccess } from './storage/types.js';
+  import type { Storage, StorageAccess, DocContent } from './storage/types.js';
   import type { CollabConnect, RoomId, SessionRole, DisplayName, CursorColor, PeerUser, PeerAwarenessState } from './collaboration/types.js';
 
   type Props = {
@@ -76,13 +76,48 @@
     collab.awareness.setLocalState(state);
   });
 
+  function textToYjs(doc: Y.Doc, text: string): void {
+    doc.transact(() => {
+      const fragment = doc.getXmlFragment('prosemirror');
+      fragment.delete(0, fragment.length);
+      const para = new Y.XmlElement('paragraph');
+      const content = new Y.XmlText();
+      content.insert(0, text);
+      para.insert(0, [content]);
+      fragment.insert(0, [para]);
+    });
+  }
+
+  function yjsToText(doc: Y.Doc): string {
+    type XmlNode = Y.XmlElement | Y.XmlText | Y.XmlFragment;
+    const collectText = (node: XmlNode): string => {
+      if (node instanceof Y.XmlText) return node.toString();
+      let out = '';
+      for (const child of (node as unknown as Iterable<XmlNode>)) {
+        out += collectText(child);
+      }
+      if (node instanceof Y.XmlElement &&
+          (node.nodeName === 'paragraph' || node.nodeName === 'heading')) {
+        out += '\n';
+      }
+      return out;
+    };
+    return collectText(doc.getXmlFragment('prosemirror')).trim();
+  }
+
   // Load from storage when adapter becomes available (or changes to a different backend).
   $effect(() => {
     if (!storage?.isAuthenticated() || !view || loadedFrom === storage.id) return;
     const id = storage.id;
     storage.load()
-      .then((bytes: Uint8Array | null) => {
-        if (bytes) Y.applyUpdate(collab.doc, bytes);
+      .then((content: DocContent | null) => {
+        if (content) {
+          if (content.format === 'binary') {
+            Y.applyUpdate(collab.doc, content.bytes);
+          } else {
+            textToYjs(collab.doc, content.text);
+          }
+        }
         loadedFrom = id;
       })
       .catch((e: unknown) => console.warn('Copad: load failed, starting with current state', e));
@@ -103,7 +138,10 @@
 
   const flush = (): void => {
     if (!storage?.isAuthenticated() || !isLeader()) return;
-    storage.save(Y.encodeStateAsUpdate(collab.doc)).catch((e: Error) =>
+    const content: DocContent = storage.contentFormat === 'text'
+      ? { format: 'text', text: yjsToText(collab.doc) }
+      : { format: 'binary', bytes: Y.encodeStateAsUpdate(collab.doc) };
+    storage.save(content).catch((e: Error) =>
       console.warn('Copad: autosave failed', e)
     );
   };

@@ -1,4 +1,4 @@
-import type { Storage } from './types.js';
+import type { Storage, DocContent } from './types.js';
 import { configStore } from './config.js';
 import { pkceChallenge, openOAuthPopup } from './oauth.js';
 
@@ -37,6 +37,8 @@ export function dropboxStorage(): Storage {
     configured: cfg.configured,
 
     isAuthenticated: () => !!token(),
+
+    contentFormat: 'binary',
 
     async connect() {
       const appKey = cfg.config('appKey');
@@ -81,7 +83,7 @@ export function dropboxStorage(): Storage {
       localStorage.removeItem(STORAGE_KEY);
     },
 
-    async load() {
+    async load(): Promise<DocContent | null> {
       const tok = token();
       if (!tok) throw new Error('Dropbox: not connected');
 
@@ -95,10 +97,11 @@ export function dropboxStorage(): Storage {
 
       if (res.status === 409) return null; // file not found
       if (!res.ok) throw new Error(`Dropbox load failed: ${res.status}`);
-      return new Uint8Array(await res.arrayBuffer());
+      return { format: 'binary', bytes: new Uint8Array(await res.arrayBuffer()) };
     },
 
-    async save(bytes) {
+    async save(content: DocContent): Promise<void> {
+      if (content.format !== 'binary') throw new Error('Dropbox storage expects binary content');
       const tok = token();
       if (!tok) throw new Error('Dropbox: not connected');
 
@@ -113,7 +116,7 @@ export function dropboxStorage(): Storage {
             mute: true,
           }),
         },
-        body: bytes as unknown as BodyInit,
+        body: content.bytes as unknown as BodyInit,
       });
 
       if (!res.ok) throw new Error(`Dropbox save failed: ${res.status}`);

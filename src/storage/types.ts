@@ -1,4 +1,14 @@
 /**
+ * The document content exchanged between the Editor and a Storage backend.
+ * Binary backends (Dropbox, pCloud, WebDAV, local) use the Yjs state snapshot.
+ * Text backends (GitHub, SharePoint…) use the file's raw text so the stored
+ * file remains human-readable and committable.
+ */
+export type DocContent =
+  | { readonly format: 'binary'; readonly bytes: Uint8Array }
+  | { readonly format: 'text';   readonly text: string };
+
+/**
  * The level of access the authenticated user has on this specific file or
  * resource. Absent when the backend has no per-user ACL (Dropbox, WebDAV,
  * local). Present when the backend can report it (e.g. SharePoint via Graph).
@@ -64,8 +74,10 @@ export interface Storage {
   readonly credentialFields?: CredentialField[];
   connect(creds?: SessionCredentials): Promise<void>;
   disconnect(): void;
-  load(): Promise<Uint8Array | null>;
-  save(bytes: Uint8Array): Promise<void>;
+  /** Whether this backend stores a Yjs binary snapshot or the file's raw text. */
+  readonly contentFormat: DocContent['format'];
+  load(): Promise<DocContent | null>;
+  save(content: DocContent): Promise<void>;
   /**
    * The authenticated user's access level on this specific file/resource.
    * Absent when the backend has no per-user ACL (Dropbox, WebDAV, local).
