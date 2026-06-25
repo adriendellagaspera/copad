@@ -97,7 +97,7 @@
 <div class="app">
   <header>
     <div class="brand">
-      <img src="/favicon.svg" alt="" width="26" height="26" />
+      <img src="{import.meta.env.BASE_URL}favicon.svg" alt="" width="26" height="26" />
       <h1>Copad</h1>
     </div>
     <div class="controls">
