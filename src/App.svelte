@@ -2,6 +2,7 @@
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { Storage } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
+  import { resolveSignaling } from './collaboration/config.js';
   import type { SessionRole, DisplayName, CursorColor, RoomId } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
@@ -15,11 +16,11 @@
   const toasts = createToasts();
   let shareOpen = $state(false);
 
+  const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, location);
+  if (signaling.warning) console.warn(`Copad: ${signaling.warning}`);
+
   const connect = webrtcCollab({
-    signaling: (import.meta.env.VITE_SIGNALING_URL || 'ws://localhost:4444')
-      .split(',')
-      .map((s: string) => s.trim())
-      .filter(Boolean),
+    signaling: signaling.servers,
     password: import.meta.env.VITE_ROOM_PASSWORD,
   });
 
@@ -132,6 +133,12 @@
   </header>
 
 
+
+  {#if signaling.warning}
+    <p class="signaling-warning" role="alert">
+      <strong>Real-time collaboration is disabled.</strong> {signaling.warning}
+    </p>
+  {/if}
 
   {#if !connected}
     <p class="hint">

@@ -35,6 +35,8 @@ jobs:
           VITE_PCLOUD_CLIENT_ID:  ${{ secrets.VITE_PCLOUD_CLIENT_ID }}
           VITE_PROXY_URL:         ${{ secrets.VITE_PROXY_URL }}
           VITE_REDIRECT_URI:      https://adriendellagaspera.github.io/copad/redirect.html
+          # wss:// URL of the signaling server (deploy signaling/ to Render/Fly.io).
+          # If unset, real-time collab is disabled and a warning banner is shown.
           VITE_SIGNALING_URL:     ${{ secrets.VITE_SIGNALING_URL }}
           VITE_ROOM:              copad-demo
 

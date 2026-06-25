@@ -8,7 +8,7 @@
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "preview": "vite preview",
-    "signaling": "node node_modules/y-webrtc/bin/server.js",
+    "signaling": "node signaling/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test"
