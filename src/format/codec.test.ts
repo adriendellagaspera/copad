@@ -110,6 +110,17 @@ describe('codec registry', () => {
     expect(codecForFilename('doc.yjs').id).toBe('yjs');
   });
 
+  it('routes source-code extensions to the text codec', () => {
+    const codeFiles = [
+      'main.py', 'index.js', 'App.tsx', 'lib.rs', 'main.go',
+      'Main.java', 'Program.cs', 'style.css', 'config.yml',
+      'schema.graphql', 'main.sh', 'infra.tf', 'query.sql',
+    ];
+    for (const f of codeFiles) {
+      expect(codecForFilename(f).id).toBe('text');
+    }
+  });
+
   it('falls back to the native yjs codec for unknown / missing extensions', () => {
     expect(codecForFilename('mystery.bin').id).toBe(DEFAULT_CODEC.id);
     expect(codecForFilename('noext').id).toBe('yjs');
@@ -117,6 +128,9 @@ describe('codec registry', () => {
 
   it('exposes every known extension', () => {
     const exts = knownExtensions();
-    expect(exts).toEqual(expect.arrayContaining(['.yjs', '.txt', '.md', '.html', '.json']));
+    expect(exts).toEqual(expect.arrayContaining([
+      '.yjs', '.txt', '.md', '.html', '.json',
+      '.py', '.js', '.ts', '.rs', '.go', '.yml', '.css', '.sql',
+    ]));
   });
 });

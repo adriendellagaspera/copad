@@ -92,7 +92,8 @@
             oninput={e => setFilename(s, e.currentTarget.value)}
           />
           <small class="field-help">
-            The extension picks the format — .yjs (native), .md, .txt, .html, .json.
+            The extension picks the format — .yjs (native), .md, .html, .json (PM), or any
+            source/text extension (.txt, .py, .js, .ts, .rs, .go, .yml, …).
             Takes effect on connect.
           </small>
         </label>

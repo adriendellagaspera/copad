@@ -37,7 +37,7 @@ export function localFsStorage(): Storage {
   return {
     id: 'local',
     label: 'Local file',
-    blurb: 'Opens any text file on your device — .yjs, .md, .txt, .html, .json (Chrome/Edge).',
+    blurb: 'Opens any text or source file on your device — .yjs, .md, .txt, .html, .json, .py, .js, .rs, … (Chrome/Edge).',
     get unavailableReason() { return fsAccessUnavailableReason(); },
 
     // The picked file's name selects the codec; `.yjs` is the native default.
