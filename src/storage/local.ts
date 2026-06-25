@@ -29,9 +29,8 @@ function fsAccessUnavailableReason(): string | undefined {
   }
   const isBrave = (navigator as Navigator & { brave?: unknown }).brave != null;
   return isBrave
-    ? 'The File System Access API is not available. ' +
-      'If Brave Shields are enabled for this site, lower them and reload, ' +
-      'or go to brave://settings/content/filesystem and allow this origin.'
+    ? 'Brave disables the File System Access API for web origins by default. ' +
+      'Go to brave://settings/content/filesystem, add an exception for this site, then reload.'
     : 'Requires a browser that supports the File System Access API (Chrome/Edge).';
 }
 
