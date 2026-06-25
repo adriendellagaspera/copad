@@ -140,6 +140,19 @@ button.ghost:hover:not(:disabled) {
   padding: 0.35rem 0.6rem;
 }
 
+.share-btn {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-strong));
+  font-weight: 500;
+}
+.share-btn:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.share-btn svg {
+  display: block;
+}
+
 /* ── Connect panel ── */
 
 .connect {

@@ -69,6 +69,10 @@
 .status .spacer {
   margin-left: auto;
 }
+.status .peer-count {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
 
 /* Legacy decorative dot kept as a fallback before StatusPill lands. */
 .dot {
