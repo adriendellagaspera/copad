@@ -6,9 +6,14 @@
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
+  import ShareDialog from './ui/ShareDialog.svelte';
+  import Toast from './ui/Toast.svelte';
   import { createTheme } from './ui/theme.svelte.js';
+  import { createToasts } from './ui/toasts.svelte.js';
 
   const theme = createTheme();
+  const toasts = createToasts();
+  let shareOpen = $state(false);
 
   const connect = webrtcCollab({
     signaling: (import.meta.env.VITE_SIGNALING_URL || 'ws://localhost:4444')
@@ -114,6 +119,13 @@
         />
       </label>
       <button class="btn-new" onclick={newRoom} title="New document">New</button>
+      <button class="share-btn" onclick={() => (shareOpen = true)} title="Share / invite collaborators">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+          <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
+        </svg>
+        Share
+      </button>
       <button class="icon-btn" onclick={() => openSettings()} title="Settings" aria-label="Settings">⚙</button>
       <ThemeToggle {theme} />
     </div>
@@ -136,6 +148,7 @@
       {room}
       role={sessionRole}
       {connect}
+      {toasts}
       storage={connected ? storage : null}
       onstoragestatus={() => openSettings()}
     />
@@ -150,3 +163,6 @@
   onconnect={afterConnect}
   ondisconnect={afterDisconnect}
 />
+
+<ShareDialog open={shareOpen} onclose={() => (shareOpen = false)} {room} {toasts} />
+<Toast {toasts} />

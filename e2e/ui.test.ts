@@ -16,3 +16,16 @@ test('theme toggle flips and persists across reload', async ({ page }) => {
   const persisted = await page.evaluate(() => document.documentElement.dataset.theme);
   expect(persisted).toBe(toggled);
 });
+
+test('share dialog copies the invite link', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/?room=pw-share');
+  await page.locator('.ProseMirror').waitFor();
+
+  await page.locator('.share-btn').click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Copy link' }).click();
+
+  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clip).toContain('room=pw-share');
+});

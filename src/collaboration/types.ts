@@ -34,9 +34,18 @@ export interface PeerAwarenessState {
   readonly canPersist: boolean;
 }
 
+/** Transport-level connection status, surfaced to the UI status pill. */
+export type ConnStatus = 'connecting' | 'connected' | 'offline';
+
 export interface Collab {
   readonly doc: Y.Doc;
   readonly awareness: Awareness;
+  /** Subscribe to transport connection status. Fires immediately with the
+   *  current value, then on every change. Returns an unsubscribe function. */
+  onStatus(fn: (status: ConnStatus) => void): () => void;
+  /** Subscribe to whether the doc has synced with at least one peer. Fires
+   *  immediately, then on every change. Returns an unsubscribe function. */
+  onSynced(fn: (synced: boolean) => void): () => void;
   destroy(): void;
 }
 

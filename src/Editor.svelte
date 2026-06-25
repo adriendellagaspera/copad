@@ -8,8 +8,20 @@
   import { buildPlugins } from './editor/plugins.js';
   import Toolbar from './Toolbar.svelte';
   import { codecForFilename } from './format/index.js';
+  import StatusPill from './ui/StatusPill.svelte';
+  import PresenceBar from './ui/PresenceBar.svelte';
+  import type { PeerUser, SaveStatus } from './ui/types.js';
+  import type { Toasts } from './ui/toasts.svelte.js';
   import type { Storage, StorageAccess, DocContent } from './storage/types.js';
-  import type { CollabConnect, RoomId, SessionRole, DisplayName, CursorColor, PeerUser, PeerAwarenessState } from './collaboration/types.js';
+  import type {
+    CollabConnect,
+    ConnStatus,
+    RoomId,
+    SessionRole,
+    DisplayName,
+    CursorColor,
+    PeerAwarenessState,
+  } from './collaboration/types.js';
 
   type Props = {
     storage: Storage | null;
@@ -18,10 +30,12 @@
     room: RoomId;
     role?: SessionRole;
     connect: CollabConnect;
+    toasts: Toasts;
     onstoragestatus?: () => void;
   };
 
-  let { storage, name, color, room, role = 'writer', connect, onstoragestatus }: Props = $props();
+  let { storage, name, color, room, role = 'writer', connect, toasts, onstoragestatus }: Props =
+    $props();
 
   const SAVE_DEBOUNCE = 3_000;
 
@@ -37,9 +51,13 @@
   // designed to be deeply proxied.
   let view = $state.raw<EditorView | null>(null);
   let editorState = $state.raw<EditorState | null>(null);
+  let users = $state<PeerUser[]>([]);
   let peers = $state(1);
+  let conn = $state<ConnStatus>('connecting');
+  let saveStatus = $state<SaveStatus>('idle');
   let loadedFrom = $state<string | null>(null);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  let savedTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Whether this peer can write to its own storage backend for this file.
   // Updated asynchronously when the storage prop changes (backends with access()
@@ -61,15 +79,41 @@
     });
   });
 
-  // Track peer count via awareness.
-  collab.awareness.on('change', () => {
+  // ── Presence (derived from awareness) ──────────────────────────────────────
+  const readUsers = (): PeerUser[] => {
+    const states = collab.awareness.getStates();
+    const selfId = collab.doc.clientID;
+    const list: PeerUser[] = [];
+    states.forEach((state, id) => {
+      const u = (state as { user?: { name?: string; color?: string } }).user;
+      list.push({
+        id,
+        name: u?.name || 'Anonymous',
+        color: u?.color || '#888888',
+        self: id === selfId,
+      });
+    });
+    // Self first, then others by join order.
+    list.sort((a, b) => (a.self ? -1 : b.self ? 1 : a.id - b.id));
+    return list;
+  };
+
+  const refreshPresence = (): void => {
     peers = collab.awareness.getStates().size || 1;
+    users = readUsers();
+  };
+  collab.awareness.on('change', refreshPresence);
+  refreshPresence();
+
+  // ── Connection status ───────────────────────────────────────────────────────
+  const offStatus = collab.onStatus((s) => {
+    conn = s;
   });
 
   // Broadcast full typed awareness state whenever any field changes.
   $effect(() => {
     const state: PeerAwarenessState = {
-      user: { name, color } satisfies PeerUser,
+      user: { name, color },
       role,
       canPersist,
     };
@@ -81,7 +125,9 @@
     if (!storage?.isAuthenticated() || !view || loadedFrom === storage.id) return;
     const id = storage.id;
     const codec = codecForFilename(storage.filename?.() ?? 'document.yjs');
-    storage.load()
+    const label = storage.label;
+    storage
+      .load()
       .then(async (content: DocContent | null) => {
         if (content) {
           const bytes = content.format === 'binary'
@@ -91,7 +137,10 @@
         }
         loadedFrom = id;
       })
-      .catch((e: unknown) => console.warn('Copad: load failed, starting with current state', e));
+      .catch((e: unknown) => {
+        console.warn('Copad: load failed, starting with current state', e);
+        toasts.error(`Couldn't load from ${label}: ${(e as Error).message}`);
+      });
   });
 
   // Leader = the persister with the lowest clientID. This prevents write races
@@ -111,6 +160,8 @@
     const s = storage;
     if (!s?.isAuthenticated() || !isLeader()) return;
     const codec = codecForFilename(s.filename?.() ?? 'document.yjs');
+    const label = s.label;
+    saveStatus = 'saving';
     Promise.resolve(codec.encode(collab.doc))
       .then((bytes) => {
         const content: DocContent = s.contentFormat === 'text'
@@ -118,7 +169,18 @@
           : { format: 'binary', bytes };
         return s.save(content);
       })
-      .catch((e: Error) => console.warn('Copad: autosave failed', e));
+      .then(() => {
+        saveStatus = 'saved';
+        clearTimeout(savedTimer);
+        savedTimer = setTimeout(() => {
+          if (saveStatus === 'saved') saveStatus = 'idle';
+        }, 2_500);
+      })
+      .catch((e: Error) => {
+        saveStatus = 'error';
+        console.warn('Copad: autosave failed', e);
+        toasts.error(`Couldn't save to ${label}: ${e.message}`);
+      });
   };
 
   collab.doc.on('update', () => {
@@ -162,6 +224,8 @@
 
   onDestroy(() => {
     clearTimeout(saveTimer);
+    clearTimeout(savedTimer);
+    offStatus();
     window.removeEventListener('beforeunload', flush);
     view?.destroy();
     collab.destroy();
@@ -171,13 +235,16 @@
 <div class="editor">
   <Toolbar {view} {editorState} />
   <div class="status">
-    <span class="dot"></span>
-    {peers} peer(s) connected · room "{room}"
-    {#if storage?.isAuthenticated()}
-      · {storage.label} ✓
-    {:else}
-      · <button class="status-link" onclick={onstoragestatus}>storage not connected</button>
-    {/if}
+    <StatusPill
+      {conn}
+      {saveStatus}
+      hasStorage={storage?.isAuthenticated() ?? false}
+      storageLabel={storage?.label}
+      onclick={storage?.isAuthenticated() ? undefined : onstoragestatus}
+    />
+    <span class="spacer"></span>
+    <PresenceBar {users} />
+    <span class="peer-count">{peers} {peers === 1 ? 'peer' : 'peers'}</span>
   </div>
   <div class="content" bind:this={editorEl}></div>
 </div>
