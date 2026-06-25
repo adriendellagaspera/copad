@@ -4,6 +4,10 @@
   import { webrtcCollab } from './collaboration/webrtc.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
+  import ThemeToggle from './ui/ThemeToggle.svelte';
+  import { createTheme } from './ui/theme.svelte.js';
+
+  const theme = createTheme();
 
   const connect = webrtcCollab({
     signaling: (import.meta.env.VITE_SIGNALING_URL ?? 'ws://localhost:4444')
@@ -79,7 +83,10 @@
 
 <div class="app">
   <header>
-    <h1>Copad</h1>
+    <div class="brand">
+      <img src="/favicon.svg" alt="" width="26" height="26" />
+      <h1>Copad</h1>
+    </div>
     <div class="controls">
       <label>
         Name
@@ -95,6 +102,7 @@
       </label>
       <button class="btn-new" onclick={newRoom} title="New document">New</button>
       <button class="icon-btn" onclick={() => openSettings()} title="Settings" aria-label="Settings">⚙</button>
+      <ThemeToggle {theme} />
     </div>
   </header>
 
