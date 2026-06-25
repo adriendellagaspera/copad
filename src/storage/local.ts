@@ -29,9 +29,9 @@ function fsAccessUnavailableReason(): string | undefined {
   }
   const isBrave = (navigator as Navigator & { brave?: unknown }).brave != null;
   return isBrave
-    ? 'Brave\'s fingerprinting protection has removed the File System Access API. ' +
-      'Click the Brave Shields icon (🦁) in the address bar, ' +
-      'disable fingerprinting protection for this site, then reload.'
+    ? 'Brave disables the File System Access API by default. ' +
+      'Go to brave://flags, search for "File System Access API", set it to Enabled, ' +
+      'then relaunch Brave.'
     : 'Requires a browser that supports the File System Access API (Chrome/Edge).';
 }
 
