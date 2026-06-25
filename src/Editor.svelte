@@ -8,19 +8,20 @@
   import { schema } from './editor/schema.js';
   import { buildPlugins } from './editor/plugins.js';
   import Toolbar from './Toolbar.svelte';
-  import type { Storage } from './storage/types.js';
-  import type { CollabConnect } from './collaboration/types.js';
+  import type { Storage, StorageAccess } from './storage/types.js';
+  import type { CollabConnect, RoomId, SessionRole, DisplayName, CursorColor, PeerUser, PeerAwarenessState } from './collaboration/types.js';
 
   type Props = {
     storage: Storage | null;
-    name: string;
-    color: string;
-    room: string;
+    name: DisplayName;
+    color: CursorColor;
+    room: RoomId;
+    role?: SessionRole;
     connect: CollabConnect;
     onstoragestatus?: () => void;
   };
 
-  let { storage, name, color, room, connect, onstoragestatus }: Props = $props();
+  let { storage, name, color, room, role = 'writer', connect, onstoragestatus }: Props = $props();
 
   const SAVE_DEBOUNCE = 3_000;
 
@@ -40,14 +41,39 @@
   let loadedFrom = $state<string | null>(null);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // Whether this peer can write to its own storage backend for this file.
+  // Updated asynchronously when the storage prop changes (backends with access()
+  // may need a round-trip; backends without it resolve synchronously).
+  let canPersist = $state(false);
+
+  $effect(() => {
+    const s = storage;
+    if (!s?.isAuthenticated()) {
+      canPersist = false;
+      return;
+    }
+    if (!s.access) {
+      canPersist = true;
+      return;
+    }
+    s.access().then((a: StorageAccess) => {
+      canPersist = a !== 'read';
+    });
+  });
+
   // Track peer count via awareness.
   collab.awareness.on('change', () => {
     peers = collab.awareness.getStates().size || 1;
   });
 
-  // Sync display name + cursor color with other peers.
+  // Broadcast full typed awareness state whenever any field changes.
   $effect(() => {
-    collab.awareness.setLocalStateField('user', { name, color });
+    const state: PeerAwarenessState = {
+      user: { name, color } satisfies PeerUser,
+      role,
+      canPersist,
+    };
+    collab.awareness.setLocalState(state);
   });
 
   // Load from storage when adapter becomes available (or changes to a different backend).
@@ -62,10 +88,17 @@
       .catch((e: unknown) => console.warn('Copad: load failed, starting with current state', e));
   });
 
-  // Only the peer with the lowest clientID persists to storage (prevents write races).
+  // Leader = the persister with the lowest clientID. This prevents write races
+  // when multiple peers have storage access to the same backend, while still
+  // allowing a peer without storage access (e.g. a SharePoint guest) to have
+  // their edits relayed and persisted by an authenticated leader.
   const isLeader = (): boolean => {
-    const ids = [...collab.awareness.getStates().keys()];
-    return ids.length === 0 || collab.doc.clientID === Math.min(...ids);
+    const states = collab.awareness.getStates() as unknown as ReadonlyMap<number, PeerAwarenessState>;
+    const persisterIds = [...states.entries()]
+      .filter(([, s]) => s.canPersist)
+      .map(([id]) => id);
+    if (persisterIds.length === 0) return false;
+    return collab.doc.clientID === Math.min(...persisterIds);
   };
 
   const flush = (): void => {
@@ -96,6 +129,9 @@
 
     view = new EditorView(editorEl!, {
       state,
+      // role is URL-derived and fixed for the session; untrack avoids a
+      // reactive dependency inside ProseMirror's render cycle.
+      editable: () => untrack(() => role) === 'writer',
       // ProseMirror calls dispatchTransaction with the EditorView as `this`,
       // so we use `this` here instead of closing over the outer `view` variable.
       // Closing over `view` would fail on the first call because ProseMirror

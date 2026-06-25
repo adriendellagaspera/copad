@@ -1,4 +1,4 @@
-import type { Storage } from './types.js';
+import type { Storage, SessionCredentials } from './types.js';
 
 // showOpenFilePicker is part of the File System Access API Living Standard
 // and not yet in TypeScript's lib.dom.d.ts at this version.
@@ -41,7 +41,7 @@ export function localFsStorage(): Storage {
 
     isAuthenticated: () => handle !== null,
 
-    async connect(creds?: Record<string, string>) {
+    async connect(creds?: SessionCredentials) {
       const types = [{ description: 'Copad document', accept: { 'application/octet-stream': ['.yjs'] } }];
       if (creds?.mode === 'new') {
         handle = await window.showSaveFilePicker({ suggestedName: 'document.yjs', types });

@@ -1,4 +1,18 @@
 /**
+ * The level of access the authenticated user has on this specific file or
+ * resource. Absent when the backend has no per-user ACL (Dropbox, WebDAV,
+ * local). Present when the backend can report it (e.g. SharePoint via Graph).
+ */
+export type StorageAccess = 'read' | 'write' | 'owner';
+
+/**
+ * Key-value pairs collected from the session credential form, keyed by
+ * {@link CredentialField.name}. A named, readonly alias for what is inherently
+ * polymorphic form data at this port boundary.
+ */
+export type SessionCredentials = Readonly<Record<string, string>>;
+
+/**
  * A per-session authentication input collected at connect time (e.g. a WebDAV
  * username/password). Distinct from {@link ConfigField}, which is one-time setup.
  */
@@ -48,10 +62,16 @@ export interface Storage {
   isAuthenticated(): boolean;
   /** Session credentials collected on the connect form (e.g. WebDAV login). */
   readonly credentialFields?: CredentialField[];
-  connect(creds?: Record<string, string>): Promise<void>;
+  connect(creds?: SessionCredentials): Promise<void>;
   disconnect(): void;
   load(): Promise<Uint8Array | null>;
   save(bytes: Uint8Array): Promise<void>;
+  /**
+   * The authenticated user's access level on this specific file/resource.
+   * Absent when the backend has no per-user ACL (Dropbox, WebDAV, local).
+   * Present when the backend can report it (e.g. SharePoint via Graph API).
+   */
+  access?(): Promise<StorageAccess>;
 }
 
 /** Whether a backend has the one-time config it needs to attempt a connect. */

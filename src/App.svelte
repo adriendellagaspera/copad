@@ -2,6 +2,7 @@
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { Storage } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
+  import type { SessionRole, DisplayName, CursorColor, RoomId } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
@@ -16,8 +17,8 @@
     password: import.meta.env.VITE_ROOM_PASSWORD,
   });
 
-  const COLORS = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'];
-  const color = COLORS[Math.floor((Date.now() / 1000) % COLORS.length)];
+  const COLORS: CursorColor[] = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'] as CursorColor[];
+  const color: CursorColor = COLORS[Math.floor((Date.now() / 1000) % COLORS.length)];
 
   const storageBackends = backends();
 
@@ -31,7 +32,8 @@
   }
 
   let storage = $state<Storage | null>(initialStorage());
-  let name = $state('Anonymous');
+  // Cast at the IO boundary: user-typed strings enter the domain as DisplayName here.
+  let name = $state<DisplayName>('Anonymous' as DisplayName);
 
   // Bumped when localStorage state changes (config saved, auth token stored).
   let tick = $state(0);
@@ -61,16 +63,26 @@
 
   // ── Document / room ────────────────────────────────────────────────────────
 
-  const DEFAULT_ROOM = import.meta.env.VITE_ROOM ?? 'copad-demo';
+  // Cast at IO boundary: env var and URL strings enter the domain as RoomId here.
+  const DEFAULT_ROOM = (import.meta.env.VITE_ROOM ?? 'copad-demo') as RoomId;
 
-  function roomFromUrl(): string {
-    return new URLSearchParams(location.search).get('room') || DEFAULT_ROOM;
+  function roomFromUrl(): RoomId {
+    return (new URLSearchParams(location.search).get('room') || DEFAULT_ROOM) as RoomId;
   }
 
-  let room = $state(roomFromUrl());
+  // Role is fixed for the session — it comes from the URL so the host can share
+  // a read-only link (?role=reader). Cooperative only: a modified client could
+  // ignore it, but it's appropriate for trusted collaborators.
+  function roleFromUrl(): SessionRole {
+    return new URLSearchParams(location.search).get('role') === 'reader' ? 'reader' : 'writer';
+  }
+
+  let room = $state<RoomId>(roomFromUrl());
+  const sessionRole: SessionRole = roleFromUrl();
 
   function goToRoom(id: string) {
-    const r = id.trim() || DEFAULT_ROOM;
+    // id arrives from user input (IO boundary) — cast to RoomId on entry.
+    const r = (id.trim() || DEFAULT_ROOM) as RoomId;
     const qs = r === DEFAULT_ROOM ? '' : `?room=${encodeURIComponent(r)}`;
     history.pushState({}, '', location.pathname + qs);
     room = r;
@@ -90,7 +102,7 @@
     <div class="controls">
       <label>
         Name
-        <input bind:value={name} />
+        <input value={name} oninput={e => { name = e.currentTarget.value as DisplayName; }} />
       </label>
       <label class="room-label">
         Doc
@@ -121,6 +133,7 @@
       {name}
       {color}
       {room}
+      role={sessionRole}
       {connect}
       storage={connected ? storage : null}
       onstoragestatus={() => openSettings()}

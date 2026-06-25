@@ -1,4 +1,4 @@
-import type { Storage, CredentialField } from './types.js';
+import type { Storage, CredentialField, SessionCredentials } from './types.js';
 import type { Fetch } from '../network/types.js';
 
 const FILE_NAME = 'document.yjs';
@@ -39,7 +39,7 @@ export function webdavStorage(netFetch: Fetch): Storage {
 
     isAuthenticated: () => !!conf(),
 
-    async connect(creds: Record<string, string> = {}) {
+    async connect(creds: SessionCredentials = {}) {
       const { baseUrl = '', username = '', password = '' } = creds;
       if (!baseUrl.trim() || !username.trim())
         throw new Error('URL and username are required');
