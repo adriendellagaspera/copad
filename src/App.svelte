@@ -11,9 +11,10 @@
   const theme = createTheme();
 
   const connect = webrtcCollab({
-    signaling: (import.meta.env.VITE_SIGNALING_URL ?? 'ws://localhost:4444')
+    signaling: (import.meta.env.VITE_SIGNALING_URL || 'ws://localhost:4444')
       .split(',')
-      .map((s: string) => s.trim()),
+      .map((s: string) => s.trim())
+      .filter(Boolean),
     password: import.meta.env.VITE_ROOM_PASSWORD,
   });
 
@@ -96,7 +97,7 @@
 <div class="app">
   <header>
     <div class="brand">
-      <img src="/favicon.svg" alt="" width="26" height="26" />
+      <img src="{import.meta.env.BASE_URL}favicon.svg" alt="" width="26" height="26" />
       <h1>Copad</h1>
     </div>
     <div class="controls">
