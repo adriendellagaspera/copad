@@ -93,7 +93,7 @@
   // allowing a peer without storage access (e.g. a SharePoint guest) to have
   // their edits relayed and persisted by an authenticated leader.
   const isLeader = (): boolean => {
-    const states = collab.awareness.getStates() as ReadonlyMap<number, PeerAwarenessState>;
+    const states = collab.awareness.getStates() as unknown as ReadonlyMap<number, PeerAwarenessState>;
     const persisterIds = [...states.entries()]
       .filter(([, s]) => s.canPersist)
       .map(([id]) => id);
