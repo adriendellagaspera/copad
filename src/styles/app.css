@@ -387,6 +387,19 @@ button.status-link {
   flex-wrap: wrap;
   margin-top: 0.25rem;
 }
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+  font-size: var(--fs-400, 0.9375rem);
+  margin: 0.35rem 0 0.15rem;
+}
+.toggle input {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
 
 /* ── Responsive & touch ── */
 

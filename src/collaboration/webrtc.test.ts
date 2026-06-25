@@ -25,17 +25,35 @@ vi.mock('y-webrtc', () => {
   return { WebrtcProvider };
 });
 
+// Capture IndexeddbPersistence construction without touching real IndexedDB.
+vi.mock('y-indexeddb', () => {
+  class IndexeddbPersistence {
+    name: string;
+    constructor(name: string, _doc: unknown) {
+      this.name = name;
+      (globalThis as Record<string, unknown>).__idb = this;
+    }
+    destroy() {
+      return Promise.resolve();
+    }
+  }
+  return { IndexeddbPersistence };
+});
+
 import { webrtcCollab } from './webrtc.js';
-import type { RoomId } from './types.js';
+import type { RoomId, SignalingUrl } from './types.js';
+import type { LocalCacheEnabled } from './cache.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const provider = (): any => (globalThis as Record<string, unknown>).__wp;
 
 const ROOM = 'room' as RoomId;
+const SIGNALING = ['ws://x'] as SignalingUrl[];
+const CACHE_ON = true as LocalCacheEnabled;
 
 describe('webrtcCollab status mapping', () => {
   it('maps connecting → waiting → connected as signaling and peers change', () => {
-    const collab = webrtcCollab({ signaling: ['ws://x'] })(ROOM);
+    const collab = webrtcCollab({ signaling: SIGNALING })(ROOM);
     const seen: string[] = [];
     collab.onStatus((s) => seen.push(s));
 
@@ -56,7 +74,7 @@ describe('webrtcCollab status mapping', () => {
   });
 
   it('counts same-browser (BroadcastChannel) peers as connected', () => {
-    const collab = webrtcCollab({ signaling: ['ws://x'] })(ROOM);
+    const collab = webrtcCollab({ signaling: SIGNALING })(ROOM);
     let status = '';
     collab.onStatus((s) => (status = s));
 
@@ -69,7 +87,7 @@ describe('webrtcCollab status mapping', () => {
   });
 
   it('tracks the synced flag', () => {
-    const collab = webrtcCollab({ signaling: ['ws://x'] })(ROOM);
+    const collab = webrtcCollab({ signaling: SIGNALING })(ROOM);
     let synced = true;
     collab.onSynced((b) => (synced = b));
     expect(synced).toBe(false); // initial
@@ -81,26 +99,43 @@ describe('webrtcCollab status mapping', () => {
   });
 
   it('reports the p2p transport', () => {
-    const collab = webrtcCollab({ signaling: ['ws://x'] })(ROOM);
+    const collab = webrtcCollab({ signaling: SIGNALING })(ROOM);
     expect(collab.transport).toBe('p2p');
     collab.destroy();
+  });
+});
+
+describe('webrtcCollab local cache', () => {
+  it('attaches an IndexedDB cache named after the room when enabled', () => {
+    (globalThis as Record<string, unknown>).__idb = undefined;
+    webrtcCollab({ signaling: SIGNALING, cache: CACHE_ON })('my-room' as RoomId);
+    expect(provider() && (globalThis as Record<string, unknown>).__idb).toBeTruthy();
+    expect(((globalThis as Record<string, unknown>).__idb as { name: string }).name).toBe(
+      'copad:my-room',
+    );
+  });
+
+  it('skips the cache when not enabled', () => {
+    (globalThis as Record<string, unknown>).__idb = undefined;
+    webrtcCollab({ signaling: SIGNALING })(ROOM);
+    expect((globalThis as Record<string, unknown>).__idb).toBeUndefined();
   });
 });
 
 describe('webrtcCollab ICE configuration', () => {
   it('forwards iceServers to the provider as peerOpts.config', () => {
     const ice = [{ urls: 'turn:t.example:3478', username: 'u', credential: 'c' }];
-    webrtcCollab({ signaling: ['ws://x'], iceServers: ice })(ROOM);
+    webrtcCollab({ signaling: SIGNALING, iceServers: ice })(ROOM);
     expect(provider().opts.peerOpts).toEqual({ config: { iceServers: ice } });
   });
 
   it('omits peerOpts when no iceServers are given', () => {
-    webrtcCollab({ signaling: ['ws://x'] })(ROOM);
+    webrtcCollab({ signaling: SIGNALING })(ROOM);
     expect(provider().opts.peerOpts).toBeUndefined();
   });
 
   it('omits peerOpts when iceServers is empty', () => {
-    webrtcCollab({ signaling: ['ws://x'], iceServers: [] })(ROOM);
+    webrtcCollab({ signaling: SIGNALING, iceServers: [] })(ROOM);
     expect(provider().opts.peerOpts).toBeUndefined();
   });
 });

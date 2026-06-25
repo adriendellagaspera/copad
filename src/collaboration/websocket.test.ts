@@ -41,17 +41,35 @@ vi.mock('y-websocket', () => {
   return { WebsocketProvider };
 });
 
+// Capture IndexeddbPersistence construction without touching real IndexedDB.
+vi.mock('y-indexeddb', () => {
+  class IndexeddbPersistence {
+    name: string;
+    constructor(name: string, _doc: unknown) {
+      this.name = name;
+      (globalThis as Record<string, unknown>).__idb = this;
+    }
+    destroy() {
+      return Promise.resolve();
+    }
+  }
+  return { IndexeddbPersistence };
+});
+
 import { websocketCollab } from './websocket.js';
-import type { RoomId } from './types.js';
+import type { RoomId, WebsocketUrl } from './types.js';
+import type { LocalCacheEnabled } from './cache.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const provider = (): any => (globalThis as Record<string, unknown>).__wsp;
 
 const ROOM = 'room' as RoomId;
+const HUB = 'wss://x' as WebsocketUrl;
+const CACHE_ON = true as LocalCacheEnabled;
 
 describe('websocketCollab status mapping', () => {
   it('maps connecting → waiting → connected as the socket and peers change', () => {
-    const collab = websocketCollab({ url: 'wss://x' })(ROOM);
+    const collab = websocketCollab({ url: HUB })(ROOM);
     const seen: string[] = [];
     collab.onStatus((s) => seen.push(s));
 
@@ -77,7 +95,7 @@ describe('websocketCollab status mapping', () => {
   });
 
   it('tracks the synced flag', () => {
-    const collab = websocketCollab({ url: 'wss://x' })(ROOM);
+    const collab = websocketCollab({ url: HUB })(ROOM);
     let synced = true;
     collab.onSynced((b) => (synced = b));
     expect(synced).toBe(false); // initial
@@ -89,14 +107,28 @@ describe('websocketCollab status mapping', () => {
   });
 
   it('connects to the configured server URL and room', () => {
-    websocketCollab({ url: 'wss://hub.example' })('my-room' as RoomId);
+    websocketCollab({ url: 'wss://hub.example' as WebsocketUrl })('my-room' as RoomId);
     expect(provider().url).toBe('wss://hub.example');
     expect(provider().room).toBe('my-room');
   });
 
   it('reports the hub transport', () => {
-    const collab = websocketCollab({ url: 'wss://x' })(ROOM);
+    const collab = websocketCollab({ url: HUB })(ROOM);
     expect(collab.transport).toBe('hub');
     collab.destroy();
+  });
+
+  it('attaches an IndexedDB cache named after the room when enabled', () => {
+    (globalThis as Record<string, unknown>).__idb = undefined;
+    websocketCollab({ url: HUB, cache: CACHE_ON })('my-room' as RoomId);
+    expect(((globalThis as Record<string, unknown>).__idb as { name: string }).name).toBe(
+      'copad:my-room',
+    );
+  });
+
+  it('skips the cache when not enabled', () => {
+    (globalThis as Record<string, unknown>).__idb = undefined;
+    websocketCollab({ url: HUB })(ROOM);
+    expect((globalThis as Record<string, unknown>).__idb).toBeUndefined();
   });
 });

@@ -133,6 +133,7 @@ Add these in each provider's developer console:
 - The document is stored as a **binary Yjs state** (a CRDT update, not HTML) — this enables clean merging across sessions.
 - **Load**: on mount / after connecting, the adapter reads the file and applies it to the `Y.Doc`.
 - **Save**: debounced autosave (3 s of inactivity) + `beforeunload`. To avoid race conditions, **only the peer with the lowest `clientID` writes** (leader election via Yjs awareness).
+- **Local cache** (on by default): the doc is mirrored into the browser's IndexedDB (via [y-indexeddb](https://github.com/yjs/y-indexeddb)), so a **reload keeps your work even with no storage backend connected**. It's stored **unencrypted** in the browser regardless of any room password (that only encrypts the connection), so Settings ⚙ has a toggle to turn it off and a "Clear local copies" button for shared/untrusted devices.
 
 ## Cost breakdown
 
