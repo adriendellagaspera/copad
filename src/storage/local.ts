@@ -1,9 +1,13 @@
 import type { Storage } from './types.js';
 
-// showSaveFilePicker is part of the File System Access API Living Standard
+// showOpenFilePicker is part of the File System Access API Living Standard
 // and not yet in TypeScript's lib.dom.d.ts at this version.
 declare global {
   interface Window {
+    showOpenFilePicker(opts?: {
+      multiple?: boolean;
+      types?: Array<{ description: string; accept: Record<string, string[]> }>;
+    }): Promise<FileSystemFileHandle[]>;
     showSaveFilePicker(opts?: {
       suggestedName?: string;
       types?: Array<{ description: string; accept: Record<string, string[]> }>;
@@ -17,7 +21,7 @@ declare global {
 let handle: FileSystemFileHandle | null = null;
 
 function fsAccessUnavailableReason(): string | undefined {
-  if (typeof window === 'undefined' || !('showSaveFilePicker' in window)) {
+  if (typeof window === 'undefined' || !('showOpenFilePicker' in window)) {
     const isBrave = (navigator as Navigator & { brave?: unknown }).brave != null;
     return isBrave
       ? 'Brave is blocking the File System Access API. ' +
@@ -37,12 +41,13 @@ export function localFsStorage(): Storage {
 
     isAuthenticated: () => handle !== null,
 
-    // showSaveFilePicker: lets the user pick an existing file OR create a new one.
-    async connect() {
-      handle = await window.showSaveFilePicker({
-        suggestedName: 'copad-document.yjs',
-        types: [{ description: 'Copad document', accept: { 'application/octet-stream': ['.yjs'] } }],
-      });
+    async connect(creds?: Record<string, string>) {
+      const types = [{ description: 'Copad document', accept: { 'application/octet-stream': ['.yjs'] } }];
+      if (creds?.mode === 'new') {
+        handle = await window.showSaveFilePicker({ suggestedName: 'document.yjs', types });
+      } else {
+        [handle] = await window.showOpenFilePicker({ types });
+      }
     },
 
     disconnect() {
