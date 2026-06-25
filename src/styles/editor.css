@@ -1,0 +1,230 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Editor — container, toolbar, status bar, the writing surface (ProseMirror),
+   and y-prosemirror remote cursors. The .content/.ProseMirror/.status
+   selectors are a contract with e2e/collab.test.ts — keep them.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+/* ── Toolbar ── */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  flex-wrap: wrap;
+}
+
+.toolbar button {
+  padding: 0.3rem 0.5rem;
+  min-width: 2rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-300);
+  text-align: center;
+  user-select: none;
+}
+.toolbar button:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.toolbar button[data-active="true"] {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-soft-text);
+}
+
+.toolbar .sep {
+  width: 1px;
+  height: 1.25rem;
+  background: var(--border-strong);
+  margin: 0 var(--sp-2);
+  flex-shrink: 0;
+}
+
+/* ── Status bar ── */
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-300);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.status .spacer {
+  margin-left: auto;
+}
+
+/* Legacy decorative dot kept as a fallback before StatusPill lands. */
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex-shrink: 0;
+}
+
+/* ── Writing surface ── */
+
+.content {
+  padding: var(--sp-6) var(--sp-5);
+  min-height: 60vh;
+  outline: none;
+}
+
+.ProseMirror {
+  outline: none;
+  min-height: 56vh;
+  max-width: var(--measure);
+  margin: 0 auto;
+  font-family: var(--font-read);
+  font-size: var(--fs-500);
+  line-height: var(--lh-body);
+  color: var(--text);
+}
+
+.ProseMirror:focus {
+  outline: none;
+}
+
+.ProseMirror > :first-child {
+  margin-top: 0;
+}
+
+.ProseMirror p {
+  margin: 0 0 0.75em;
+}
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3 {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: var(--lh-tight);
+  color: var(--text);
+}
+.ProseMirror h1 {
+  font-size: var(--fs-700);
+  margin: 1.2em 0 0.4em;
+}
+.ProseMirror h2 {
+  font-size: var(--fs-600);
+  margin: 1.1em 0 0.4em;
+}
+.ProseMirror h3 {
+  font-size: var(--fs-500);
+  margin: 1em 0 0.35em;
+}
+
+.ProseMirror blockquote {
+  margin: 0 0 0.75em;
+  padding: 0.2em 0 0.2em 1em;
+  border-left: 3px solid var(--accent);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.ProseMirror a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.ProseMirror code {
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 0.1em 0.35em;
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+.ProseMirror pre {
+  background: var(--codeblock-bg);
+  color: var(--codeblock-fg);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+.ProseMirror pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  font-size: inherit;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  padding-left: 1.5em;
+  margin: 0 0 0.75em;
+}
+.ProseMirror li {
+  margin: 0.15em 0;
+}
+.ProseMirror li > p {
+  margin: 0;
+}
+
+.ProseMirror hr {
+  border: none;
+  border-top: 2px solid var(--border-strong);
+  margin: 1.5em 0;
+}
+
+/* Placeholder for an empty document (set via a ProseMirror plugin / attr). */
+.ProseMirror .is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-faint);
+  pointer-events: none;
+  height: 0;
+  float: left;
+}
+
+/* ── y-prosemirror remote cursors ── */
+
+.ProseMirror-yjs-cursor {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 2px solid var(--text);
+  border-right: 1px solid transparent;
+  word-break: normal;
+  pointer-events: none;
+}
+.ProseMirror-yjs-cursor > div {
+  position: absolute;
+  top: -1.5em;
+  left: -2px;
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.2;
+  background: inherit;
+  border-color: inherit;
+  border-radius: var(--r-sm) var(--r-sm) var(--r-sm) 0;
+  padding: 2px 6px;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+  box-shadow: var(--shadow-sm);
+}

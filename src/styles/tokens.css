@@ -1,0 +1,130 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Design tokens — the single source of truth for color, type, space & motion.
+   Light theme lives in :root; [data-theme="dark"] overrides only what changes.
+   Everything else (components, editor, ProseMirror surface) references these.
+   ────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Surfaces ── */
+  --bg: #f6f6f4;          /* app canvas — warm off-white */
+  --surface: #ffffff;     /* cards, editor paper */
+  --surface-2: #faf9f7;   /* toolbar, status bar, insets */
+  --surface-3: #f0efeb;   /* hover wells, subtle fills */
+  --border: #e6e4e0;
+  --border-strong: #d3d0ca;
+  --overlay: rgba(20, 18, 15, 0.32);   /* dialog backdrop */
+
+  /* ── Text ── */
+  --text: #1d1c1a;        /* primary ink — slightly warm */
+  --text-muted: #6b6862;
+  --text-faint: #9a968e;  /* decorative only */
+
+  /* ── Accent & states ── */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-contrast: #ffffff;
+  --accent-soft: #e0e7ff;       /* active toolbar bg */
+  --accent-soft-text: #3730a3;  /* active toolbar text */
+  --ok: #16a34a;
+  --ok-soft: #dcfce7;
+  --warn: #d97706;
+  --warn-soft: #fffbe6;
+  --warn-border: #fde68a;
+  --danger: #dc2626;
+  --danger-soft: #fee2e2;
+  --selection: rgba(37, 99, 235, 0.18);
+
+  /* ── Code surface ── */
+  --code-bg: #f3f2ef;
+  --code-fg: #9333ea;          /* inline code accent */
+  --codeblock-bg: #1e293b;
+  --codeblock-fg: #e2e8f0;
+
+  /* ── Typography ── */
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-read: "Source Serif 4", Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", monospace;
+
+  --fs-300: 0.8125rem;  /* 13px — meta, status */
+  --fs-400: 1rem;       /* 16px — base UI */
+  --fs-500: 1.125rem;   /* 18px — reading body */
+  --fs-600: 1.375rem;   /* 22px — h2 */
+  --fs-700: 1.75rem;    /* 28px — h1 */
+  --fs-800: 2.25rem;    /* 36px — display */
+
+  --lh-tight: 1.25;
+  --lh-body: 1.7;
+  --measure: 68ch;      /* ideal reading width */
+
+  /* ── Spacing (4px base) ── */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-8: 3rem;
+
+  /* ── Radii ── */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-full: 999px;
+
+  /* ── Shadows (warm, soft) ── */
+  --shadow-sm: 0 1px 2px rgba(20, 18, 15, 0.05);
+  --shadow-md: 0 4px 16px -4px rgba(20, 18, 15, 0.12);
+  --shadow-lg: 0 12px 40px -8px rgba(20, 18, 15, 0.22);
+
+  /* ── Motion ── */
+  --dur-fast: 120ms;
+  --dur-mid: 200ms;
+  --dur-slow: 320ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* ── Layering ── */
+  --z-menu: 40;
+  --z-dialog: 50;
+  --z-toast: 60;
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #16161a;
+  --surface: #1e1e24;
+  --surface-2: #23232b;
+  --surface-3: #2b2b34;
+  --border: #2e2e38;
+  --border-strong: #3a3a46;
+  --overlay: rgba(0, 0, 0, 0.55);
+
+  --text: #ececf0;
+  --text-muted: #a6a6b0;
+  --text-faint: #6f6f7c;
+
+  --accent: #6b8efb;
+  --accent-hover: #85a2ff;
+  --accent-contrast: #0f1117;
+  --accent-soft: #2a2f48;
+  --accent-soft-text: #c7d2fe;
+  --ok: #34d399;
+  --ok-soft: #07321f;
+  --warn: #fbbf24;
+  --warn-soft: #2b2410;
+  --warn-border: #4a3c12;
+  --danger: #f87171;
+  --danger-soft: #3a1414;
+  --selection: rgba(107, 142, 251, 0.28);
+
+  --code-bg: #2b2b34;
+  --code-fg: #d8b4fe;
+  --codeblock-bg: #11141b;
+  --codeblock-fg: #cbd5e1;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px -4px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 12px 40px -8px rgba(0, 0, 0, 0.7);
+
+  color-scheme: dark;
+}

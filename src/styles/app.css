@@ -1,0 +1,360 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   App chrome — layout, header, controls, buttons, connect panel.
+   (Presence, status pill, dialogs and toasts are appended in Phase 2.)
+   ────────────────────────────────────────────────────────────────────────── */
+
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--sp-5) var(--sp-4) var(--sp-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+/* ── Header ── */
+
+header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-right: auto;
+}
+.brand img {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm);
+  display: block;
+}
+header h1 {
+  margin: 0;
+  font-size: var(--fs-600);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.controls {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-300);
+  color: var(--text-muted);
+}
+
+/* ── Form fields ── */
+
+input[type="text"],
+input:not([type]),
+input[type="password"],
+input[type="url"],
+select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: var(--fs-300);
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+input:focus-visible,
+select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--selection);
+}
+input::placeholder {
+  color: var(--text-faint);
+}
+
+/* ── Buttons ── */
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-300);
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+button:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: transparent;
+  font-weight: 500;
+}
+button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+button.ghost {
+  border-color: transparent;
+  background: transparent;
+}
+button.ghost:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.room-label input {
+  font-family: var(--font-mono);
+  width: 9rem;
+}
+.btn-new {
+  padding: 0.35rem 0.6rem;
+}
+
+/* ── Connect panel ── */
+
+.connect {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.connected {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  color: var(--ok);
+  font-size: var(--fs-300);
+  font-weight: 500;
+}
+.creds {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.error {
+  color: var(--danger);
+  font-size: var(--fs-300);
+  margin: 0;
+}
+
+/* ── Info / hint banner ── */
+
+.hint {
+  margin: 0;
+  font-size: var(--fs-300);
+  color: var(--text-muted);
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-border);
+  border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-4);
+}
+.hint strong {
+  color: var(--text);
+}
+
+/* ── Icon button (settings gear, drawer close) ── */
+
+.icon-btn {
+  min-width: 0;
+  padding: 0.35rem 0.55rem;
+  line-height: 1;
+  font-size: 1rem;
+}
+
+/* ── Inline link buttons (hint text, editor status bar) ── */
+
+button.link,
+button.status-link {
+  display: inline;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  color: inherit;
+  border-radius: 0;
+}
+button.link:hover:not(:disabled),
+button.status-link:hover:not(:disabled) {
+  background: none;
+}
+button.link {
+  color: var(--accent);
+}
+button.status-link {
+  color: var(--text-faint);
+  font-size: var(--fs-300);
+}
+
+/* ── Settings drawer + storage backends ── */
+
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  z-index: var(--z-dialog);
+}
+.settings {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: calc(var(--z-dialog) + 1);
+  width: min(440px, 100vw);
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-5) var(--sp-5) var(--sp-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  animation: settings-in var(--dur-mid) var(--ease);
+}
+@keyframes settings-in {
+  from {
+    transform: translateX(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.settings-head h2 {
+  margin: 0;
+  font-size: var(--fs-500);
+  font-weight: 600;
+}
+.settings-lead,
+.settings-empty {
+  margin: 0;
+  font-size: var(--fs-300);
+  color: var(--text-muted);
+}
+.settings .backend {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.settings .backend.focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.backend-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.backend-name {
+  font-weight: 600;
+}
+.backend-blurb {
+  margin: 0;
+  font-size: var(--fs-300);
+  color: var(--text-muted);
+}
+.badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--r-full);
+  background: var(--warn-soft);
+  color: var(--warn);
+  border: 1px solid var(--warn-border);
+}
+.badge.ok {
+  color: var(--ok);
+  background: var(--ok-soft);
+  border-color: color-mix(in srgb, var(--ok) 30%, var(--border));
+}
+.badge.unavailable {
+  color: var(--text-muted);
+  background: var(--surface-3);
+  border-color: var(--border);
+}
+.unavailable-reason {
+  margin: 0;
+  font-size: var(--fs-300);
+  color: var(--text-muted);
+}
+.settings .field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.3rem;
+  font-size: var(--fs-300);
+  color: var(--text-muted);
+}
+.field-label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.field input {
+  width: 100%;
+}
+.field input:disabled {
+  background: var(--surface-3);
+  color: var(--text-faint);
+}
+.lock {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  font-weight: 400;
+}
+.field-help {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.backend-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
