@@ -21,15 +21,18 @@ declare global {
 let handle: FileSystemFileHandle | null = null;
 
 function fsAccessUnavailableReason(): string | undefined {
-  if (typeof window === 'undefined' || !('showOpenFilePicker' in window)) {
-    const isBrave = (navigator as Navigator & { brave?: unknown }).brave != null;
-    return isBrave
-      ? 'Brave is blocking the File System Access API. ' +
-        'Lower Shields for this site and reload, or go to brave://settings/content/filesystem ' +
-        'and allow this origin.'
-      : 'Requires a browser that supports the File System Access API (Chrome/Edge).';
+  if (typeof window === 'undefined') return 'Not in a browser context.';
+  if ('showOpenFilePicker' in window) return undefined;
+  if (!window.isSecureContext) {
+    return 'The File System Access API requires a secure context. ' +
+      'Open this app via https:// or http://localhost instead of a plain HTTP URL.';
   }
-  return undefined;
+  const isBrave = (navigator as Navigator & { brave?: unknown }).brave != null;
+  return isBrave
+    ? 'The File System Access API is not available. ' +
+      'If Brave Shields are enabled for this site, lower them and reload, ' +
+      'or go to brave://settings/content/filesystem and allow this origin.'
+    : 'Requires a browser that supports the File System Access API (Chrome/Edge).';
 }
 
 export function localFsStorage(): Storage {
