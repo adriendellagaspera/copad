@@ -202,6 +202,28 @@
   float: left;
 }
 
+/* ── Responsive ── */
+
+@media (max-width: 640px) {
+  .content {
+    padding: var(--sp-4);
+  }
+  .ProseMirror {
+    font-size: var(--fs-400);
+  }
+  .status {
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+  }
+}
+
+@media (pointer: coarse) {
+  .toolbar button {
+    min-height: 38px;
+    min-width: 2.4rem;
+  }
+}
+
 /* ── y-prosemirror remote cursors ── */
 
 .ProseMirror-yjs-cursor {
