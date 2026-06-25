@@ -6,6 +6,9 @@
     backends,
     open = $bindable(false),
     focusId = '',
+    localCache = true,
+    onCacheChange,
+    onCacheClear,
     onchange,
     onconnect,
     ondisconnect,
@@ -13,10 +16,23 @@
     backends: Storage[];
     open?: boolean;
     focusId?: string;
+    localCache?: boolean;
+    onCacheChange?: (on: boolean) => void;
+    onCacheClear?: () => void | Promise<void>;
     onchange?: () => void;
     onconnect?: (s: Storage) => void;
     ondisconnect?: (s: Storage) => void;
   } = $props();
+
+  let clearing = $state(false);
+  async function clearCache() {
+    clearing = true;
+    try {
+      await onCacheClear?.();
+    } finally {
+      clearing = false;
+    }
+  }
 
   const configurable = $derived(backends.filter(s => s.configFields && s.configFields.length > 0));
   const connectable = $derived(backends.filter(s => !s.configFields || s.configFields.length === 0));
@@ -81,6 +97,35 @@
       Configure your storage backends. App keys are saved in this browser and
       reused across sessions — you only set them once.
     </p>
+
+    <section class="backend">
+      <div class="backend-head">
+        <span class="backend-name">Local copy</span>
+        <span class="badge {localCache ? 'ok' : ''}">{localCache ? 'On' : 'Off'}</span>
+      </div>
+      <p class="backend-blurb">
+        Keep a copy of your documents in this browser so they survive a reload and
+        work offline — even with no storage backend connected.
+      </p>
+      <label class="toggle">
+        <input
+          type="checkbox"
+          checked={localCache}
+          onchange={e => onCacheChange?.(e.currentTarget.checked)}
+        />
+        <span>Keep a local copy of documents</span>
+      </label>
+      <small class="field-help">
+        Stored <strong>unencrypted</strong> in this browser, regardless of any room
+        password (that only encrypts the connection). Turn this off for a shared or
+        untrusted device.
+      </small>
+      <div class="backend-actions">
+        <button onclick={clearCache} disabled={clearing}>
+          {clearing ? 'Clearing…' : 'Clear local copies'}
+        </button>
+      </div>
+    </section>
 
     {#snippet filenameField(s: Storage)}
       {#if s.setFilename}

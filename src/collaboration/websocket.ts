@@ -1,6 +1,7 @@
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
-import type { Collab, CollabConnect, ConnStatus, RoomId } from './types.js';
+import type { Collab, CollabConnect, ConnStatus, RoomId, WebsocketUrl } from './types.js';
+import { attachLocalCache, type LocalCache, type LocalCacheEnabled } from './cache.js';
 
 /**
  * Client ↔ server (hub) collaboration transport.
@@ -14,11 +15,23 @@ import type { Collab, CollabConnect, ConnStatus, RoomId } from './types.js';
  * Trade-off: the server is in the data path and sees plaintext Yjs updates, so
  * the WebRTC `password` (end-to-end encryption) does not apply here.
  */
-export function websocketCollab(opts: { url: string }): CollabConnect {
+export interface WebsocketCollabOptions {
+  /** Validated hub URL that relays edits between clients. */
+  url: WebsocketUrl;
+  /** Mirror the doc into IndexedDB so it survives a reload without a backend. */
+  cache?: LocalCacheEnabled;
+}
+
+export function websocketCollab(opts: WebsocketCollabOptions): CollabConnect {
   return (room: RoomId): Collab => {
     const doc = new Y.Doc();
     // RoomId extends string — cast back to string at the y-websocket IO boundary.
     const provider = new WebsocketProvider(opts.url, room as string, doc);
+
+    // Local cache: keeps the doc across reloads even with no storage backend.
+    const cache: LocalCache | undefined = opts.cache
+      ? attachLocalCache(room as string, doc)
+      : undefined;
 
     const statusFns = new Set<(s: ConnStatus) => void>();
     const syncedFns = new Set<(b: boolean) => void>();
@@ -79,6 +92,8 @@ export function websocketCollab(opts: { url: string }): CollabConnect {
         provider.awareness.off('change', emitStatus);
         statusFns.clear();
         syncedFns.clear();
+        // Detach the IndexedDB connection first so a subsequent clear isn't blocked.
+        cache?.destroy();
         provider.destroy();
         doc.destroy();
       },

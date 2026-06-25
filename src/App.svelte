@@ -4,6 +4,12 @@
   import { webrtcCollab } from './collaboration/webrtc.js';
   import { websocketCollab } from './collaboration/websocket.js';
   import { resolveSignaling, resolveIceServers, resolveWebsocket, resolveTransport } from './collaboration/config.js';
+  import {
+    localCacheEnabled,
+    setLocalCacheEnabled,
+    clearLocalCache,
+    type LocalCacheEnabled,
+  } from './collaboration/cache.js';
   import type { SessionRole, DisplayName, CursorColor, RoomId, CollabConnect } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
@@ -20,33 +26,59 @@
   // Pick the collaboration transport — chosen explicitly via VITE_COLLAB_TRANSPORT
   // (default 'webrtc'). 'websocket' routes edits through a central hub server (no
   // WebRTC, so no STUN/TURN — works on mobile carrier NATs where P2P can't connect).
-  function resolveCollab(): { connect: CollabConnect; warning?: string } {
+  // Transport + its config are decided once; the cache flag is applied per build
+  // so toggling the local cache can rebuild `connect` (and remount the Editor).
+  function planCollab(): { build: (cache: LocalCacheEnabled) => CollabConnect; warning?: string } {
     if (resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket') {
       const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, location);
       if (ws.url) {
-        return { connect: websocketCollab({ url: ws.url }), warning: ws.warning };
+        // Pin the narrowed (non-empty) WebsocketUrl in a const so it stays branded
+        // inside the build closure — TS won't carry property narrowing into it.
+        const url = ws.url;
+        return { build: (cache) => websocketCollab({ url, cache }), warning: ws.warning };
       }
       // Misconfigured: transport selected but no URL — warn and fall back to WebRTC.
       console.warn('Copad: VITE_COLLAB_TRANSPORT=websocket but VITE_WEBSOCKET_URL is unset — using WebRTC.');
     }
     const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, location);
+    const iceServers = resolveIceServers({
+      VITE_STUN_URL: import.meta.env.VITE_STUN_URL,
+      VITE_TURN_URL: import.meta.env.VITE_TURN_URL,
+      VITE_TURN_USERNAME: import.meta.env.VITE_TURN_USERNAME,
+      VITE_TURN_CREDENTIAL: import.meta.env.VITE_TURN_CREDENTIAL,
+    });
     return {
-      connect: webrtcCollab({
-        signaling: signaling.servers,
-        password: import.meta.env.VITE_ROOM_PASSWORD,
-        iceServers: resolveIceServers({
-          VITE_STUN_URL: import.meta.env.VITE_STUN_URL,
-          VITE_TURN_URL: import.meta.env.VITE_TURN_URL,
-          VITE_TURN_USERNAME: import.meta.env.VITE_TURN_USERNAME,
-          VITE_TURN_CREDENTIAL: import.meta.env.VITE_TURN_CREDENTIAL,
+      build: (cache) =>
+        webrtcCollab({
+          signaling: signaling.servers,
+          password: import.meta.env.VITE_ROOM_PASSWORD,
+          iceServers,
+          cache,
         }),
-      }),
       warning: signaling.warning,
     };
   }
 
-  const { connect, warning: collabWarning } = resolveCollab();
-  if (collabWarning) console.warn(`Copad: ${collabWarning}`);
+  const collabPlan = planCollab();
+  if (collabPlan.warning) console.warn(`Copad: ${collabPlan.warning}`);
+  const collabWarning = collabPlan.warning;
+
+  // Local document cache (IndexedDB). On by default; the Settings toggle flips it.
+  // `connect` is derived so flipping it rebuilds the factory, and the keyed block
+  // below remounts the Editor so the change takes effect immediately.
+  let localCache = $state(localCacheEnabled());
+  const connect = $derived(collabPlan.build(localCache));
+
+  function setLocalCache(on: boolean): void {
+    localCache = on as LocalCacheEnabled;
+    setLocalCacheEnabled(on);
+    if (!on) void clearLocalCache().then(() => toasts.info('Local copies cleared'));
+  }
+
+  async function clearLocalCopies(): Promise<void> {
+    await clearLocalCache();
+    toasts.success('Cleared local copies of your documents');
+  }
 
   const COLORS: CursorColor[] = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'] as CursorColor[];
   const color: CursorColor = COLORS[Math.floor((Date.now() / 1000) % COLORS.length)];
@@ -172,7 +204,7 @@
     </p>
   {/if}
 
-  {#key room}
+  {#key `${room}|${localCache}`}
     <Editor
       {name}
       {color}
@@ -190,6 +222,9 @@
   backends={storageBackends}
   bind:open={settingsOpen}
   focusId={settingsFocus}
+  {localCache}
+  onCacheChange={setLocalCache}
+  onCacheClear={clearLocalCopies}
   onchange={bump}
   onconnect={afterConnect}
   ondisconnect={afterDisconnect}

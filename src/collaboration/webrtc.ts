@@ -1,14 +1,20 @@
 import * as Y from 'yjs';
 import { WebrtcProvider } from 'y-webrtc';
-import type { Collab, CollabConnect, ConnStatus, RoomId } from './types.js';
+import type { Collab, CollabConnect, ConnStatus, RoomId, SignalingUrl } from './types.js';
+import { attachLocalCache, type LocalCache, type LocalCacheEnabled } from './cache.js';
 
-export function webrtcCollab(opts: {
-  signaling: string[];
+export interface WebrtcCollabOptions {
+  /** Validated signaling servers peers use to discover each other. */
+  signaling: SignalingUrl[];
   password?: string;
   /** ICE servers (STUN/TURN) for WebRTC NAT traversal. Passing TURN here is
    *  what makes desktop↔mobile work across restrictive carrier NATs. */
   iceServers?: RTCIceServer[];
-}): CollabConnect {
+  /** Mirror the doc into IndexedDB so it survives a reload without a backend. */
+  cache?: LocalCacheEnabled;
+}
+
+export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
   return (room: RoomId): Collab => {
     const doc = new Y.Doc();
     // RoomId extends string — cast back to string at the y-webrtc IO boundary.
@@ -21,6 +27,11 @@ export function webrtcCollab(opts: {
         ? { peerOpts: { config: { iceServers: opts.iceServers } } }
         : {}),
     });
+
+    // Local cache: keeps the doc across reloads even with no storage backend.
+    const cache: LocalCache | undefined = opts.cache
+      ? attachLocalCache(room as string, doc)
+      : undefined;
 
     const statusFns = new Set<(s: ConnStatus) => void>();
     const syncedFns = new Set<(b: boolean) => void>();
@@ -83,6 +94,8 @@ export function webrtcCollab(opts: {
         }
         statusFns.clear();
         syncedFns.clear();
+        // Detach the IndexedDB connection first so a subsequent clear isn't blocked.
+        cache?.destroy();
         webrtc.destroy();
         doc.destroy();
       },

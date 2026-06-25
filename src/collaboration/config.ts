@@ -7,6 +7,8 @@
 // 2. An insecure ws:// server on an https:// page — browsers block this as
 //    mixed content, so the signaling socket never opens.
 
+import type { SignalingUrl, WebsocketUrl } from './types.js';
+
 /** Hostnames that mean "this is local dev", where ws://localhost is reasonable. */
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0', '']);
 
@@ -20,7 +22,7 @@ const list = (raw: string | undefined): string[] =>
 
 export interface SignalingResolution {
   /** Signaling servers to hand to y-webrtc (may be empty if misconfigured). */
-  readonly servers: string[];
+  readonly servers: SignalingUrl[];
   /** Human-readable problem to surface, or undefined when the config is sound. */
   readonly warning?: string;
 }
@@ -33,10 +35,12 @@ export function resolveSignaling(
 ): SignalingResolution {
   const isLocalHost = LOCAL_HOSTS.has(loc.hostname);
   const isSecurePage = loc.protocol === 'https:';
-  const servers = list(raw);
+  // list() is shared across signaling/STUN/TURN; brand the result here, at the
+  // point we've decided these strings are signaling URLs.
+  const servers = list(raw) as SignalingUrl[];
 
   if (servers.length === 0) {
-    if (isLocalHost) return { servers: [DEFAULT_DEV_SIGNALING] };
+    if (isLocalHost) return { servers: [DEFAULT_DEV_SIGNALING as SignalingUrl] };
     return {
       servers: [],
       warning:
@@ -73,7 +77,7 @@ export function resolveSignaling(
 
 export interface WebsocketResolution {
   /** Collaboration server URL, or '' when the websocket transport is not selected. */
-  readonly url: string;
+  readonly url: WebsocketUrl | '';
   /** Human-readable problem to surface, or undefined when the config is sound. */
   readonly warning?: string;
 }
@@ -100,8 +104,11 @@ export function resolveWebsocket(
   raw: string | undefined,
   loc: { protocol: string },
 ): WebsocketResolution {
-  const url = (raw ?? '').trim();
-  if (!url) return { url: '' };
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) return { url: '' };
+  // Validated as a hub URL from here on — brand it (insecure ws:// included; the
+  // warning below flags it, but it's still the configured collaboration URL).
+  const url = trimmed as WebsocketUrl;
 
   if (loc.protocol === 'https:' && url.startsWith('ws://')) {
     return {

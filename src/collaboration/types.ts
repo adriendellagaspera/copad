@@ -7,6 +7,14 @@ export type SessionRole = 'writer' | 'reader';
 /** A collaboration room identifier, derived from the URL or generated randomly. */
 export type RoomId = string & { readonly _brand: 'RoomId' };
 
+/** A WebRTC signaling server URL (`ws://`/`wss://`) that has passed
+ *  `resolveSignaling()` validation — peers use it only to discover each other. */
+export type SignalingUrl = string & { readonly _brand: 'SignalingUrl' };
+
+/** A y-websocket hub URL (`ws://`/`wss://`) that has passed `resolveWebsocket()`
+ *  validation — the central relay that carries edits on the hub transport. */
+export type WebsocketUrl = string & { readonly _brand: 'WebsocketUrl' };
+
 /** The name a peer chose to display next to their cursor. */
 export type DisplayName = string & { readonly _brand: 'DisplayName' };
 
