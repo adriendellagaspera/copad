@@ -93,4 +93,10 @@ describe('websocketCollab status mapping', () => {
     expect(provider().url).toBe('wss://hub.example');
     expect(provider().room).toBe('my-room');
   });
+
+  it('reports the hub transport', () => {
+    const collab = websocketCollab({ url: 'wss://x' })(ROOM);
+    expect(collab.transport).toBe('hub');
+    collab.destroy();
+  });
 });

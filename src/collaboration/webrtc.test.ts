@@ -79,6 +79,12 @@ describe('webrtcCollab status mapping', () => {
 
     collab.destroy();
   });
+
+  it('reports the p2p transport', () => {
+    const collab = webrtcCollab({ signaling: ['ws://x'] })(ROOM);
+    expect(collab.transport).toBe('p2p');
+    collab.destroy();
+  });
 });
 
 describe('webrtcCollab ICE configuration', () => {

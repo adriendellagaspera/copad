@@ -248,6 +248,7 @@
       {saveStatus}
       hasStorage={storage?.isAuthenticated() ?? false}
       storageLabel={storage?.label}
+      transport={collab.transport}
       onclick={storage?.isAuthenticated() ? undefined : onstoragestatus}
     />
     <PresenceBar {users} />
