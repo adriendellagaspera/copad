@@ -132,12 +132,6 @@ export function resolveWebsocket(
 }
 
 /**
- * Build the ICE server list for WebRTC. A public STUN server is enough for most
- * home/office NATs; a TURN relay is needed for restrictive networks — notably
- * mobile carriers (CGNAT / symmetric NAT), where STUN alone fails and
- * desktop↔phone sessions never connect.
- */
-/**
  * Parse `VITE_ROOM_AUTH` into a typed {@link RoomAccess} — the single place
  * where the raw env string crosses the domain boundary. Unknown values fall
  * back to `publicAccess` so a typo never silently breaks collaboration.
@@ -165,12 +159,21 @@ export function resolveRoomCipher(access: RoomAccess): RoomCipher {
   return { password: (room: RoomId) => access.credential(room) };
 }
 
-export function resolveIceServers(env: {
+/** ICE server environment variables read at startup for WebRTC NAT traversal. */
+export interface IceEnv {
   VITE_STUN_URL?: string;
   VITE_TURN_URL?: string;
   VITE_TURN_USERNAME?: string;
   VITE_TURN_CREDENTIAL?: string;
-}): RTCIceServer[] {
+}
+
+/**
+ * Build the ICE server list for WebRTC. A public STUN server is enough for most
+ * home/office NATs; a TURN relay is needed for restrictive networks — notably
+ * mobile carriers (CGNAT / symmetric NAT), where STUN alone fails and
+ * desktop↔phone sessions never connect.
+ */
+export function resolveIceServers(env: IceEnv): RTCIceServer[] {
   const servers: RTCIceServer[] = [];
 
   // VITE_STUN_URL="" (explicitly empty) disables the STUN default on purpose.

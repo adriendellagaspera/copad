@@ -15,13 +15,13 @@
   const st = $derived(editorState ? slashKey.getState(editorState) : null);
   const open = $derived(!!st?.active);
   const items = $derived<SlashItem[]>(st?.active ? filterItems(st.query) : []);
-  const index = $derived(items.length ? Math.min(st?.index ?? 0, items.length - 1) : 0);
+  const index = $derived(items.length ? Math.min(st?.active ? st.index : 0, items.length - 1) : 0);
 
   // Anchor the menu just below the "/" in viewport coordinates.
   const coords = $derived.by(() => {
     if (!open || !view || !st) return null;
     try {
-      const c = view.coordsAtPos(st.from);
+      const c = view.coordsAtPos(st.triggerPos);
       return { left: c.left, top: c.bottom + 6 };
     } catch {
       return null;

@@ -1,10 +1,10 @@
-import type { Storage, DocContent } from './types.js';
+import type { Storage, DocContent, StorageId } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import { pkceChallenge, openOAuthPopup } from './oauth.js';
 
-const fileName = filenameStore('dropbox');
+const fileName = filenameStore('dropbox' as StorageId);
 const filePath = () => `/copad/${fileName.get()}`;
 const STORAGE_KEY = 'storage.dropbox.token';
 const AUTH_URL = 'https://www.dropbox.com/oauth2/authorize';
@@ -12,7 +12,8 @@ const TOKEN_URL = 'https://api.dropboxapi.com/oauth2/token';
 const UPLOAD_URL = 'https://content.dropboxapi.com/2/files/upload';
 const DOWNLOAD_URL = 'https://content.dropboxapi.com/2/files/download';
 
-const cfg = configStore('dropbox', [
+// Persisted under `storage.dropbox.appKey` — same key the old connect form used.
+const cfg = configStore('dropbox' as StorageId, [
   {
     name: 'appKey',
     label: 'App key',
@@ -81,7 +82,7 @@ export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
   };
 
   const storage: Storage = {
-    id: 'dropbox',
+    id: 'dropbox' as StorageId,
     label: 'Dropbox',
     blurb: 'Saves to an app folder in your Dropbox via OAuth.',
 

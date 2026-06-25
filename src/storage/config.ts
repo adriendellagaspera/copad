@@ -1,4 +1,4 @@
-import type { ConfigField } from './types.js';
+import type { ConfigField, StorageId } from './types.js';
 
 /**
  * A single configuration field plus its build-time default. When `env` is set
@@ -28,7 +28,7 @@ export interface ConfigStore {
  * env var → saved value, matching the historic resolution chains in the
  * adapters (so values saved by the old credential form keep working).
  */
-export function configStore(id: string, specs: ConfigSpec[]): ConfigStore {
+export function configStore(id: StorageId, specs: ConfigSpec[]): ConfigStore {
   const spec = (name: string) => specs.find(s => s.name === name);
   const key = (name: string) => `storage.${id}.${name}`;
   const envOf = (name: string) => spec(name)?.env || '';

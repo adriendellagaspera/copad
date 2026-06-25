@@ -86,16 +86,20 @@
   });
 
   // ── Presence (derived from awareness) ──────────────────────────────────────
+  // y-protocols types getStates() as Map<number, { [key: string]: any }>; we
+  // cast once here because we know every peer calls setLocalState(PeerAwarenessState).
+  const typedStates = (): ReadonlyMap<number, PeerAwarenessState> =>
+    collab.awareness.getStates() as unknown as ReadonlyMap<number, PeerAwarenessState>;
+
   const readUsers = (): PeerUser[] => {
-    const states = collab.awareness.getStates();
+    const states = typedStates();
     const selfId = collab.doc.clientID;
     const list: PeerUser[] = [];
     states.forEach((state, id) => {
-      const u = (state as { user?: { name?: string; color?: string } }).user;
       list.push({
         id,
-        name: u?.name || 'Anonymous',
-        color: u?.color || '#888888',
+        name: state?.user?.name ?? ('Anonymous' as DisplayName),
+        color: state?.user?.color ?? ('#888888' as CursorColor),
         self: id === selfId,
       });
     });
@@ -154,7 +158,7 @@
   // allowing a peer without storage access (e.g. a SharePoint guest) to have
   // their edits relayed and persisted by an authenticated leader.
   const isLeader = (): boolean => {
-    const states = collab.awareness.getStates() as unknown as ReadonlyMap<number, PeerAwarenessState>;
+    const states = typedStates();
     const persisterIds = [...states.entries()]
       .filter(([, s]) => s.canPersist)
       .map(([id]) => id);

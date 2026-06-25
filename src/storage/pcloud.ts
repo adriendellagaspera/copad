@@ -1,12 +1,12 @@
 import pcloudSdk from 'pcloud-sdk-js';
-import type { Storage, DocContent } from './types.js';
+import type { Storage, DocContent, StorageId } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import type { Fetch } from '../network/types.js';
 
 const FOLDER = '/copad';
-const fileName = filenameStore('pcloud');
+const fileName = filenameStore('pcloud' as StorageId);
 const filePath = () => `${FOLDER}/${fileName.get()}`;
 const STORAGE_KEY = 'storage.pcloud';
 
@@ -15,7 +15,8 @@ interface PCloudSession {
   host: string;
 }
 
-const cfg = configStore('pcloud', [
+// Persisted under `storage.pcloud.clientId` — same key the old connect form used.
+const cfg = configStore('pcloud' as StorageId, [
   {
     name: 'clientId',
     label: 'Client ID',
@@ -24,6 +25,12 @@ const cfg = configStore('pcloud', [
     env: import.meta.env.VITE_PCLOUD_CLIENT_ID as string | undefined,
   },
 ]);
+
+interface PCloudFileLinkResponse {
+  result: number;
+  hosts: string[];
+  path: string;
+}
 
 export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: Storage } {
   const session = (): PCloudSession | null => {
@@ -68,7 +75,7 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
   };
 
   const storage: Storage = {
-    id: 'pcloud',
+    id: 'pcloud' as StorageId,
     label: 'pCloud',
     blurb: 'Saves to a /copad folder in your pCloud via OAuth.',
 
@@ -84,13 +91,11 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
       try {
         const meta = await fetch(
           `https://${s.host}/getfilelink?path=${encodeURIComponent(filePath())}&auth=${s.token}`
-        ).then(r => r.json() as Promise<Record<string, unknown>>);
+        ).then(r => r.json() as Promise<PCloudFileLinkResponse>);
 
-        if (meta['result'] !== 0) return null;
+        if (meta.result !== 0) return null;
 
-        const hosts = meta['hosts'] as string[];
-        const path = meta['path'] as string;
-        const contentUrl = `https://${hosts[0]}${path}`;
+        const contentUrl = `https://${meta.hosts[0]}${meta.path}`;
 
         const res = await netFetch(contentUrl);
         if (!res.ok) {

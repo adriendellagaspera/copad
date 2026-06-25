@@ -1,3 +1,12 @@
+/** Opaque identifier for a storage backend instance (e.g. `'dropbox'`, `'local'`). */
+export type StorageId = string & { readonly _brand: 'StorageId' };
+
+/**
+ * A target filename including its extension (e.g. `'notes.md'`, `'document.yjs'`).
+ * The extension drives which codec is used to read/write the document.
+ */
+export type Filename = string & { readonly _brand: 'Filename' };
+
 /**
  * The document content exchanged between the Editor and a Storage backend.
  * Binary backends (Dropbox, pCloud, WebDAV, local) use the Yjs state snapshot.
@@ -54,7 +63,7 @@ export interface ConfigField {
  * `App.svelte` gates the prop to `null` until auth is established.
  */
 export interface Storage {
-  readonly id: string;
+  readonly id: StorageId;
   readonly label: string;
   /** One-line description shown in Settings and as a pill tooltip. */
   readonly blurb?: string;
@@ -62,7 +71,11 @@ export interface Storage {
   readonly unavailableReason?: string;
 
   // ── Target file / format ───────────────────────────────────────────────────
-  filename?(): string;
+  // The filename's extension selects the codec (see src/format). Backends that
+  // omit these default to `document.yjs` (the native Copad format).
+  /** Effective target filename including extension, e.g. `notes.md`. */
+  filename?(): Filename;
+  /** Change the target filename. Absent where the name is fixed by the backend. */
   setFilename?(name: string): void;
 
   readonly contentFormat: DocContent['format'];

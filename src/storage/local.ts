@@ -1,4 +1,4 @@
-import type { Storage, SessionCredentials, DocContent } from './types.js';
+import type { Storage, SessionCredentials, DocContent, StorageId, Filename } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { knownExtensions } from '../format/index.js';
 
@@ -61,13 +61,13 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
   };
 
   const storage: Storage = {
-    id: 'local',
+    id: 'local' as StorageId,
     label: 'Local file',
     blurb: 'Opens any text or source file on your device — .yjs, .md, .txt, .html, .json, .py, .js, .rs, … (Chrome/Edge).',
     get unavailableReason() { return fsAccessUnavailableReason(); },
 
     // The picked file's name selects the codec; `.yjs` is the native default.
-    filename: () => handle?.name ?? 'document.yjs',
+    filename: () => (handle?.name ?? 'document.yjs') as Filename,
 
     contentFormat: 'binary',
 

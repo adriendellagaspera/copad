@@ -1,5 +1,8 @@
 import type * as Y from 'yjs';
 
+/** A lower-cased file extension including its leading dot (e.g. `'.md'`, `'.yjs'`). */
+export type FileExtension = string & { readonly _brand: 'FileExtension' };
+
 /**
  * A file-format codec — the bridge between the bytes a {@link Storage} backend
  * moves and the shared {@link Y.Doc} the editor binds to.
@@ -25,7 +28,7 @@ export interface Codec {
 }
 
 /** The extension of a filename, lower-cased and including the dot (e.g. `.md`). */
-export function extensionOf(filename: string): string {
+export function extensionOf(filename: string): FileExtension {
   const dot = filename.lastIndexOf('.');
-  return dot === -1 ? '' : filename.slice(dot).toLowerCase();
+  return (dot === -1 ? '' : filename.slice(dot).toLowerCase()) as FileExtension;
 }

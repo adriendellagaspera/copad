@@ -31,31 +31,50 @@ export function filterItems(query: string): SlashItem[] {
   );
 }
 
-export interface SlashState {
-  active: boolean;
-  from: number;
-  query: string;
-  index: number;
-  dismissedFrom: number;
+/**
+ * Transaction metadata for the slash menu plugin.
+ * - `dismiss` closes the menu and suppresses it for the current trigger position.
+ * - `index` moves keyboard focus to the given list index.
+ */
+export type SlashMenuMeta =
+  | { readonly type: 'dismiss' }
+  | { readonly type: 'index'; readonly index: number };
+
+/** The slash menu is closed. `triggerPos` is the position of the last dismissed trigger, or -1. */
+export interface SlashClosed {
+  readonly active: false;
+  readonly triggerPos: number;
+  readonly dismissedFrom: number;
 }
+
+/** The slash menu is open at `triggerPos`, filtering items by `query`. */
+export interface SlashOpen {
+  readonly active: true;
+  readonly triggerPos: number;
+  readonly query: string;
+  readonly index: number;
+  readonly dismissedFrom: number;
+}
+
+export type SlashState = SlashClosed | SlashOpen;
 
 export const slashKey = new PluginKey<SlashState>('copad-slash');
 
-const INACTIVE: SlashState = { active: false, from: -1, query: '', index: 0, dismissedFrom: -1 };
+const INACTIVE: SlashClosed = { active: false, triggerPos: -1, dismissedFrom: -1 };
 
 /** Detect a `/query` trigger at the cursor (block start or after whitespace). */
-function derive(state: EditorState): { active: boolean; from: number; query: string } {
+function derive(state: EditorState): { active: boolean; triggerPos: number; query: string } {
   const sel = state.selection;
-  if (!sel.empty) return { active: false, from: -1, query: '' };
+  if (!sel.empty) return { active: false, triggerPos: -1, query: '' };
   const $from = sel.$from;
   if (!$from.parent.isTextblock || $from.parent.type === schema.nodes.code_block) {
-    return { active: false, from: -1, query: '' };
+    return { active: false, triggerPos: -1, query: '' };
   }
   const textBefore = $from.parent.textBetween(0, $from.parentOffset, '\n', '￼');
   const match = /(?:^|\s)\/([^\s/]*)$/.exec(textBefore);
-  if (!match) return { active: false, from: -1, query: '' };
+  if (!match) return { active: false, triggerPos: -1, query: '' };
   const slashOffset = match.index + match[0].indexOf('/');
-  return { active: true, from: $from.start() + slashOffset, query: match[1] };
+  return { active: true, triggerPos: $from.start() + slashOffset, query: match[1] };
 }
 
 export function slashMenuPlugin(): Plugin<SlashState> {
@@ -64,26 +83,29 @@ export function slashMenuPlugin(): Plugin<SlashState> {
     state: {
       init: () => ({ ...INACTIVE }),
       apply(tr, prev, _old, newState) {
-        const meta = tr.getMeta(slashKey) as { type: string; index?: number } | undefined;
+        const meta = tr.getMeta(slashKey) as SlashMenuMeta | undefined;
         const d = derive(newState);
         let dismissedFrom = prev.dismissedFrom;
         let index = 0;
 
         if (meta?.type === 'dismiss') {
-          dismissedFrom = d.from;
-        } else if (meta?.type === 'index' && typeof meta.index === 'number') {
+          dismissedFrom = d.triggerPos;
+        } else if (meta?.type === 'index') {
           index = meta.index;
-        } else if (d.from !== prev.from) {
+        } else if (d.triggerPos !== prev.triggerPos) {
           dismissedFrom = -1;
           index = 0;
-        } else if (d.query !== prev.query) {
+        } else if (prev.active && d.query !== prev.query) {
           index = 0;
         } else {
-          index = prev.index;
+          index = prev.active ? prev.index : 0;
         }
 
-        const active = d.active && d.from !== dismissedFrom;
-        return { active, from: d.from, query: d.query, index, dismissedFrom };
+        const active = d.active && d.triggerPos !== dismissedFrom;
+        if (!active) {
+          return { active: false, triggerPos: d.triggerPos, dismissedFrom };
+        }
+        return { active: true, triggerPos: d.triggerPos, query: d.query, index, dismissedFrom };
       },
     },
     props: {
@@ -128,7 +150,7 @@ export function runSlashItem(view: EditorView, item: SlashItem): void {
   const st = slashKey.getState(view.state);
   if (!st?.active) return;
   const to = view.state.selection.from;
-  view.dispatch(view.state.tr.delete(st.from, to));
+  view.dispatch(view.state.tr.delete(st.triggerPos, to));
   item.command(view.state, view.dispatch, view);
   view.focus();
 }
