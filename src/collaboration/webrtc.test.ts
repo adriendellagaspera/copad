@@ -9,7 +9,9 @@ vi.mock('y-webrtc', () => {
     synced = false;
     // Mirror the real provider's room: peer presence is read from these.
     room = { webrtcConns: new Map<string, unknown>(), bcConns: new Set<string>() };
-    constructor() {
+    opts: Record<string, unknown>;
+    constructor(_room: string, _doc: unknown, opts: Record<string, unknown>) {
+      this.opts = opts;
       (globalThis as Record<string, unknown>).__wp = this;
     }
     on(ev: string, fn: (...a: unknown[]) => void) {
@@ -76,5 +78,23 @@ describe('webrtcCollab status mapping', () => {
     expect(synced).toBe(true);
 
     collab.destroy();
+  });
+});
+
+describe('webrtcCollab ICE configuration', () => {
+  it('forwards iceServers to the provider as peerOpts.config', () => {
+    const ice = [{ urls: 'turn:t.example:3478', username: 'u', credential: 'c' }];
+    webrtcCollab({ signaling: ['ws://x'], iceServers: ice })(ROOM);
+    expect(provider().opts.peerOpts).toEqual({ config: { iceServers: ice } });
+  });
+
+  it('omits peerOpts when no iceServers are given', () => {
+    webrtcCollab({ signaling: ['ws://x'] })(ROOM);
+    expect(provider().opts.peerOpts).toBeUndefined();
+  });
+
+  it('omits peerOpts when iceServers is empty', () => {
+    webrtcCollab({ signaling: ['ws://x'], iceServers: [] })(ROOM);
+    expect(provider().opts.peerOpts).toBeUndefined();
   });
 });

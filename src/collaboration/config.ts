@@ -25,6 +25,8 @@ export interface SignalingResolution {
   readonly warning?: string;
 }
 
+const DEFAULT_STUN = 'stun:stun.l.google.com:19302';
+
 export function resolveSignaling(
   raw: string | undefined,
   loc: { protocol: string; hostname: string },
@@ -67,4 +69,33 @@ export function resolveSignaling(
   }
 
   return { servers };
+}
+
+/**
+ * Build the ICE server list for WebRTC. A public STUN server is enough for most
+ * home/office NATs; a TURN relay is needed for restrictive networks — notably
+ * mobile carriers (CGNAT / symmetric NAT), where STUN alone fails and
+ * desktop↔phone sessions never connect.
+ */
+export function resolveIceServers(env: {
+  VITE_STUN_URL?: string;
+  VITE_TURN_URL?: string;
+  VITE_TURN_USERNAME?: string;
+  VITE_TURN_CREDENTIAL?: string;
+}): RTCIceServer[] {
+  const servers: RTCIceServer[] = [];
+
+  // VITE_STUN_URL="" (explicitly empty) disables the STUN default on purpose.
+  const stun = list(env.VITE_STUN_URL ?? DEFAULT_STUN);
+  if (stun.length) servers.push({ urls: stun });
+
+  const turnUrls = list(env.VITE_TURN_URL);
+  if (turnUrls.length) {
+    const turn: RTCIceServer = { urls: turnUrls };
+    if (env.VITE_TURN_USERNAME) turn.username = env.VITE_TURN_USERNAME;
+    if (env.VITE_TURN_CREDENTIAL) turn.credential = env.VITE_TURN_CREDENTIAL;
+    servers.push(turn);
+  }
+
+  return servers;
 }

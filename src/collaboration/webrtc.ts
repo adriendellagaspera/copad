@@ -5,6 +5,9 @@ import type { Collab, CollabConnect, ConnStatus, RoomId } from './types.js';
 export function webrtcCollab(opts: {
   signaling: string[];
   password?: string;
+  /** ICE servers (STUN/TURN) for WebRTC NAT traversal. Passing TURN here is
+   *  what makes desktop↔mobile work across restrictive carrier NATs. */
+  iceServers?: RTCIceServer[];
 }): CollabConnect {
   return (room: RoomId): Collab => {
     const doc = new Y.Doc();
@@ -12,6 +15,11 @@ export function webrtcCollab(opts: {
     const webrtc = new WebrtcProvider(room as string, doc, {
       signaling: opts.signaling,
       password: opts.password,
+      // simple-peer only knows about public STUN by default; feed it our resolved
+      // ICE list so a configured TURN relay is actually used.
+      ...(opts.iceServers && opts.iceServers.length
+        ? { peerOpts: { config: { iceServers: opts.iceServers } } }
+        : {}),
     });
 
     const statusFns = new Set<(s: ConnStatus) => void>();

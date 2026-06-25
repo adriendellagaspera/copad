@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveSignaling } from './config.js';
+import { resolveSignaling, resolveIceServers } from './config.js';
 
 const https = { protocol: 'https:', hostname: 'app.example.com' };
 const localhttp = { protocol: 'http:', hostname: 'localhost' };
@@ -38,5 +38,38 @@ describe('resolveSignaling', () => {
   it('trims and splits a comma-separated list', () => {
     const r = resolveSignaling(' wss://a ,, wss://b ', https);
     expect(r.servers).toEqual(['wss://a', 'wss://b']);
+  });
+});
+
+describe('resolveIceServers', () => {
+  it('returns the default public STUN server when nothing is set', () => {
+    expect(resolveIceServers({})).toEqual([{ urls: ['stun:stun.l.google.com:19302'] }]);
+  });
+
+  it('appends a TURN server with credentials when configured', () => {
+    const ice = resolveIceServers({
+      VITE_TURN_URL: 'turn:relay.example:3478',
+      VITE_TURN_USERNAME: 'user',
+      VITE_TURN_CREDENTIAL: 'secret',
+    });
+    expect(ice).toEqual([
+      { urls: ['stun:stun.l.google.com:19302'] },
+      { urls: ['turn:relay.example:3478'], username: 'user', credential: 'secret' },
+    ]);
+  });
+
+  it('allows overriding STUN and supports comma-separated TURN urls', () => {
+    const ice = resolveIceServers({
+      VITE_STUN_URL: 'stun:stun.example:3478',
+      VITE_TURN_URL: 'turn:a.example:3478, turns:a.example:5349',
+    });
+    expect(ice).toEqual([
+      { urls: ['stun:stun.example:3478'] },
+      { urls: ['turn:a.example:3478', 'turns:a.example:5349'] },
+    ]);
+  });
+
+  it('disables STUN when explicitly set to empty', () => {
+    expect(resolveIceServers({ VITE_STUN_URL: '' })).toEqual([]);
   });
 });

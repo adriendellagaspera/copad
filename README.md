@@ -185,7 +185,7 @@ Once the secret is set and the frontend redeployed, the app's status pill change
 
 ## Known limitations / future directions
 
-- **WebRTC behind strict NAT**: public STUN is usually enough; a TURN server (small cost) is only needed for very restrictive networks.
+- **WebRTC behind strict NAT**: public STUN is enough for most home/office networks. Mobile carriers use CGNAT / symmetric NAT, where STUN fails — configure a TURN relay via `VITE_TURN_URL` / `VITE_TURN_USERNAME` / `VITE_TURN_CREDENTIAL` (see `.env.example`). Run e.g. [coturn](https://github.com/coturn/coturn) or use a hosted provider.
 - **OAuth token in the browser**: acceptable for a small app; the proxy can keep secrets server-side for a harder security posture.
 - **Single authority**: if you want zero CORS/leader issues, replace y-webrtc with a small Yjs server ([Hocuspocus](https://tiptap.dev/docs/hocuspocus/introduction) / Cloudflare Durable Object) that persists via the same `StorageAdapter`.
 

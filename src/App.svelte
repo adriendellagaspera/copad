@@ -2,7 +2,7 @@
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { Storage } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
-  import { resolveSignaling } from './collaboration/config.js';
+  import { resolveSignaling, resolveIceServers } from './collaboration/config.js';
   import type { SessionRole, DisplayName, CursorColor, RoomId } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
@@ -22,6 +22,12 @@
   const connect = webrtcCollab({
     signaling: signaling.servers,
     password: import.meta.env.VITE_ROOM_PASSWORD,
+    iceServers: resolveIceServers({
+      VITE_STUN_URL: import.meta.env.VITE_STUN_URL,
+      VITE_TURN_URL: import.meta.env.VITE_TURN_URL,
+      VITE_TURN_USERNAME: import.meta.env.VITE_TURN_USERNAME,
+      VITE_TURN_CREDENTIAL: import.meta.env.VITE_TURN_CREDENTIAL,
+    }),
   });
 
   const COLORS: CursorColor[] = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'] as CursorColor[];
