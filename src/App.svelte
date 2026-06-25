@@ -10,6 +10,7 @@
     clearLocalCache,
     type LocalCacheEnabled,
   } from './collaboration/cache.js';
+  import { resolveRoomPassword } from './collaboration/roomKey.js';
   import type { SessionRole, DisplayName, CursorColor, RoomId, CollabConnect } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
@@ -51,7 +52,8 @@
       build: (cache) =>
         webrtcCollab({
           signaling: signaling.servers,
-          password: import.meta.env.VITE_ROOM_PASSWORD,
+          // Per-room key: share-link hash → remembered password → env fallback.
+          password: (r) => resolveRoomPassword(r, location, import.meta.env.VITE_ROOM_PASSWORD),
           iceServers,
           cache,
         }),
@@ -68,6 +70,10 @@
   // below remounts the Editor so the change takes effect immediately.
   let localCache = $state(localCacheEnabled());
   const connect = $derived(collabPlan.build(localCache));
+
+  // Bumped when room encryption changes (secure link / password set), forcing an
+  // Editor remount so the connection re-resolves the new room password.
+  let collabEpoch = $state(0);
 
   function setLocalCache(on: boolean): void {
     localCache = on as LocalCacheEnabled;
@@ -204,7 +210,7 @@
     </p>
   {/if}
 
-  {#key `${room}|${localCache}`}
+  {#key `${room}|${localCache}|${collabEpoch}`}
     <Editor
       {name}
       {color}
@@ -230,5 +236,12 @@
   ondisconnect={afterDisconnect}
 />
 
-<ShareDialog open={shareOpen} onclose={() => (shareOpen = false)} {room} {toasts} />
+<ShareDialog
+  open={shareOpen}
+  onclose={() => (shareOpen = false)}
+  {room}
+  {toasts}
+  envPassword={import.meta.env.VITE_ROOM_PASSWORD}
+  onSecurityChange={() => (collabEpoch += 1)}
+/>
 <Toast {toasts} />

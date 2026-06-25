@@ -6,7 +6,9 @@ import { attachLocalCache, type LocalCache, type LocalCacheEnabled } from './cac
 export interface WebrtcCollabOptions {
   /** Validated signaling servers peers use to discover each other. */
   signaling: SignalingUrl[];
-  password?: string;
+  /** Room encryption password. A function is resolved per room, so each room can
+   *  carry its own key (e.g. from the share link or a user-set password). */
+  password?: string | ((room: RoomId) => string | undefined);
   /** ICE servers (STUN/TURN) for WebRTC NAT traversal. Passing TURN here is
    *  what makes desktop↔mobile work across restrictive carrier NATs. */
   iceServers?: RTCIceServer[];
@@ -17,10 +19,11 @@ export interface WebrtcCollabOptions {
 export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
   return (room: RoomId): Collab => {
     const doc = new Y.Doc();
+    const password = typeof opts.password === 'function' ? opts.password(room) : opts.password;
     // RoomId extends string — cast back to string at the y-webrtc IO boundary.
     const webrtc = new WebrtcProvider(room as string, doc, {
       signaling: opts.signaling,
-      password: opts.password,
+      password,
       // simple-peer only knows about public STUN by default; feed it our resolved
       // ICE list so a configured TURN relay is actually used.
       ...(opts.iceServers && opts.iceServers.length
