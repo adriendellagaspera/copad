@@ -1,0 +1,18 @@
+# Self-hosted coturn TURN relay for Copad.
+#
+# Run on a small VPS with a public IP (a managed PaaS usually can't expose the
+# relay UDP port range). `docker compose up -d` from this folder, after editing
+# turnserver.conf (realm, external-ip, secret) and opening the firewall ports:
+#   3478/udp 3478/tcp 5349/tcp  +  49160-49200/udp  (the relay range)
+#
+# host networking is the simplest way to expose TURN's wide UDP port range.
+
+services:
+  coturn:
+    image: coturn/coturn:latest
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+      # - ./certs:/etc/coturn/certs:ro   # mount TLS certs for turns://
+    command: ['-c', '/etc/coturn/turnserver.conf']

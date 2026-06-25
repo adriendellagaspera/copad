@@ -152,7 +152,7 @@ you only host a static frontend and a tiny signaling server.
 
 1. **Frontend**: `npm run build` → deploy `dist/`. GitHub Actions workflow included — see [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
 2. **A collaboration server** (required for real-time collab) — none ships in this repo; deploy the upstream server for your transport (see [Deploying a collaboration server](#deploying-a-collaboration-server)):
-   - **WebRTC** (`VITE_COLLAB_TRANSPORT=webrtc`, the default): a y-webrtc signaling server; set `VITE_SIGNALING_URL` to its `wss://` URL. Peers connect P2P; on mobile/restrictive networks you'll also want a TURN relay (`VITE_TURN_URL`…).
+   - **WebRTC** (`VITE_COLLAB_TRANSPORT=webrtc`, the default): a y-webrtc signaling server; set `VITE_SIGNALING_URL` to its `wss://` URL. Peers connect P2P; on mobile/restrictive networks you'll also want a TURN relay — a free public one is used by default, or self-host [coturn](turn/).
    - **WebSocket hub** (`VITE_COLLAB_TRANSPORT=websocket`): a y-websocket hub; set `VITE_WEBSOCKET_URL` to its `wss://` URL. No WebRTC, so **no STUN/TURN** — works on any network.
 
    The URL **must** be `wss://` — browsers block insecure `ws://` from an `https://` page (mixed content). If the selected transport's server is unset, the app shows a warning banner and real-time collaboration stays disabled.
@@ -224,9 +224,10 @@ src/
   Toolbar.svelte # rich-text toolbar (Svelte 5 $derived active states)
   App.svelte     # room management, storage picker, connect UI, collab transport wiring
   redirect.ts    # OAuth popup landing page (pCloud + Dropbox)
+turn/            # self-hosted coturn TURN relay (config + docker-compose + guide)
 ```
 
-The collaboration servers are not vendored here — they're upstream packages run via their
+The signaling / hub servers are not vendored here — they're upstream packages run via their
 bins (`y-webrtc-signaling`, `y-websocket-server`). See "Deploying a collaboration server".
 
 ## License

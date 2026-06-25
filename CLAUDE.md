@@ -245,3 +245,5 @@ upstream package's bundled server (don't reinvent the wheel):
 To deploy either, point a host (Render/Fly/any VPS) at a 3-line `package.json` that depends on
 the upstream package with `"start"` calling its bin — `npm install` puts it in `node_modules`
 on the host. See README "Deploying a collaboration server".
+
+**`turn/`** is the one server-ish thing we ship — a self-hosted [coturn](https://github.com/coturn/coturn) TURN relay (`turnserver.conf` + `docker-compose.yml` + guide) for WebRTC NAT traversal, because coturn has no equivalent drop-in. TURN needs a UDP port range, so it wants a VPS, not a PaaS. Optional: a free public default relay (`DEFAULT_TURN`) works out of the box.
