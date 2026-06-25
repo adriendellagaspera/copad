@@ -1,8 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { resolveSignaling, resolveIceServers } from './config.js';
+import { resolveSignaling, resolveIceServers, resolveWebsocket, resolveTransport } from './config.js';
 
 const https = { protocol: 'https:', hostname: 'app.example.com' };
 const localhttp = { protocol: 'http:', hostname: 'localhost' };
+
+describe('resolveTransport', () => {
+  it('defaults to webrtc when unset', () => {
+    expect(resolveTransport(undefined)).toBe('webrtc');
+    expect(resolveTransport('')).toBe('webrtc');
+  });
+  it('selects websocket only on an explicit value (case-insensitive)', () => {
+    expect(resolveTransport('websocket')).toBe('websocket');
+    expect(resolveTransport('  WebSocket ')).toBe('websocket');
+  });
+  it('falls back to webrtc for any other value', () => {
+    expect(resolveTransport('webrtc')).toBe('webrtc');
+    expect(resolveTransport('ws')).toBe('webrtc');
+    expect(resolveTransport('hub')).toBe('webrtc');
+  });
+});
 
 describe('resolveSignaling', () => {
   it('defaults to the local dev server on a local host', () => {
@@ -38,6 +54,37 @@ describe('resolveSignaling', () => {
   it('trims and splits a comma-separated list', () => {
     const r = resolveSignaling(' wss://a ,, wss://b ', https);
     expect(r.servers).toEqual(['wss://a', 'wss://b']);
+  });
+});
+
+describe('resolveWebsocket', () => {
+  it('is not selected when no URL is configured', () => {
+    const r = resolveWebsocket(undefined, https);
+    expect(r.url).toBe('');
+    expect(r.warning).toBeUndefined();
+  });
+
+  it('selects the configured wss:// server without warning', () => {
+    const r = resolveWebsocket('wss://hub.example', https);
+    expect(r.url).toBe('wss://hub.example');
+    expect(r.warning).toBeUndefined();
+  });
+
+  it('trims surrounding whitespace', () => {
+    const r = resolveWebsocket('  wss://hub.example  ', https);
+    expect(r.url).toBe('wss://hub.example');
+  });
+
+  it('warns when ws:// is used on an https page (mixed content)', () => {
+    const r = resolveWebsocket('ws://hub.example', https);
+    expect(r.url).toBe('ws://hub.example');
+    expect(r.warning).toMatch(/mixed content/i);
+  });
+
+  it('allows ws:// on a local http page', () => {
+    const r = resolveWebsocket('ws://localhost:1234', localhttp);
+    expect(r.url).toBe('ws://localhost:1234');
+    expect(r.warning).toBeUndefined();
   });
 });
 

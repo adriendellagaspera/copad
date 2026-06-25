@@ -2,8 +2,9 @@
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { Storage } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
-  import { resolveSignaling, resolveIceServers } from './collaboration/config.js';
-  import type { SessionRole, DisplayName, CursorColor, RoomId } from './collaboration/types.js';
+  import { websocketCollab } from './collaboration/websocket.js';
+  import { resolveSignaling, resolveIceServers, resolveWebsocket, resolveTransport } from './collaboration/config.js';
+  import type { SessionRole, DisplayName, CursorColor, RoomId, CollabConnect } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
@@ -16,19 +17,36 @@
   const toasts = createToasts();
   let shareOpen = $state(false);
 
-  const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, location);
-  if (signaling.warning) console.warn(`Copad: ${signaling.warning}`);
+  // Pick the collaboration transport — chosen explicitly via VITE_COLLAB_TRANSPORT
+  // (default 'webrtc'). 'websocket' routes edits through a central hub server (no
+  // WebRTC, so no STUN/TURN — works on mobile carrier NATs where P2P can't connect).
+  function resolveCollab(): { connect: CollabConnect; warning?: string } {
+    if (resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket') {
+      const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, location);
+      if (ws.url) {
+        return { connect: websocketCollab({ url: ws.url }), warning: ws.warning };
+      }
+      // Misconfigured: transport selected but no URL — warn and fall back to WebRTC.
+      console.warn('Copad: VITE_COLLAB_TRANSPORT=websocket but VITE_WEBSOCKET_URL is unset — using WebRTC.');
+    }
+    const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, location);
+    return {
+      connect: webrtcCollab({
+        signaling: signaling.servers,
+        password: import.meta.env.VITE_ROOM_PASSWORD,
+        iceServers: resolveIceServers({
+          VITE_STUN_URL: import.meta.env.VITE_STUN_URL,
+          VITE_TURN_URL: import.meta.env.VITE_TURN_URL,
+          VITE_TURN_USERNAME: import.meta.env.VITE_TURN_USERNAME,
+          VITE_TURN_CREDENTIAL: import.meta.env.VITE_TURN_CREDENTIAL,
+        }),
+      }),
+      warning: signaling.warning,
+    };
+  }
 
-  const connect = webrtcCollab({
-    signaling: signaling.servers,
-    password: import.meta.env.VITE_ROOM_PASSWORD,
-    iceServers: resolveIceServers({
-      VITE_STUN_URL: import.meta.env.VITE_STUN_URL,
-      VITE_TURN_URL: import.meta.env.VITE_TURN_URL,
-      VITE_TURN_USERNAME: import.meta.env.VITE_TURN_USERNAME,
-      VITE_TURN_CREDENTIAL: import.meta.env.VITE_TURN_CREDENTIAL,
-    }),
-  });
+  const { connect, warning: collabWarning } = resolveCollab();
+  if (collabWarning) console.warn(`Copad: ${collabWarning}`);
 
   const COLORS: CursorColor[] = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'] as CursorColor[];
   const color: CursorColor = COLORS[Math.floor((Date.now() / 1000) % COLORS.length)];
@@ -77,7 +95,7 @@
   // ── Document / room ────────────────────────────────────────────────────────
 
   // Cast at IO boundary: env var and URL strings enter the domain as RoomId here.
-  const DEFAULT_ROOM = (import.meta.env.VITE_ROOM ?? 'copad-demo') as RoomId;
+  const DEFAULT_ROOM = (import.meta.env.VITE_DEFAULT_ROOM ?? 'copad-demo') as RoomId;
 
   function roomFromUrl(): RoomId {
     return (new URLSearchParams(location.search).get('room') || DEFAULT_ROOM) as RoomId;
@@ -140,9 +158,9 @@
 
 
 
-  {#if signaling.warning}
+  {#if collabWarning}
     <p class="signaling-warning" role="alert">
-      <strong>Real-time collaboration is disabled.</strong> {signaling.warning}
+      <strong>Real-time collaboration is disabled.</strong> {collabWarning}
     </p>
   {/if}
 

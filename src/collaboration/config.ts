@@ -71,6 +71,51 @@ export function resolveSignaling(
   return { servers };
 }
 
+export interface WebsocketResolution {
+  /** Collaboration server URL, or '' when the websocket transport is not selected. */
+  readonly url: string;
+  /** Human-readable problem to surface, or undefined when the config is sound. */
+  readonly warning?: string;
+}
+
+/** The collaboration transport, selected by `VITE_COLLAB_TRANSPORT`. */
+export type CollabTransport = 'webrtc' | 'websocket';
+
+/**
+ * Choose the collaboration transport. Explicit by design (`VITE_COLLAB_TRANSPORT`)
+ * rather than inferred from another var's presence: only `websocket` selects the
+ * hub; anything else — unset, `webrtc`, or a typo — stays on the default WebRTC.
+ * Accepts a raw string (env input is untrusted) and narrows it to CollabTransport.
+ */
+export function resolveTransport(raw: string | undefined): CollabTransport {
+  return (raw ?? '').trim().toLowerCase() === 'websocket' ? 'websocket' : 'webrtc';
+}
+
+/**
+ * Validate the y-websocket (hub) URL, used when the transport is `websocket`.
+ * Like signaling, an insecure ws:// URL on an https:// page is blocked by the
+ * browser as mixed content; `url` is '' when none is configured.
+ */
+export function resolveWebsocket(
+  raw: string | undefined,
+  loc: { protocol: string },
+): WebsocketResolution {
+  const url = (raw ?? '').trim();
+  if (!url) return { url: '' };
+
+  if (loc.protocol === 'https:' && url.startsWith('ws://')) {
+    return {
+      url,
+      warning:
+        'The collaboration server uses insecure ws:// but the app is served ' +
+        'over https:// — browsers block this as mixed content, so it can’t ' +
+        'connect. Use a wss:// URL.',
+    };
+  }
+
+  return { url };
+}
+
 /**
  * Build the ICE server list for WebRTC. A public STUN server is enough for most
  * home/office NATs; a TURN relay is needed for restrictive networks — notably

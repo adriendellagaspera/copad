@@ -30,19 +30,35 @@ jobs:
       - run: npm ci
 
       - run: npm run build -- --base=/copad/
+        # NOTE: every VITE_* var is inlined into the public client bundle at build
+        # time, so none of these is actually secret. They live as repo *Variables*
+        # (Settings → Secrets and variables → Variables). The TURN credential is the
+        # one sensitive value — kept in Secrets, though it too ends up in the bundle
+        # (client-side TURN creds can't be hidden; rotate them / use short-lived creds).
         env:
-          VITE_DROPBOX_APP_KEY:   ${{ secrets.VITE_DROPBOX_APP_KEY }}
-          VITE_PCLOUD_CLIENT_ID:  ${{ secrets.VITE_PCLOUD_CLIENT_ID }}
-          VITE_PROXY_URL:         ${{ secrets.VITE_PROXY_URL }}
+          VITE_DROPBOX_APP_KEY:   ${{ vars.VITE_DROPBOX_APP_KEY }}
+          VITE_PCLOUD_CLIENT_ID:  ${{ vars.VITE_PCLOUD_CLIENT_ID }}
+          VITE_PROXY_URL:         ${{ vars.VITE_PROXY_URL }}
+          VITE_WEBDAV_URL:        ${{ vars.VITE_WEBDAV_URL }}
+          VITE_STORAGE_BACKEND:   ${{ vars.VITE_STORAGE_BACKEND }}
           VITE_REDIRECT_URI:      https://adriendellagaspera.github.io/copad/redirect.html
-          # wss:// URL of the signaling server (deploy signaling/ to Render/Fly.io).
-          # If unset, real-time collab is disabled and a warning banner is shown.
-          VITE_SIGNALING_URL:     ${{ secrets.VITE_SIGNALING_URL }}
-          VITE_ROOM:              copad-demo
+          # Transport: 'webrtc' (default) or 'websocket'. Chosen explicitly.
+          VITE_COLLAB_TRANSPORT:  ${{ vars.VITE_COLLAB_TRANSPORT }}
+          # wss:// URL of a y-webrtc signaling server (used when transport=webrtc).
+          # If unset on a deployed origin, real-time collab is disabled (warning shown).
+          VITE_SIGNALING_URL:     ${{ vars.VITE_SIGNALING_URL }}
+          # wss:// URL of a y-websocket hub (used when transport=websocket) —
+          # a central relay, no STUN/TURN, works on mobile / restrictive NATs. See README.
+          VITE_WEBSOCKET_URL:     ${{ vars.VITE_WEBSOCKET_URL }}
+          VITE_DEFAULT_ROOM:      ${{ vars.VITE_DEFAULT_ROOM }}
+          # Deployment-wide fallback room key (per-room secure links/passwords take
+          # precedence). Public in the bundle like the rest — a Variable, not a Secret.
+          VITE_ROOM_PASSWORD:     ${{ vars.VITE_ROOM_PASSWORD }}
           # WebRTC NAT traversal — STUN falls back to public Google default.
           # TURN is needed for restrictive networks (mobile carriers / symmetric NAT).
-          VITE_STUN_URL:          ${{ secrets.VITE_STUN_URL }}
-          VITE_TURN_URL:          ${{ secrets.VITE_TURN_URL }}
+          VITE_STUN_URL:          ${{ vars.VITE_STUN_URL }}
+          VITE_TURN_URL:          ${{ vars.VITE_TURN_URL }}
+          # Sensitive — kept in Secrets (but see the note above; it still ships).
           VITE_TURN_USERNAME:     ${{ secrets.VITE_TURN_USERNAME }}
           VITE_TURN_CREDENTIAL:   ${{ secrets.VITE_TURN_CREDENTIAL }}
 

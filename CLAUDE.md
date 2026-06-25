@@ -21,17 +21,20 @@ Copad follows **hexagonal architecture** (ports & adapters) with a **functional 
 | `pcloudStorage()` | `src/storage/pcloud.ts` | OAuth popup |
 | `webdavStorage()` | `src/storage/webdav.ts` | Requires `VITE_PROXY_URL` (CORS) |
 | `localFsStorage()` | `src/storage/local.ts` | File System Access API, Chrome/Edge only |
-| `webrtcCollab()` | `src/collaboration/webrtc.ts` | y-webrtc peer-to-peer transport |
+| `webrtcCollab()` | `src/collaboration/webrtc.ts` | y-webrtc peer-to-peer transport (**default**). Needs STUN, plus TURN on mobile/symmetric NAT. |
+| `websocketCollab()` | `src/collaboration/websocket.ts` | y-websocket hub transport (opt-in via `VITE_COLLAB_TRANSPORT=websocket`). Central relay, **no WebRTC → no STUN/TURN**; server is in the data path (no E2E). |
+
+Both are `CollabConnect` factories behind the same `Collab` port, so they're interchangeable. `resolveCollab()` in `App.svelte` picks one via `resolveTransport(VITE_COLLAB_TRANSPORT)` — WebRTC by default, WebSocket only when explicitly set to `websocket`.
 
 ### Wiring
 
 `App.svelte` owns all construction and configuration:
 - calls `backends()` to get the available `Storage` implementations
-- calls `webrtcCollab({ signaling, password })` to get a `CollabConnect` function
+- calls `resolveCollab()` — returns `webrtcCollab({ signaling, password, iceServers })` by default, or `websocketCollab({ url })` when `VITE_COLLAB_TRANSPORT=websocket` — to get a `CollabConnect` function (and any config warning to surface)
 - passes both down to `Editor.svelte` as props
 - renders the storage **pills** + connect *action zone*, and the `Settings.svelte` drawer
 
-`Editor.svelte` knows only the ports — it never imports y-webrtc or any storage backend directly.
+`Editor.svelte` knows only the ports — it never imports y-webrtc, y-websocket, or any storage backend directly.
 
 ### File formats (the `Codec` port)
 
@@ -80,9 +83,11 @@ This codebase uses **functional naming** — no OO suffixes.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `VITE_SIGNALING_URL` | no | WebRTC signaling server(s), comma-separated. `ws://localhost:4444` default applies **only on a local host**; on a deployed origin it's empty (warning banner shown) — must be `wss://` (browsers block `ws://` from https as mixed content). Resolved by `resolveSignaling()` in `src/collaboration/config.ts`. |
-| `VITE_ROOM_PASSWORD` | no | Shared password for y-webrtc encryption |
-| `VITE_ROOM` | no | Default room name (default: `copad-demo`) |
+| `VITE_COLLAB_TRANSPORT` | no | Collaboration transport: `webrtc` (default) or `websocket`. **Chosen explicitly** (not inferred from any URL) — `resolveTransport()` in `src/collaboration/config.ts`. |
+| `VITE_SIGNALING_URL` | no | WebRTC signaling server(s), comma-separated. `ws://localhost:4444` default applies **only on a local host**; on a deployed origin it's empty (warning banner shown) — must be `wss://` (browsers block `ws://` from https as mixed content). Resolved by `resolveSignaling()` in `src/collaboration/config.ts`. Used only on the WebRTC transport. |
+| `VITE_WEBSOCKET_URL` | no | y-websocket hub URL, used when `VITE_COLLAB_TRANSPORT=websocket` (central relay, no STUN/TURN — works on mobile NAT; server sees plaintext, so no E2E). Setting it alone does NOT switch transports. Must be `wss://` on a deployed origin. Resolved by `resolveWebsocket()` in `src/collaboration/config.ts`. |
+| `VITE_ROOM_PASSWORD` | no | Shared password for y-webrtc encryption (WebRTC transport only; ignored on the WebSocket hub) |
+| `VITE_DEFAULT_ROOM` | no | Default landing room name when the URL has no `?room=` (default: `copad-demo`) |
 | `VITE_DROPBOX_APP_KEY` | no | Locks the Dropbox app key; otherwise set it at runtime in Settings |
 | `VITE_PCLOUD_CLIENT_ID` | no | Locks the pCloud client id; otherwise set it at runtime in Settings |
 | `VITE_PROXY_URL` | for WebDAV | CORS proxy URL |
@@ -93,6 +98,16 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_TURN_USERNAME` | no | TURN long-term credential username. |
 | `VITE_TURN_CREDENTIAL` | no | TURN long-term credential secret. |
 
-## Signaling server
+## Collaboration servers
 
-`signaling/` is a standalone Node.js app (only dep: `ws`) deployable independently. `npm run signaling` runs `signaling/server.js` directly. Deploy to Render or Fly.io — see README "Deploying the signaling server".
+Real-time collab needs a server, but **none lives in this repo** — both transports run an
+upstream package's bundled server (don't reinvent the wheel):
+
+- **WebRTC** → a y-webrtc signaling server: the `y-webrtc-signaling` bin (from the `y-webrtc`
+  dep; reads `PORT`, default 4444). `npm run signaling` runs it locally.
+- **WebSocket** → a y-websocket hub: the `y-websocket-server` bin (from the `@y/websocket-server`
+  devDep; reads `HOST`/`PORT`, serves `okay`). `npm run collab` runs it locally.
+
+To deploy either, point a host (Render/Fly/any VPS) at a 3-line `package.json` that depends on
+the upstream package with `"start"` calling its bin — `npm install` puts it in `node_modules`
+on the host. See README "Deploying a collaboration server".
