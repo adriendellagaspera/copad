@@ -1,8 +1,10 @@
 import type { Storage, DocContent } from './types.js';
 import { configStore } from './config.js';
+import { filenameStore } from './filename.js';
 import { pkceChallenge, openOAuthPopup } from './oauth.js';
 
-const FILE_PATH = '/copad/document.yjs';
+const fileName = filenameStore('dropbox');
+const filePath = () => `/copad/${fileName.get()}`;
 const STORAGE_KEY = 'storage.dropbox.token';
 const AUTH_URL = 'https://www.dropbox.com/oauth2/authorize';
 const TOKEN_URL = 'https://api.dropboxapi.com/oauth2/token';
@@ -35,6 +37,9 @@ export function dropboxStorage(): Storage {
     setConfig: cfg.setConfig,
     configLocked: cfg.configLocked,
     configured: cfg.configured,
+
+    filename: () => fileName.get(),
+    setFilename: fileName.set,
 
     isAuthenticated: () => !!token(),
 
@@ -91,7 +96,7 @@ export function dropboxStorage(): Storage {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${tok}`,
-          'Dropbox-API-Arg': JSON.stringify({ path: FILE_PATH }),
+          'Dropbox-API-Arg': JSON.stringify({ path: filePath() }),
         },
       });
 
@@ -111,7 +116,7 @@ export function dropboxStorage(): Storage {
           Authorization: `Bearer ${tok}`,
           'Content-Type': 'application/octet-stream',
           'Dropbox-API-Arg': JSON.stringify({
-            path: FILE_PATH,
+            path: filePath(),
             mode: 'overwrite',
             mute: true,
           }),

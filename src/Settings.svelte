@@ -26,9 +26,21 @@
   let errors = $state<Record<string, string>>({});
   // Per-backend credential inputs — keyed by backend id then field name.
   let creds = $state<Record<string, SessionCredentials>>({});
+  // Per-backend filename overrides — keyed by backend id (cloud backends).
+  let fnames = $state<Record<string, string>>({});
 
   function setConfig(s: Storage, name: string, value: string) {
     s.setConfig?.(name, value);
+    onchange?.();
+  }
+
+  function filenameOf(s: Storage): string {
+    return fnames[s.id] ?? s.filename?.() ?? '';
+  }
+
+  function setFilename(s: Storage, value: string) {
+    fnames = { ...fnames, [s.id]: value };
+    s.setFilename?.(value);
     onchange?.();
   }
 
@@ -70,6 +82,23 @@
       reused across sessions — you only set them once.
     </p>
 
+    {#snippet filenameField(s: Storage)}
+      {#if s.setFilename}
+        <label class="field">
+          <span class="field-label">File name</span>
+          <input
+            value={filenameOf(s)}
+            placeholder="document.yjs"
+            oninput={e => setFilename(s, e.currentTarget.value)}
+          />
+          <small class="field-help">
+            The extension picks the format — .yjs (native), .md, .txt, .html, .json.
+            Takes effect on connect.
+          </small>
+        </label>
+      {/if}
+    {/snippet}
+
     {#each configurable as s (s.id)}
       {@const ready = isConfigured(s)}
       {@const authed = s.isAuthenticated()}
@@ -101,6 +130,8 @@
             {#if f.help}<small class="field-help">{f.help}</small>{/if}
           </label>
         {/each}
+
+        {@render filenameField(s)}
 
         <div class="backend-actions">
           {#if authed}
@@ -137,6 +168,8 @@
           {/if}
         </div>
         {#if s.blurb}<p class="backend-blurb">{s.blurb}</p>{/if}
+
+        {#if !s.unavailableReason}{@render filenameField(s)}{/if}
 
         {#if s.unavailableReason}
           <p class="unavailable-reason">{s.unavailableReason}</p>

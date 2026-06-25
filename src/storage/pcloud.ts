@@ -1,9 +1,12 @@
 import pcloudSdk from 'pcloud-sdk-js';
 import type { Storage, DocContent } from './types.js';
 import { configStore } from './config.js';
+import { filenameStore } from './filename.js';
 import type { Fetch } from '../network/types.js';
 
-const FILE_PATH = '/copad/document.yjs';
+const FOLDER = '/copad';
+const fileName = filenameStore('pcloud');
+const filePath = () => `${FOLDER}/${fileName.get()}`;
 const STORAGE_KEY = 'storage.pcloud';
 
 interface PCloudSession {
@@ -43,6 +46,9 @@ export function pcloudStorage(netFetch: Fetch): Storage {
     configLocked: cfg.configLocked,
     configured: cfg.configured,
 
+    filename: () => fileName.get(),
+    setFilename: fileName.set,
+
     isAuthenticated: () => !!session(),
 
     contentFormat: 'binary',
@@ -75,7 +81,7 @@ export function pcloudStorage(netFetch: Fetch): Storage {
 
       try {
         const meta = await fetch(
-          `https://${s.host}/getfilelink?path=${encodeURIComponent(FILE_PATH)}&auth=${s.token}`
+          `https://${s.host}/getfilelink?path=${encodeURIComponent(filePath())}&auth=${s.token}`
         ).then(r => r.json() as Promise<Record<string, unknown>>);
 
         if (meta['result'] !== 0) return null;
@@ -102,8 +108,8 @@ export function pcloudStorage(netFetch: Fetch): Storage {
       if (!s) throw new Error('pCloud: not connected');
 
       const form = new FormData();
-      form.append('filename', 'document.yjs');
-      form.append('path', '/copad');
+      form.append('filename', fileName.get());
+      form.append('path', FOLDER);
       form.append('nopartial', '1');
       form.append('file', new Blob([content.bytes as BlobPart]));
 
