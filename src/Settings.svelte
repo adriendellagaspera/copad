@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Storage } from './storage/types.js';
+  import type { Storage, SessionCredentials } from './storage/types.js';
   import { isConfigured } from './storage/types.js';
 
   let {
@@ -25,14 +25,14 @@
   let busy = $state<Record<string, boolean>>({});
   let errors = $state<Record<string, string>>({});
   // Per-backend credential inputs — keyed by backend id then field name.
-  let creds = $state<Record<string, Record<string, string>>>({});
+  let creds = $state<Record<string, SessionCredentials>>({});
 
   function setConfig(s: Storage, name: string, value: string) {
     s.setConfig?.(name, value);
     onchange?.();
   }
 
-  async function connect(s: Storage, c?: Record<string, string>) {
+  async function connect(s: Storage, c?: SessionCredentials) {
     busy = { ...busy, [s.id]: true };
     errors = { ...errors, [s.id]: '' };
     try {
@@ -154,7 +154,7 @@
                     type={f.type ?? 'text'}
                     placeholder={f.placeholder ?? ''}
                     value={creds[s.id]?.[f.name] ?? ''}
-                    oninput={e => { creds = { ...creds, [s.id]: { ...(creds[s.id] ?? {}), [f.name]: e.currentTarget.value } }; }}
+                    oninput={e => { creds = { ...creds, [s.id]: { ...(creds[s.id] ?? {}), [f.name]: e.currentTarget.value } as SessionCredentials }; }}
                   />
                 </label>
               {/each}

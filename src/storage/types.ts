@@ -6,6 +6,13 @@
 export type StorageAccess = 'read' | 'write' | 'owner';
 
 /**
+ * Key-value pairs collected from the session credential form, keyed by
+ * {@link CredentialField.name}. A named, readonly alias for what is inherently
+ * polymorphic form data at this port boundary.
+ */
+export type SessionCredentials = Readonly<Record<string, string>>;
+
+/**
  * A per-session authentication input collected at connect time (e.g. a WebDAV
  * username/password). Distinct from {@link ConfigField}, which is one-time setup.
  */
@@ -55,7 +62,7 @@ export interface Storage {
   isAuthenticated(): boolean;
   /** Session credentials collected on the connect form (e.g. WebDAV login). */
   readonly credentialFields?: CredentialField[];
-  connect(creds?: Record<string, string>): Promise<void>;
+  connect(creds?: SessionCredentials): Promise<void>;
   disconnect(): void;
   load(): Promise<Uint8Array | null>;
   save(bytes: Uint8Array): Promise<void>;

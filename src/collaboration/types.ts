@@ -4,6 +4,9 @@ import type { Awareness } from 'y-protocols/awareness';
 /** Whether a peer may edit the document in this session. */
 export type SessionRole = 'writer' | 'reader';
 
+/** A collaboration room identifier, derived from the URL or generated randomly. */
+export type RoomId = string & { readonly _brand: 'RoomId' };
+
 /** The name a peer chose to display next to their cursor. */
 export type DisplayName = string & { readonly _brand: 'DisplayName' };
 
@@ -37,4 +40,4 @@ export interface Collab {
   destroy(): void;
 }
 
-export type CollabConnect = (room: string) => Collab;
+export type CollabConnect = (room: RoomId) => Collab;

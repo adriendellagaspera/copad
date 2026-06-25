@@ -1,14 +1,15 @@
 import * as Y from 'yjs';
 import { WebrtcProvider } from 'y-webrtc';
-import type { Collab, CollabConnect } from './types.js';
+import type { Collab, CollabConnect, RoomId } from './types.js';
 
 export function webrtcCollab(opts: {
   signaling: string[];
   password?: string;
 }): CollabConnect {
-  return (room: string): Collab => {
+  return (room: RoomId): Collab => {
     const doc = new Y.Doc();
-    const webrtc = new WebrtcProvider(room, doc, {
+    // RoomId extends string — cast back to string at the y-webrtc IO boundary.
+    const webrtc = new WebrtcProvider(room as string, doc, {
       signaling: opts.signaling,
       password: opts.password,
     });
