@@ -112,7 +112,7 @@ Discriminated unions model domain states: `StorageAvailability` (`src/storage/ty
 Data is parsed **once** at the IO boundary into a rich type. Internal code trusts the type and never re-validates. A function that returns `boolean` is a validator; a function that returns the domain type (or throws) is a parser.
 
 ```typescript
-// src/collaboration/types.ts — single cast site for network peer data
+// src/collaboration/parse.ts — single cast site for network peer data
 export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
   // all field access guarded here; safe fallbacks for malformed data
   const name: DisplayName = (typeof nameRaw === 'string' && nameRaw.trim())
@@ -122,14 +122,22 @@ export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
 }
 ```
 
+Each vertical keeps its IO-boundary parsers in a dedicated `parse.ts` file:
+- `src/collaboration/parse.ts` — network peer state (`parsePeerAwarenessState`) and localStorage room ids (`parseRoomId`)
+- `src/editor/parse.ts` — ProseMirror node/mark attrs (`headingLevel`, `linkHref`)
+- `src/editor/ui/slashMenu.ts` — slash plugin transaction meta (`getSlashMeta`, co-located with `slashKey` to avoid a circular dep)
+
+Operator-injectable peer defaults (`FALLBACK_NAME`, `FALLBACK_COLOR`) live in `src/collaboration/peerDefaults.ts` — they read `VITE_FALLBACK_NAME` / `VITE_FALLBACK_COLOR` and validate before branding, so they are the only env-var cast site for those two values.
+
 IO boundaries in this codebase and how each is handled:
 
 | Boundary | How parsed |
 |----------|-----------|
-| Env vars (`import.meta.env.*`) | `resolveSignaling()`, `resolveTransport()`, etc. in `src/collaboration/config.ts` — return branded types |
-| `localStorage` reads | cast to branded type immediately inside the reading function (e.g. `localCacheEnabled()` → `LocalCacheEnabled`) |
+| Env vars (`import.meta.env.*`) | `resolveSignaling()`, `resolveTransport()`, etc. in `src/collaboration/config.ts` — return branded types; peer defaults in `src/collaboration/peerDefaults.ts` |
+| `localStorage` reads | parse function immediately inside the reading function (e.g. `localCacheEnabled()` → `LocalCacheEnabled`; `parseRoomId()` → `RoomId \| null`) |
 | URL params | cast in `App.svelte` at the single entry point (e.g. `?room=` → `RoomId`) |
-| Network peer awareness | `parsePeerAwarenessState(raw: unknown)` in `src/collaboration/types.ts` |
+| Network peer awareness | `parsePeerAwarenessState(raw: unknown)` in `src/collaboration/parse.ts` |
+| ProseMirror node/mark attrs (`any`) | typed accessors in `src/editor/parse.ts` and `getSlashMeta` in `src/editor/ui/slashMenu.ts` |
 | User form input | stays `string` until accepted into the domain by a login/connect function |
 | External API JSON | typed interface with a cast at `response.json() as Promise<TypedInterface>` |
 | Filename from browser API | `handle?.name as Filename` inside `localFsStorage()` in `src/storage/local.ts` |
@@ -145,9 +153,9 @@ export function extensionOf(filename: string): FileExtension {
   return (dot === -1 ? '' : filename.slice(dot).toLowerCase()) as FileExtension;
 }
 
-// src/collaboration/cache.ts — cacheDbName produces a branded DB name
+// src/collaboration/cache.ts — cacheDbName produces a branded DB name (template literal satisfies the type, no cast)
 export function cacheDbName(room: RoomId): CacheDbName {
-  return (DB_PREFIX + room) as CacheDbName;
+  return `${DB_PREFIX}${room}`;
 }
 ```
 
@@ -183,6 +191,8 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_ROOM_AUTH` | no | Room access + encryption strategy: `public` (default, no password), `site-password`, `room-password`, or `secret-link`. Parsed by `resolveRoomStrategy()` in `src/collaboration/config.ts`. |
 | `VITE_ROOM_PASSWORD` | no | Site-wide password used when `VITE_ROOM_AUTH=site-password`. Feeds y-webrtc AES encryption (WebRTC transport only; WebSocket hub is plaintext by design). |
 | `VITE_DEFAULT_ROOM` | no | Default landing room name when the URL has no `?room=` (default: `copad-demo`) |
+| `VITE_FALLBACK_NAME` | no | Display name shown for peers whose awareness state has no name (default: `Anonymous`). Parsed in `src/collaboration/peerDefaults.ts`. |
+| `VITE_FALLBACK_COLOR` | no | Cursor colour for peers with no colour set — must be a 6-digit hex (`#rrggbb`); invalid values fall back to `#888888`. Parsed in `src/collaboration/peerDefaults.ts`. |
 | `VITE_DROPBOX_APP_KEY` | no | Locks the Dropbox app key; otherwise set it at runtime in Settings |
 | `VITE_PCLOUD_CLIENT_ID` | no | Locks the pCloud client id; otherwise set it at runtime in Settings |
 | `VITE_GITHUB_REPO` | no | Locks the GitHub repository (`owner/repo`); otherwise set at runtime in Settings |

@@ -1,4 +1,4 @@
-import type { Storage, DocContent, StorageId, StorageAvailability, Filename } from './types.js';
+import type { Storage, DocContent, StorageId, Filename } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
@@ -199,7 +199,7 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
   const storage: Storage = {
     id: 'github' as StorageId,
     label: 'GitHub',
-    availability: { ok: true } as StorageAvailability,
+    availability: { ok: true },
     blurb:
       'Commits files to a GitHub repository — great as a version-controlled knowledge base.',
 

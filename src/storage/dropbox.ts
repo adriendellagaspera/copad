@@ -1,4 +1,4 @@
-import type { Storage, StorageAvailability, DocContent, StorageId } from './types.js';
+import type { Storage, DocContent, StorageId } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
@@ -85,7 +85,7 @@ export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
     id: 'dropbox' as StorageId,
     label: 'Dropbox',
     blurb: 'Saves to an app folder in your Dropbox via OAuth.',
-    availability: { ok: true } as StorageAvailability,
+    availability: { ok: true },
 
     filename: () => fileName.get(),
     setFilename: fileName.set,

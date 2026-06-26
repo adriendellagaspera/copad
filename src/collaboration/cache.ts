@@ -13,6 +13,7 @@
 import type * as Y from 'yjs';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import type { RoomId } from './types.js';
+import { parseRoomId } from './parse.js';
 
 const KEY_ENABLED = 'copad:localCache';
 const KEY_ROOMS = 'copad:cachedRooms';
@@ -51,7 +52,11 @@ function readRooms(): RoomId[] {
   try {
     const raw = localStorage.getItem(KEY_ROOMS);
     const list = raw ? JSON.parse(raw) : [];
-    return Array.isArray(list) ? list.filter((r): r is string => typeof r === 'string').map(r => r as RoomId) : [];
+    if (!Array.isArray(list)) return [];
+    return list
+      .filter((r): r is string => typeof r === 'string')
+      .map(parseRoomId)
+      .filter((r): r is RoomId => r !== null);
   } catch {
     return [];
   }

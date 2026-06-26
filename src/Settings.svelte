@@ -238,7 +238,7 @@
                     type={f.type ?? 'text'}
                     placeholder={f.placeholder ?? ''}
                     value={creds[b.storage.id]?.[f.name] ?? ''}
-                    oninput={e => { creds = { ...creds, [b.storage.id]: { ...(creds[b.storage.id] ?? {}), [f.name]: e.currentTarget.value } as SessionCredentials }; }}
+                    oninput={e => { creds = { ...creds, [b.storage.id]: { ...(creds[b.storage.id] ?? {}), [f.name]: e.currentTarget.value } }; }}
                   />
                 </label>
               {/each}

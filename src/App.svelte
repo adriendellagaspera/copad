@@ -97,8 +97,8 @@
   const connect = $derived(collabPlan.build(localCache));
 
   function setLocalCache(on: boolean): void {
-    localCache = on as LocalCacheEnabled;
     setLocalCacheEnabled(on);
+    localCache = localCacheEnabled();
     if (!on) void clearLocalCache().then(() => toasts.info('Local copies cleared'));
   }
 

@@ -1,5 +1,5 @@
 import { Plugin, PluginKey } from 'prosemirror-state';
-import type { EditorState, Command } from 'prosemirror-state';
+import type { EditorState, Command, Transaction } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { commands } from '../commands.js';
 import { schema } from '../schema.js';
@@ -60,6 +60,18 @@ export type SlashState = SlashClosed | SlashOpen;
 
 export const slashKey = new PluginKey<SlashState>('copad-slash');
 
+/** Parse transaction metadata for this plugin — the single cast site for SlashMenuMeta from tr.getMeta(). */
+export function getSlashMeta(tr: Transaction): SlashMenuMeta | undefined {
+  const raw: unknown = tr.getMeta(slashKey);
+  if (raw === null || raw === undefined || typeof raw !== 'object') return undefined;
+  const obj = raw as Record<string, unknown>;
+  if (obj['type'] === 'dismiss') return { type: 'dismiss' };
+  if (obj['type'] === 'index' && typeof obj['index'] === 'number') {
+    return { type: 'index', index: obj['index'] };
+  }
+  return undefined;
+}
+
 const INACTIVE: SlashClosed = { active: false, triggerPos: -1, dismissedFrom: -1 };
 
 /** The result of parsing the current editor state for a slash-command trigger. */
@@ -90,7 +102,7 @@ export function slashMenuPlugin(): Plugin<SlashState> {
     state: {
       init: () => ({ ...INACTIVE }),
       apply(tr, prev, _old, newState) {
-        const meta = tr.getMeta(slashKey) as SlashMenuMeta | undefined;
+        const meta = getSlashMeta(tr);
         const d = derive(newState);
         let dismissedFrom = prev.dismissedFrom;
         let index = 0;

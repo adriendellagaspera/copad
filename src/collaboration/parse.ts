@@ -1,7 +1,5 @@
-import type { DisplayName, CursorColor, SessionRole, PeerAwarenessState } from './types.js';
-
-const FALLBACK_NAME = 'Anonymous' as DisplayName;
-const FALLBACK_COLOR = '#888888' as CursorColor;
+import type { DisplayName, CursorColor, SessionRole, PeerAwarenessState, RoomId } from './types.js';
+import { FALLBACK_NAME, FALLBACK_COLOR } from './peerDefaults.js';
 
 /**
  * Parse an unknown awareness state value arriving from a peer browser.
@@ -24,4 +22,10 @@ export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
   const role: SessionRole = obj['role'] === 'reader' ? 'reader' : 'writer';
   const canPersist = obj['canPersist'] === true;
   return { user: { name, color }, role, canPersist };
+}
+
+/** Parse a raw string from storage as a RoomId — the single cast site for RoomId from localStorage. */
+export function parseRoomId(raw: string): RoomId | null {
+  const trimmed = raw.trim();
+  return trimmed ? (trimmed as RoomId) : null;
 }

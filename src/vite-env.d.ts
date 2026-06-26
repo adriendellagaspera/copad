@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_WEBSOCKET_URL?: string;
   readonly VITE_DEFAULT_ROOM?: string;
   readonly VITE_ROOM_PASSWORD?: string;
+  readonly VITE_FALLBACK_NAME?: string;
+  readonly VITE_FALLBACK_COLOR?: string;
   readonly VITE_ROOM_AUTH?: import('./collaboration/roomAccess.js').RoomAccessMode;
   // ── WebRTC NAT traversal (STUN / TURN) ──
   readonly VITE_STUN_URL?: string;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePeerAwarenessState } from './awareness.js';
+import { parsePeerAwarenessState } from './parse.js';
 
 describe('parsePeerAwarenessState — fallback behaviour', () => {
   it('returns safe defaults for null', () => {
