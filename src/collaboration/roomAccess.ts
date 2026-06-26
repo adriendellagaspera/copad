@@ -1,4 +1,5 @@
 import type { RoomId } from './types.js';
+import { parseRoomCredential } from './parse.js';
 
 /** The four room-access strategies, parsed from `VITE_ROOM_AUTH` at the env
  *  boundary. The union carries the invariant: once you hold a `RoomAccess`,
@@ -35,10 +36,7 @@ export function publicAccess(): RoomAccess {
  * `VITE_ROOM_PASSWORD` env var. Whitespace-only values are treated as absent.
  */
 export function sitePassword(envPassword: string): RoomAccess {
-  const trimmed = envPassword.trim();
-  const cred: RoomCredential | null = trimmed
-    ? (trimmed as RoomCredential)
-    : null;
+  const cred = parseRoomCredential(envPassword);
   return { mode: 'site-password', credential: () => cred };
 }
 
@@ -53,10 +51,7 @@ const roomPasswordKey = (room: RoomId): RoomPasswordKey =>
 export function roomPassword(): RoomAccess {
   return {
     mode: 'room-password',
-    credential: (room) => {
-      const stored = localStorage.getItem(roomPasswordKey(room));
-      return stored ? (stored as RoomCredential) : null;
-    },
+    credential: (room) => parseRoomCredential(localStorage.getItem(roomPasswordKey(room))),
   };
 }
 

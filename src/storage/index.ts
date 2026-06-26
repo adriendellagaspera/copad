@@ -20,7 +20,7 @@ export interface StorageBackend {
 
 /** Returns all storage backends available in this environment. */
 export function backends(): StorageBackend[] {
-  const proxyUrl = import.meta.env.VITE_PROXY_URL as string | undefined;
+  const proxyUrl = import.meta.env.VITE_PROXY_URL;
   const netFetch = proxyUrl ? proxiedFetch(proxyUrl) : directFetch;
 
   return [

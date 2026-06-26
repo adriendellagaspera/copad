@@ -4,16 +4,12 @@ import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import type { Fetch } from '../network/types.js';
+import { type PCloudSession, parsePCloudSession, parsePCloudFileLinkResponse } from './parse.js';
 
 const FOLDER = '/copad';
 const fileName = filenameStore('pcloud' as StorageId);
 const filePath = () => `${FOLDER}/${fileName.get()}`;
 const STORAGE_KEY = 'storage.pcloud';
-
-interface PCloudSession {
-  token: string;
-  host: string;
-}
 
 // Persisted under `storage.pcloud.clientId` — same key the old connect form used.
 const cfg = configStore('pcloud' as StorageId, [
@@ -22,25 +18,12 @@ const cfg = configStore('pcloud' as StorageId, [
     label: 'Client ID',
     placeholder: 'your-client-id',
     help: 'Register an OAuth app at pcloud.com/oauth2-apps, then paste its Client ID here.',
-    env: import.meta.env.VITE_PCLOUD_CLIENT_ID as string | undefined,
+    env: import.meta.env.VITE_PCLOUD_CLIENT_ID,
   },
 ]);
 
-interface PCloudFileLinkResponse {
-  result: number;
-  hosts: string[];
-  path: string;
-}
-
 export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: Storage } {
-  const session = (): PCloudSession | null => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as PCloudSession) : null;
-    } catch {
-      return null;
-    }
-  };
+  const session = (): PCloudSession | null => parsePCloudSession(localStorage.getItem(STORAGE_KEY));
 
   const auth: StorageAuth = {
     isAuthenticated: () => !!session(),
@@ -90,9 +73,10 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
       if (!s) throw new Error('pCloud: not connected');
 
       try {
-        const meta = await fetch(
+        const rawMeta: unknown = await fetch(
           `https://${s.host}/getfilelink?path=${encodeURIComponent(filePath())}&auth=${s.token}`
-        ).then(r => r.json() as Promise<PCloudFileLinkResponse>);
+        ).then(r => r.json());
+        const meta = parsePCloudFileLinkResponse(rawMeta);
 
         if (meta.result !== 0) return null;
 

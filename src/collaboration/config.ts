@@ -13,6 +13,7 @@ import type { RoomCipher } from './roomCipher.js';
 import { publicAccess, sitePassword, roomPassword } from './roomAccess.js';
 import { plaintext } from './roomCipher.js';
 import { secretLink, type SecretLinkPort } from './secretLink.js';
+import { parseRoomId } from './parse.js';
 
 /** Hostnames that mean "this is local dev", where ws://localhost is reasonable. */
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0', '']);
@@ -199,6 +200,11 @@ export function resolveRoomStrategy(raw: string | undefined): RoomStrategy {
     default:
       return { access: publicAccess(), cipher: plaintext() };
   }
+}
+
+/** Parse the default room from `VITE_DEFAULT_ROOM` — the single cast site for the default RoomId. */
+export function resolveDefaultRoom(raw: string | undefined): RoomId {
+  return parseRoomId(raw ?? '') ?? ('copad-demo' as RoomId);
 }
 
 /** ICE server environment variables read at startup for WebRTC NAT traversal. */

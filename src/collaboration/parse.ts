@@ -1,4 +1,5 @@
 import type { DisplayName, CursorColor, SessionRole, PeerAwarenessState, RoomId } from './types.js';
+import type { RoomCredential } from './roomAccess.js';
 import { FALLBACK_NAME, FALLBACK_COLOR } from './peerDefaults.js';
 
 /**
@@ -24,10 +25,16 @@ export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
   return { user: { name, color }, role, canPersist };
 }
 
-/** Parse a raw string from storage as a RoomId — the single cast site for RoomId from localStorage. */
-export function parseRoomId(raw: string): RoomId | null {
-  const trimmed = raw.trim();
+/** Parse a raw string from storage as a RoomId — the single cast site for RoomId from localStorage/URL. */
+export function parseRoomId(raw: string | null): RoomId | null {
+  const trimmed = (raw ?? '').trim();
   return trimmed ? (trimmed as RoomId) : null;
+}
+
+/** Parse a stored string as a RoomCredential — the single cast site for RoomCredential from localStorage/URL. */
+export function parseRoomCredential(raw: string | null): RoomCredential | null {
+  const trimmed = (raw ?? '').trim();
+  return trimmed ? (trimmed as RoomCredential) : null;
 }
 
 /** Parse a JSON-encoded room list from localStorage into typed RoomIds. */

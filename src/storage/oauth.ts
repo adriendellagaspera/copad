@@ -18,6 +18,8 @@ export async function pkceChallenge(): Promise<{ verifier: string; challenge: st
   return { verifier, challenge };
 }
 
+import { parseOAuthCode } from './parse.js';
+
 /** Open an OAuth popup and wait for the code to be posted back. */
 export function openOAuthPopup(authUrl: string, expectedState: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -34,10 +36,12 @@ export function openOAuthPopup(authUrl: string, expectedState: string): Promise<
 
     function onMessage(event: MessageEvent) {
       if (event.origin !== location.origin) return;
-      if (event.data?.type !== 'oauth-code') return;
-      if (event.data.state !== expectedState) return;
+      const data = event.data as Record<string, unknown>;
+      if (data?.['state'] !== expectedState) return;
+      const code = parseOAuthCode(data);
+      if (!code) return;
       cleanup();
-      resolve(event.data.code as string);
+      resolve(code);
     }
 
     function cleanup() {

@@ -3,6 +3,7 @@ import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import { pkceChallenge, openOAuthPopup } from './oauth.js';
+import { parseDropboxTokenResponse } from './parse.js';
 
 const fileName = filenameStore('dropbox' as StorageId);
 const filePath = () => `/copad/${fileName.get()}`;
@@ -19,7 +20,7 @@ const cfg = configStore('dropbox' as StorageId, [
     label: 'App key',
     placeholder: 'your-app-key',
     help: 'Create a scoped app at dropbox.com/developers, then paste its App key here.',
-    env: import.meta.env.VITE_DROPBOX_APP_KEY as string | undefined,
+    env: import.meta.env.VITE_DROPBOX_APP_KEY,
   },
 ]);
 
@@ -66,7 +67,7 @@ export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
       });
 
       if (!res.ok) throw new Error(`Dropbox token exchange failed: ${res.status}`);
-      const data = await res.json() as { access_token: string };
+      const data = parseDropboxTokenResponse(await res.json());
       localStorage.setItem(STORAGE_KEY, data.access_token);
     },
 

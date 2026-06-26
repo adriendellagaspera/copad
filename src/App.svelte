@@ -9,9 +9,11 @@
     resolveWebsocket,
     resolveTransport,
     resolveRoomStrategy,
+    resolveDefaultRoom,
     type PageProtocol,
     type PageHostname,
   } from './collaboration/config.js';
+  import { parseRoomId } from './collaboration/parse.js';
   import {
     localCacheEnabled,
     setLocalCacheEnabled,
@@ -155,11 +157,10 @@
 
   // ── Document / room ────────────────────────────────────────────────────────
 
-  // Cast at IO boundary: env var and URL strings enter the domain as RoomId here.
-  const DEFAULT_ROOM = (import.meta.env.VITE_DEFAULT_ROOM ?? 'copad-demo') as RoomId;
+  const DEFAULT_ROOM = resolveDefaultRoom(import.meta.env.VITE_DEFAULT_ROOM);
 
   function roomFromUrl(): RoomId {
-    return (new URLSearchParams(location.search).get('room') || DEFAULT_ROOM) as RoomId;
+    return parseRoomId(new URLSearchParams(location.search).get('room')) ?? DEFAULT_ROOM;
   }
 
   // Role is fixed for the session — it comes from the URL so the host can share
@@ -173,8 +174,7 @@
   const sessionRole: SessionRole = roleFromUrl();
 
   function goToRoom(id: string) {
-    // id arrives from user input (IO boundary) — cast to RoomId on entry.
-    const r = (id.trim() || DEFAULT_ROOM) as RoomId;
+    const r = parseRoomId(id) ?? DEFAULT_ROOM;
     const qs = r === DEFAULT_ROOM ? '' : `?room=${encodeURIComponent(r)}`;
     history.pushState({}, '', location.pathname + qs);
     room = r;

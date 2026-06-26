@@ -1,4 +1,5 @@
 import type { StorageId, Filename } from './types.js';
+import { parseFilename } from './parse.js';
 
 /** Read/write access to the persisted target filename for one storage backend. */
 export interface FilenameStore {
@@ -20,7 +21,7 @@ export function filenameStore(backendId: StorageId, fallback: Filename = 'docume
   const KEY: FilenameStoreKey = `storage.${backendId}.filename`;
   return {
     get(): Filename {
-      return (localStorage.getItem(KEY)?.trim() || fallback) as Filename;
+      return parseFilename(localStorage.getItem(KEY), fallback);
     },
     set(name: string): void {
       const trimmed = name.trim();

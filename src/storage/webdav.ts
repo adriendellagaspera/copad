@@ -2,14 +2,10 @@ import type { Storage, CredentialField, SessionCredentials, DocContent, StorageI
 import type { StorageAuth } from './auth.js';
 import type { Fetch } from '../network/types.js';
 import { filenameStore } from './filename.js';
+import { type WebDavConf, parseWebDavConf } from './parse.js';
 
 const fileName = filenameStore('webdav' as StorageId);
 const STORAGE_KEY = 'storage.webdav';
-
-interface WebDavConf {
-  baseUrl: string;
-  auth: string;
-}
 
 const credentialFields: CredentialField[] = [
   {
@@ -24,14 +20,7 @@ const credentialFields: CredentialField[] = [
 ];
 
 export function webdavStorage(netFetch: Fetch): { auth: StorageAuth; storage: Storage } {
-  const conf = (): WebDavConf | null => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as WebDavConf) : null;
-    } catch {
-      return null;
-    }
-  };
+  const conf = (): WebDavConf | null => parseWebDavConf(localStorage.getItem(STORAGE_KEY));
 
   const auth: StorageAuth = {
     isAuthenticated: () => !!conf(),

@@ -3,6 +3,14 @@ import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import { extensionOf } from '../format/types.js';
+import {
+  parseRepo,
+  parseBranch,
+  parseGitHubValidated,
+  parseGitHubErrorBody,
+  parseGitHubCommitResponse,
+  parseGitHubLoadResponse,
+} from './parse.js';
 
 const API = 'https://api.github.com';
 const VALIDATED_KEY = 'storage.github.validated';
@@ -21,19 +29,6 @@ export type GitHubBranch = string & { readonly _brand: 'GitHubBranch' };
 /** A file SHA returned by the GitHub Contents API, required to update an existing file. */
 export type GitHubFileSha = string & { readonly _brand: 'GitHubFileSha' };
 
-// ── Parse functions (single point of validation per type) ─────────────────────
-
-/** Accepts `owner/repo` — rejects empty strings, bare names, and multi-segment paths. */
-function parseRepo(raw: string): GitHubRepo | null {
-  const s = raw.trim();
-  return /^[^/\s]+\/[^/\s]+$/.test(s) ? (s as GitHubRepo) : null;
-}
-
-/** Always succeeds — returns `'main'` when the input is empty. */
-function parseBranch(raw: string): GitHubBranch {
-  return (raw.trim() || 'main') as GitHubBranch;
-}
-
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const fileName = filenameStore('github' as StorageId, 'notes.md' as Filename);
@@ -44,14 +39,14 @@ const cfg = configStore('github' as StorageId, [
     label: 'Repository',
     placeholder: 'owner/repo',
     help: 'GitHub repository to save files in (e.g. alice/my-notes).',
-    env: import.meta.env.VITE_GITHUB_REPO as string | undefined,
+    env: import.meta.env.VITE_GITHUB_REPO,
   },
   {
     name: 'branch',
     label: 'Branch',
     placeholder: 'main',
     help: 'Branch to commit to. Leave empty for the default branch (main).',
-    env: import.meta.env.VITE_GITHUB_BRANCH as string | undefined,
+    env: import.meta.env.VITE_GITHUB_BRANCH,
   },
   {
     name: 'token',
@@ -59,7 +54,7 @@ const cfg = configStore('github' as StorageId, [
     type: 'password' as const,
     placeholder: 'ghp_…',
     help: 'A fine-grained PAT with Contents: Read and write, or a classic token with the repo scope.',
-    env: import.meta.env.VITE_GITHUB_TOKEN as string | undefined,
+    env: import.meta.env.VITE_GITHUB_TOKEN,
   },
 ]);
 
@@ -103,7 +98,7 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
     // Env-managed tokens are deployment-trusted; user-entered tokens require a
     // successful login() (GET /user validation) before they are branded.
     if (cfg.configLocked('token')) return raw as GitHubToken;
-    if (!localStorage.getItem(VALIDATED_KEY)) return null;
+    if (!parseGitHubValidated(localStorage.getItem(VALIDATED_KEY))) return null;
     return raw as GitHubToken;
   }
 
@@ -139,12 +134,11 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
     });
 
     if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-      throw new Error(`GitHub save failed: ${String(err.message ?? res.status)}`);
+      const err = parseGitHubErrorBody(await res.json().catch(() => ({})));
+      throw new Error(`GitHub save failed: ${String(err['message'] ?? res.status)}`);
     }
 
-    const data = (await res.json()) as { content: { sha: string } };
-    fileSha = data.content.sha as GitHubFileSha;
+    fileSha = parseGitHubCommitResponse(await res.json()).content.sha;
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -226,8 +220,8 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`GitHub load failed: ${res.status}`);
 
-      const data = (await res.json()) as { content: string; sha: string };
-      fileSha = data.sha as GitHubFileSha;
+      const data = parseGitHubLoadResponse(await res.json());
+      fileSha = data.sha;
 
       // GitHub always returns base64; strip the newlines it inserts every 60 chars.
       const raw = atob(data.content.replace(/\n/g, ''));
