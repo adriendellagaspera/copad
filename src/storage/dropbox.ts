@@ -3,6 +3,7 @@ import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import { pkceChallenge, openOAuthPopup } from './oauth.js';
+import { readString, writeString, removeKey } from '../localStore.js';
 
 const fileName = filenameStore('dropbox');
 const filePath = () => `/copad/${fileName.get()}`;
@@ -23,9 +24,9 @@ const cfg = configStore('dropbox', [
 ]);
 
 export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
-  // Shared state: token lives in localStorage but we read it through a closure
-  // helper so both auth and storage see the same current value.
-  const token = (): string | null => localStorage.getItem(STORAGE_KEY);
+  // Shared state: the token is persisted (via localStore) but read through a
+  // closure helper so both auth and storage see the same current value.
+  const token = (): string | null => readString(STORAGE_KEY);
 
   const auth: StorageAuth = {
     isAuthenticated: () => !!token(),
@@ -66,11 +67,11 @@ export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
 
       if (!res.ok) throw new Error(`Dropbox token exchange failed: ${res.status}`);
       const data = await res.json() as { access_token: string };
-      localStorage.setItem(STORAGE_KEY, data.access_token);
+      writeString(STORAGE_KEY, data.access_token);
     },
 
     logout() {
-      localStorage.removeItem(STORAGE_KEY);
+      removeKey(STORAGE_KEY);
     },
 
     configFields: cfg.fields,

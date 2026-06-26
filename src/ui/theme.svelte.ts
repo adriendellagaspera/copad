@@ -3,18 +3,16 @@
  * this keeps it in sync afterwards. Functional: createTheme() returns a plain
  * rune-backed object, no class. */
 
+import { readString, writeString } from '../localStore.js';
+
 export type ThemeChoice = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 
 const KEY = 'copad:theme';
 
 function read(): ThemeChoice {
-  try {
-    const v = localStorage.getItem(KEY);
-    if (v === 'light' || v === 'dark' || v === 'system') return v;
-  } catch {
-    /* ignore */
-  }
+  const v = readString(KEY);
+  if (v === 'light' || v === 'dark' || v === 'system') return v;
   return 'system';
 }
 
@@ -33,11 +31,7 @@ export function createTheme() {
 
   function set(next: ThemeChoice): void {
     choice = next;
-    try {
-      localStorage.setItem(KEY, next);
-    } catch {
-      /* ignore */
-    }
+    writeString(KEY, next);
     apply(next === 'system' ? (systemDark ? 'dark' : 'light') : next);
   }
 

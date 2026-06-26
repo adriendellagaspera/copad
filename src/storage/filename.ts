@@ -1,3 +1,5 @@
+import { readString, writeString, removeKey } from '../localStore.js';
+
 /**
  * Persisted target filename for a storage backend. The extension drives which
  * codec (see src/format) is used to read/write the document, so this is how a
@@ -10,12 +12,12 @@ export function filenameStore(backendId: string, fallback = 'document.yjs') {
   const KEY = `storage.${backendId}.filename`;
   return {
     get(): string {
-      return localStorage.getItem(KEY)?.trim() || fallback;
+      return readString(KEY)?.trim() || fallback;
     },
     set(name: string): void {
       const trimmed = name.trim();
-      if (trimmed) localStorage.setItem(KEY, trimmed);
-      else localStorage.removeItem(KEY);
+      if (trimmed) writeString(KEY, trimmed);
+      else removeKey(KEY);
     },
   };
 }

@@ -1,4 +1,5 @@
 import type { ConfigField } from './types.js';
+import { readString, writeString, removeKey } from '../localStore.js';
 
 /**
  * A single configuration field plus its build-time default. When `env` is set
@@ -32,7 +33,7 @@ export function configStore(id: string, specs: ConfigSpec[]): ConfigStore {
   const spec = (name: string) => specs.find(s => s.name === name);
   const key = (name: string) => `storage.${id}.${name}`;
   const envOf = (name: string) => spec(name)?.env || '';
-  const value = (name: string) => envOf(name) || localStorage.getItem(key(name)) || '';
+  const value = (name: string) => envOf(name) || readString(key(name)) || '';
 
   return {
     // Strip `env` from the public field descriptors — it's an implementation detail.
@@ -43,8 +44,8 @@ export function configStore(id: string, specs: ConfigSpec[]): ConfigStore {
     setConfig(name, raw) {
       if (envOf(name)) return; // locked by the deployment — ignore writes
       const trimmed = raw.trim();
-      if (trimmed) localStorage.setItem(key(name), trimmed);
-      else localStorage.removeItem(key(name));
+      if (trimmed) writeString(key(name), trimmed);
+      else removeKey(key(name));
     },
 
     configLocked: name => !!envOf(name),

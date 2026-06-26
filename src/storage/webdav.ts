@@ -2,6 +2,7 @@ import type { Storage, CredentialField, SessionCredentials, DocContent } from '.
 import type { StorageAuth } from './auth.js';
 import type { Fetch } from '../network/types.js';
 import { filenameStore } from './filename.js';
+import { readJSON, writeJSON, removeKey } from '../localStore.js';
 
 const fileName = filenameStore('webdav');
 const STORAGE_KEY = 'storage.webdav';
@@ -24,14 +25,7 @@ const credentialFields: CredentialField[] = [
 ];
 
 export function webdavStorage(netFetch: Fetch): { auth: StorageAuth; storage: Storage } {
-  const conf = (): WebDavConf | null => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as WebDavConf) : null;
-    } catch {
-      return null;
-    }
-  };
+  const conf = (): WebDavConf | null => readJSON<WebDavConf | null>(STORAGE_KEY, null);
 
   const auth: StorageAuth = {
     isAuthenticated: () => !!conf(),
@@ -52,14 +46,11 @@ export function webdavStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
       if (!res.ok && res.status !== 404)
         throw new Error(`WebDAV connect failed: ${res.status}`);
 
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ baseUrl: baseUrl.replace(/\/$/, ''), auth: authHeader })
-      );
+      writeJSON(STORAGE_KEY, { baseUrl: baseUrl.replace(/\/$/, ''), auth: authHeader });
     },
 
     logout() {
-      localStorage.removeItem(STORAGE_KEY);
+      removeKey(STORAGE_KEY);
     },
 
     credentialFields,

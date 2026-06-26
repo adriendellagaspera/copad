@@ -12,6 +12,7 @@
 
 import type * as Y from 'yjs';
 import { IndexeddbPersistence } from 'y-indexeddb';
+import { readString, writeString, readJSON, writeJSON, removeKey } from '../localStore.js';
 
 const KEY_ENABLED = 'copad:localCache';
 const KEY_ROOMS = 'copad:cachedRooms';
@@ -23,19 +24,12 @@ export type LocalCacheEnabled = boolean & { readonly _brand: 'LocalCacheEnabled'
 
 /** Whether documents should be cached locally. Defaults to true (anything but '0'). */
 export function localCacheEnabled(): LocalCacheEnabled {
-  try {
-    return (localStorage.getItem(KEY_ENABLED) !== '0') as LocalCacheEnabled;
-  } catch {
-    return true as LocalCacheEnabled;
-  }
+  // Absent or unreadable both read as `null !== '0'` ⇒ the default-on behaviour.
+  return (readString(KEY_ENABLED) !== '0') as LocalCacheEnabled;
 }
 
 export function setLocalCacheEnabled(on: boolean): void {
-  try {
-    localStorage.setItem(KEY_ENABLED, on ? '1' : '0');
-  } catch {
-    /* ignore */
-  }
+  writeString(KEY_ENABLED, on ? '1' : '0');
 }
 
 /** IndexedDB database name for a room — namespaced so "clear" only touches ours. */
@@ -44,25 +38,16 @@ export function cacheDbName(room: string): string {
 }
 
 function readRooms(): string[] {
-  try {
-    const raw = localStorage.getItem(KEY_ROOMS);
-    const list = raw ? JSON.parse(raw) : [];
-    return Array.isArray(list) ? list.filter((r): r is string => typeof r === 'string') : [];
-  } catch {
-    return [];
-  }
+  const list = readJSON<unknown>(KEY_ROOMS, []);
+  return Array.isArray(list) ? list.filter((r): r is string => typeof r === 'string') : [];
 }
 
 /** Record that a room has a local cache, so clearLocalCache() can find it later. */
 export function rememberCachedRoom(room: string): void {
-  try {
-    const rooms = readRooms();
-    if (!rooms.includes(room)) {
-      rooms.push(room);
-      localStorage.setItem(KEY_ROOMS, JSON.stringify(rooms));
-    }
-  } catch {
-    /* ignore */
+  const rooms = readRooms();
+  if (!rooms.includes(room)) {
+    rooms.push(room);
+    writeJSON(KEY_ROOMS, rooms);
   }
 }
 
@@ -83,11 +68,7 @@ function deleteDb(name: string): Promise<void> {
 export async function clearLocalCache(): Promise<void> {
   const rooms = readRooms();
   await Promise.all(rooms.map((r) => deleteDb(cacheDbName(r))));
-  try {
-    localStorage.removeItem(KEY_ROOMS);
-  } catch {
-    /* ignore */
-  }
+  removeKey(KEY_ROOMS);
 }
 
 /** A handle to a doc's attached local cache; call destroy() to detach. */

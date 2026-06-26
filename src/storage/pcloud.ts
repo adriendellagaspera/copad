@@ -4,6 +4,7 @@ import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import type { Fetch } from '../network/types.js';
+import { readJSON, writeJSON, removeKey } from '../localStore.js';
 
 const FOLDER = '/copad';
 const fileName = filenameStore('pcloud');
@@ -26,14 +27,7 @@ const cfg = configStore('pcloud', [
 ]);
 
 export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: Storage } {
-  const session = (): PCloudSession | null => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as PCloudSession) : null;
-    } catch {
-      return null;
-    }
-  };
+  const session = (): PCloudSession | null => readJSON<PCloudSession | null>(STORAGE_KEY, null);
 
   const auth: StorageAuth = {
     isAuthenticated: () => !!session(),
@@ -48,7 +42,7 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
           (token: string, locationid?: number) => {
             const host =
               (locationid ?? 1) === 2 ? 'eapi.pcloud.com' : 'api.pcloud.com';
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, host }));
+            writeJSON(STORAGE_KEY, { token, host });
             resolve();
           },
           (err: unknown) => reject(new Error(`pCloud auth failed: ${String(err)}`))
@@ -57,7 +51,7 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
     },
 
     logout() {
-      localStorage.removeItem(STORAGE_KEY);
+      removeKey(STORAGE_KEY);
     },
 
     configFields: cfg.fields,

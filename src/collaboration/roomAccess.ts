@@ -1,4 +1,5 @@
 import type { RoomId } from './types.js';
+import { readString, writeString, removeKey } from '../localStore.js';
 
 /** The four room-access strategies, parsed from `VITE_ROOM_AUTH` at the env
  *  boundary. The union carries the invariant: once you hold a `RoomAccess`,
@@ -53,7 +54,7 @@ export function roomPassword(): RoomAccess {
   return {
     mode: 'room-password',
     credential: (room) => {
-      const stored = localStorage.getItem(roomPasswordKey(room));
+      const stored = readString(roomPasswordKey(room));
       return stored ? (stored as RoomCredential) : null;
     },
   };
@@ -62,13 +63,13 @@ export function roomPassword(): RoomAccess {
 /** Persist a per-room password. Pass an empty string to clear it. */
 export function setRoomPassword(room: RoomId, password: string): void {
   if (password) {
-    localStorage.setItem(roomPasswordKey(room), password);
+    writeString(roomPasswordKey(room), password);
   } else {
-    localStorage.removeItem(roomPasswordKey(room));
+    removeKey(roomPasswordKey(room));
   }
 }
 
 /** Remove the stored password for a room. */
 export function clearRoomPassword(room: RoomId): void {
-  localStorage.removeItem(roomPasswordKey(room));
+  removeKey(roomPasswordKey(room));
 }
