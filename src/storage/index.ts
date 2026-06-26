@@ -27,7 +27,6 @@ export function backends(): StorageBackend[] {
     pcloudStorage(netFetch),
     dropboxStorage(),
     webdavStorage(netFetch),
-<<<<<<< HEAD
     githubStorage(),
     // Always offer local-file storage; it self-reports availability.ok=false when
     // the File System Access API is absent (e.g. Firefox, Safari, Brave Shields).

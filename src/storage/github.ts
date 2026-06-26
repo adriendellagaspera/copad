@@ -1,4 +1,4 @@
-import type { Storage, DocContent } from './types.js';
+import type { Storage, DocContent, StorageId, StorageAvailability, Filename } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
@@ -36,9 +36,9 @@ function parseBranch(raw: string): GitHubBranch {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const fileName = filenameStore('github', 'notes.md');
+const fileName = filenameStore('github' as StorageId, 'notes.md' as Filename);
 
-const cfg = configStore('github', [
+const cfg = configStore('github' as StorageId, [
   {
     name: 'repo',
     label: 'Repository',
@@ -197,8 +197,9 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
   // ── Storage ───────────────────────────────────────────────────────────────
 
   const storage: Storage = {
-    id: 'github',
+    id: 'github' as StorageId,
     label: 'GitHub',
+    availability: { ok: true } as StorageAvailability,
     blurb:
       'Commits files to a GitHub repository — great as a version-controlled knowledge base.',
 
