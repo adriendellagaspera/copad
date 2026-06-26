@@ -82,11 +82,11 @@ Backends that need neither (Local) omit both. Each backend's front-page **pill**
 ### Constants & deployment config
 
 No magic literal lives buried in business logic. Deployment-relevant constants — endpoints, defaults, timeouts, folder paths, and the localStorage keys each vertical owns — are centralized in a **config/constants module per vertical**, and read a `VITE_*` env override where deployments legitimately vary:
-- `src/config.ts` — app-global: the `copad:` storage **namespace** (`APP_NAMESPACE` / `nsKey()`). Fixed identity, *not* env-overridable (the no-flash script in `index.html` hardcodes the same prefix and can't read env).
+- `src/config.ts` — app-global: the storage **namespace** (`APP_NAMESPACE` / `nsKey()`, default `copad`). Overridable via `VITE_APP_NAMESPACE` so two deployments on one origin can isolate their `copad:`-namespaced state. The no-flash script in `index.html` can't read env at runtime, so it's kept in sync at *build* time by the `inject-app-namespace` plugin in `vite.config.ts` (same default).
 - `src/collaboration/constants.ts` — signaling/STUN/room defaults, local-dev hostnames, cache + room-password keys.
 - `src/storage/constants.ts` — backend endpoint URLs/hosts/paths, the shared cloud folder, GitHub API base, OAuth popup tuning + redirect, base64 chunk size, default filenames, and every backend's localStorage key. Each endpoint/host/path/tunable reads a `VITE_*` override (via the `envStr` / `envInt` helpers) so a deployment can react to a provider rotating a domain or a regional split (pCloud US/EU) without a rebuild.
 
-Only two kinds of constant stay fixed (no env override): the localStorage **keys** + the `copad:` namespace (changing them orphans saved state, and the no-flash `index.html` script can't read env), and the default filenames/branch (user-facing content, edited in Settings).
+The only constants with **no** env override are the per-backend localStorage **key strings** (`storage.<id>.*`, `collab.room-password.*` — pure identity; changing them just orphans saved state with no deployment benefit) and the GitHub default branch (already deployment-settable via the `branch` config field's `VITE_GITHUB_BRANCH` lock). Changing `VITE_APP_NAMESPACE` on a *live* deployment likewise orphans `copad:`-namespaced state — it's a set-once-at-deploy knob.
 
 ## Type system principles
 
@@ -166,9 +166,9 @@ export function extensionOf(filename: string): FileExtension {
   return (dot === -1 ? '' : filename.slice(dot).toLowerCase()) as FileExtension;
 }
 
-// src/collaboration/cache.ts — cacheDbName produces a branded DB name (template literal satisfies the type, no cast)
+// src/collaboration/cache.ts — cacheDbName produces a branded DB name (cast at the namespacing boundary)
 export function cacheDbName(room: RoomId): CacheDbName {
-  return `${DB_PREFIX}${room}`;
+  return `${CACHE_DB_PREFIX}${room}` as CacheDbName;
 }
 ```
 
@@ -198,6 +198,7 @@ This codebase uses **functional naming** — no OO suffixes.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
+| `VITE_APP_NAMESPACE` | no | Prefix for the app's `copad:`-namespaced browser state — theme + local cache (default: `copad`). Set once per deploy to isolate two deployments on one origin; the no-flash `index.html` script is synced at build time by the `inject-app-namespace` Vite plugin. |
 | `VITE_COLLAB_TRANSPORT` | no | Collaboration transport: `webrtc` (default) or `websocket`. **Chosen explicitly** (not inferred from any URL) — `resolveTransport()` in `src/collaboration/config.ts`. |
 | `VITE_SIGNALING_URL` | no | WebRTC signaling server(s), comma-separated. `ws://localhost:4444` default applies **only on a local host**; on a deployed origin it's empty (warning banner shown) — must be `wss://` (browsers block `ws://` from https as mixed content). Resolved by `resolveSignaling()` in `src/collaboration/config.ts`. Used only on the WebRTC transport. |
 | `VITE_WEBSOCKET_URL` | no | y-websocket hub URL, used when `VITE_COLLAB_TRANSPORT=websocket` (central relay, no STUN/TURN — works on mobile NAT; server sees plaintext, so no E2E). Setting it alone does NOT switch transports. Must be `wss://` on a deployed origin. Resolved by `resolveWebsocket()` in `src/collaboration/config.ts`. |
@@ -213,6 +214,8 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_GITHUB_TOKEN` | no | Locks the GitHub PAT; bypasses the Connect validation step (deployment-managed) |
 | `VITE_GITHUB_API_URL` | no | GitHub REST API base (default: `https://api.github.com`); set for a GitHub Enterprise host. In `src/storage/constants.ts`. |
 | `VITE_CLOUD_FOLDER` | no | Folder the cloud backends (Dropbox, pCloud) read/write within (default: `/copad`). In `src/storage/constants.ts`. |
+| `VITE_DEFAULT_FILENAME` | no | Initial target filename for cloud backends (default: `document.yjs`); the extension selects the codec. |
+| `VITE_GITHUB_DEFAULT_FILENAME` | no | Initial GitHub target file (default: `notes.md`). |
 | `VITE_REDIRECT_URI` | no | OAuth redirect URI (default: `<origin>/redirect.html`). In `src/storage/constants.ts`. |
 | `VITE_DROPBOX_AUTH_URL` / `VITE_DROPBOX_TOKEN_URL` / `VITE_DROPBOX_UPLOAD_URL` / `VITE_DROPBOX_DOWNLOAD_URL` | no | Dropbox OAuth/content endpoint overrides (defaults are the public dropbox.com / dropboxapi.com URLs). For when Dropbox rotates a domain. |
 | `VITE_PCLOUD_API_HOST` / `VITE_PCLOUD_EU_API_HOST` | no | pCloud API hosts (defaults: `api.pcloud.com` / `eapi.pcloud.com`). Override for a region change. |

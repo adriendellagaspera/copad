@@ -6,6 +6,8 @@
 // (Inline `import(...)` type keeps this file a global script so the ImportMetaEnv
 // augmentation merges with Vite's — a top-level import would scope it to a module.)
 interface ImportMetaEnv {
+  // ── App ──
+  readonly VITE_APP_NAMESPACE?: string;
   // ── Collaboration ──
   readonly VITE_COLLAB_TRANSPORT?: import('./collaboration/config.js').CollabTransport;
   readonly VITE_SIGNALING_URL?: string;
@@ -28,6 +30,8 @@ interface ImportMetaEnv {
   readonly VITE_STORAGE_BACKEND?: string;
   readonly VITE_REDIRECT_URI?: string;
   readonly VITE_CLOUD_FOLDER?: string;
+  readonly VITE_DEFAULT_FILENAME?: string;
+  readonly VITE_GITHUB_DEFAULT_FILENAME?: string;
   readonly VITE_GITHUB_REPO?: string;
   readonly VITE_GITHUB_BRANCH?: string;
   readonly VITE_GITHUB_TOKEN?: string;

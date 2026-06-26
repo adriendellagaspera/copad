@@ -8,16 +8,21 @@
 import { storageKey, type StorageKey } from './persistence/local.js';
 
 /**
- * The app's storage namespace — the prefix on every browser-local key the app
- * owns (localStorage entries and IndexedDB database names). This is app
- * *identity*, not a deployment knob: the no-flash theme script inlined in
- * `index.html` hardcodes the same `copad:` prefix and can't read env vars, so
- * the namespace must stay a fixed constant rather than an env override.
+ * The app's storage namespace — the prefix on the browser-local keys the app
+ * owns under it (the `copad:` theme + local-cache entries and IndexedDB names).
+ *
+ * Overridable via `VITE_APP_NAMESPACE` so two deployments sharing an origin can
+ * isolate their state. The no-flash theme script inlined in `index.html` can't
+ * read env at runtime, so it's kept in sync at *build* time by the
+ * `inject-app-namespace` plugin in `vite.config.ts` (same `copad` default).
+ *
+ * Note: changing this on a live deployment orphans existing `copad:`-namespaced
+ * state — set it once, at deploy time.
  */
-export const APP_NAMESPACE = 'copad' as const;
+export const APP_NAMESPACE = import.meta.env.VITE_APP_NAMESPACE?.trim() || 'copad';
 
-/** The `copad:` prefix as a literal type, so names derived from it stay precise. */
-export const NS_PREFIX = `${APP_NAMESPACE}:` as const;
+/** The namespace prefix, e.g. `copad:`. */
+export const NS_PREFIX = `${APP_NAMESPACE}:`;
 
 /** Build an app-namespaced {@link StorageKey} — e.g. `nsKey('theme')` → `copad:theme`. */
 export function nsKey(suffix: string): StorageKey {

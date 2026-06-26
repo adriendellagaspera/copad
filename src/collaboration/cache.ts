@@ -17,8 +17,8 @@ import { parseRoomList, parseLocalCacheEnabled } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import { KEY_LOCAL_CACHE, KEY_CACHED_ROOMS, CACHE_DB_PREFIX } from './constants.js';
 
-/** An IndexedDB database name that has passed through {@link cacheDbName} — namespaced under the `copad:` prefix. */
-export type CacheDbName = `${typeof CACHE_DB_PREFIX}${string}`;
+/** An IndexedDB database name produced by {@link cacheDbName} — namespaced under the app prefix. */
+export type CacheDbName = string & { readonly _brand: 'CacheDbName' };
 
 /** Whether the local document cache is on for a session — a branded boolean so
  *  the adapter `cache` option can't be confused with any other on/off flag. */
@@ -48,7 +48,7 @@ export function setLocalCacheEnabled(on: boolean): void {
 
 /** IndexedDB database name for a room — namespaced so "clear" only touches ours. */
 export function cacheDbName(room: RoomId): CacheDbName {
-  return `${CACHE_DB_PREFIX}${room}`;
+  return `${CACHE_DB_PREFIX}${room}` as CacheDbName;
 }
 
 /** Record that a room has a local cache, so clearLocalCache() can find it later. */

@@ -33,17 +33,18 @@ const envInt = (raw: string | undefined, fallback: number): number => {
 export const CLOUD_FOLDER = envStr(import.meta.env.VITE_CLOUD_FOLDER, '/copad');
 
 /** Default target filename for a backend with none saved yet (native CRDT format). */
-export const DEFAULT_FILENAME = 'document.yjs' as Filename;
+export const DEFAULT_FILENAME = envStr(import.meta.env.VITE_DEFAULT_FILENAME, 'document.yjs') as Filename;
 
 /** GitHub's default target file — human-readable Markdown rather than `.yjs`. */
-export const GITHUB_DEFAULT_FILENAME = 'notes.md' as Filename;
+export const GITHUB_DEFAULT_FILENAME = envStr(import.meta.env.VITE_GITHUB_DEFAULT_FILENAME, 'notes.md') as Filename;
 
 // ── GitHub ────────────────────────────────────────────────────────────────────
 
 /** GitHub REST API base — override for a GitHub Enterprise host. */
 export const GITHUB_API_URL = envStr(import.meta.env.VITE_GITHUB_API_URL, 'https://api.github.com');
 
-/** Branch committed to when none is configured (also settable per-deploy via VITE_GITHUB_BRANCH). */
+/** Branch committed to when none is configured. Already deployment-settable via
+ *  the `branch` config field's `VITE_GITHUB_BRANCH` lock, so no separate override here. */
 export const GITHUB_DEFAULT_BRANCH = 'main';
 
 /** Marks a GitHub token as validated (set after a successful GET /user). */
