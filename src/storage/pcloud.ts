@@ -1,5 +1,6 @@
 import pcloudSdk from 'pcloud-sdk-js';
 import type { Storage, DocContent } from './types.js';
+import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import type { Fetch } from '../network/types.js';
@@ -14,16 +15,6 @@ interface PCloudSession {
   host: string;
 }
 
-function session(): PCloudSession | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as PCloudSession) : null;
-  } catch {
-    return null;
-  }
-}
-
-// Persisted under `storage.pcloud.clientId` — same key the old connect form used.
 const cfg = configStore('pcloud', [
   {
     name: 'clientId',
@@ -34,26 +25,20 @@ const cfg = configStore('pcloud', [
   },
 ]);
 
-export function pcloudStorage(netFetch: Fetch): Storage {
-  return {
-    id: 'pcloud',
-    label: 'pCloud',
-    blurb: 'Saves to a /copad folder in your pCloud via OAuth.',
+export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: Storage } {
+  const session = (): PCloudSession | null => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as PCloudSession) : null;
+    } catch {
+      return null;
+    }
+  };
 
-    configFields: cfg.fields,
-    config: cfg.config,
-    setConfig: cfg.setConfig,
-    configLocked: cfg.configLocked,
-    configured: cfg.configured,
-
-    filename: () => fileName.get(),
-    setFilename: fileName.set,
-
+  const auth: StorageAuth = {
     isAuthenticated: () => !!session(),
 
-    contentFormat: 'binary',
-
-    async connect() {
+    async login() {
       const clientId = cfg.config('clientId');
       if (!clientId) throw new Error('Add a pCloud Client ID in Settings first.');
 
@@ -71,9 +56,26 @@ export function pcloudStorage(netFetch: Fetch): Storage {
       });
     },
 
-    disconnect() {
+    logout() {
       localStorage.removeItem(STORAGE_KEY);
     },
+
+    configFields: cfg.fields,
+    config: cfg.config,
+    setConfig: cfg.setConfig,
+    configLocked: cfg.configLocked,
+    configured: cfg.configured,
+  };
+
+  const storage: Storage = {
+    id: 'pcloud',
+    label: 'pCloud',
+    blurb: 'Saves to a /copad folder in your pCloud via OAuth.',
+
+    filename: () => fileName.get(),
+    setFilename: fileName.set,
+
+    contentFormat: 'binary',
 
     async load(): Promise<DocContent | null> {
       const s = session();
@@ -120,4 +122,6 @@ export function pcloudStorage(netFetch: Fetch): Storage {
       if (!res.ok) throw new Error(`pCloud save failed: ${res.status}`);
     },
   };
+
+  return { auth, storage };
 }

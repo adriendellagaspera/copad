@@ -7,7 +7,12 @@
 // 2. An insecure ws:// server on an https:// page — browsers block this as
 //    mixed content, so the signaling socket never opens.
 
-import type { SignalingUrl, WebsocketUrl } from './types.js';
+import type { SignalingUrl, WebsocketUrl, RoomId } from './types.js';
+import type { RoomAccess } from './roomAccess.js';
+import type { RoomCipher } from './roomCipher.js';
+import { publicAccess, sitePassword, roomPassword } from './roomAccess.js';
+import { plaintext } from './roomCipher.js';
+import { secretLink } from './secretLink.js';
 
 /** Hostnames that mean "this is local dev", where ws://localhost is reasonable. */
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0', '']);
@@ -129,6 +134,34 @@ export function resolveWebsocket(
  * mobile carriers (CGNAT / symmetric NAT), where STUN alone fails and
  * desktop↔phone sessions never connect.
  */
+/**
+ * Parse `VITE_ROOM_AUTH` into a typed {@link RoomAccess} — the single place
+ * where the raw env string crosses the domain boundary. Unknown values fall
+ * back to `publicAccess` so a typo never silently breaks collaboration.
+ */
+export function resolveRoomAccess(raw: string | undefined): RoomAccess {
+  switch ((raw ?? '').trim().toLowerCase()) {
+    case 'site-password': return sitePassword(import.meta.env.VITE_ROOM_PASSWORD ?? '');
+    case 'room-password': return roomPassword();
+    case 'secret-link':  return secretLink();
+    default:             return publicAccess();
+  }
+}
+
+/**
+ * Derive the {@link RoomCipher} that pairs with the given {@link RoomAccess}.
+ *
+ * - `secretLink` implements both ports — cast it through.
+ * - `public` → no encryption.
+ * - `site-password` / `room-password` → delegate to `access.credential(room)`
+ *   so the cipher always uses the same key material as the access gate.
+ */
+export function resolveRoomCipher(access: RoomAccess): RoomCipher {
+  if (access.mode === 'secret-link') return access as unknown as RoomCipher;
+  if (access.mode === 'public')      return plaintext();
+  return { password: (room: RoomId) => access.credential(room) };
+}
+
 export function resolveIceServers(env: {
   VITE_STUN_URL?: string;
   VITE_TURN_URL?: string;

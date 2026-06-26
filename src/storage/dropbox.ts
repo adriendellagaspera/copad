@@ -1,4 +1,5 @@
 import type { Storage, DocContent } from './types.js';
+import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import { pkceChallenge, openOAuthPopup } from './oauth.js';
@@ -11,11 +12,6 @@ const TOKEN_URL = 'https://api.dropboxapi.com/oauth2/token';
 const UPLOAD_URL = 'https://content.dropboxapi.com/2/files/upload';
 const DOWNLOAD_URL = 'https://content.dropboxapi.com/2/files/download';
 
-function token(): string | null {
-  return localStorage.getItem(STORAGE_KEY);
-}
-
-// Persisted under `storage.dropbox.appKey` — same key the old connect form used.
 const cfg = configStore('dropbox', [
   {
     name: 'appKey',
@@ -26,26 +22,15 @@ const cfg = configStore('dropbox', [
   },
 ]);
 
-export function dropboxStorage(): Storage {
-  return {
-    id: 'dropbox',
-    label: 'Dropbox',
-    blurb: 'Saves to an app folder in your Dropbox via OAuth.',
+export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
+  // Shared state: token lives in localStorage but we read it through a closure
+  // helper so both auth and storage see the same current value.
+  const token = (): string | null => localStorage.getItem(STORAGE_KEY);
 
-    configFields: cfg.fields,
-    config: cfg.config,
-    setConfig: cfg.setConfig,
-    configLocked: cfg.configLocked,
-    configured: cfg.configured,
-
-    filename: () => fileName.get(),
-    setFilename: fileName.set,
-
+  const auth: StorageAuth = {
     isAuthenticated: () => !!token(),
 
-    contentFormat: 'binary',
-
-    async connect() {
+    async login() {
       const appKey = cfg.config('appKey');
       if (!appKey) throw new Error('Add a Dropbox app key in Settings first.');
 
@@ -84,9 +69,26 @@ export function dropboxStorage(): Storage {
       localStorage.setItem(STORAGE_KEY, data.access_token);
     },
 
-    disconnect() {
+    logout() {
       localStorage.removeItem(STORAGE_KEY);
     },
+
+    configFields: cfg.fields,
+    config: cfg.config,
+    setConfig: cfg.setConfig,
+    configLocked: cfg.configLocked,
+    configured: cfg.configured,
+  };
+
+  const storage: Storage = {
+    id: 'dropbox',
+    label: 'Dropbox',
+    blurb: 'Saves to an app folder in your Dropbox via OAuth.',
+
+    filename: () => fileName.get(),
+    setFilename: fileName.set,
+
+    contentFormat: 'binary',
 
     async load(): Promise<DocContent | null> {
       const tok = token();
@@ -127,4 +129,6 @@ export function dropboxStorage(): Storage {
       if (!res.ok) throw new Error(`Dropbox save failed: ${res.status}`);
     },
   };
+
+  return { auth, storage };
 }

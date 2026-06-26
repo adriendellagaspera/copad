@@ -1,12 +1,15 @@
 import * as Y from 'yjs';
 import { WebrtcProvider } from 'y-webrtc';
 import type { Collab, CollabConnect, ConnStatus, RoomId, SignalingUrl } from './types.js';
+import type { RoomCipher } from './roomCipher.js';
 import { attachLocalCache, type LocalCache, type LocalCacheEnabled } from './cache.js';
 
 export interface WebrtcCollabOptions {
   /** Validated signaling servers peers use to discover each other. */
   signaling: SignalingUrl[];
-  password?: string;
+  /** Room cipher — supplies the y-webrtc AES password per room, or null for
+   *  plaintext. Applies to this transport only; the WebSocket hub ignores it. */
+  cipher?: RoomCipher;
   /** ICE servers (STUN/TURN) for WebRTC NAT traversal. Passing TURN here is
    *  what makes desktop↔mobile work across restrictive carrier NATs. */
   iceServers?: RTCIceServer[];
@@ -18,9 +21,11 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
   return (room: RoomId): Collab => {
     const doc = new Y.Doc();
     // RoomId extends string — cast back to string at the y-webrtc IO boundary.
+    // cipher.password() returns null for no encryption; y-webrtc expects undefined.
+    const password = opts.cipher?.password(room) ?? undefined;
     const webrtc = new WebrtcProvider(room as string, doc, {
       signaling: opts.signaling,
-      password: opts.password,
+      password,
       // simple-peer only knows about public STUN by default; feed it our resolved
       // ICE list so a configured TURN relay is actually used.
       ...(opts.iceServers && opts.iceServers.length
