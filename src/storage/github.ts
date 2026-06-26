@@ -1,8 +1,9 @@
-import type { Storage, DocContent, StorageId, Filename } from './types.js';
+import type { Storage, DocContent, StorageId } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import { extensionOf } from '../format/types.js';
+import { localStore } from '../persistence/local.js';
 import {
   parseRepo,
   parseBranch,
@@ -11,9 +12,19 @@ import {
   parseGitHubCommitResponse,
   parseGitHubLoadResponse,
 } from './parse.js';
+import {
+  GITHUB_API_URL,
+  GITHUB_VALIDATED_KEY,
+  GITHUB_DEFAULT_FILENAME,
+  BASE64_CHUNK,
+} from './constants.js';
 
-const API = 'https://api.github.com';
-const VALIDATED_KEY = 'storage.github.validated';
+/** localStorage + parsing for the token-validated flag, abstracted behind read/write/clear. */
+const validated = localStore<boolean>(
+  GITHUB_VALIDATED_KEY,
+  parseGitHubValidated,
+  (on) => (on ? '1' : null),
+);
 
 // ── Branded types ─────────────────────────────────────────────────────────────
 
@@ -31,7 +42,7 @@ export type GitHubFileSha = string & { readonly _brand: 'GitHubFileSha' };
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const fileName = filenameStore('github' as StorageId, 'notes.md' as Filename);
+const fileName = filenameStore('github' as StorageId, GITHUB_DEFAULT_FILENAME);
 
 const cfg = configStore('github' as StorageId, [
   {
@@ -71,9 +82,8 @@ function apiHeaders(token: GitHubToken): Record<string, string> {
 /** GitHub always requires base64. Chunked to stay within stack limits on large files. */
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  for (let i = 0; i < bytes.length; i += BASE64_CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + BASE64_CHUNK));
   }
   return btoa(binary);
 }
@@ -98,7 +108,7 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
     // Env-managed tokens are deployment-trusted; user-entered tokens require a
     // successful login() (GET /user validation) before they are branded.
     if (cfg.configLocked('token')) return raw as GitHubToken;
-    if (!parseGitHubValidated(localStorage.getItem(VALIDATED_KEY))) return null;
+    if (!validated.read()) return null;
     return raw as GitHubToken;
   }
 
@@ -127,7 +137,7 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
     };
     if (fileSha) body.sha = fileSha;
 
-    const res = await fetch(`${API}/repos/${repo}/contents/${encodeURIComponent(path)}`, {
+    const res = await fetch(`${GITHUB_API_URL}/repos/${repo}/contents/${encodeURIComponent(path)}`, {
       method: 'PUT',
       headers: { ...apiHeaders(tok), 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -145,7 +155,7 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
 
   function setConfig(name: string, value: string): void {
     // Changing repo or token invalidates a prior Connect — force re-validation.
-    if (name === 'token' || name === 'repo') localStorage.removeItem(VALIDATED_KEY);
+    if (name === 'token' || name === 'repo') validated.clear();
     cfg.setConfig(name, value);
   }
 
@@ -160,7 +170,7 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
       }
       // Use the raw string here — we are the validation step; GitHubToken is
       // only produced after a successful response.
-      const res = await fetch(`${API}/user`, {
+      const res = await fetch(`${GITHUB_API_URL}/user`, {
         headers: {
           Authorization: `Bearer ${rawToken}`,
           Accept: 'application/vnd.github+json',
@@ -171,11 +181,11 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
         throw new Error('Invalid token — check it has Contents read and write access.');
       }
       if (!res.ok) throw new Error(`GitHub auth check failed: ${res.status}`);
-      localStorage.setItem(VALIDATED_KEY, '1');
+      validated.write(true);
     },
 
     logout() {
-      localStorage.removeItem(VALIDATED_KEY);
+      validated.clear();
       fileSha = null;
     },
 
@@ -213,7 +223,7 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
       const path = fileName.get();
       const branch = resolvedBranch();
       const res = await fetch(
-        `${API}/repos/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`,
+        `${GITHUB_API_URL}/repos/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`,
         { headers: apiHeaders(tok) },
       );
 

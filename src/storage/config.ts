@@ -1,4 +1,5 @@
 import type { ConfigField, StorageId } from './types.js';
+import { localStore, storageKey, type StorageKey } from '../persistence/local.js';
 
 /**
  * A single configuration field plus its build-time default. When `env` is set
@@ -27,14 +28,15 @@ export interface ConfigStore {
  * Build a {@link ConfigStore} for a backend. Resolution order per field is
  * env var → saved value, matching the historic resolution chains in the
  * adapters (so values saved by the old credential form keep working).
+ * localStorage and parsing are abstracted behind a per-field {@link localStore}.
  */
-type ConfigStoreKey = `storage.${StorageId}.${string}`;
-
 export function configStore(id: StorageId, specs: ConfigSpec[]): ConfigStore {
   const spec = (name: string) => specs.find(s => s.name === name);
-  const key = (name: string): ConfigStoreKey => `storage.${id}.${name}`;
+  const key = (name: string): StorageKey => storageKey(`storage.${id}.${name}`);
   const envOf = (name: string) => spec(name)?.env || '';
-  const value = (name: string) => envOf(name) || localStorage.getItem(key(name)) || '';
+  const saved = (name: string) =>
+    localStore<string>(key(name), (raw) => raw ?? '', (v) => v || null);
+  const value = (name: string) => envOf(name) || saved(name).read();
 
   return {
     // Strip `env` from the public field descriptors — it's an implementation detail.
@@ -44,9 +46,7 @@ export function configStore(id: StorageId, specs: ConfigSpec[]): ConfigStore {
 
     setConfig(name, raw) {
       if (envOf(name)) return; // locked by the deployment — ignore writes
-      const trimmed = raw.trim();
-      if (trimmed) localStorage.setItem(key(name), trimmed);
-      else localStorage.removeItem(key(name));
+      saved(name).write(raw.trim());
     },
 
     configLocked: name => !!envOf(name),

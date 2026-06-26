@@ -79,6 +79,15 @@ The `StorageAuth` port separates two concerns:
 
 Backends that need neither (Local) omit both. Each backend's front-page **pill** reflects `statusOf()`: `unavailable` → `setup` (missing config) → `ready` → `connected`.
 
+### Constants & deployment config
+
+No magic literal lives buried in business logic. Deployment-relevant constants — endpoints, defaults, timeouts, folder paths, and the localStorage keys each vertical owns — are centralized in a **config/constants module per vertical**, and read a `VITE_*` env override where deployments legitimately vary:
+- `src/config.ts` — app-global: the `copad:` storage **namespace** (`APP_NAMESPACE` / `nsKey()`). Fixed identity, *not* env-overridable (the no-flash script in `index.html` hardcodes the same prefix and can't read env).
+- `src/collaboration/constants.ts` — signaling/STUN/room defaults, local-dev hostnames, cache + room-password keys.
+- `src/storage/constants.ts` — backend endpoint URLs, the shared cloud folder (`VITE_CLOUD_FOLDER`), GitHub API base (`VITE_GITHUB_API_URL`), OAuth popup tuning + redirect (`VITE_REDIRECT_URI`), default filenames, base64 chunk size, and every backend's localStorage key.
+
+Provider/protocol constants (OAuth endpoint URLs, base64 chunk size) are centralized but *not* env-overridable — they're fixed, not deployment knobs.
+
 ## Type system principles
 
 Four interlocking principles keep the type system honest end-to-end.
@@ -123,23 +132,27 @@ export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
 ```
 
 Each vertical keeps its IO-boundary parsers in a dedicated `parse.ts` file:
-- `src/collaboration/parse.ts` — network peer state (`parsePeerAwarenessState`) and localStorage room ids (`parseRoomId`)
+- `src/collaboration/parse.ts` — network peer state (`parsePeerAwarenessState`), localStorage room ids/credentials/cache flag (`parseRoomId`, `parseRoomCredential`, `parseRoomList`, `parseLocalCacheEnabled`)
+- `src/storage/parse.ts` — stored sessions + API JSON + postMessage (`parseWebDavConf`, `parsePCloudSession`, `parseGitHubLoadResponse`, `parseOAuthCode`, `parseRepo`, `parseBranch`, …)
 - `src/editor/parse.ts` — ProseMirror node/mark attrs (`headingLevel`, `linkHref`)
 - `src/editor/ui/slashMenu.ts` — slash plugin transaction meta (`getSlashMeta`, co-located with `slashKey` to avoid a circular dep)
 
 Operator-injectable peer defaults (`FALLBACK_NAME`, `FALLBACK_COLOR`) live in `src/collaboration/peerDefaults.ts` — they read `VITE_FALLBACK_NAME` / `VITE_FALLBACK_COLOR` and validate before branding, so they are the only env-var cast site for those two values.
 
+**`localStorage` is abstracted entirely behind the persistence primitive** in `src/persistence/local.ts`: `localStore<T>(key, parse, serialize)` is the *single* module that touches `localStorage`. A store binds a `StorageKey` to a parser and serializer, so domain code only calls `.read()` / `.write()` / `.clear()` — it never sees `localStorage` *or* a parse function. The cache prefs (`cache.ts`), per-room password (`roomAccess.ts`), backend config/filename (`storage/config.ts`, `storage/filename.ts`), OAuth tokens/sessions/validation (`dropbox.ts`, `pcloud.ts`, `webdav.ts`, `github.ts`), and theme (`ui/theme.svelte.ts`) all go through it. (The one exception is the no-flash theme script inlined in `index.html`, which can't import modules.)
+
 IO boundaries in this codebase and how each is handled:
 
 | Boundary | How parsed |
 |----------|-----------|
-| Env vars (`import.meta.env.*`) | `resolveSignaling()`, `resolveTransport()`, etc. in `src/collaboration/config.ts` — return branded types; peer defaults in `src/collaboration/peerDefaults.ts` |
-| `localStorage` reads | parse function immediately inside the reading function (e.g. `localCacheEnabled()` → `LocalCacheEnabled`; `parseRoomId()` → `RoomId \| null`) |
+| Env vars (`import.meta.env.*`) | `resolveSignaling()`, `resolveTransport()`, etc. in `src/collaboration/config.ts`; per-vertical constants in `src/collaboration/constants.ts` / `src/storage/constants.ts`; peer defaults in `src/collaboration/peerDefaults.ts` — all return branded/typed values |
+| `localStorage` reads/writes | the `localStore<T>` primitive in `src/persistence/local.ts` — binds a key to a parser + serializer; the only module touching `localStorage` |
 | URL params | cast in `App.svelte` at the single entry point (e.g. `?room=` → `RoomId`) |
 | Network peer awareness | `parsePeerAwarenessState(raw: unknown)` in `src/collaboration/parse.ts` |
 | ProseMirror node/mark attrs (`any`) | typed accessors in `src/editor/parse.ts` and `getSlashMeta` in `src/editor/ui/slashMenu.ts` |
 | User form input | stays `string` until accepted into the domain by a login/connect function |
-| External API JSON | typed interface with a cast at `response.json() as Promise<TypedInterface>` |
+| External API JSON | parse function in the vertical's `parse.ts` (e.g. `parseGitHubLoadResponse`), narrowing `await res.json()` typed as `unknown` |
+| postMessage (OAuth popup) | `parseOAuthCode(data: unknown)` in `src/storage/parse.ts` |
 | Filename from browser API | `handle?.name as Filename` inside `localFsStorage()` in `src/storage/local.ts` |
 
 ### 4. Strong typing end-to-end — no primitives at internal boundaries
@@ -198,6 +211,9 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_GITHUB_REPO` | no | Locks the GitHub repository (`owner/repo`); otherwise set at runtime in Settings |
 | `VITE_GITHUB_BRANCH` | no | Locks the GitHub branch (default: `main`); otherwise set at runtime in Settings |
 | `VITE_GITHUB_TOKEN` | no | Locks the GitHub PAT; bypasses the Connect validation step (deployment-managed) |
+| `VITE_GITHUB_API_URL` | no | GitHub REST API base (default: `https://api.github.com`); set for a GitHub Enterprise host. In `src/storage/constants.ts`. |
+| `VITE_CLOUD_FOLDER` | no | Folder the cloud backends (Dropbox, pCloud) read/write within (default: `/copad`). In `src/storage/constants.ts`. |
+| `VITE_REDIRECT_URI` | no | OAuth redirect URI (default: `<origin>/redirect.html`). In `src/storage/constants.ts`. |
 | `VITE_PROXY_URL` | for WebDAV | CORS proxy URL |
 | `VITE_WEBDAV_URL` | no | Pre-fill the WebDAV URL input |
 | `VITE_STORAGE_BACKEND` | no | Default storage backend id |

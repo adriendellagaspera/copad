@@ -5,11 +5,16 @@ import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import type { Fetch } from '../network/types.js';
 import { type PCloudSession, parsePCloudSession, parsePCloudFileLinkResponse } from './parse.js';
+import { localStore } from '../persistence/local.js';
+import { CLOUD_FOLDER, PCLOUD_SESSION_KEY, PCLOUD_API_HOST, PCLOUD_EU_API_HOST } from './constants.js';
 
-const FOLDER = '/copad';
 const fileName = filenameStore('pcloud' as StorageId);
-const filePath = () => `${FOLDER}/${fileName.get()}`;
-const STORAGE_KEY = 'storage.pcloud';
+const filePath = () => `${CLOUD_FOLDER}/${fileName.get()}`;
+const sessionStore = localStore<PCloudSession | null>(
+  PCLOUD_SESSION_KEY,
+  parsePCloudSession,
+  (s) => (s ? JSON.stringify(s) : null),
+);
 
 // Persisted under `storage.pcloud.clientId` — same key the old connect form used.
 const cfg = configStore('pcloud' as StorageId, [
@@ -23,7 +28,7 @@ const cfg = configStore('pcloud' as StorageId, [
 ]);
 
 export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: Storage } {
-  const session = (): PCloudSession | null => parsePCloudSession(localStorage.getItem(STORAGE_KEY));
+  const session = (): PCloudSession | null => sessionStore.read();
 
   const auth: StorageAuth = {
     isAuthenticated: () => !!session(),
@@ -37,8 +42,8 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
           clientId,
           (token: string, locationid?: number) => {
             const host =
-              (locationid ?? 1) === 2 ? 'eapi.pcloud.com' : 'api.pcloud.com';
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, host }));
+              (locationid ?? 1) === 2 ? PCLOUD_EU_API_HOST : PCLOUD_API_HOST;
+            sessionStore.write({ token, host });
             resolve();
           },
           (err: unknown) => reject(new Error(`pCloud auth failed: ${String(err)}`))
@@ -47,7 +52,7 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
     },
 
     logout() {
-      localStorage.removeItem(STORAGE_KEY);
+      sessionStore.clear();
     },
 
     configFields: cfg.fields,
@@ -101,7 +106,7 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
 
       const form = new FormData();
       form.append('filename', fileName.get());
-      form.append('path', FOLDER);
+      form.append('path', CLOUD_FOLDER);
       form.append('nopartial', '1');
       form.append('file', new Blob([content.bytes as BlobPart]));
 

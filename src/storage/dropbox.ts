@@ -4,14 +4,20 @@ import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import { pkceChallenge, openOAuthPopup } from './oauth.js';
 import { parseDropboxTokenResponse } from './parse.js';
+import { localStore } from '../persistence/local.js';
+import {
+  CLOUD_FOLDER,
+  DROPBOX_AUTH_URL,
+  DROPBOX_TOKEN_URL,
+  DROPBOX_UPLOAD_URL,
+  DROPBOX_DOWNLOAD_URL,
+  DROPBOX_TOKEN_KEY,
+  oauthRedirectUri,
+} from './constants.js';
 
 const fileName = filenameStore('dropbox' as StorageId);
-const filePath = () => `/copad/${fileName.get()}`;
-const STORAGE_KEY = 'storage.dropbox.token';
-const AUTH_URL = 'https://www.dropbox.com/oauth2/authorize';
-const TOKEN_URL = 'https://api.dropboxapi.com/oauth2/token';
-const UPLOAD_URL = 'https://content.dropboxapi.com/2/files/upload';
-const DOWNLOAD_URL = 'https://content.dropboxapi.com/2/files/download';
+const filePath = () => `${CLOUD_FOLDER}/${fileName.get()}`;
+const tokenStore = localStore<string | null>(DROPBOX_TOKEN_KEY, (raw) => raw, (v) => v);
 
 // Persisted under `storage.dropbox.appKey` — same key the old connect form used.
 const cfg = configStore('dropbox' as StorageId, [
@@ -25,9 +31,9 @@ const cfg = configStore('dropbox' as StorageId, [
 ]);
 
 export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
-  // Shared state: token lives in localStorage but we read it through a closure
-  // helper so both auth and storage see the same current value.
-  const token = (): string | null => localStorage.getItem(STORAGE_KEY);
+  // Shared state: token lives in localStorage but we read it through the store
+  // so both auth and storage see the same current value.
+  const token = (): string | null => tokenStore.read();
 
   const auth: StorageAuth = {
     isAuthenticated: () => !!token(),
@@ -36,8 +42,7 @@ export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
       const appKey = cfg.config('appKey');
       if (!appKey) throw new Error('Add a Dropbox app key in Settings first.');
 
-      const REDIRECT_URI =
-        import.meta.env.VITE_REDIRECT_URI ?? `${location.origin}/redirect.html`;
+      const REDIRECT_URI = oauthRedirectUri();
 
       const { verifier, challenge } = await pkceChallenge();
       const state = crypto.randomUUID();
@@ -52,9 +57,9 @@ export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
         token_access_type: 'offline',
       });
 
-      const code = await openOAuthPopup(`${AUTH_URL}?${params}`, state);
+      const code = await openOAuthPopup(`${DROPBOX_AUTH_URL}?${params}`, state);
 
-      const res = await fetch(TOKEN_URL, {
+      const res = await fetch(DROPBOX_TOKEN_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
@@ -68,11 +73,11 @@ export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
 
       if (!res.ok) throw new Error(`Dropbox token exchange failed: ${res.status}`);
       const data = parseDropboxTokenResponse(await res.json());
-      localStorage.setItem(STORAGE_KEY, data.access_token);
+      tokenStore.write(data.access_token);
     },
 
     logout() {
-      localStorage.removeItem(STORAGE_KEY);
+      tokenStore.clear();
     },
 
     configFields: cfg.fields,
@@ -97,7 +102,7 @@ export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
       const tok = token();
       if (!tok) throw new Error('Dropbox: not connected');
 
-      const res = await fetch(DOWNLOAD_URL, {
+      const res = await fetch(DROPBOX_DOWNLOAD_URL, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${tok}`,
@@ -115,7 +120,7 @@ export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
       const tok = token();
       if (!tok) throw new Error('Dropbox: not connected');
 
-      const res = await fetch(UPLOAD_URL, {
+      const res = await fetch(DROPBOX_UPLOAD_URL, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${tok}`,

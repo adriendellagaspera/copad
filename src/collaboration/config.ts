@@ -14,12 +14,7 @@ import { publicAccess, sitePassword, roomPassword } from './roomAccess.js';
 import { plaintext } from './roomCipher.js';
 import { secretLink, type SecretLinkPort } from './secretLink.js';
 import { parseRoomId } from './parse.js';
-
-/** Hostnames that mean "this is local dev", where ws://localhost is reasonable. */
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0', '']);
-
-// Trusted literal — the single sanctioned brand entry for the dev default.
-const DEFAULT_DEV_SIGNALING = 'ws://localhost:4444' as SignalingUrl;
+import { LOCAL_HOSTS, DEFAULT_DEV_SIGNALING, DEFAULT_STUN, DEFAULT_ROOM_NAME } from './constants.js';
 
 const list = (raw: string | undefined): string[] =>
   (raw ?? '')
@@ -60,8 +55,6 @@ export interface PageLocation {
   readonly protocol: PageProtocol;
   readonly hostname: PageHostname;
 }
-
-const DEFAULT_STUN = 'stun:stun.l.google.com:19302';
 
 export function resolveSignaling(
   raw: string | undefined,
@@ -204,7 +197,7 @@ export function resolveRoomStrategy(raw: string | undefined): RoomStrategy {
 
 /** Parse the default room from `VITE_DEFAULT_ROOM` — the single cast site for the default RoomId. */
 export function resolveDefaultRoom(raw: string | undefined): RoomId {
-  return parseRoomId(raw ?? '') ?? ('copad-demo' as RoomId);
+  return parseRoomId(raw ?? '') ?? DEFAULT_ROOM_NAME;
 }
 
 /** ICE server environment variables read at startup for WebRTC NAT traversal. */

@@ -1,5 +1,6 @@
 import type { DisplayName, CursorColor, SessionRole, PeerAwarenessState, RoomId } from './types.js';
 import type { RoomCredential } from './roomAccess.js';
+import type { LocalCacheEnabled } from './cache.js';
 import { FALLBACK_NAME, FALLBACK_COLOR } from './peerDefaults.js';
 
 /**
@@ -35,6 +36,11 @@ export function parseRoomId(raw: string | null): RoomId | null {
 export function parseRoomCredential(raw: string | null): RoomCredential | null {
   const trimmed = (raw ?? '').trim();
   return trimmed ? (trimmed as RoomCredential) : null;
+}
+
+/** Parse the local-cache on/off flag — defaults to enabled (anything but '0'). */
+export function parseLocalCacheEnabled(raw: string | null): LocalCacheEnabled {
+  return (raw !== '0') as LocalCacheEnabled;
 }
 
 /** Parse a JSON-encoded room list from localStorage into typed RoomIds. */

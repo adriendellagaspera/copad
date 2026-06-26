@@ -6,6 +6,7 @@
 
 import type { Filename } from './types.js';
 import type { GitHubRepo, GitHubBranch, GitHubFileSha } from './github.js';
+import { GITHUB_DEFAULT_BRANCH } from './constants.js';
 
 // ── Stored-session shapes (owned here, imported by adapters) ──────────────────
 
@@ -129,7 +130,7 @@ export function parseRepo(raw: string): GitHubRepo | null {
   return /^[^/\s]+\/[^/\s]+$/.test(s) ? (s as GitHubRepo) : null;
 }
 
-/** Always succeeds — returns `'main'` when the input is empty. */
+/** Always succeeds — returns the default branch when the input is empty. */
 export function parseBranch(raw: string): GitHubBranch {
-  return (raw.trim() || 'main') as GitHubBranch;
+  return (raw.trim() || GITHUB_DEFAULT_BRANCH) as GitHubBranch;
 }

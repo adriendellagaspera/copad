@@ -1,5 +1,7 @@
 import type { StorageId, Filename } from './types.js';
 import { parseFilename } from './parse.js';
+import { localStore, storageKey } from '../persistence/local.js';
+import { DEFAULT_FILENAME } from './constants.js';
 
 /** Read/write access to the persisted target filename for one storage backend. */
 export interface FilenameStore {
@@ -13,20 +15,17 @@ export interface FilenameStore {
  * user picks a format — `notes.md`, `document.html`, … — on a cloud backend.
  *
  * Stored per backend under `storage.<id>.filename`, defaulting to the native
- * `document.yjs` when unset.
+ * `document.yjs` when unset. localStorage and parsing are abstracted behind the
+ * store — this module only reads/writes typed Filenames.
  */
-type FilenameStoreKey = `storage.${StorageId}.filename`;
-
-export function filenameStore(backendId: StorageId, fallback: Filename = 'document.yjs' as Filename): FilenameStore {
-  const KEY: FilenameStoreKey = `storage.${backendId}.filename`;
+export function filenameStore(backendId: StorageId, fallback: Filename = DEFAULT_FILENAME): FilenameStore {
+  const store = localStore<Filename>(
+    storageKey(`storage.${backendId}.filename`),
+    (raw) => parseFilename(raw, fallback),
+    (name) => name.trim() || null,
+  );
   return {
-    get(): Filename {
-      return parseFilename(localStorage.getItem(KEY), fallback);
-    },
-    set(name: string): void {
-      const trimmed = name.trim();
-      if (trimmed) localStorage.setItem(KEY, trimmed);
-      else localStorage.removeItem(KEY);
-    },
+    get: () => store.read(),
+    set: (name) => store.write(name.trim() as Filename),
   };
 }
