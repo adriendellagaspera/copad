@@ -1,5 +1,6 @@
 import type { ConfigField, StorageId } from './types.js';
-import { localStore, storageKey, type StorageKey } from '../persistence/local.js';
+import { localStore, type StorageKey } from '../persistence/local.js';
+import { backendKey } from './constants.js';
 
 /**
  * A single configuration field plus its build-time default. When `env` is set
@@ -32,7 +33,7 @@ export interface ConfigStore {
  */
 export function configStore(id: StorageId, specs: ConfigSpec[]): ConfigStore {
   const spec = (name: string) => specs.find(s => s.name === name);
-  const key = (name: string): StorageKey => storageKey(`storage.${id}.${name}`);
+  const key = (name: string): StorageKey => backendKey(id, name);
   const envOf = (name: string) => spec(name)?.env || '';
   const saved = (name: string) =>
     localStore<string>(key(name), (raw) => raw ?? '', (v) => v || null);

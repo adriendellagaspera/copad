@@ -1,7 +1,7 @@
 import type { StorageId, Filename } from './types.js';
 import { parseFilename } from './parse.js';
-import { localStore, storageKey } from '../persistence/local.js';
-import { DEFAULT_FILENAME } from './constants.js';
+import { localStore } from '../persistence/local.js';
+import { DEFAULT_FILENAME, backendKey } from './constants.js';
 
 /** Read/write access to the persisted target filename for one storage backend. */
 export interface FilenameStore {
@@ -20,7 +20,7 @@ export interface FilenameStore {
  */
 export function filenameStore(backendId: StorageId, fallback: Filename = DEFAULT_FILENAME): FilenameStore {
   const store = localStore<Filename>(
-    storageKey(`storage.${backendId}.filename`),
+    backendKey(backendId, 'filename'),
     (raw) => parseFilename(raw, fallback),
     (name) => name.trim() || null,
   );
