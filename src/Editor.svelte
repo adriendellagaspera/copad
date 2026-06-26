@@ -72,7 +72,7 @@
 
   $effect(() => {
     const s = storage;
-    if (!s?.isAuthenticated()) {
+    if (!s) {
       canPersist = false;
       return;
     }
@@ -128,7 +128,7 @@
 
   // Load from storage when adapter becomes available (or changes to a different backend).
   $effect(() => {
-    if (!storage?.isAuthenticated() || !view || loadedFrom === storage.id) return;
+    if (!storage || !view || loadedFrom === storage.id) return;
     const id = storage.id;
     const codec = codecForFilename(storage.filename?.() ?? 'document.yjs');
     const label = storage.label;
@@ -164,7 +164,7 @@
 
   const flush = (): void => {
     const s = storage;
-    if (!s?.isAuthenticated() || !isLeader()) return;
+    if (!s || !isLeader()) return;
     const codec = codecForFilename(s.filename?.() ?? 'document.yjs');
     const label = s.label;
     saveStatus = 'saving';
@@ -190,7 +190,7 @@
   };
 
   collab.doc.on('update', () => {
-    if (!storage?.isAuthenticated()) return;
+    if (!storage) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flush, SAVE_DEBOUNCE);
   });
@@ -246,10 +246,10 @@
     <StatusPill
       {conn}
       {saveStatus}
-      hasStorage={storage?.isAuthenticated() ?? false}
+      hasStorage={storage !== null}
       storageLabel={storage?.label}
       transport={collab.transport}
-      onclick={storage?.isAuthenticated() ? undefined : onstoragestatus}
+      onclick={storage !== null ? undefined : onstoragestatus}
     />
     <PresenceBar {users} />
     <span class="peer-count">{peers} {peers === 1 ? 'peer' : 'peers'}</span>

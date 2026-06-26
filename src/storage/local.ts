@@ -1,4 +1,5 @@
 import type { Storage, SessionCredentials, DocContent } from './types.js';
+import type { StorageAuth } from './auth.js';
 import { knownExtensions } from '../format/index.js';
 
 // showOpenFilePicker is part of the File System Access API Living Standard
@@ -36,21 +37,11 @@ function fsAccessUnavailableReason(): string | undefined {
     : 'Requires a browser that supports the File System Access API (Chrome/Edge).';
 }
 
-export function localFsStorage(): Storage {
-  return {
-    id: 'local',
-    label: 'Local file',
-    blurb: 'Opens any text or source file on your device — .yjs, .md, .txt, .html, .json, .py, .js, .rs, … (Chrome/Edge).',
-    get unavailableReason() { return fsAccessUnavailableReason(); },
-
-    // The picked file's name selects the codec; `.yjs` is the native default.
-    filename: () => handle?.name ?? 'document.yjs',
-
+export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
+  const auth: StorageAuth = {
     isAuthenticated: () => handle !== null,
 
-    contentFormat: 'binary',
-
-    async connect(creds?: SessionCredentials) {
+    async login(creds?: SessionCredentials) {
       const types = [
         {
           description: 'Copad / text documents',
@@ -64,9 +55,21 @@ export function localFsStorage(): Storage {
       }
     },
 
-    disconnect() {
+    logout() {
       handle = null;
     },
+  };
+
+  const storage: Storage = {
+    id: 'local',
+    label: 'Local file',
+    blurb: 'Opens any text or source file on your device — .yjs, .md, .txt, .html, .json, .py, .js, .rs, … (Chrome/Edge).',
+    get unavailableReason() { return fsAccessUnavailableReason(); },
+
+    // The picked file's name selects the codec; `.yjs` is the native default.
+    filename: () => handle?.name ?? 'document.yjs',
+
+    contentFormat: 'binary',
 
     async load(): Promise<DocContent | null> {
       if (!handle) throw new Error('Local: not connected');
@@ -83,4 +86,6 @@ export function localFsStorage(): Storage {
       await writable.close();
     },
   };
+
+  return { auth, storage };
 }

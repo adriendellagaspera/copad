@@ -1,9 +1,16 @@
 <script lang="ts">
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
-  import type { Storage } from './storage/types.js';
+  import type { StorageBackend } from './storage/index.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
   import { websocketCollab } from './collaboration/websocket.js';
-  import { resolveSignaling, resolveIceServers, resolveWebsocket, resolveTransport } from './collaboration/config.js';
+  import {
+    resolveSignaling,
+    resolveIceServers,
+    resolveWebsocket,
+    resolveTransport,
+    resolveRoomAccess,
+    resolveRoomCipher,
+  } from './collaboration/config.js';
   import {
     localCacheEnabled,
     setLocalCacheEnabled,
@@ -22,6 +29,11 @@
   const theme = createTheme();
   const toasts = createToasts();
   let shareOpen = $state(false);
+
+  // Room access + cipher — resolved once at startup from VITE_ROOM_AUTH.
+  // `publicAccess` + `plaintext` are the defaults (current behaviour).
+  const roomAccess = resolveRoomAccess(import.meta.env.VITE_ROOM_AUTH);
+  const roomCipher = resolveRoomCipher(roomAccess);
 
   // Pick the collaboration transport — chosen explicitly via VITE_COLLAB_TRANSPORT
   // (default 'webrtc'). 'websocket' routes edits through a central hub server (no
@@ -51,11 +63,12 @@
       VITE_TURN_USERNAME: import.meta.env.VITE_TURN_USERNAME,
       VITE_TURN_CREDENTIAL: import.meta.env.VITE_TURN_CREDENTIAL,
     });
+    const cipher = roomCipher;
     return {
       build: (cache) =>
         webrtcCollab({
           signaling: signaling.servers,
-          password: import.meta.env.VITE_ROOM_PASSWORD,
+          cipher,
           iceServers,
           cache,
         }),
@@ -94,14 +107,16 @@
 
   // Start with whichever backend is already authenticated (returning user),
   // falling back to the env-var default or the first available.
-  function initialStorage(): Storage | null {
-    const authed = storageBackends.find(s => s.isAuthenticated());
+  function initialStorage(): StorageBackend | null {
+    const authed = storageBackends.find(b => b.auth.isAuthenticated());
     if (authed) return authed;
-    const byDefault = storageBackends.find(s => !s.unavailableReason && s.id === DEFAULT_BACKEND);
-    return byDefault ?? storageBackends.find(s => !s.unavailableReason) ?? null;
+    const byDefault = storageBackends.find(
+      b => !b.storage.unavailableReason && b.storage.id === DEFAULT_BACKEND
+    );
+    return byDefault ?? storageBackends.find(b => !b.storage.unavailableReason) ?? null;
   }
 
-  let storage = $state<Storage | null>(initialStorage());
+  let storage = $state<StorageBackend | null>(initialStorage());
   // Cast at the IO boundary: user-typed strings enter the domain as DisplayName here.
   let name = $state<DisplayName>('Anonymous' as DisplayName);
 
@@ -110,7 +125,7 @@
   const bump = () => { tick += 1; };
 
   // Derived so bump() after connect/disconnect recomputes automatically.
-  let connected = $derived(tick >= 0 && !!storage && storage.isAuthenticated());
+  let connected = $derived(tick >= 0 && !!storage && storage.auth.isAuthenticated());
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
@@ -122,12 +137,12 @@
     settingsOpen = true;
   }
 
-  function afterConnect(s: Storage) {
-    storage = s;
+  function afterConnect(b: StorageBackend) {
+    storage = b;
     bump();
   }
 
-  function afterDisconnect(_s: Storage) {
+  function afterDisconnect(_b: StorageBackend) {
     bump();
   }
 
@@ -219,7 +234,7 @@
       role={sessionRole}
       {connect}
       {toasts}
-      storage={connected ? storage : null}
+      storage={connected ? storage!.storage : null}
       onstoragestatus={() => openSettings()}
     />
   {/key}

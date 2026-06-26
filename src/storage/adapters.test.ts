@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { dropboxStorage } from './dropbox.js';
 import { webdavStorage } from './webdav.js';
+import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
 import type { Fetch } from '../network/types.js';
 
@@ -25,22 +26,28 @@ beforeEach(() => {
 // ── Dropbox ──────────────────────────────────────────────────────────────────
 
 describe('dropboxStorage', () => {
+  let auth: StorageAuth;
   let storage: Storage;
-  beforeEach(() => { storage = dropboxStorage(); });
+  beforeEach(() => { ({ auth, storage } = dropboxStorage()); });
 
-  it('is not authenticated before connect', () => {
-    expect(storage.isAuthenticated()).toBe(false);
+  it('is not authenticated before login', () => {
+    expect(auth.isAuthenticated()).toBe(false);
   });
 
   it('reads persisted token from localStorage', () => {
     localStorage.setItem('storage.dropbox.token', 'tok');
-    expect(dropboxStorage().isAuthenticated()).toBe(true);
+    expect(dropboxStorage().auth.isAuthenticated()).toBe(true);
   });
 
-  it('disconnect clears token', () => {
+  it('logout clears token', () => {
     localStorage.setItem('storage.dropbox.token', 'tok');
-    storage.disconnect();
-    expect(storage.isAuthenticated()).toBe(false);
+    auth.logout();
+    expect(auth.isAuthenticated()).toBe(false);
+  });
+
+  it('exposes configFields for the app key', () => {
+    expect(auth.configFields).toBeDefined();
+    expect(auth.configFields!.map(f => f.name)).toContain('appKey');
   });
 
   it('save calls Dropbox upload endpoint', async () => {
@@ -78,45 +85,46 @@ describe('dropboxStorage', () => {
 // ── WebDAV ───────────────────────────────────────────────────────────────────
 
 describe('webdavStorage', () => {
+  let auth: StorageAuth;
   let storage: Storage;
-  beforeEach(() => { storage = webdavStorage(mockFetch as unknown as Fetch); });
+  beforeEach(() => { ({ auth, storage } = webdavStorage(mockFetch as unknown as Fetch)); });
 
-  it('is not authenticated before connect', () => {
-    expect(storage.isAuthenticated()).toBe(false);
+  it('is not authenticated before login', () => {
+    expect(auth.isAuthenticated()).toBe(false);
   });
 
   it('exposes credential fields', () => {
-    expect(storage.credentialFields).toBeDefined();
-    expect(storage.credentialFields!.length).toBeGreaterThan(0);
-    const names = storage.credentialFields!.map((f: { name: string }) => f.name);
+    expect(auth.credentialFields).toBeDefined();
+    expect(auth.credentialFields!.length).toBeGreaterThan(0);
+    const names = auth.credentialFields!.map((f: { name: string }) => f.name);
     expect(names).toContain('baseUrl');
     expect(names).toContain('username');
     expect(names).toContain('password');
   });
 
-  it('disconnect clears config', () => {
+  it('logout clears config', () => {
     localStorage.setItem('storage.webdav', JSON.stringify({ baseUrl: 'x', auth: 'y' }));
-    storage.disconnect();
-    expect(storage.isAuthenticated()).toBe(false);
+    auth.logout();
+    expect(auth.isAuthenticated()).toBe(false);
   });
 
-  it('connect throws on missing URL', async () => {
+  it('login throws on missing URL', async () => {
     await expect(
-      storage.connect({ baseUrl: '', username: 'u', password: 'p' })
+      auth.login({ baseUrl: '', username: 'u', password: 'p' })
     ).rejects.toThrow('URL and username are required');
   });
 
-  it('connect throws on 401', async () => {
+  it('login throws on 401', async () => {
     mockFetch.mockResolvedValueOnce({ status: 401, ok: false } as Response);
     await expect(
-      storage.connect({ baseUrl: 'https://cloud.example.com/dav', username: 'u', password: 'p' })
+      auth.login({ baseUrl: 'https://cloud.example.com/dav', username: 'u', password: 'p' })
     ).rejects.toThrow('invalid credentials');
   });
 
-  it('connect succeeds on 200', async () => {
+  it('login succeeds on 200', async () => {
     mockFetch.mockResolvedValueOnce({ status: 200, ok: true } as Response);
-    await storage.connect({ baseUrl: 'https://cloud.example.com/dav', username: 'u', password: 'p' });
-    expect(storage.isAuthenticated()).toBe(true);
+    await auth.login({ baseUrl: 'https://cloud.example.com/dav', username: 'u', password: 'p' });
+    expect(auth.isAuthenticated()).toBe(true);
   });
 
   it('load returns null on 404', async () => {

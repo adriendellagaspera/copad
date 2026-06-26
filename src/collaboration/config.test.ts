@@ -1,5 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { resolveSignaling, resolveIceServers, resolveWebsocket, resolveTransport } from './config.js';
+import { describe, it, expect, vi } from 'vitest';
+import { resolveSignaling, resolveIceServers, resolveWebsocket, resolveTransport, resolveRoomAccess, resolveRoomCipher } from './config.js';
+import type { RoomId } from './types.js';
+
+// Stubs for secretLink (called when VITE_ROOM_AUTH=secret-link)
+vi.stubGlobal('location', { hash: '' });
+vi.stubGlobal('history', { replaceState: vi.fn() });
+vi.stubGlobal('crypto', { randomUUID: () => 'stub-uuid' });
 
 const https = { protocol: 'https:', hostname: 'app.example.com' };
 const localhttp = { protocol: 'http:', hostname: 'localhost' };
@@ -119,5 +125,65 @@ describe('resolveIceServers', () => {
 
   it('disables STUN when explicitly set to empty', () => {
     expect(resolveIceServers({ VITE_STUN_URL: '' })).toEqual([]);
+  });
+});
+
+const ROOM = 'r' as RoomId;
+
+describe('resolveRoomAccess', () => {
+  it('defaults to publicAccess when unset', () => {
+    const a = resolveRoomAccess(undefined);
+    expect(a.mode).toBe('public');
+    expect(a.credential(ROOM)).toBeNull();
+  });
+
+  it('defaults to public for empty string', () => {
+    expect(resolveRoomAccess('').mode).toBe('public');
+  });
+
+  it('defaults to public for unknown values (typo safety)', () => {
+    expect(resolveRoomAccess('password').mode).toBe('public');
+    expect(resolveRoomAccess('webrtc').mode).toBe('public');
+  });
+
+  it('selects site-password mode', () => {
+    expect(resolveRoomAccess('site-password').mode).toBe('site-password');
+  });
+
+  it('selects room-password mode', () => {
+    expect(resolveRoomAccess('room-password').mode).toBe('room-password');
+  });
+
+  it('selects secret-link mode', () => {
+    expect(resolveRoomAccess('secret-link').mode).toBe('secret-link');
+  });
+
+  it('is case-insensitive', () => {
+    expect(resolveRoomAccess('Public').mode).toBe('public');
+    expect(resolveRoomAccess('SITE-PASSWORD').mode).toBe('site-password');
+  });
+
+  it('trims whitespace', () => {
+    expect(resolveRoomAccess('  room-password  ').mode).toBe('room-password');
+  });
+});
+
+describe('resolveRoomCipher', () => {
+  it('publicAccess → plaintext (null password)', () => {
+    const cipher = resolveRoomCipher(resolveRoomAccess('public'));
+    expect(cipher.password(ROOM)).toBeNull();
+  });
+
+  it('secret-link → cipher is the same object as access (dual port)', () => {
+    const access = resolveRoomAccess('secret-link');
+    const cipher = resolveRoomCipher(access);
+    expect(cipher.password(ROOM)).toBe(access.credential(ROOM));
+  });
+
+  it('site-password → cipher delegates to access.credential', () => {
+    // No VITE_ROOM_PASSWORD in test env → sitePassword('') → null
+    const access = resolveRoomAccess('site-password');
+    const cipher = resolveRoomCipher(access);
+    expect(cipher.password(ROOM)).toBe(access.credential(ROOM));
   });
 });
