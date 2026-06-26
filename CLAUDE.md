@@ -8,12 +8,17 @@ Copad follows **hexagonal architecture** (ports & adapters) with a **functional 
 
 | Port | File | Description |
 |------|------|-------------|
-| `Storage` | `src/storage/types.ts` | Persist and restore document bytes for a backend's target file |
+| `Storage` | `src/storage/types.ts` | Persist and restore document bytes for a backend's target file (bytes-only, no auth) |
+| `StorageAuth` | `src/storage/auth.ts` | Authenticate to a cloud storage backend; owns login/logout/config |
 | `Collab` | `src/collaboration/types.ts` | Provide a shared Y.Doc and awareness channel |
 | `CollabConnect` | `src/collaboration/types.ts` | Factory type: `(room: string) => Collab` |
+| `RoomAccess` | `src/collaboration/roomAccess.ts` | Who may join a room (`mode` + `credential(room)`) |
+| `RoomCipher` | `src/collaboration/roomCipher.ts` | How a room is encrypted (`password(room): string \| null`) |
 | `Codec` | `src/format/types.ts` | Convert file bytes ⟷ the shared Y.Doc, selected by filename extension |
 
 ### Adapters (implementations)
+
+Storage adapters return `{ auth: StorageAuth; storage: Storage }` — auth and bytes live in a shared closure but are exposed through separate ports. The `StorageBackend` type alias (in `src/storage/index.ts`) names the pair.
 
 | Adapter | File | Notes |
 |---------|------|-------|
@@ -24,17 +29,30 @@ Copad follows **hexagonal architecture** (ports & adapters) with a **functional 
 | `webrtcCollab()` | `src/collaboration/webrtc.ts` | y-webrtc peer-to-peer transport (**default**). Needs STUN, plus TURN on mobile/symmetric NAT. |
 | `websocketCollab()` | `src/collaboration/websocket.ts` | y-websocket hub transport (opt-in via `VITE_COLLAB_TRANSPORT=websocket`). Central relay, **no WebRTC → no STUN/TURN**; server is in the data path (no E2E). |
 
-Both are `CollabConnect` factories behind the same `Collab` port, so they're interchangeable. `resolveCollab()` in `App.svelte` picks one via `resolveTransport(VITE_COLLAB_TRANSPORT)` — WebRTC by default, WebSocket only when explicitly set to `websocket`.
+Both collab adapters are `CollabConnect` factories behind the same `Collab` port, so they're interchangeable. `resolveCollab()` in `App.svelte` picks one via `resolveTransport(VITE_COLLAB_TRANSPORT)` — WebRTC by default, WebSocket only when explicitly set to `websocket`.
+
+Room access adapters (all in `src/collaboration/roomAccess.ts` / `roomCipher.ts` / `secretLink.ts`):
+
+| Adapter | Port(s) | Notes |
+|---------|---------|-------|
+| `publicAccess()` | `RoomAccess` | No credential — anyone may join (default) |
+| `sitePassword(pw)` | `RoomAccess` | Single shared password from env (`VITE_ROOM_PASSWORD`) |
+| `roomPassword()` | `RoomAccess` | Per-room password stored in `localStorage` |
+| `secretLink()` | `RoomAccess` + `RoomCipher` | URL-fragment key (`#k=…`); dual-port — the key is simultaneously the access gate and the AES encryption key |
+| `plaintext()` | `RoomCipher` | No encryption (`password()` returns `null`) |
+
+`resolveRoomAccess(VITE_ROOM_AUTH)` parses the env var and returns the right `RoomAccess`. `resolveRoomCipher(access)` derives the matching `RoomCipher`. Both live in `src/collaboration/config.ts`.
 
 ### Wiring
 
 `App.svelte` owns all construction and configuration:
-- calls `backends()` to get the available `Storage` implementations
-- calls `resolveCollab()` — returns `webrtcCollab({ signaling, password, iceServers })` by default, or `websocketCollab({ url })` when `VITE_COLLAB_TRANSPORT=websocket` — to get a `CollabConnect` function (and any config warning to surface)
-- passes both down to `Editor.svelte` as props
+- calls `backends()` to get the available `StorageBackend` pairs (`{ auth, storage }`)
+- resolves `roomAccess = resolveRoomAccess(VITE_ROOM_AUTH)` and `roomCipher = resolveRoomCipher(roomAccess)` at startup
+- calls `resolveCollab()` — returns `webrtcCollab({ signaling, cipher, iceServers })` by default, or `websocketCollab({ url })` when `VITE_COLLAB_TRANSPORT=websocket` — to get a `CollabConnect` function (and any config warning to surface)
+- passes both down to `Editor.svelte` as props; Editor receives only the bytes-only `Storage` half (never `StorageAuth`)
 - renders the storage **pills** + connect *action zone*, and the `Settings.svelte` drawer
 
-`Editor.svelte` knows only the ports — it never imports y-webrtc, y-websocket, or any storage backend directly.
+`Editor.svelte` knows only the ports — it never imports y-webrtc, y-websocket, or any storage backend directly. `Settings.svelte` receives `StorageBackend[]` and accesses auth via `b.auth.*`, metadata via `b.storage.*`.
 
 ### File formats (the `Codec` port)
 
@@ -54,7 +72,7 @@ A backend moves *bytes*; a **codec** (`src/format/`) turns those bytes into the 
 
 ### Config vs. credentials
 
-The `Storage` port separates two concerns:
+The `StorageAuth` port separates two concerns:
 - **`configFields`** — one-time, app-level setup (OAuth app keys / client ids). Edited in the `Settings.svelte` (⚙) drawer, persisted in `localStorage` via the `configStore()` helper (`src/storage/config.ts`). Resolution per field is env var → saved value; an env var (`VITE_*`) *locks* the field as deployment-managed. `configured()` reports whether a backend has everything it needs to attempt a connect.
 - **`credentialFields`** — per-session login collected on the front-page connect form (e.g. WebDAV username/password). Not stored as config.
 
@@ -87,7 +105,8 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_COLLAB_TRANSPORT` | no | Collaboration transport: `webrtc` (default) or `websocket`. **Chosen explicitly** (not inferred from any URL) — `resolveTransport()` in `src/collaboration/config.ts`. |
 | `VITE_SIGNALING_URL` | no | WebRTC signaling server(s), comma-separated. `ws://localhost:4444` default applies **only on a local host**; on a deployed origin it's empty (warning banner shown) — must be `wss://` (browsers block `ws://` from https as mixed content). Resolved by `resolveSignaling()` in `src/collaboration/config.ts`. Used only on the WebRTC transport. |
 | `VITE_WEBSOCKET_URL` | no | y-websocket hub URL, used when `VITE_COLLAB_TRANSPORT=websocket` (central relay, no STUN/TURN — works on mobile NAT; server sees plaintext, so no E2E). Setting it alone does NOT switch transports. Must be `wss://` on a deployed origin. Resolved by `resolveWebsocket()` in `src/collaboration/config.ts`. |
-| `VITE_ROOM_PASSWORD` | no | Shared password for y-webrtc encryption (WebRTC transport only; ignored on the WebSocket hub) |
+| `VITE_ROOM_AUTH` | no | Room access + encryption strategy: `public` (default, no password), `site-password`, `room-password`, or `secret-link`. Parsed by `resolveRoomAccess()` in `src/collaboration/config.ts`. |
+| `VITE_ROOM_PASSWORD` | no | Site-wide password used when `VITE_ROOM_AUTH=site-password`. Feeds y-webrtc AES encryption (WebRTC transport only; WebSocket hub is plaintext by design). |
 | `VITE_DEFAULT_ROOM` | no | Default landing room name when the URL has no `?room=` (default: `copad-demo`) |
 | `VITE_DROPBOX_APP_KEY` | no | Locks the Dropbox app key; otherwise set it at runtime in Settings |
 | `VITE_PCLOUD_CLIENT_ID` | no | Locks the pCloud client id; otherwise set it at runtime in Settings |
