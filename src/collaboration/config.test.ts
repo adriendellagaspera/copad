@@ -71,6 +71,18 @@ describe('resolveWebsocket', () => {
     expect(r.warning).toBeUndefined();
   });
 
+  it('url is undefined for an empty string input', () => {
+    const r = resolveWebsocket('', https);
+    expect(r.url).toBeUndefined();
+    expect(r.warning).toBeUndefined();
+  });
+
+  it('url is undefined for a whitespace-only input', () => {
+    const r = resolveWebsocket('   ', https);
+    expect(r.url).toBeUndefined();
+    expect(r.warning).toBeUndefined();
+  });
+
   it('selects the configured wss:// server without warning', () => {
     const r = resolveWebsocket('wss://hub.example', https);
     expect(r.url).toBe('wss://hub.example');
