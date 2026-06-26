@@ -112,9 +112,9 @@
     const authed = storageBackends.find(b => b.auth.isAuthenticated());
     if (authed) return authed;
     const byDefault = storageBackends.find(
-      b => !b.storage.unavailableReason && b.storage.id === DEFAULT_BACKEND
+      b => b.storage.availability.ok && b.storage.id === DEFAULT_BACKEND
     );
-    return byDefault ?? storageBackends.find(b => !b.storage.unavailableReason) ?? null;
+    return byDefault ?? storageBackends.find(b => b.storage.availability.ok) ?? null;
   }
 
   let storage = $state<StorageBackend | null>(initialStorage());

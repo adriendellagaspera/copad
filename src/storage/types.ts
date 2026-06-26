@@ -25,6 +25,14 @@ export type DocContent =
 export type StorageAccess = 'read' | 'write' | 'owner';
 
 /**
+ * Whether this backend can be used in the current environment.
+ * Absent from the check only when the browser/API makes it impossible.
+ */
+export type StorageAvailability =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: string };
+
+/**
  * Key-value pairs collected from the session credential form, keyed by
  * {@link CredentialField.name}. A named, readonly alias for what is inherently
  * polymorphic form data at this port boundary.
@@ -67,8 +75,7 @@ export interface Storage {
   readonly label: string;
   /** One-line description shown in Settings and as a pill tooltip. */
   readonly blurb?: string;
-  /** Set when this backend cannot be used in the current browser environment. */
-  readonly unavailableReason?: string;
+  readonly availability: StorageAvailability;
 
   // ── Target file / format ───────────────────────────────────────────────────
   // The filename's extension selects the codec (see src/format). Backends that

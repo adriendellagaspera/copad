@@ -1,4 +1,4 @@
-import type { Storage, CredentialField, SessionCredentials, DocContent, StorageId } from './types.js';
+import type { Storage, StorageAvailability, CredentialField, SessionCredentials, DocContent, StorageId } from './types.js';
 import type { StorageAuth } from './auth.js';
 import type { Fetch } from '../network/types.js';
 import { filenameStore } from './filename.js';
@@ -69,6 +69,7 @@ export function webdavStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
     id: 'webdav' as StorageId,
     label: 'WebDAV / Nextcloud',
     blurb: 'Saves to any WebDAV server (Nextcloud, ownCloud…) using a login.',
+    availability: { ok: true } as StorageAvailability,
 
     filename: () => fileName.get(),
     setFilename: fileName.set,
