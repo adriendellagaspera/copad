@@ -23,6 +23,7 @@
   import ThemeToggle from './ui/ThemeToggle.svelte';
   import ShareDialog from './ui/ShareDialog.svelte';
   import Toast from './ui/Toast.svelte';
+  import InfoBanner from './ui/InfoBanner.svelte';
   import { createTheme } from './ui/theme.svelte.js';
   import { createToasts } from './ui/toasts.svelte.js';
 
@@ -213,17 +214,14 @@
 
 
   {#if collabWarning}
-    <p class="signaling-warning" role="note">
+    <InfoBanner>
       Collaboration between devices is unavailable on this site. {collabWarning}
-    </p>
-  {/if}
-
-  {#if !connected}
-    <p class="hint">
-      You can collaborate <strong>right now</strong> — P2P, no server.
+    </InfoBanner>
+  {:else if !connected}
+    <InfoBanner autoDismissMs={7000}>
       Set up a storage backend in <button class="link" onclick={() => openSettings()}>Settings ⚙</button>
-      to <strong>save &amp; restore</strong> the document across sessions.
-    </p>
+      to <strong>save &amp; restore</strong> your document across sessions.
+    </InfoBanner>
   {/if}
 
   {#key `${room}|${localCache}`}
