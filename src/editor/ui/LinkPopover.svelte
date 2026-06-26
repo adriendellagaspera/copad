@@ -61,10 +61,11 @@
   }
 
   // Bridge: Mod-k and the toolbar link button both dispatch `copad:link`.
+  type CopadLinkEvent = CustomEvent<void>;
   $effect(() => {
     const dom = view?.dom;
     if (!dom) return;
-    const handler = (): void => openPopover();
+    const handler = (_e: CopadLinkEvent): void => openPopover();
     dom.addEventListener('copad:link', handler as EventListener);
     return () => dom.removeEventListener('copad:link', handler as EventListener);
   });

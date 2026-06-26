@@ -16,7 +16,7 @@
     <script>
       (function () {
         try {
-          var choice = localStorage.getItem('copad:theme') || 'system';
+          var choice = localStorage.getItem('__APP_NAMESPACE__:theme') || 'system';
           var dark =
             choice === 'dark' ||
             (choice === 'system' &&

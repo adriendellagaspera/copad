@@ -12,57 +12,51 @@
 
 import type * as Y from 'yjs';
 import { IndexeddbPersistence } from 'y-indexeddb';
+import type { RoomId } from './types.js';
+import { parseRoomList, parseLocalCacheEnabled } from './parse.js';
+import { localStore } from '../persistence/local.js';
+import { KEY_LOCAL_CACHE, KEY_CACHED_ROOMS, CACHE_DB_PREFIX } from './constants.js';
 
-const KEY_ENABLED = 'copad:localCache';
-const KEY_ROOMS = 'copad:cachedRooms';
-const DB_PREFIX = 'copad:';
+/** An IndexedDB database name produced by {@link cacheDbName} — namespaced under the app prefix. */
+export type CacheDbName = string & { readonly _brand: 'CacheDbName' };
 
 /** Whether the local document cache is on for a session — a branded boolean so
  *  the adapter `cache` option can't be confused with any other on/off flag. */
 export type LocalCacheEnabled = boolean & { readonly _brand: 'LocalCacheEnabled' };
 
+// localStorage + parsing are abstracted behind these stores: the functions below
+// only read/write typed values, never touching localStorage or a parser directly.
+const cacheEnabled = localStore<LocalCacheEnabled>(
+  KEY_LOCAL_CACHE,
+  parseLocalCacheEnabled,
+  (on) => (on ? '1' : '0'),
+);
+const cachedRooms = localStore<RoomId[]>(
+  KEY_CACHED_ROOMS,
+  parseRoomList,
+  (rooms) => JSON.stringify(rooms),
+);
+
 /** Whether documents should be cached locally. Defaults to true (anything but '0'). */
 export function localCacheEnabled(): LocalCacheEnabled {
-  try {
-    return (localStorage.getItem(KEY_ENABLED) !== '0') as LocalCacheEnabled;
-  } catch {
-    return true as LocalCacheEnabled;
-  }
+  return cacheEnabled.read();
 }
 
 export function setLocalCacheEnabled(on: boolean): void {
-  try {
-    localStorage.setItem(KEY_ENABLED, on ? '1' : '0');
-  } catch {
-    /* ignore */
-  }
+  cacheEnabled.write(on as LocalCacheEnabled);
 }
 
 /** IndexedDB database name for a room — namespaced so "clear" only touches ours. */
-export function cacheDbName(room: string): string {
-  return DB_PREFIX + room;
-}
-
-function readRooms(): string[] {
-  try {
-    const raw = localStorage.getItem(KEY_ROOMS);
-    const list = raw ? JSON.parse(raw) : [];
-    return Array.isArray(list) ? list.filter((r): r is string => typeof r === 'string') : [];
-  } catch {
-    return [];
-  }
+export function cacheDbName(room: RoomId): CacheDbName {
+  return `${CACHE_DB_PREFIX}${room}` as CacheDbName;
 }
 
 /** Record that a room has a local cache, so clearLocalCache() can find it later. */
-export function rememberCachedRoom(room: string): void {
-  try {
-    const rooms = readRooms();
-    if (!rooms.includes(room)) {
-      rooms.push(room);
-      localStorage.setItem(KEY_ROOMS, JSON.stringify(rooms));
-    }
-  } catch {
-    /* ignore */
+export function rememberCachedRoom(room: RoomId): void {
+  const rooms = cachedRooms.read();
+  if (!rooms.includes(room)) {
+    rooms.push(room);
+    cachedRooms.write(rooms);
   }
 }
 
@@ -81,13 +75,9 @@ function deleteDb(name: string): Promise<void> {
 
 /** Delete every cached document and forget the index. */
 export async function clearLocalCache(): Promise<void> {
-  const rooms = readRooms();
+  const rooms = cachedRooms.read();
   await Promise.all(rooms.map((r) => deleteDb(cacheDbName(r))));
-  try {
-    localStorage.removeItem(KEY_ROOMS);
-  } catch {
-    /* ignore */
-  }
+  cachedRooms.clear();
 }
 
 /** A handle to a doc's attached local cache; call destroy() to detach. */
@@ -101,7 +91,7 @@ export interface LocalCache {
  * This is the single place that touches y-indexeddb — transport adapters just
  * ask for a LocalCache, staying decoupled from the storage mechanism.
  */
-export function attachLocalCache(room: string, doc: Y.Doc): LocalCache {
+export function attachLocalCache(room: RoomId, doc: Y.Doc): LocalCache {
   const idb = new IndexeddbPersistence(cacheDbName(room), doc);
   rememberCachedRoom(room);
   return { destroy: () => void idb.destroy() };

@@ -8,9 +8,12 @@
     resolveIceServers,
     resolveWebsocket,
     resolveTransport,
-    resolveRoomAccess,
-    resolveRoomCipher,
+    resolveRoomStrategy,
+    resolveDefaultRoom,
+    type PageProtocol,
+    type PageHostname,
   } from './collaboration/config.js';
+  import { parseRoomId } from './collaboration/parse.js';
   import {
     localCacheEnabled,
     setLocalCacheEnabled,
@@ -24,6 +27,7 @@
   import ThemeToggle from './ui/ThemeToggle.svelte';
   import ShareDialog from './ui/ShareDialog.svelte';
   import Toast from './ui/Toast.svelte';
+  import InfoBanner from './ui/InfoBanner.svelte';
   import { createTheme } from './ui/theme.svelte.js';
   import { createToasts } from './ui/toasts.svelte.js';
 
@@ -32,9 +36,14 @@
   let shareOpen = $state(false);
 
   // Room access + cipher — resolved once at startup from VITE_ROOM_AUTH.
-  // `publicAccess` + `plaintext` are the defaults (current behaviour).
-  const roomAccess = resolveRoomAccess(import.meta.env.VITE_ROOM_AUTH);
-  const roomCipher = resolveRoomCipher(roomAccess);
+  // `publicAccess` + `plaintext` are the defaults (current behaviour). Only the
+  // cipher is consumed here; the access gate travels with it inside the strategy.
+  const { cipher: roomCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
+  // Cast browser Location to typed PageLocation — single IO-boundary parse site.
+  const loc = {
+    protocol: location.protocol as PageProtocol,
+    hostname: location.hostname as PageHostname,
+  };
 
   // Pick the collaboration transport — chosen explicitly via VITE_COLLAB_TRANSPORT
   // (default 'webrtc'). 'websocket' routes edits through a central hub server (no
@@ -47,7 +56,7 @@
     technicalWarning?: string;
   } {
     if (resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket') {
-      const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, location);
+      const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, loc);
       if (ws.url) {
         // Pin the narrowed (non-empty) WebsocketUrl in a const so it stays branded
         // inside the build closure — TS won't carry property narrowing into it.
@@ -57,7 +66,7 @@
       // Misconfigured: transport selected but no URL — warn and fall back to WebRTC.
       console.warn('Copad: VITE_COLLAB_TRANSPORT=websocket but VITE_WEBSOCKET_URL is unset — using WebRTC.');
     }
-    const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, location);
+    const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, loc);
     // ICE is resolved per build (not once) so runtime TURN changes from Settings
     // apply on the next reconnect. Precedence: runtime TURN → env TURN → public default.
     const buildIce = (): RTCIceServer[] => {
@@ -107,8 +116,8 @@
   });
 
   function setLocalCache(on: boolean): void {
-    localCache = on as LocalCacheEnabled;
     setLocalCacheEnabled(on);
+    localCache = localCacheEnabled();
     if (!on) void clearLocalCache().then(() => toasts.info('Local copies cleared'));
   }
 
@@ -137,9 +146,9 @@
     const authed = storageBackends.find(b => b.auth.isAuthenticated());
     if (authed) return authed;
     const byDefault = storageBackends.find(
-      b => !b.storage.unavailableReason && b.storage.id === DEFAULT_BACKEND
+      b => b.storage.availability.ok && b.storage.id === DEFAULT_BACKEND
     );
-    return byDefault ?? storageBackends.find(b => !b.storage.unavailableReason) ?? null;
+    return byDefault ?? storageBackends.find(b => b.storage.availability.ok) ?? null;
   }
 
   let storage = $state<StorageBackend | null>(initialStorage());
@@ -174,11 +183,10 @@
 
   // ── Document / room ────────────────────────────────────────────────────────
 
-  // Cast at IO boundary: env var and URL strings enter the domain as RoomId here.
-  const DEFAULT_ROOM = (import.meta.env.VITE_DEFAULT_ROOM ?? 'copad-demo') as RoomId;
+  const DEFAULT_ROOM = resolveDefaultRoom(import.meta.env.VITE_DEFAULT_ROOM);
 
   function roomFromUrl(): RoomId {
-    return (new URLSearchParams(location.search).get('room') || DEFAULT_ROOM) as RoomId;
+    return parseRoomId(new URLSearchParams(location.search).get('room')) ?? DEFAULT_ROOM;
   }
 
   // Role is fixed for the session — it comes from the URL so the host can share
@@ -192,8 +200,7 @@
   const sessionRole: SessionRole = roleFromUrl();
 
   function goToRoom(id: string) {
-    // id arrives from user input (IO boundary) — cast to RoomId on entry.
-    const r = (id.trim() || DEFAULT_ROOM) as RoomId;
+    const r = parseRoomId(id) ?? DEFAULT_ROOM;
     const qs = r === DEFAULT_ROOM ? '' : `?room=${encodeURIComponent(r)}`;
     history.pushState({}, '', location.pathname + qs);
     room = r;
@@ -239,17 +246,14 @@
 
 
   {#if collabWarning}
-    <p class="signaling-warning" role="note">
+    <InfoBanner>
       Collaboration between devices is unavailable on this site. {collabWarning}
-    </p>
-  {/if}
-
-  {#if !connected}
-    <p class="hint">
-      You can collaborate <strong>right now</strong> — P2P, no server.
+    </InfoBanner>
+  {:else if !connected}
+    <InfoBanner autoDismissMs={7000}>
       Set up a storage backend in <button class="link" onclick={() => openSettings()}>Settings ⚙</button>
-      to <strong>save &amp; restore</strong> the document across sessions.
-    </p>
+      to <strong>save &amp; restore</strong> your document across sessions.
+    </InfoBanner>
   {/if}
 
   {#key `${room}|${localCache}|${collabEpoch}`}

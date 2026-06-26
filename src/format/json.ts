@@ -1,6 +1,7 @@
 import { schema } from '../editor/schema.js';
 import { writePmDoc, readPmDoc } from './pm.js';
 import type { Codec } from './types.js';
+import { extensionOf } from './types.js';
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -13,10 +14,11 @@ const encoder = new TextEncoder();
 export const jsonCodec: Codec = {
   id: 'json',
   label: 'ProseMirror JSON',
-  extensions: ['.json'],
+  extensions: [extensionOf('.json')],
 
   decode(bytes, doc) {
-    const node = schema.nodeFromJSON(JSON.parse(decoder.decode(bytes)));
+    const parsed: unknown = JSON.parse(decoder.decode(bytes));
+    const node = schema.nodeFromJSON(parsed);
     writePmDoc(doc, node);
   },
 

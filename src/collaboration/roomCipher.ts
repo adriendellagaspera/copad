@@ -1,4 +1,5 @@
 import type { RoomId } from './types.js';
+import type { RoomCredential } from './roomAccess.js';
 
 /**
  * The cryptographic contract for a room: given the room id, return the string
@@ -15,7 +16,7 @@ import type { RoomId } from './types.js';
  * by design (the server is always in the data path).
  */
 export interface RoomCipher {
-  password(room: RoomId): string | null;
+  password(room: RoomId): RoomCredential | null;
 }
 
 /** No encryption — the room is transmitted in plaintext. */
