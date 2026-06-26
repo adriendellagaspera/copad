@@ -67,7 +67,7 @@ describe('resolveSignaling', () => {
 describe('resolveWebsocket', () => {
   it('is not selected when no URL is configured', () => {
     const r = resolveWebsocket(undefined, https);
-    expect(r.url).toBe('');
+    expect(r.url).toBeUndefined();
     expect(r.warning).toBeUndefined();
   });
 

@@ -90,8 +90,8 @@ export function resolveSignaling(
 }
 
 export interface WebsocketResolution {
-  /** Collaboration server URL, or '' when the websocket transport is not selected. */
-  readonly url: WebsocketUrl | '';
+  /** Collaboration server URL, absent when the websocket transport is not configured. */
+  readonly url?: WebsocketUrl;
   /** Human-readable problem to surface, or undefined when the config is sound. */
   readonly warning?: string;
 }
@@ -119,7 +119,7 @@ export function resolveWebsocket(
   loc: Pick<PageLocation, 'protocol'>,
 ): WebsocketResolution {
   const trimmed = (raw ?? '').trim();
-  if (!trimmed) return { url: '' };
+  if (!trimmed) return {};
   // Validated as a hub URL from here on — brand it (insecure ws:// included; the
   // warning below flags it, but it's still the configured collaboration URL).
   const url = trimmed as WebsocketUrl;
