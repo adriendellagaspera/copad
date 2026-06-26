@@ -150,7 +150,6 @@ describe('githubStorage load', () => {
   });
 
   it('decodes base64 text content on 200', async () => {
-    auth.setConfig?.('repo', 'alice/notes');
     // notes.md → contentFormat: 'text'
     const text = 'Hello, world!';
     const b64 = btoa(text);

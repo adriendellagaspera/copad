@@ -7,6 +7,35 @@ import { extensionOf } from '../format/types.js';
 const API = 'https://api.github.com';
 const VALIDATED_KEY = 'storage.github.validated';
 
+// ── Branded types ─────────────────────────────────────────────────────────────
+
+/** A Personal Access Token verified against the GitHub API. */
+export type GitHubToken = string & { readonly _brand: 'GitHubToken' };
+
+/** A validated `owner/repo` repository reference. */
+export type GitHubRepo = string & { readonly _brand: 'GitHubRepo' };
+
+/** A normalised branch name — always has a value (defaults to `'main'`). */
+export type GitHubBranch = string & { readonly _brand: 'GitHubBranch' };
+
+/** A file SHA returned by the GitHub Contents API, required to update an existing file. */
+export type GitHubFileSha = string & { readonly _brand: 'GitHubFileSha' };
+
+// ── Parse functions (single point of validation per type) ─────────────────────
+
+/** Accepts `owner/repo` — rejects empty strings, bare names, and multi-segment paths. */
+function parseRepo(raw: string): GitHubRepo | null {
+  const s = raw.trim();
+  return /^[^/\s]+\/[^/\s]+$/.test(s) ? (s as GitHubRepo) : null;
+}
+
+/** Always succeeds — returns `'main'` when the input is empty. */
+function parseBranch(raw: string): GitHubBranch {
+  return (raw.trim() || 'main') as GitHubBranch;
+}
+
+// ── Config ────────────────────────────────────────────────────────────────────
+
 const fileName = filenameStore('github', 'notes.md');
 
 const cfg = configStore('github', [
@@ -34,7 +63,9 @@ const cfg = configStore('github', [
   },
 ]);
 
-function apiHeaders(token: string): Record<string, string> {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function apiHeaders(token: GitHubToken): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
     Accept: 'application/vnd.github+json',
@@ -52,34 +83,42 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-export function githubStorage(): { auth: StorageAuth; storage: Storage } {
-  const token = (): string => cfg.config('token');
-  const repo = (): string => cfg.config('repo');
-  const branch = (): string => cfg.config('branch') || 'main';
+// ── Factory ───────────────────────────────────────────────────────────────────
 
+export function githubStorage(): { auth: StorageAuth; storage: Storage } {
   // Current file's SHA — required by GitHub to update an existing file.
-  let fileSha: string | null = null;
+  let fileSha: GitHubFileSha | null = null;
   // Guard against concurrent in-flight commits.
   let committing = false;
 
-  const validated = (): boolean => !!localStorage.getItem(VALIDATED_KEY);
-  const setValidated = (v: boolean): void => {
-    if (v) localStorage.setItem(VALIDATED_KEY, '1');
-    else localStorage.removeItem(VALIDATED_KEY);
-  };
+  // ── Credential resolvers (parse at the config boundary) ───────────────────
 
-  // Changing the repo or token invalidates a prior Connect — force re-validation.
-  function setConfig(name: string, value: string): void {
-    if (name === 'token' || name === 'repo') setValidated(false);
-    cfg.setConfig(name, value);
+  function resolvedRepo(): GitHubRepo | null {
+    return parseRepo(cfg.config('repo'));
   }
 
-  async function commitFile(content: DocContent): Promise<void> {
-    const tok = token();
-    const r = repo();
-    if (!tok) throw new Error('GitHub: not connected');
-    if (!r) throw new Error('GitHub: no repository configured');
+  function resolvedToken(): GitHubToken | null {
+    const raw = cfg.config('token').trim();
+    if (!raw) return null;
+    // Env-managed tokens are deployment-trusted; user-entered tokens require a
+    // successful login() (GET /user validation) before they are branded.
+    if (cfg.configLocked('token')) return raw as GitHubToken;
+    if (!localStorage.getItem(VALIDATED_KEY)) return null;
+    return raw as GitHubToken;
+  }
 
+  function resolvedBranch(): GitHubBranch {
+    return parseBranch(cfg.config('branch'));
+  }
+
+  // ── Commit helper ─────────────────────────────────────────────────────────
+
+  async function commitFile(
+    tok: GitHubToken,
+    repo: GitHubRepo,
+    branch: GitHubBranch,
+    content: DocContent,
+  ): Promise<void> {
     const bytes =
       content.format === 'text'
         ? new TextEncoder().encode(content.text)
@@ -89,11 +128,11 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
     const body: Record<string, unknown> = {
       message: `Update ${path}`,
       content: bytesToBase64(bytes),
-      branch: branch(),
+      branch,
     };
     if (fileSha) body.sha = fileSha;
 
-    const res = await fetch(`${API}/repos/${r}/contents/${encodeURIComponent(path)}`, {
+    const res = await fetch(`${API}/repos/${repo}/contents/${encodeURIComponent(path)}`, {
       method: 'PUT',
       headers: { ...apiHeaders(tok), 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -105,41 +144,57 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
     }
 
     const data = (await res.json()) as { content: { sha: string } };
-    fileSha = data.content.sha;
+    fileSha = data.content.sha as GitHubFileSha;
+  }
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+
+  function setConfig(name: string, value: string): void {
+    // Changing repo or token invalidates a prior Connect — force re-validation.
+    if (name === 'token' || name === 'repo') localStorage.removeItem(VALIDATED_KEY);
+    cfg.setConfig(name, value);
   }
 
   const auth: StorageAuth = {
-    // Token is env-managed (always valid) or was explicitly validated via login().
-    isAuthenticated: () =>
-      (cfg.configLocked('token') && !!token() && !!repo()) ||
-      (validated() && !!token() && !!repo()),
+    isAuthenticated: () => resolvedToken() !== null && resolvedRepo() !== null,
 
     async login() {
-      const tok = token();
-      if (!tok || !repo()) {
+      const rawToken = cfg.config('token').trim();
+      const repo = resolvedRepo();
+      if (!rawToken || !repo) {
         throw new Error('Fill in the repository and token in Settings first.');
       }
-      const res = await fetch(`${API}/user`, { headers: apiHeaders(tok) });
+      // Use the raw string here — we are the validation step; GitHubToken is
+      // only produced after a successful response.
+      const res = await fetch(`${API}/user`, {
+        headers: {
+          Authorization: `Bearer ${rawToken}`,
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      });
       if (res.status === 401) {
         throw new Error('Invalid token — check it has Contents read and write access.');
       }
       if (!res.ok) throw new Error(`GitHub auth check failed: ${res.status}`);
-      setValidated(true);
+      localStorage.setItem(VALIDATED_KEY, '1');
     },
 
     logout() {
-      setValidated(false);
+      localStorage.removeItem(VALIDATED_KEY);
       fileSha = null;
     },
 
     configFields: cfg.fields,
-    // Expose the 'main' default for branch so the UI shows the effective value.
-    config: (name) => (name === 'branch' ? branch() : cfg.config(name)),
+    // Expose the 'main' default for branch so the Settings UI shows the effective value.
+    config: (name) => (name === 'branch' ? resolvedBranch() : cfg.config(name)),
     setConfig,
     configLocked: cfg.configLocked,
-    // Only repo and token are required; branch defaults to main.
-    configured: () => !!token() && !!repo(),
+    // repo must be present and valid-format; branch defaults to main (always valid).
+    configured: () => resolvedRepo() !== null && cfg.config('token').trim().length > 0,
   };
+
+  // ── Storage ───────────────────────────────────────────────────────────────
 
   const storage: Storage = {
     id: 'github',
@@ -155,14 +210,15 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
     },
 
     async load(): Promise<DocContent | null> {
-      const tok = token();
-      const r = repo();
+      const tok = resolvedToken();
+      const repo = resolvedRepo();
       if (!tok) throw new Error('GitHub: not connected');
-      if (!r) throw new Error('GitHub: no repository configured');
+      if (!repo) throw new Error('GitHub: repository not configured');
 
       const path = fileName.get();
+      const branch = resolvedBranch();
       const res = await fetch(
-        `${API}/repos/${r}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch())}`,
+        `${API}/repos/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`,
         { headers: apiHeaders(tok) },
       );
 
@@ -170,7 +226,7 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
       if (!res.ok) throw new Error(`GitHub load failed: ${res.status}`);
 
       const data = (await res.json()) as { content: string; sha: string };
-      fileSha = data.sha;
+      fileSha = data.sha as GitHubFileSha;
 
       // GitHub always returns base64; strip the newlines it inserts every 60 chars.
       const raw = atob(data.content.replace(/\n/g, ''));
@@ -184,9 +240,13 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
 
     async save(content: DocContent): Promise<void> {
       if (committing) return;
+      const tok = resolvedToken();
+      const repo = resolvedRepo();
+      if (!tok) throw new Error('GitHub: not connected');
+      if (!repo) throw new Error('GitHub: repository not configured');
       committing = true;
       try {
-        await commitFile(content);
+        await commitFile(tok, repo, resolvedBranch(), content);
       } finally {
         committing = false;
       }
