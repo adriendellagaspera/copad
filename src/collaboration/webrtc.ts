@@ -1,8 +1,9 @@
 import * as Y from 'yjs';
 import { WebrtcProvider } from 'y-webrtc';
-import type { Collab, CollabConnect, ConnStatus, RoomId, SignalingUrl } from './types.js';
+import type { Collab, CollabConnect, RoomId, SignalingUrl } from './types.js';
 import type { RoomCipher } from './roomCipher.js';
-import { attachLocalCache, type LocalCache, type LocalCacheEnabled } from './cache.js';
+import type { LocalCacheEnabled } from './cache.js';
+import { createCollabCore } from './core.js';
 
 export interface WebrtcCollabOptions {
   /** Validated signaling servers peers use to discover each other. */
@@ -33,74 +34,35 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
         : {}),
     });
 
-    // Local cache: keeps the doc across reloads even with no storage backend.
-    const cache: LocalCache | undefined = opts.cache
-      ? attachLocalCache(room as string, doc)
-      : undefined;
-
-    const statusFns = new Set<(s: ConnStatus) => void>();
-    const syncedFns = new Set<(b: boolean) => void>();
-    let synced = false;
-
-    // `webrtc.connected` means "attached to a signaling server" — it does NOT
-    // imply a physical peer. So we report `connecting` until signaling attaches,
-    // then `waiting` while alone in the room, and only `connected` once a peer
-    // is actually present. That distinction tells a user whether signaling is
-    // broken (stuck on `connecting`) or simply nobody else has joined yet.
-    const hasPeers = (): boolean => {
-      const room = webrtc.room;
-      if (!room) return false;
-      return (room.webrtcConns?.size ?? 0) + (room.bcConns?.size ?? 0) > 0;
+    // Peer carriage is read from the y-webrtc room (WebRTC + same-browser BroadcastChannel).
+    const peerCount = (): number => {
+      const r = webrtc.room;
+      if (!r) return 0;
+      return (r.webrtcConns?.size ?? 0) + (r.bcConns?.size ?? 0);
     };
 
-    const computeStatus = (): ConnStatus => {
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
-      if (!webrtc.connected) return 'connecting';
-      return hasPeers() ? 'connected' : 'waiting';
-    };
-
-    const emitStatus = (): void => {
-      const s = computeStatus();
-      statusFns.forEach((fn) => fn(s));
-    };
-    const emitSynced = (): void => syncedFns.forEach((fn) => fn(synced));
-
-    webrtc.on('status', emitStatus);
-    webrtc.on('peers', emitStatus);
-    webrtc.on('synced', (e: { synced: boolean }) => {
-      synced = e.synced;
-      emitSynced();
+    // `webrtc.connected` means "attached to a signaling server", not "peered".
+    const core = createCollabCore({
+      doc,
+      room,
+      cache: opts.cache,
+      isAttached: () => webrtc.connected,
+      peerCount,
     });
 
-    const onNetwork = (): void => emitStatus();
-    if (typeof window !== 'undefined') {
-      window.addEventListener('online', onNetwork);
-      window.addEventListener('offline', onNetwork);
-    }
+    webrtc.on('status', core.emitStatus);
+    webrtc.on('peers', core.emitStatus);
+    webrtc.on('synced', (e: { synced: boolean }) => core.setSynced(e.synced));
 
     return {
       doc,
       awareness: webrtc.awareness,
       transport: 'p2p',
-      onStatus(fn) {
-        statusFns.add(fn);
-        fn(computeStatus());
-        return () => statusFns.delete(fn);
-      },
-      onSynced(fn) {
-        syncedFns.add(fn);
-        fn(synced);
-        return () => syncedFns.delete(fn);
-      },
+      onStatus: core.onStatus,
+      onSynced: core.onSynced,
       destroy() {
-        if (typeof window !== 'undefined') {
-          window.removeEventListener('online', onNetwork);
-          window.removeEventListener('offline', onNetwork);
-        }
-        statusFns.clear();
-        syncedFns.clear();
-        // Detach the IndexedDB connection first so a subsequent clear isn't blocked.
-        cache?.destroy();
+        // core detaches the cache first, then we drop the provider and doc.
+        core.destroy();
         webrtc.destroy();
         doc.destroy();
       },

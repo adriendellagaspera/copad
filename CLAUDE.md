@@ -43,6 +43,8 @@ Room access adapters (all in `src/collaboration/roomAccess.ts` / `roomCipher.ts`
 
 `resolveRoomAccess(VITE_ROOM_AUTH)` parses the env var and returns the right `RoomAccess`. `resolveRoomCipher(access)` derives the matching `RoomCipher`. Both live in `src/collaboration/config.ts`.
 
+Both adapters share `createCollabCore()` (`src/collaboration/core.ts`) — the transport-agnostic half of a `Collab`: status/synced subscriber fan-out, the `connecting → waiting → connected` machine, online/offline reactivity, the local-cache lifecycle, and teardown. Each adapter supplies only provider wiring + two hooks (`isAttached()`, `peerCount()`); the duplicated boilerplate lives in one place.
+
 ### Wiring
 
 `App.svelte` owns all construction and configuration:

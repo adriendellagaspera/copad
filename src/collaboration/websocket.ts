@@ -1,7 +1,8 @@
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
-import type { Collab, CollabConnect, ConnStatus, RoomId, WebsocketUrl } from './types.js';
-import { attachLocalCache, type LocalCache, type LocalCacheEnabled } from './cache.js';
+import type { Collab, CollabConnect, RoomId, WebsocketUrl } from './types.js';
+import type { LocalCacheEnabled } from './cache.js';
+import { createCollabCore } from './core.js';
 
 /**
  * Client ↔ server (hub) collaboration transport.
@@ -28,72 +29,35 @@ export function websocketCollab(opts: WebsocketCollabOptions): CollabConnect {
     // RoomId extends string — cast back to string at the y-websocket IO boundary.
     const provider = new WebsocketProvider(opts.url, room as string, doc);
 
-    // Local cache: keeps the doc across reloads even with no storage backend.
-    const cache: LocalCache | undefined = opts.cache
-      ? attachLocalCache(room as string, doc)
-      : undefined;
+    // Awareness holds every present client including us, so "peers" is size − 1.
+    const peerCount = (): number => Math.max(0, provider.awareness.getStates().size - 1);
 
-    const statusFns = new Set<(s: ConnStatus) => void>();
-    const syncedFns = new Set<(b: boolean) => void>();
-    let synced = false;
-
-    // `provider.wsconnected` means "attached to the server" — it does NOT imply
-    // another human is here. So we report `connecting` until the socket opens,
-    // then `waiting` while we're alone in the room (awareness holds only us),
-    // and only `connected` once another peer's awareness state appears. This
-    // mirrors the webrtc adapter so the status pill reads identically.
-    const hasPeers = (): boolean => provider.awareness.getStates().size > 1;
-
-    const computeStatus = (): ConnStatus => {
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
-      if (!provider.wsconnected) return 'connecting';
-      return hasPeers() ? 'connected' : 'waiting';
-    };
-
-    const emitStatus = (): void => {
-      const s = computeStatus();
-      statusFns.forEach((fn) => fn(s));
-    };
-    const emitSynced = (): void => syncedFns.forEach((fn) => fn(synced));
-
-    provider.on('status', emitStatus);
-    provider.on('sync', (isSynced: boolean) => {
-      synced = isSynced;
-      emitSynced();
+    // `provider.wsconnected` means "attached to the server", not "peered". Peer
+    // presence comes from awareness, not the socket — so we also recompute on its
+    // 'change'. This mirrors the webrtc adapter so the status pill reads identically.
+    const core = createCollabCore({
+      doc,
+      room,
+      cache: opts.cache,
+      isAttached: () => provider.wsconnected,
+      peerCount,
     });
-    // Peer presence is read from awareness, not the socket — recompute on change.
-    provider.awareness.on('change', emitStatus);
 
-    const onNetwork = (): void => emitStatus();
-    if (typeof window !== 'undefined') {
-      window.addEventListener('online', onNetwork);
-      window.addEventListener('offline', onNetwork);
-    }
+    provider.on('status', core.emitStatus);
+    provider.on('sync', (isSynced: boolean) => core.setSynced(isSynced));
+    provider.awareness.on('change', core.emitStatus);
 
     return {
       doc,
       awareness: provider.awareness,
       transport: 'hub',
-      onStatus(fn) {
-        statusFns.add(fn);
-        fn(computeStatus());
-        return () => statusFns.delete(fn);
-      },
-      onSynced(fn) {
-        syncedFns.add(fn);
-        fn(synced);
-        return () => syncedFns.delete(fn);
-      },
+      onStatus: core.onStatus,
+      onSynced: core.onSynced,
       destroy() {
-        if (typeof window !== 'undefined') {
-          window.removeEventListener('online', onNetwork);
-          window.removeEventListener('offline', onNetwork);
-        }
-        provider.awareness.off('change', emitStatus);
-        statusFns.clear();
-        syncedFns.clear();
-        // Detach the IndexedDB connection first so a subsequent clear isn't blocked.
-        cache?.destroy();
+        // Drop the awareness listener, then core detaches the cache before we
+        // tear down the provider and doc.
+        provider.awareness.off('change', core.emitStatus);
+        core.destroy();
         provider.destroy();
         doc.destroy();
       },
