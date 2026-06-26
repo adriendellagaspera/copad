@@ -10,6 +10,8 @@
     resolveTransport,
     resolveRoomAccess,
     resolveRoomCipher,
+    type PageProtocol,
+    type PageHostname,
   } from './collaboration/config.js';
   import {
     localCacheEnabled,
@@ -35,6 +37,11 @@
   // `publicAccess` + `plaintext` are the defaults (current behaviour).
   const roomAccess = resolveRoomAccess(import.meta.env.VITE_ROOM_AUTH);
   const roomCipher = resolveRoomCipher(roomAccess);
+  // Cast browser Location to typed PageLocation — single IO-boundary parse site.
+  const loc = {
+    protocol: location.protocol as PageProtocol,
+    hostname: location.hostname as PageHostname,
+  };
 
   // Pick the collaboration transport — chosen explicitly via VITE_COLLAB_TRANSPORT
   // (default 'webrtc'). 'websocket' routes edits through a central hub server (no
@@ -47,7 +54,7 @@
     technicalWarning?: string;
   } {
     if (resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket') {
-      const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, location);
+      const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, loc);
       if (ws.url) {
         // Pin the narrowed (non-empty) WebsocketUrl in a const so it stays branded
         // inside the build closure — TS won't carry property narrowing into it.
@@ -57,7 +64,7 @@
       // Misconfigured: transport selected but no URL — warn and fall back to WebRTC.
       console.warn('Copad: VITE_COLLAB_TRANSPORT=websocket but VITE_WEBSOCKET_URL is unset — using WebRTC.');
     }
-    const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, location);
+    const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, loc);
     const iceServers = resolveIceServers({
       VITE_STUN_URL: import.meta.env.VITE_STUN_URL,
       VITE_TURN_URL: import.meta.env.VITE_TURN_URL,

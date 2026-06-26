@@ -1,5 +1,6 @@
 import * as Y from 'yjs';
-import type { Codec, FileExtension } from './types.js';
+import type { Codec } from './types.js';
+import { extensionOf } from './types.js';
 
 /**
  * Native Copad format: the raw Yjs CRDT update. Unlike the content codecs this
@@ -10,7 +11,7 @@ import type { Codec, FileExtension } from './types.js';
 export const yjsCodec: Codec = {
   id: 'yjs',
   label: 'Copad document',
-  extensions: ['.yjs' as FileExtension],
+  extensions: [extensionOf('.yjs')],
 
   decode(bytes, doc) {
     Y.applyUpdate(doc, bytes);

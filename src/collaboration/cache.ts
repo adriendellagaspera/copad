@@ -16,10 +16,10 @@ import type { RoomId } from './types.js';
 
 const KEY_ENABLED = 'copad:localCache';
 const KEY_ROOMS = 'copad:cachedRooms';
-const DB_PREFIX = 'copad:';
+const DB_PREFIX = 'copad:' as const;
 
 /** An IndexedDB database name that has passed through {@link cacheDbName} — namespaced under the `copad:` prefix. */
-export type CacheDbName = string & { readonly _brand: 'CacheDbName' };
+export type CacheDbName = `${typeof DB_PREFIX}${string}`;
 
 /** Whether the local document cache is on for a session — a branded boolean so
  *  the adapter `cache` option can't be confused with any other on/off flag. */
@@ -44,14 +44,14 @@ export function setLocalCacheEnabled(on: boolean): void {
 
 /** IndexedDB database name for a room — namespaced so "clear" only touches ours. */
 export function cacheDbName(room: RoomId): CacheDbName {
-  return (DB_PREFIX + room) as CacheDbName;
+  return `${DB_PREFIX}${room}`;
 }
 
 function readRooms(): RoomId[] {
   try {
     const raw = localStorage.getItem(KEY_ROOMS);
     const list = raw ? JSON.parse(raw) : [];
-    return Array.isArray(list) ? list.filter((r): r is string => typeof r === 'string') as RoomId[] : [];
+    return Array.isArray(list) ? list.filter((r): r is string => typeof r === 'string').map(r => r as RoomId) : [];
   } catch {
     return [];
   }

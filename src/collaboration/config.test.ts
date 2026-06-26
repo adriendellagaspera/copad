@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { resolveSignaling, resolveIceServers, resolveWebsocket, resolveTransport, resolveRoomAccess, resolveRoomCipher } from './config.js';
+import { resolveSignaling, resolveIceServers, resolveWebsocket, resolveTransport, resolveRoomAccess, resolveRoomCipher, type PageProtocol, type PageHostname } from './config.js';
 import type { RoomId } from './types.js';
 
 // Stubs for secretLink (called when VITE_ROOM_AUTH=secret-link)
@@ -7,8 +7,8 @@ vi.stubGlobal('location', { hash: '' });
 vi.stubGlobal('history', { replaceState: vi.fn() });
 vi.stubGlobal('crypto', { randomUUID: () => 'stub-uuid' });
 
-const https = { protocol: 'https:', hostname: 'app.example.com' };
-const localhttp = { protocol: 'http:', hostname: 'localhost' };
+const https = { protocol: 'https:' as PageProtocol, hostname: 'app.example.com' as PageHostname };
+const localhttp = { protocol: 'http:' as PageProtocol, hostname: 'localhost' as PageHostname };
 
 describe('resolveTransport', () => {
   it('defaults to webrtc when unset', () => {

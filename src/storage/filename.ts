@@ -14,8 +14,10 @@ export interface FilenameStore {
  * Stored per backend under `storage.<id>.filename`, defaulting to the native
  * `document.yjs` when unset.
  */
+type FilenameStoreKey = `storage.${StorageId}.filename`;
+
 export function filenameStore(backendId: StorageId, fallback: Filename = 'document.yjs' as Filename): FilenameStore {
-  const KEY = `storage.${backendId}.filename`;
+  const KEY: FilenameStoreKey = `storage.${backendId}.filename`;
   return {
     get(): Filename {
       return (localStorage.getItem(KEY)?.trim() || fallback) as Filename;

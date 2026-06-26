@@ -28,9 +28,11 @@ export interface ConfigStore {
  * env var → saved value, matching the historic resolution chains in the
  * adapters (so values saved by the old credential form keep working).
  */
+type ConfigStoreKey = `storage.${StorageId}.${string}`;
+
 export function configStore(id: StorageId, specs: ConfigSpec[]): ConfigStore {
   const spec = (name: string) => specs.find(s => s.name === name);
-  const key = (name: string) => `storage.${id}.${name}`;
+  const key = (name: string): ConfigStoreKey => `storage.${id}.${name}`;
   const envOf = (name: string) => spec(name)?.env || '';
   const value = (name: string) => envOf(name) || localStorage.getItem(key(name)) || '';
 

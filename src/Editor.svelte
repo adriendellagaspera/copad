@@ -28,7 +28,7 @@
     CursorColor,
     PeerAwarenessState,
   } from './collaboration/types.js';
-  import { parsePeerAwarenessState } from './collaboration/types.js';
+  import { parsePeerAwarenessState } from './collaboration/awareness.js';
 
   type Props = {
     storage: Storage | null;

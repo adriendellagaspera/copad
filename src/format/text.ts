@@ -1,6 +1,7 @@
 import { schema } from '../editor/schema.js';
 import { writePmDoc, readPmDoc } from './pm.js';
-import type { Codec, FileExtension } from './types.js';
+import type { Codec } from './types.js';
+import { extensionOf } from './types.js';
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -70,7 +71,7 @@ export const textCodec: Codec = {
     '.proto',
     '.sql',
     '.diff', '.patch',
-  ] as FileExtension[],
+  ].map(extensionOf),
 
   decode(bytes, doc) {
     const text = decoder.decode(bytes);

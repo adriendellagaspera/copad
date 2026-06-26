@@ -34,10 +34,16 @@ export interface SignalingResolution {
   readonly technicalWarning?: string;
 }
 
+/** HTTP/HTTPS scheme of the current page, e.g. `'https:'`. */
+export type PageProtocol = string & { readonly _brand: 'PageProtocol' };
+
+/** Hostname of the current page, e.g. `'app.example.com'`. */
+export type PageHostname = string & { readonly _brand: 'PageHostname' };
+
 /** The page origin details needed to detect mixed-content and local-dev conditions. */
 export interface PageLocation {
-  readonly protocol: string;
-  readonly hostname: string;
+  readonly protocol: PageProtocol;
+  readonly hostname: PageHostname;
 }
 
 const DEFAULT_STUN = 'stun:stun.l.google.com:19302';

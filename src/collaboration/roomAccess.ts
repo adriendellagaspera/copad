@@ -42,7 +42,8 @@ export function sitePassword(envPassword: string): RoomAccess {
   return { mode: 'site-password', credential: () => cred };
 }
 
-const roomPasswordKey = (room: RoomId): string =>
+type RoomPasswordKey = `collab.room-password.${RoomId}`;
+const roomPasswordKey = (room: RoomId): RoomPasswordKey =>
   `collab.room-password.${room}`;
 
 /**
