@@ -23,8 +23,10 @@ const list = (raw: string | undefined): string[] =>
 export interface SignalingResolution {
   /** Signaling servers to hand to y-webrtc (may be empty if misconfigured). */
   readonly servers: SignalingUrl[];
-  /** Human-readable problem to surface, or undefined when the config is sound. */
+  /** User-facing problem description, or undefined when the config is sound. */
   readonly warning?: string;
+  /** Developer-facing details for the browser console. */
+  readonly technicalWarning?: string;
 }
 
 const DEFAULT_STUN = 'stun:stun.l.google.com:19302';
@@ -43,7 +45,8 @@ export function resolveSignaling(
     if (isLocalHost) return { servers: [DEFAULT_DEV_SIGNALING as SignalingUrl] };
     return {
       servers: [],
-      warning:
+      warning: "This site isn't set up for real-time sync across devices — nothing you need to do.",
+      technicalWarning:
         'No signaling server is configured (VITE_SIGNALING_URL), so real-time ' +
         'collaboration with other devices is disabled. Deploy a y-webrtc ' +
         'signaling server over wss:// and set VITE_SIGNALING_URL — see the ' +
