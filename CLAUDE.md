@@ -79,6 +79,80 @@ The `StorageAuth` port separates two concerns:
 
 Backends that need neither (Local) omit both. Each backend's front-page **pill** reflects `statusOf()`: `unavailable` → `setup` (missing config) → `ready` → `connected`.
 
+## Type system principles
+
+Four interlocking principles keep the type system honest end-to-end.
+
+### 1. Screaming names
+
+Every domain concept gets a named type whose name makes its meaning obvious under `grep`. Never let a bare `string` or `number` represent a domain value inside core logic.
+
+```typescript
+// src/collaboration/types.ts
+export type RoomId       = string & { readonly _brand: 'RoomId' };
+export type DisplayName  = string & { readonly _brand: 'DisplayName' };
+export type CursorColor  = string & { readonly _brand: 'CursorColor' };
+export type SignalingUrl = string & { readonly _brand: 'SignalingUrl' };
+```
+
+The intersection `string & { readonly _brand: '…' }` is the brand pattern — it carries no runtime cost and blocks accidental assignments. All brands follow this exact shape. Other examples: `StorageId`, `Filename`, `FileExtension` (`src/format/types.ts`), `CacheDbName`, `LocalCacheEnabled` (`src/collaboration/cache.ts`).
+
+IO-boundary casts (`'value' as BrandType`) are the **only** permitted entry points into a branded type.
+
+### 2. Domain-Driven Design with hexagonal architecture
+
+Ports are TypeScript interfaces that define what the domain needs; adapters implement them without the domain knowing. See the Architecture section above for the full port/adapter table.
+
+The type system enforces the boundary: `Editor.svelte` receives only the `Storage` port — never a concrete adapter, never `StorageAuth`. `CollabConnect` is typed as `(room: RoomId) => Collab`; Editor cannot reach through it to y-webrtc or y-websocket internals.
+
+Discriminated unions model domain states: `StorageAvailability` (`src/storage/types.ts`) uses `{ ok: true } | { ok: false; reason: string }` so callers must handle both arms. `SlashState` (`src/editor/ui/slashMenu.ts`) uses `SlashClosed | SlashOpen` — narrowing on `active` gives exclusive access to the fields that only make sense when the menu is open.
+
+### 3. Parse, don't validate
+
+Data is parsed **once** at the IO boundary into a rich type. Internal code trusts the type and never re-validates. A function that returns `boolean` is a validator; a function that returns the domain type (or throws) is a parser.
+
+```typescript
+// src/collaboration/types.ts — single cast site for network peer data
+export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
+  // all field access guarded here; safe fallbacks for malformed data
+  const name: DisplayName = (typeof nameRaw === 'string' && nameRaw.trim())
+    ? nameRaw.trim() as DisplayName
+    : FALLBACK_NAME;
+  // …
+}
+```
+
+IO boundaries in this codebase and how each is handled:
+
+| Boundary | How parsed |
+|----------|-----------|
+| Env vars (`import.meta.env.*`) | `resolveSignaling()`, `resolveTransport()`, etc. in `src/collaboration/config.ts` — return branded types |
+| `localStorage` reads | cast to branded type immediately inside the reading function (e.g. `localCacheEnabled()` → `LocalCacheEnabled`) |
+| URL params | cast in `App.svelte` at the single entry point (e.g. `?room=` → `RoomId`) |
+| Network peer awareness | `parsePeerAwarenessState(raw: unknown)` in `src/collaboration/types.ts` |
+| User form input | stays `string` until accepted into the domain by a login/connect function |
+| External API JSON | typed interface with a cast at `response.json() as Promise<TypedInterface>` |
+| Filename from browser API | `handle?.name as Filename` inside `localFsStorage()` in `src/storage/local.ts` |
+
+### 4. Strong typing end-to-end — no primitives at internal boundaries
+
+`string`, `number`, `boolean`, `Record`, `object`, and `{}` are only permitted at IO boundaries. Every internal function signature uses named types:
+
+```typescript
+// src/format/types.ts — extensionOf is a parser, not a validator
+export function extensionOf(filename: string): FileExtension {
+  const dot = filename.lastIndexOf('.');
+  return (dot === -1 ? '' : filename.slice(dot).toLowerCase()) as FileExtension;
+}
+
+// src/collaboration/cache.ts — cacheDbName produces a branded DB name
+export function cacheDbName(room: RoomId): CacheDbName {
+  return (DB_PREFIX + room) as CacheDbName;
+}
+```
+
+This applies to function parameters, return types, object fields, and Svelte component `$props()`. The compiler then catches misuse — passing a raw `string` where a `RoomId` is expected is a type error, not a runtime surprise.
+
 ## Naming conventions
 
 This codebase uses **functional naming** — no OO suffixes.
