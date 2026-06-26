@@ -25,6 +25,9 @@ interface ImportMetaEnv {
   readonly VITE_WEBDAV_URL?: string;
   readonly VITE_STORAGE_BACKEND?: string;
   readonly VITE_REDIRECT_URI?: string;
+  readonly VITE_GITHUB_REPO?: string;
+  readonly VITE_GITHUB_BRANCH?: string;
+  readonly VITE_GITHUB_TOKEN?: string;
 }
 
 interface ImportMeta {
