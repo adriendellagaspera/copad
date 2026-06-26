@@ -8,8 +8,7 @@
     resolveIceServers,
     resolveWebsocket,
     resolveTransport,
-    resolveRoomAccess,
-    resolveRoomCipher,
+    resolveRoomStrategy,
     type PageProtocol,
     type PageHostname,
   } from './collaboration/config.js';
@@ -34,9 +33,9 @@
   let shareOpen = $state(false);
 
   // Room access + cipher — resolved once at startup from VITE_ROOM_AUTH.
-  // `publicAccess` + `plaintext` are the defaults (current behaviour).
-  const roomAccess = resolveRoomAccess(import.meta.env.VITE_ROOM_AUTH);
-  const roomCipher = resolveRoomCipher(roomAccess);
+  // `publicAccess` + `plaintext` are the defaults (current behaviour). Only the
+  // cipher is consumed here; the access gate travels with it inside the strategy.
+  const { cipher: roomCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
   // Cast browser Location to typed PageLocation — single IO-boundary parse site.
   const loc = {
     protocol: location.protocol as PageProtocol,
