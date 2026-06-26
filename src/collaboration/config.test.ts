@@ -30,7 +30,8 @@ describe('resolveSignaling', () => {
   it('warns and configures no servers when unset on a deployed origin', () => {
     const r = resolveSignaling(undefined, https);
     expect(r.servers).toEqual([]);
-    expect(r.warning).toMatch(/VITE_SIGNALING_URL/);
+    expect(r.warning).toBeDefined();
+    expect(r.technicalWarning).toMatch(/VITE_SIGNALING_URL/);
   });
 
   it('warns when every configured server is insecure ws:// on https', () => {
