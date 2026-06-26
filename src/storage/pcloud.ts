@@ -6,7 +6,14 @@ import { filenameStore } from './filename.js';
 import type { Fetch } from '../network/types.js';
 import { type PCloudSession, parsePCloudSession, parsePCloudFileLinkResponse } from './parse.js';
 import { localStore } from '../persistence/local.js';
-import { CLOUD_FOLDER, PCLOUD_SESSION_KEY, PCLOUD_API_HOST, PCLOUD_EU_API_HOST } from './constants.js';
+import {
+  CLOUD_FOLDER,
+  PCLOUD_SESSION_KEY,
+  PCLOUD_API_HOST,
+  PCLOUD_EU_API_HOST,
+  PCLOUD_GETFILELINK_PATH,
+  PCLOUD_UPLOAD_PATH,
+} from './constants.js';
 
 const fileName = filenameStore('pcloud' as StorageId);
 const filePath = () => `${CLOUD_FOLDER}/${fileName.get()}`;
@@ -79,7 +86,7 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
 
       try {
         const rawMeta: unknown = await fetch(
-          `https://${s.host}/getfilelink?path=${encodeURIComponent(filePath())}&auth=${s.token}`
+          `https://${s.host}${PCLOUD_GETFILELINK_PATH}?path=${encodeURIComponent(filePath())}&auth=${s.token}`
         ).then(r => r.json());
         const meta = parsePCloudFileLinkResponse(rawMeta);
 
@@ -111,7 +118,7 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
       form.append('file', new Blob([content.bytes as BlobPart]));
 
       const res = await netFetch(
-        `https://${s.host}/uploadfile?auth=${s.token}`,
+        `https://${s.host}${PCLOUD_UPLOAD_PATH}?auth=${s.token}`,
         { method: 'POST', body: form }
       );
       if (!res.ok) throw new Error(`pCloud save failed: ${res.status}`);

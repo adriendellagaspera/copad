@@ -84,9 +84,9 @@ Backends that need neither (Local) omit both. Each backend's front-page **pill**
 No magic literal lives buried in business logic. Deployment-relevant constants — endpoints, defaults, timeouts, folder paths, and the localStorage keys each vertical owns — are centralized in a **config/constants module per vertical**, and read a `VITE_*` env override where deployments legitimately vary:
 - `src/config.ts` — app-global: the `copad:` storage **namespace** (`APP_NAMESPACE` / `nsKey()`). Fixed identity, *not* env-overridable (the no-flash script in `index.html` hardcodes the same prefix and can't read env).
 - `src/collaboration/constants.ts` — signaling/STUN/room defaults, local-dev hostnames, cache + room-password keys.
-- `src/storage/constants.ts` — backend endpoint URLs, the shared cloud folder (`VITE_CLOUD_FOLDER`), GitHub API base (`VITE_GITHUB_API_URL`), OAuth popup tuning + redirect (`VITE_REDIRECT_URI`), default filenames, base64 chunk size, and every backend's localStorage key.
+- `src/storage/constants.ts` — backend endpoint URLs/hosts/paths, the shared cloud folder, GitHub API base, OAuth popup tuning + redirect, base64 chunk size, default filenames, and every backend's localStorage key. Each endpoint/host/path/tunable reads a `VITE_*` override (via the `envStr` / `envInt` helpers) so a deployment can react to a provider rotating a domain or a regional split (pCloud US/EU) without a rebuild.
 
-Provider/protocol constants (OAuth endpoint URLs, base64 chunk size) are centralized but *not* env-overridable — they're fixed, not deployment knobs.
+Only two kinds of constant stay fixed (no env override): the localStorage **keys** + the `copad:` namespace (changing them orphans saved state, and the no-flash `index.html` script can't read env), and the default filenames/branch (user-facing content, edited in Settings).
 
 ## Type system principles
 
@@ -214,6 +214,12 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_GITHUB_API_URL` | no | GitHub REST API base (default: `https://api.github.com`); set for a GitHub Enterprise host. In `src/storage/constants.ts`. |
 | `VITE_CLOUD_FOLDER` | no | Folder the cloud backends (Dropbox, pCloud) read/write within (default: `/copad`). In `src/storage/constants.ts`. |
 | `VITE_REDIRECT_URI` | no | OAuth redirect URI (default: `<origin>/redirect.html`). In `src/storage/constants.ts`. |
+| `VITE_DROPBOX_AUTH_URL` / `VITE_DROPBOX_TOKEN_URL` / `VITE_DROPBOX_UPLOAD_URL` / `VITE_DROPBOX_DOWNLOAD_URL` | no | Dropbox OAuth/content endpoint overrides (defaults are the public dropbox.com / dropboxapi.com URLs). For when Dropbox rotates a domain. |
+| `VITE_PCLOUD_API_HOST` / `VITE_PCLOUD_EU_API_HOST` | no | pCloud API hosts (defaults: `api.pcloud.com` / `eapi.pcloud.com`). Override for a region change. |
+| `VITE_PCLOUD_GETFILELINK_PATH` / `VITE_PCLOUD_UPLOAD_PATH` | no | pCloud API paths (defaults: `/getfilelink` / `/uploadfile`). |
+| `VITE_OAUTH_TIMEOUT_MS` | no | How long to wait for the OAuth popup before giving up (default: `300000`). |
+| `VITE_OAUTH_POPUP_FEATURES` | no | OAuth popup window features (default: `width=520,height=640`). |
+| `VITE_BASE64_CHUNK` | no | Chunk size for base64-encoding large GitHub uploads (default: `32768`). |
 | `VITE_PROXY_URL` | for WebDAV | CORS proxy URL |
 | `VITE_WEBDAV_URL` | no | Pre-fill the WebDAV URL input |
 | `VITE_STORAGE_BACKEND` | no | Default storage backend id |

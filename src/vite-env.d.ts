@@ -32,6 +32,19 @@ interface ImportMetaEnv {
   readonly VITE_GITHUB_BRANCH?: string;
   readonly VITE_GITHUB_TOKEN?: string;
   readonly VITE_GITHUB_API_URL?: string;
+  // ── Storage endpoints (override when a provider rotates a domain / region) ──
+  readonly VITE_DROPBOX_AUTH_URL?: string;
+  readonly VITE_DROPBOX_TOKEN_URL?: string;
+  readonly VITE_DROPBOX_UPLOAD_URL?: string;
+  readonly VITE_DROPBOX_DOWNLOAD_URL?: string;
+  readonly VITE_PCLOUD_API_HOST?: string;
+  readonly VITE_PCLOUD_EU_API_HOST?: string;
+  readonly VITE_PCLOUD_GETFILELINK_PATH?: string;
+  readonly VITE_PCLOUD_UPLOAD_PATH?: string;
+  // ── OAuth + encoding tunables ──
+  readonly VITE_OAUTH_TIMEOUT_MS?: string;
+  readonly VITE_OAUTH_POPUP_FEATURES?: string;
+  readonly VITE_BASE64_CHUNK?: string;
 }
 
 interface ImportMeta {
