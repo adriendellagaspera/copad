@@ -29,3 +29,17 @@ export function parseRoomId(raw: string): RoomId | null {
   const trimmed = raw.trim();
   return trimmed ? (trimmed as RoomId) : null;
 }
+
+/** Parse a JSON-encoded room list from localStorage into typed RoomIds. */
+export function parseRoomList(raw: string | null): RoomId[] {
+  try {
+    const list: unknown = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(list)) return [];
+    return list
+      .filter((r): r is string => typeof r === 'string')
+      .map(parseRoomId)
+      .filter((r): r is RoomId => r !== null);
+  } catch {
+    return [];
+  }
+}

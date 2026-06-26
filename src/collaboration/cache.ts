@@ -13,7 +13,7 @@
 import type * as Y from 'yjs';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import type { RoomId } from './types.js';
-import { parseRoomId } from './parse.js';
+import { parseRoomList } from './parse.js';
 
 const KEY_ENABLED = 'copad:localCache';
 const KEY_ROOMS = 'copad:cachedRooms';
@@ -49,17 +49,7 @@ export function cacheDbName(room: RoomId): CacheDbName {
 }
 
 function readRooms(): RoomId[] {
-  try {
-    const raw = localStorage.getItem(KEY_ROOMS);
-    const list = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(list)) return [];
-    return list
-      .filter((r): r is string => typeof r === 'string')
-      .map(parseRoomId)
-      .filter((r): r is RoomId => r !== null);
-  } catch {
-    return [];
-  }
+  return parseRoomList(localStorage.getItem(KEY_ROOMS));
 }
 
 /** Record that a room has a local cache, so clearLocalCache() can find it later. */
