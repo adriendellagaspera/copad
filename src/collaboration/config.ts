@@ -12,18 +12,28 @@ import type { RoomAccess } from './roomAccess.js';
 import type { RoomCipher } from './roomCipher.js';
 import { publicAccess, sitePassword, roomPassword } from './roomAccess.js';
 import { plaintext } from './roomCipher.js';
-import { secretLink } from './secretLink.js';
-
-/** Hostnames that mean "this is local dev", where ws://localhost is reasonable. */
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0', '']);
-
-const DEFAULT_DEV_SIGNALING = 'ws://localhost:4444';
+import { secretLink, type SecretLinkPort } from './secretLink.js';
+import { parseRoomId } from './parse.js';
+import { LOCAL_HOSTS, DEFAULT_DEV_SIGNALING, DEFAULT_STUN, DEFAULT_ROOM_NAME } from './constants.js';
 
 const list = (raw: string | undefined): string[] =>
   (raw ?? '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+
+/** ws:// or wss:// — the only schemes y-webrtc / y-websocket understand. */
+const WS_URL = /^wss?:\/\/\S+$/i;
+
+/** Parse a single signaling URL, branding it only if it is a real ws/wss URL. */
+function parseSignalingUrl(raw: string): SignalingUrl | null {
+  return WS_URL.test(raw) ? (raw as SignalingUrl) : null;
+}
+
+/** Parse the hub URL, branding it only if it is a real ws/wss URL. */
+function parseWebsocketUrl(raw: string): WebsocketUrl | null {
+  return WS_URL.test(raw) ? (raw as WebsocketUrl) : null;
+}
 
 export interface SignalingResolution {
   /** Signaling servers to hand to y-webrtc (may be empty if misconfigured). */
@@ -34,20 +44,32 @@ export interface SignalingResolution {
   readonly technicalWarning?: string;
 }
 
-const DEFAULT_STUN = 'stun:stun.l.google.com:19302';
+/** HTTP/HTTPS scheme of the current page, e.g. `'https:'`. */
+export type PageProtocol = string & { readonly _brand: 'PageProtocol' };
+
+/** Hostname of the current page, e.g. `'app.example.com'`. */
+export type PageHostname = string & { readonly _brand: 'PageHostname' };
+
+/** The page origin details needed to detect mixed-content and local-dev conditions. */
+export interface PageLocation {
+  readonly protocol: PageProtocol;
+  readonly hostname: PageHostname;
+}
 
 export function resolveSignaling(
   raw: string | undefined,
-  loc: { protocol: string; hostname: string },
+  loc: PageLocation,
 ): SignalingResolution {
   const isLocalHost = LOCAL_HOSTS.has(loc.hostname);
   const isSecurePage = loc.protocol === 'https:';
-  // list() is shared across signaling/STUN/TURN; brand the result here, at the
-  // point we've decided these strings are signaling URLs.
-  const servers = list(raw) as SignalingUrl[];
+  // list() is shared across signaling/STUN/TURN; parse each entry here, dropping
+  // anything that isn't a real ws/wss URL.
+  const servers = list(raw)
+    .map(parseSignalingUrl)
+    .filter((s): s is SignalingUrl => s !== null);
 
   if (servers.length === 0) {
-    if (isLocalHost) return { servers: [DEFAULT_DEV_SIGNALING as SignalingUrl] };
+    if (isLocalHost) return { servers: [DEFAULT_DEV_SIGNALING] };
     return {
       servers: [],
       warning: "This site isn't set up for real-time sync across devices — nothing you need to do.",
@@ -84,8 +106,8 @@ export function resolveSignaling(
 }
 
 export interface WebsocketResolution {
-  /** Collaboration server URL, or '' when the websocket transport is not selected. */
-  readonly url: WebsocketUrl | '';
+  /** Collaboration server URL, absent when the websocket transport is not configured. */
+  readonly url?: WebsocketUrl;
   /** Human-readable problem to surface, or undefined when the config is sound. */
   readonly warning?: string;
 }
@@ -104,19 +126,17 @@ export function resolveTransport(raw: string | undefined): CollabTransport {
 }
 
 /**
- * Validate the y-websocket (hub) URL, used when the transport is `websocket`.
- * Like signaling, an insecure ws:// URL on an https:// page is blocked by the
- * browser as mixed content; `url` is '' when none is configured.
+ * Parse the y-websocket (hub) URL, used when the transport is `websocket`.
+ * `url` is absent when none is configured or the value isn't a ws/wss URL.
+ * An insecure ws:// URL parses fine but is flagged below: the browser blocks it
+ * as mixed content on an https:// page, yet it's still the configured URL.
  */
 export function resolveWebsocket(
   raw: string | undefined,
-  loc: { protocol: string },
+  loc: Pick<PageLocation, 'protocol'>,
 ): WebsocketResolution {
-  const trimmed = (raw ?? '').trim();
-  if (!trimmed) return { url: '' };
-  // Validated as a hub URL from here on — brand it (insecure ws:// included; the
-  // warning below flags it, but it's still the configured collaboration URL).
-  const url = trimmed as WebsocketUrl;
+  const url = parseWebsocketUrl((raw ?? '').trim());
+  if (!url) return {};
 
   if (loc.protocol === 'https:' && url.startsWith('ws://')) {
     return {
@@ -132,45 +152,69 @@ export function resolveWebsocket(
 }
 
 /**
+ * A room's access gate paired with the cipher that encrypts it. Resolved as one
+ * value so each strategy keeps its concrete type end-to-end — in particular the
+ * `secret-link` object, which *is* both ports, is never widened to `RoomAccess`
+ * and cast back to `RoomCipher`.
+ */
+export interface RoomStrategy {
+  readonly access: RoomAccess;
+  readonly cipher: RoomCipher;
+}
+
+/** A cipher whose key material is exactly the access gate's credential, so the
+ *  room is encrypted with the same secret used to admit peers. */
+function sharedKeyCipher(access: RoomAccess): RoomCipher {
+  return { password: (room: RoomId) => access.credential(room) };
+}
+
+/**
+ * Parse `VITE_ROOM_AUTH` into a typed {@link RoomStrategy} — the single place
+ * where the raw env string crosses the domain boundary. Access and cipher are
+ * built together so no strategy loses type information: `secret-link` yields one
+ * {@link SecretLinkPort} object used directly as both ports (no cast). Unknown
+ * values fall back to public + plaintext so a typo never silently breaks
+ * collaboration.
+ */
+export function resolveRoomStrategy(raw: string | undefined): RoomStrategy {
+  switch ((raw ?? '').trim().toLowerCase()) {
+    case 'site-password': {
+      const access = sitePassword(import.meta.env.VITE_ROOM_PASSWORD ?? '');
+      return { access, cipher: sharedKeyCipher(access) };
+    }
+    case 'room-password': {
+      const access = roomPassword();
+      return { access, cipher: sharedKeyCipher(access) };
+    }
+    case 'secret-link': {
+      const link: SecretLinkPort = secretLink();
+      return { access: link, cipher: link };
+    }
+    default:
+      return { access: publicAccess(), cipher: plaintext() };
+  }
+}
+
+/** Parse the default room from `VITE_DEFAULT_ROOM` — the single cast site for the default RoomId. */
+export function resolveDefaultRoom(raw: string | undefined): RoomId {
+  return parseRoomId(raw ?? '') ?? DEFAULT_ROOM_NAME;
+}
+
+/** ICE server environment variables read at startup for WebRTC NAT traversal. */
+export interface IceEnv {
+  VITE_STUN_URL?: string;
+  VITE_TURN_URL?: string;
+  VITE_TURN_USERNAME?: string;
+  VITE_TURN_CREDENTIAL?: string;
+}
+
+/**
  * Build the ICE server list for WebRTC. A public STUN server is enough for most
  * home/office NATs; a TURN relay is needed for restrictive networks — notably
  * mobile carriers (CGNAT / symmetric NAT), where STUN alone fails and
  * desktop↔phone sessions never connect.
  */
-/**
- * Parse `VITE_ROOM_AUTH` into a typed {@link RoomAccess} — the single place
- * where the raw env string crosses the domain boundary. Unknown values fall
- * back to `publicAccess` so a typo never silently breaks collaboration.
- */
-export function resolveRoomAccess(raw: string | undefined): RoomAccess {
-  switch ((raw ?? '').trim().toLowerCase()) {
-    case 'site-password': return sitePassword(import.meta.env.VITE_ROOM_PASSWORD ?? '');
-    case 'room-password': return roomPassword();
-    case 'secret-link':  return secretLink();
-    default:             return publicAccess();
-  }
-}
-
-/**
- * Derive the {@link RoomCipher} that pairs with the given {@link RoomAccess}.
- *
- * - `secretLink` implements both ports — cast it through.
- * - `public` → no encryption.
- * - `site-password` / `room-password` → delegate to `access.credential(room)`
- *   so the cipher always uses the same key material as the access gate.
- */
-export function resolveRoomCipher(access: RoomAccess): RoomCipher {
-  if (access.mode === 'secret-link') return access as unknown as RoomCipher;
-  if (access.mode === 'public')      return plaintext();
-  return { password: (room: RoomId) => access.credential(room) };
-}
-
-export function resolveIceServers(env: {
-  VITE_STUN_URL?: string;
-  VITE_TURN_URL?: string;
-  VITE_TURN_USERNAME?: string;
-  VITE_TURN_CREDENTIAL?: string;
-}): RTCIceServer[] {
+export function resolveIceServers(env: IceEnv): RTCIceServer[] {
   const servers: RTCIceServer[] = [];
 
   // VITE_STUN_URL="" (explicitly empty) disables the STUN default on purpose.

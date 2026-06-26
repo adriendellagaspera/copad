@@ -7,6 +7,7 @@ import {
 import { schema } from '../editor/schema.js';
 import { writePmDoc, readPmDoc } from './pm.js';
 import type { Codec } from './types.js';
+import { extensionOf } from './types.js';
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -42,7 +43,7 @@ const serializer = new MarkdownSerializer(defaultMarkdownSerializer.nodes, {
 export const markdownCodec: Codec = {
   id: 'markdown',
   label: 'Markdown',
-  extensions: ['.md', '.markdown'],
+  extensions: ['.md', '.markdown'].map(extensionOf),
 
   decode(bytes, doc) {
     const parsed = parser.parse(decoder.decode(bytes));

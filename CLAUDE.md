@@ -25,6 +25,7 @@ Storage adapters return `{ auth: StorageAuth; storage: Storage }` — auth and b
 | `dropboxStorage()` | `src/storage/dropbox.ts` | OAuth2 PKCE, no proxy needed |
 | `pcloudStorage()` | `src/storage/pcloud.ts` | OAuth popup |
 | `webdavStorage()` | `src/storage/webdav.ts` | Requires `VITE_PROXY_URL` (CORS) |
+| `githubStorage()` | `src/storage/github.ts` | Commits to a GitHub repo via PAT; `contentFormat` is `'text'` for human-readable files, `'binary'` for `.yjs`. |
 | `localFsStorage()` | `src/storage/local.ts` | File System Access API, Chrome/Edge only |
 | `webrtcCollab()` | `src/collaboration/webrtc.ts` | y-webrtc peer-to-peer transport (**default**). Needs STUN, plus TURN on mobile/symmetric NAT. |
 | `websocketCollab()` | `src/collaboration/websocket.ts` | y-websocket hub transport (opt-in via `VITE_COLLAB_TRANSPORT=websocket`). Central relay, **no WebRTC → no STUN/TURN**; server is in the data path (no E2E). |
@@ -41,7 +42,7 @@ Room access adapters (all in `src/collaboration/roomAccess.ts` / `roomCipher.ts`
 | `secretLink()` | `RoomAccess` + `RoomCipher` | URL-fragment key (`#k=…`); dual-port — the key is simultaneously the access gate and the AES encryption key |
 | `plaintext()` | `RoomCipher` | No encryption (`password()` returns `null`) |
 
-`resolveRoomAccess(VITE_ROOM_AUTH)` parses the env var and returns the right `RoomAccess`. `resolveRoomCipher(access)` derives the matching `RoomCipher`. Both live in `src/collaboration/config.ts`.
+`resolveRoomStrategy(VITE_ROOM_AUTH)` parses the env var once and returns a `RoomStrategy` — the `{ access, cipher }` pair built **together** so each strategy keeps its concrete type end-to-end. In particular the `secret-link` dual-port object is assigned directly to both fields (no widen-to-`RoomAccess`-then-cast-back-to-`RoomCipher`). Lives in `src/collaboration/config.ts`.
 
 Both adapters share `createCollabCore()` (`src/collaboration/core.ts`) — the transport-agnostic half of a `Collab`: status/synced subscriber fan-out, the `connecting → waiting → connected` machine, online/offline reactivity, the local-cache lifecycle, and teardown. Each adapter supplies only provider wiring + two hooks (`isAttached()`, `peerCount()`); the duplicated boilerplate lives in one place.
 
@@ -49,7 +50,7 @@ Both adapters share `createCollabCore()` (`src/collaboration/core.ts`) — the t
 
 `App.svelte` owns all construction and configuration:
 - calls `backends()` to get the available `StorageBackend` pairs (`{ auth, storage }`)
-- resolves `roomAccess = resolveRoomAccess(VITE_ROOM_AUTH)` and `roomCipher = resolveRoomCipher(roomAccess)` at startup
+- resolves `{ access: roomAccess, cipher: roomCipher } = resolveRoomStrategy(VITE_ROOM_AUTH)` at startup
 - calls `resolveCollab()` — returns `webrtcCollab({ signaling, cipher, iceServers })` by default, or `websocketCollab({ url })` when `VITE_COLLAB_TRANSPORT=websocket` — to get a `CollabConnect` function (and any config warning to surface)
 - passes both down to `Editor.svelte` as props; Editor receives only the bytes-only `Storage` half (never `StorageAuth`)
 - renders the storage **pills** + connect *action zone*, and the `Settings.svelte` drawer
@@ -80,6 +81,101 @@ The `StorageAuth` port separates two concerns:
 
 Backends that need neither (Local) omit both. Each backend's front-page **pill** reflects `statusOf()`: `unavailable` → `setup` (missing config) → `ready` → `connected`.
 
+### Constants & deployment config
+
+No magic literal lives buried in business logic. Deployment-relevant constants — endpoints, defaults, timeouts, folder paths, and the localStorage keys each vertical owns — are centralized in a **config/constants module per vertical**, and read a `VITE_*` env override where deployments legitimately vary:
+- `src/config.ts` — app-global: the storage **namespace** (`APP_NAMESPACE` / `nsKey()`, default `copad`). Overridable via `VITE_APP_NAMESPACE` so two deployments on one origin can isolate their `copad:`-namespaced state. The no-flash script in `index.html` can't read env at runtime, so it's kept in sync at *build* time by the `inject-app-namespace` plugin in `vite.config.ts` (same default).
+- `src/collaboration/constants.ts` — signaling/STUN/room defaults, local-dev hostnames, cache + room-password keys.
+- `src/storage/constants.ts` — backend endpoint URLs/hosts/paths, the shared cloud folder, GitHub API base, OAuth popup tuning + redirect, base64 chunk size, default filenames, and backend identity. `STORAGE_ID` (built by the `storageIds()` brander) is the single source of truth for backend ids — adapters and keys derive from it, so each `as StorageId` cast lives in exactly one place. Every persisted key is built by `backendKey(id, purpose: KeyPurpose)` as a uniform `storage.<id>.<purpose>`. `KeyPurpose` is a union of the fixed singleton slots (`filename`, `token`, `session`, `conf`, `validated` — typo-checked at call sites) plus a branded `ConfigFieldName` open arm for adapter-defined config fields, branded once at the configStore boundary. Each endpoint/host/path/tunable reads a `VITE_*` override (via the `envStr` / `envInt` helpers) so a deployment can react to a provider rotating a domain or a regional split (pCloud US/EU) without a rebuild.
+
+The only constants with **no** env override are the per-backend localStorage **key strings** (`storage.<id>.*`, `collab.room-password.*` — pure identity; changing them just orphans saved state with no deployment benefit) and the GitHub default branch (already deployment-settable via the `branch` config field's `VITE_GITHUB_BRANCH` lock). Changing `VITE_APP_NAMESPACE` on a *live* deployment likewise orphans `copad:`-namespaced state — it's a set-once-at-deploy knob.
+
+## Type system principles
+
+Four interlocking principles keep the type system honest end-to-end.
+
+### 1. Screaming names
+
+Every domain concept gets a named type whose name makes its meaning obvious under `grep`. Never let a bare `string` or `number` represent a domain value inside core logic.
+
+```typescript
+// src/collaboration/types.ts
+export type RoomId       = string & { readonly _brand: 'RoomId' };
+export type DisplayName  = string & { readonly _brand: 'DisplayName' };
+export type CursorColor  = string & { readonly _brand: 'CursorColor' };
+export type SignalingUrl = string & { readonly _brand: 'SignalingUrl' };
+```
+
+The intersection `string & { readonly _brand: '…' }` is the brand pattern — it carries no runtime cost and blocks accidental assignments. All brands follow this exact shape. Other examples: `StorageId`, `Filename`, `FileExtension` (`src/format/types.ts`), `CacheDbName`, `LocalCacheEnabled` (`src/collaboration/cache.ts`).
+
+IO-boundary casts (`'value' as BrandType`) are the **only** permitted entry points into a branded type.
+
+### 2. Domain-Driven Design with hexagonal architecture
+
+Ports are TypeScript interfaces that define what the domain needs; adapters implement them without the domain knowing. See the Architecture section above for the full port/adapter table.
+
+The type system enforces the boundary: `Editor.svelte` receives only the `Storage` port — never a concrete adapter, never `StorageAuth`. `CollabConnect` is typed as `(room: RoomId) => Collab`; Editor cannot reach through it to y-webrtc or y-websocket internals.
+
+Discriminated unions model domain states: `StorageAvailability` (`src/storage/types.ts`) uses `{ ok: true } | { ok: false; reason: string }` so callers must handle both arms. `SlashState` (`src/editor/ui/slashMenu.ts`) uses `SlashClosed | SlashOpen` — narrowing on `active` gives exclusive access to the fields that only make sense when the menu is open.
+
+### 3. Parse, don't validate
+
+Data is parsed **once** at the IO boundary into a rich type. Internal code trusts the type and never re-validates. A function that returns `boolean` is a validator; a function that returns the domain type (or throws) is a parser.
+
+```typescript
+// src/collaboration/parse.ts — single cast site for network peer data
+export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
+  // all field access guarded here; safe fallbacks for malformed data
+  const name: DisplayName = (typeof nameRaw === 'string' && nameRaw.trim())
+    ? nameRaw.trim() as DisplayName
+    : FALLBACK_NAME;
+  // …
+}
+```
+
+Each vertical keeps its IO-boundary parsers in a dedicated `parse.ts` file:
+- `src/collaboration/parse.ts` — network peer state (`parsePeerAwarenessState`), localStorage room ids/credentials/cache flag (`parseRoomId`, `parseRoomCredential`, `parseRoomList`, `parseLocalCacheEnabled`)
+- `src/storage/parse.ts` — stored sessions + API JSON + postMessage (`parseWebDavConf`, `parsePCloudSession`, `parseGitHubLoadResponse`, `parseOAuthCode`, `parseRepo`, `parseBranch`, …)
+- `src/editor/parse.ts` — ProseMirror node/mark attrs (`headingLevel`, `linkHref`)
+- `src/editor/ui/slashMenu.ts` — slash plugin transaction meta (`getSlashMeta`, co-located with `slashKey` to avoid a circular dep)
+
+Operator-injectable peer defaults (`FALLBACK_NAME`, `FALLBACK_COLOR`) live in `src/collaboration/peerDefaults.ts` — they read `VITE_FALLBACK_NAME` / `VITE_FALLBACK_COLOR` and validate before branding, so they are the only env-var cast site for those two values.
+
+**`localStorage` is abstracted entirely behind the persistence primitive** in `src/persistence/local.ts`: `localStore<T>(key, parse, serialize)` is the *single* module that touches `localStorage`. A store binds a `StorageKey` to a parser and serializer, so domain code only calls `.read()` / `.write()` / `.clear()` — it never sees `localStorage` *or* a parse function. The cache prefs (`cache.ts`), per-room password (`roomAccess.ts`), backend config/filename (`storage/config.ts`, `storage/filename.ts`), OAuth tokens/sessions/validation (`dropbox.ts`, `pcloud.ts`, `webdav.ts`, `github.ts`), and theme (`ui/theme.svelte.ts`) all go through it. (The one exception is the no-flash theme script inlined in `index.html`, which can't import modules.)
+
+IO boundaries in this codebase and how each is handled:
+
+| Boundary | How parsed |
+|----------|-----------|
+| Env vars (`import.meta.env.*`) | `resolveSignaling()`, `resolveTransport()`, etc. in `src/collaboration/config.ts`; per-vertical constants in `src/collaboration/constants.ts` / `src/storage/constants.ts`; peer defaults in `src/collaboration/peerDefaults.ts` — all return branded/typed values |
+| `localStorage` reads/writes | the `localStore<T>` primitive in `src/persistence/local.ts` — binds a key to a parser + serializer; the only module touching `localStorage` |
+| URL params | cast in `App.svelte` at the single entry point (e.g. `?room=` → `RoomId`) |
+| Network peer awareness | `parsePeerAwarenessState(raw: unknown)` in `src/collaboration/parse.ts` |
+| ProseMirror node/mark attrs (`any`) | typed accessors in `src/editor/parse.ts` and `getSlashMeta` in `src/editor/ui/slashMenu.ts` |
+| User form input | stays `string` until accepted into the domain by a login/connect function |
+| External API JSON | parse function in the vertical's `parse.ts` (e.g. `parseGitHubLoadResponse`), narrowing `await res.json()` typed as `unknown` |
+| postMessage (OAuth popup) | `parseOAuthCode(data: unknown)` in `src/storage/parse.ts` |
+| Filename from browser API | `handle?.name as Filename` inside `localFsStorage()` in `src/storage/local.ts` |
+
+### 4. Strong typing end-to-end — no primitives at internal boundaries
+
+`string`, `number`, `boolean`, `Record`, `object`, and `{}` are only permitted at IO boundaries. Every internal function signature uses named types:
+
+```typescript
+// src/format/types.ts — extensionOf is a parser, not a validator
+export function extensionOf(filename: string): FileExtension {
+  const dot = filename.lastIndexOf('.');
+  return (dot === -1 ? '' : filename.slice(dot).toLowerCase()) as FileExtension;
+}
+
+// src/collaboration/cache.ts — cacheDbName produces a branded DB name (cast at the namespacing boundary)
+export function cacheDbName(room: RoomId): CacheDbName {
+  return `${CACHE_DB_PREFIX}${room}` as CacheDbName;
+}
+```
+
+This applies to function parameters, return types, object fields, and Svelte component `$props()`. The compiler then catches misuse — passing a raw `string` where a `RoomId` is expected is a type error, not a runtime surprise.
+
 ## Naming conventions
 
 This codebase uses **functional naming** — no OO suffixes.
@@ -104,14 +200,31 @@ This codebase uses **functional naming** — no OO suffixes.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
+| `VITE_APP_NAMESPACE` | no | Prefix for the app's `copad:`-namespaced browser state — theme + local cache (default: `copad`). Set once per deploy to isolate two deployments on one origin; the no-flash `index.html` script is synced at build time by the `inject-app-namespace` Vite plugin. |
 | `VITE_COLLAB_TRANSPORT` | no | Collaboration transport: `webrtc` (default) or `websocket`. **Chosen explicitly** (not inferred from any URL) — `resolveTransport()` in `src/collaboration/config.ts`. |
 | `VITE_SIGNALING_URL` | no | WebRTC signaling server(s), comma-separated. `ws://localhost:4444` default applies **only on a local host**; on a deployed origin it's empty (warning banner shown) — must be `wss://` (browsers block `ws://` from https as mixed content). Resolved by `resolveSignaling()` in `src/collaboration/config.ts`. Used only on the WebRTC transport. |
 | `VITE_WEBSOCKET_URL` | no | y-websocket hub URL, used when `VITE_COLLAB_TRANSPORT=websocket` (central relay, no STUN/TURN — works on mobile NAT; server sees plaintext, so no E2E). Setting it alone does NOT switch transports. Must be `wss://` on a deployed origin. Resolved by `resolveWebsocket()` in `src/collaboration/config.ts`. |
-| `VITE_ROOM_AUTH` | no | Room access + encryption strategy: `public` (default, no password), `site-password`, `room-password`, or `secret-link`. Parsed by `resolveRoomAccess()` in `src/collaboration/config.ts`. |
+| `VITE_ROOM_AUTH` | no | Room access + encryption strategy: `public` (default, no password), `site-password`, `room-password`, or `secret-link`. Parsed by `resolveRoomStrategy()` in `src/collaboration/config.ts`. |
 | `VITE_ROOM_PASSWORD` | no | Site-wide password used when `VITE_ROOM_AUTH=site-password`. Feeds y-webrtc AES encryption (WebRTC transport only; WebSocket hub is plaintext by design). |
 | `VITE_DEFAULT_ROOM` | no | Default landing room name when the URL has no `?room=` (default: `copad-demo`) |
+| `VITE_FALLBACK_NAME` | no | Display name shown for peers whose awareness state has no name (default: `Anonymous`). Parsed in `src/collaboration/peerDefaults.ts`. |
+| `VITE_FALLBACK_COLOR` | no | Cursor colour for peers with no colour set — must be a 6-digit hex (`#rrggbb`); invalid values fall back to `#888888`. Parsed in `src/collaboration/peerDefaults.ts`. |
 | `VITE_DROPBOX_APP_KEY` | no | Locks the Dropbox app key; otherwise set it at runtime in Settings |
 | `VITE_PCLOUD_CLIENT_ID` | no | Locks the pCloud client id; otherwise set it at runtime in Settings |
+| `VITE_GITHUB_REPO` | no | Locks the GitHub repository (`owner/repo`); otherwise set at runtime in Settings |
+| `VITE_GITHUB_BRANCH` | no | Locks the GitHub branch (default: `main`); otherwise set at runtime in Settings |
+| `VITE_GITHUB_TOKEN` | no | Locks the GitHub PAT; bypasses the Connect validation step (deployment-managed) |
+| `VITE_GITHUB_API_URL` | no | GitHub REST API base (default: `https://api.github.com`); set for a GitHub Enterprise host. In `src/storage/constants.ts`. |
+| `VITE_CLOUD_FOLDER` | no | Folder the cloud backends (Dropbox, pCloud) read/write within (default: `/copad`). In `src/storage/constants.ts`. |
+| `VITE_DEFAULT_FILENAME` | no | Initial target filename for cloud backends (default: `document.yjs`); the extension selects the codec. |
+| `VITE_GITHUB_DEFAULT_FILENAME` | no | Initial GitHub target file (default: `notes.md`). |
+| `VITE_REDIRECT_URI` | no | OAuth redirect URI (default: `<origin>/redirect.html`). In `src/storage/constants.ts`. |
+| `VITE_DROPBOX_AUTH_URL` / `VITE_DROPBOX_TOKEN_URL` / `VITE_DROPBOX_UPLOAD_URL` / `VITE_DROPBOX_DOWNLOAD_URL` | no | Dropbox OAuth/content endpoint overrides (defaults are the public dropbox.com / dropboxapi.com URLs). For when Dropbox rotates a domain. |
+| `VITE_PCLOUD_API_HOST` / `VITE_PCLOUD_EU_API_HOST` | no | pCloud API hosts (defaults: `api.pcloud.com` / `eapi.pcloud.com`). Override for a region change. |
+| `VITE_PCLOUD_GETFILELINK_PATH` / `VITE_PCLOUD_UPLOAD_PATH` | no | pCloud API paths (defaults: `/getfilelink` / `/uploadfile`). |
+| `VITE_OAUTH_TIMEOUT_MS` | no | How long to wait for the OAuth popup before giving up (default: `300000`). |
+| `VITE_OAUTH_POPUP_FEATURES` | no | OAuth popup window features (default: `width=520,height=640`). |
+| `VITE_BASE64_CHUNK` | no | Chunk size for base64-encoding large GitHub uploads (default: `32768`). |
 | `VITE_PROXY_URL` | for WebDAV | CORS proxy URL |
 | `VITE_WEBDAV_URL` | no | Pre-fill the WebDAV URL input |
 | `VITE_STORAGE_BACKEND` | no | Default storage backend id |

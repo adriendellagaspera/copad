@@ -76,3 +76,4 @@ export interface Collab {
 }
 
 export type CollabConnect = (room: RoomId) => Collab;
+

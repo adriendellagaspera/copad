@@ -2,6 +2,7 @@ import { pcloudStorage } from './pcloud.js';
 import { dropboxStorage } from './dropbox.js';
 import { webdavStorage } from './webdav.js';
 import { localFsStorage } from './local.js';
+import { githubStorage } from './github.js';
 import type { Storage } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { directFetch } from '../network/direct.js';
@@ -19,14 +20,15 @@ export interface StorageBackend {
 
 /** Returns all storage backends available in this environment. */
 export function backends(): StorageBackend[] {
-  const proxyUrl = import.meta.env.VITE_PROXY_URL as string | undefined;
+  const proxyUrl = import.meta.env.VITE_PROXY_URL;
   const netFetch = proxyUrl ? proxiedFetch(proxyUrl) : directFetch;
 
   return [
     pcloudStorage(netFetch),
     dropboxStorage(),
     webdavStorage(netFetch),
-    // Always offer local-file storage; it self-reports unavailableReason when
+    githubStorage(),
+    // Always offer local-file storage; it self-reports availability.ok=false when
     // the File System Access API is absent (e.g. Firefox, Safari, Brave Shields).
     localFsStorage(),
   ];

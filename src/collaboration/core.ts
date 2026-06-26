@@ -44,7 +44,7 @@ export function createCollabCore(opts: CollabCoreOptions): CollabCore {
 
   // Local cache: keeps the doc across reloads even with no storage backend.
   const cache: LocalCache | undefined = opts.cache
-    ? attachLocalCache(opts.room as string, opts.doc)
+    ? attachLocalCache(opts.room, opts.doc)
     : undefined;
 
   // Being attached to the server does NOT imply a peer is present, so we report

@@ -1,5 +1,6 @@
 import type { Node as PMNode, Mark } from 'prosemirror-model';
 import { schema } from './schema.js';
+import { headingLevel, linkHref } from './parse.js';
 
 /** Serialize inline content (text + marks) of a textblock to Markdown. */
 function serializeInline(node: PMNode): string {
@@ -20,7 +21,7 @@ function serializeInline(node: PMNode): string {
       if (has('em')) text = `*${text}*`;
       if (has('strike')) text = `~~${text}~~`;
     }
-    if (link) text = `[${text}](${link.attrs.href})`;
+    if (link) { const href = linkHref(link); if (href) text = `[${text}](${href})`; }
     out += text;
   });
   return out;
@@ -32,7 +33,7 @@ function serializeBlock(node: PMNode, indent = ''): string {
     case 'paragraph':
       return indent + serializeInline(node);
     case 'heading':
-      return `${'#'.repeat(node.attrs.level as number)} ${serializeInline(node)}`;
+      return `${'#'.repeat(headingLevel(node))} ${serializeInline(node)}`;
     case 'blockquote':
       return serializeChildren(node, indent)
         .split('\n')

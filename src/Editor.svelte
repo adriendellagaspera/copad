@@ -28,6 +28,7 @@
     CursorColor,
     PeerAwarenessState,
   } from './collaboration/types.js';
+  import { parsePeerAwarenessState } from './collaboration/parse.js';
 
   type Props = {
     storage: Storage | null;
@@ -86,16 +87,24 @@
   });
 
   // ── Presence (derived from awareness) ──────────────────────────────────────
+  // Parse each raw awareness entry from peers at the IO boundary.
+  const parsedStates = (): ReadonlyMap<number, PeerAwarenessState> => {
+    const result = new Map<number, PeerAwarenessState>();
+    collab.awareness.getStates().forEach((raw, id) => {
+      result.set(id, parsePeerAwarenessState(raw));
+    });
+    return result;
+  };
+
   const readUsers = (): PeerUser[] => {
-    const states = collab.awareness.getStates();
+    const states = parsedStates();
     const selfId = collab.doc.clientID;
     const list: PeerUser[] = [];
     states.forEach((state, id) => {
-      const u = (state as { user?: { name?: string; color?: string } }).user;
       list.push({
         id,
-        name: u?.name || 'Anonymous',
-        color: u?.color || '#888888',
+        name: state.user.name,
+        color: state.user.color,
         self: id === selfId,
       });
     });
@@ -154,7 +163,7 @@
   // allowing a peer without storage access (e.g. a SharePoint guest) to have
   // their edits relayed and persisted by an authenticated leader.
   const isLeader = (): boolean => {
-    const states = collab.awareness.getStates() as unknown as ReadonlyMap<number, PeerAwarenessState>;
+    const states = parsedStates();
     const persisterIds = [...states.entries()]
       .filter(([, s]) => s.canPersist)
       .map(([id]) => id);

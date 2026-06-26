@@ -103,7 +103,7 @@ describe('webdavStorage', () => {
   });
 
   it('logout clears config', () => {
-    localStorage.setItem('storage.webdav', JSON.stringify({ baseUrl: 'x', auth: 'y' }));
+    localStorage.setItem('storage.webdav.conf', JSON.stringify({ baseUrl: 'x', auth: 'y' }));
     auth.logout();
     expect(auth.isAuthenticated()).toBe(false);
   });
@@ -128,13 +128,13 @@ describe('webdavStorage', () => {
   });
 
   it('load returns null on 404', async () => {
-    localStorage.setItem('storage.webdav', JSON.stringify({ baseUrl: 'https://x', auth: 'y' }));
+    localStorage.setItem('storage.webdav.conf', JSON.stringify({ baseUrl: 'https://x', auth: 'y' }));
     mockFetch.mockResolvedValueOnce({ status: 404, ok: false } as Response);
     expect(await storage.load()).toBeNull();
   });
 
   it('save calls PUT', async () => {
-    localStorage.setItem('storage.webdav', JSON.stringify({ baseUrl: 'https://x', auth: 'y' }));
+    localStorage.setItem('storage.webdav.conf', JSON.stringify({ baseUrl: 'https://x', auth: 'y' }));
     mockFetch.mockResolvedValueOnce({ status: 201, ok: true } as Response);
     await storage.save({ format: 'binary', bytes: new Uint8Array([1, 2, 3]) });
     expect(mockFetch).toHaveBeenCalledWith(

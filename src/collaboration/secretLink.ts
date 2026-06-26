@@ -1,6 +1,7 @@
 import type { RoomId } from './types.js';
 import type { RoomAccess, RoomCredential } from './roomAccess.js';
 import type { RoomCipher } from './roomCipher.js';
+import { parseRoomCredential } from './parse.js';
 
 /**
  * Dual-port type: `secretLink()` satisfies both {@link RoomAccess} and
@@ -14,8 +15,7 @@ const FRAGMENT_KEY = 'k';
 function parseKey(): RoomCredential | null {
   if (typeof location === 'undefined') return null;
   const params = new URLSearchParams(location.hash.slice(1));
-  const v = params.get(FRAGMENT_KEY);
-  return v ? (v as RoomCredential) : null;
+  return parseRoomCredential(params.get(FRAGMENT_KEY));
 }
 
 function writeKey(key: RoomCredential): void {

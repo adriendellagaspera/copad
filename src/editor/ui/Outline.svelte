@@ -2,6 +2,7 @@
   import type { EditorView } from 'prosemirror-view';
   import type { EditorState } from 'prosemirror-state';
   import { TextSelection } from 'prosemirror-state';
+  import { headingLevel } from '../parse.js';
 
   let { view, editorState }: { view: EditorView | null; editorState: EditorState | null } =
     $props();
@@ -17,7 +18,7 @@
     const list: Heading[] = [];
     editorState.doc.descendants((node, pos) => {
       if (node.type.name === 'heading') {
-        list.push({ level: node.attrs.level as number, text: node.textContent || 'Untitled', pos });
+        list.push({ level: headingLevel(node), text: node.textContent || 'Untitled', pos });
       }
     });
     return list;
