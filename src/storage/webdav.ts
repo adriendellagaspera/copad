@@ -1,12 +1,12 @@
-import type { Storage, CredentialField, SessionCredentials, DocContent, StorageId } from './types.js';
+import type { Storage, CredentialField, SessionCredentials, DocContent } from './types.js';
 import type { StorageAuth } from './auth.js';
 import type { Fetch } from '../network/types.js';
 import { filenameStore } from './filename.js';
 import { type WebDavConf, parseWebDavConf } from './parse.js';
 import { localStore } from '../persistence/local.js';
-import { WEBDAV_KEY } from './constants.js';
+import { STORAGE_ID, WEBDAV_KEY } from './constants.js';
 
-const fileName = filenameStore('webdav' as StorageId);
+const fileName = filenameStore(STORAGE_ID.webdav);
 const confStore = localStore<WebDavConf | null>(
   WEBDAV_KEY,
   parseWebDavConf,
@@ -58,7 +58,7 @@ export function webdavStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
   };
 
   const storage: Storage = {
-    id: 'webdav' as StorageId,
+    id: STORAGE_ID.webdav,
     label: 'WebDAV / Nextcloud',
     blurb: 'Saves to any WebDAV server (Nextcloud, ownCloud…) using a login.',
     availability: { ok: true },

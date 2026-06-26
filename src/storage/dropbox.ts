@@ -1,4 +1,4 @@
-import type { Storage, DocContent, StorageId } from './types.js';
+import type { Storage, DocContent } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
@@ -6,6 +6,7 @@ import { pkceChallenge, openOAuthPopup } from './oauth.js';
 import { parseDropboxTokenResponse } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import {
+  STORAGE_ID,
   CLOUD_FOLDER,
   DROPBOX_AUTH_URL,
   DROPBOX_TOKEN_URL,
@@ -15,12 +16,12 @@ import {
   oauthRedirectUri,
 } from './constants.js';
 
-const fileName = filenameStore('dropbox' as StorageId);
+const fileName = filenameStore(STORAGE_ID.dropbox);
 const filePath = () => `${CLOUD_FOLDER}/${fileName.get()}`;
 const tokenStore = localStore<string | null>(DROPBOX_TOKEN_KEY, (raw) => raw, (v) => v);
 
 // Persisted under `storage.dropbox.appKey` — same key the old connect form used.
-const cfg = configStore('dropbox' as StorageId, [
+const cfg = configStore(STORAGE_ID.dropbox, [
   {
     name: 'appKey',
     label: 'App key',
@@ -88,7 +89,7 @@ export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
   };
 
   const storage: Storage = {
-    id: 'dropbox' as StorageId,
+    id: STORAGE_ID.dropbox,
     label: 'Dropbox',
     blurb: 'Saves to an app folder in your Dropbox via OAuth.',
     availability: { ok: true },

@@ -1,4 +1,4 @@
-import type { Storage, DocContent, StorageId } from './types.js';
+import type { Storage, DocContent } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
@@ -13,9 +13,11 @@ import {
   parseGitHubLoadResponse,
 } from './parse.js';
 import {
+  STORAGE_ID,
   GITHUB_API_URL,
   GITHUB_VALIDATED_KEY,
   GITHUB_DEFAULT_FILENAME,
+  GITHUB_DEFAULT_BRANCH,
   BASE64_CHUNK,
 } from './constants.js';
 
@@ -42,9 +44,9 @@ export type GitHubFileSha = string & { readonly _brand: 'GitHubFileSha' };
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const fileName = filenameStore('github' as StorageId, GITHUB_DEFAULT_FILENAME);
+const fileName = filenameStore(STORAGE_ID.github, GITHUB_DEFAULT_FILENAME);
 
-const cfg = configStore('github' as StorageId, [
+const cfg = configStore(STORAGE_ID.github, [
   {
     name: 'repo',
     label: 'Repository',
@@ -55,8 +57,8 @@ const cfg = configStore('github' as StorageId, [
   {
     name: 'branch',
     label: 'Branch',
-    placeholder: 'main',
-    help: 'Branch to commit to. Leave empty for the default branch (main).',
+    placeholder: GITHUB_DEFAULT_BRANCH,
+    help: `Branch to commit to. Leave empty for the default branch (${GITHUB_DEFAULT_BRANCH}).`,
     env: import.meta.env.VITE_GITHUB_BRANCH,
   },
   {
@@ -201,7 +203,7 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
   // ── Storage ───────────────────────────────────────────────────────────────
 
   const storage: Storage = {
-    id: 'github' as StorageId,
+    id: STORAGE_ID.github,
     label: 'GitHub',
     availability: { ok: true },
     blurb:

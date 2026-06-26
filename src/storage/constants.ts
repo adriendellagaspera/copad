@@ -10,8 +10,27 @@
  * and the default filenames/branch (user-facing content, edited in Settings).
  */
 
-import type { Filename } from './types.js';
+import type { Filename, StorageId } from './types.js';
 import { storageKey, type StorageKey } from '../persistence/local.js';
+
+// ── Backend ids (single source of truth) ──────────────────────────────────────
+
+/**
+ * The canonical id for each storage backend. Adapters take their `id`, and the
+ * key scheme below builds their localStorage keys, from here — so the
+ * `as StorageId` cast happens exactly once per backend instead of being re-typed
+ * at every call site (`'dropbox' as StorageId`, `'storage.dropbox.token'`, …).
+ */
+export const STORAGE_ID = {
+  dropbox: 'dropbox' as StorageId,
+  pcloud: 'pcloud' as StorageId,
+  webdav: 'webdav' as StorageId,
+  github: 'github' as StorageId,
+  local: 'local' as StorageId,
+} as const;
+
+/** Root localStorage key for a backend (`storage.<id>`); per-purpose keys append a suffix. */
+const backendKeyRoot = (id: StorageId): string => `storage.${id}`;
 
 // ── Env-override helpers (the env IO boundary for this vertical) ───────────────
 
@@ -48,7 +67,7 @@ export const GITHUB_API_URL = envStr(import.meta.env.VITE_GITHUB_API_URL, 'https
 export const GITHUB_DEFAULT_BRANCH = 'main';
 
 /** Marks a GitHub token as validated (set after a successful GET /user). */
-export const GITHUB_VALIDATED_KEY: StorageKey = storageKey('storage.github.validated');
+export const GITHUB_VALIDATED_KEY: StorageKey = storageKey(`${backendKeyRoot(STORAGE_ID.github)}.validated`);
 
 // ── OAuth redirect ────────────────────────────────────────────────────────────
 
@@ -67,11 +86,11 @@ export const DROPBOX_AUTH_URL = envStr(import.meta.env.VITE_DROPBOX_AUTH_URL, 'h
 export const DROPBOX_TOKEN_URL = envStr(import.meta.env.VITE_DROPBOX_TOKEN_URL, 'https://api.dropboxapi.com/oauth2/token');
 export const DROPBOX_UPLOAD_URL = envStr(import.meta.env.VITE_DROPBOX_UPLOAD_URL, 'https://content.dropboxapi.com/2/files/upload');
 export const DROPBOX_DOWNLOAD_URL = envStr(import.meta.env.VITE_DROPBOX_DOWNLOAD_URL, 'https://content.dropboxapi.com/2/files/download');
-export const DROPBOX_TOKEN_KEY: StorageKey = storageKey('storage.dropbox.token');
+export const DROPBOX_TOKEN_KEY: StorageKey = storageKey(`${backendKeyRoot(STORAGE_ID.dropbox)}.token`);
 
 // ── pCloud ────────────────────────────────────────────────────────────────────
 
-export const PCLOUD_SESSION_KEY: StorageKey = storageKey('storage.pcloud');
+export const PCLOUD_SESSION_KEY: StorageKey = storageKey(backendKeyRoot(STORAGE_ID.pcloud));
 /** Global (US) API host — accounts in location id 1. Overridable if pCloud moves it. */
 export const PCLOUD_API_HOST = envStr(import.meta.env.VITE_PCLOUD_API_HOST, 'api.pcloud.com');
 /** EU API host — accounts in location id 2. */
@@ -83,7 +102,7 @@ export const PCLOUD_UPLOAD_PATH = envStr(import.meta.env.VITE_PCLOUD_UPLOAD_PATH
 
 // ── WebDAV ────────────────────────────────────────────────────────────────────
 
-export const WEBDAV_KEY: StorageKey = storageKey('storage.webdav');
+export const WEBDAV_KEY: StorageKey = storageKey(backendKeyRoot(STORAGE_ID.webdav));
 
 // ── OAuth popup ───────────────────────────────────────────────────────────────
 

@@ -1,6 +1,7 @@
-import type { Storage, StorageAvailability, SessionCredentials, DocContent, StorageId, Filename } from './types.js';
+import type { Storage, StorageAvailability, SessionCredentials, DocContent, Filename } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { knownExtensions } from '../format/index.js';
+import { STORAGE_ID } from './constants.js';
 
 // showOpenFilePicker is part of the File System Access API Living Standard
 // and not yet in TypeScript's lib.dom.d.ts at this version.
@@ -61,7 +62,7 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
   };
 
   const storage: Storage = {
-    id: 'local' as StorageId,
+    id: STORAGE_ID.local,
     label: 'Local file',
     blurb: 'Opens any text or source file on your device — .yjs, .md, .txt, .html, .json, .py, .js, .rs, … (Chrome/Edge).',
     get availability(): StorageAvailability {

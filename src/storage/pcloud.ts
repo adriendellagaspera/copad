@@ -1,5 +1,5 @@
 import pcloudSdk from 'pcloud-sdk-js';
-import type { Storage, DocContent, StorageId } from './types.js';
+import type { Storage, DocContent } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
@@ -7,6 +7,7 @@ import type { Fetch } from '../network/types.js';
 import { type PCloudSession, parsePCloudSession, parsePCloudFileLinkResponse } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import {
+  STORAGE_ID,
   CLOUD_FOLDER,
   PCLOUD_SESSION_KEY,
   PCLOUD_API_HOST,
@@ -15,7 +16,7 @@ import {
   PCLOUD_UPLOAD_PATH,
 } from './constants.js';
 
-const fileName = filenameStore('pcloud' as StorageId);
+const fileName = filenameStore(STORAGE_ID.pcloud);
 const filePath = () => `${CLOUD_FOLDER}/${fileName.get()}`;
 const sessionStore = localStore<PCloudSession | null>(
   PCLOUD_SESSION_KEY,
@@ -24,7 +25,7 @@ const sessionStore = localStore<PCloudSession | null>(
 );
 
 // Persisted under `storage.pcloud.clientId` — same key the old connect form used.
-const cfg = configStore('pcloud' as StorageId, [
+const cfg = configStore(STORAGE_ID.pcloud, [
   {
     name: 'clientId',
     label: 'Client ID',
@@ -70,7 +71,7 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
   };
 
   const storage: Storage = {
-    id: 'pcloud' as StorageId,
+    id: STORAGE_ID.pcloud,
     label: 'pCloud',
     blurb: 'Saves to a /copad folder in your pCloud via OAuth.',
     availability: { ok: true },
