@@ -62,8 +62,15 @@ export const slashKey = new PluginKey<SlashState>('copad-slash');
 
 const INACTIVE: SlashClosed = { active: false, triggerPos: -1, dismissedFrom: -1 };
 
+/** The result of parsing the current editor state for a slash-command trigger. */
+interface SlashParseResult {
+  readonly active: boolean;
+  readonly triggerPos: number;
+  readonly query: string;
+}
+
 /** Detect a `/query` trigger at the cursor (block start or after whitespace). */
-function derive(state: EditorState): { active: boolean; triggerPos: number; query: string } {
+function derive(state: EditorState): SlashParseResult {
   const sel = state.selection;
   if (!sel.empty) return { active: false, triggerPos: -1, query: '' };
   const $from = sel.$from;

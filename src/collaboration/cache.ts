@@ -12,10 +12,14 @@
 
 import type * as Y from 'yjs';
 import { IndexeddbPersistence } from 'y-indexeddb';
+import type { RoomId } from './types.js';
 
 const KEY_ENABLED = 'copad:localCache';
 const KEY_ROOMS = 'copad:cachedRooms';
 const DB_PREFIX = 'copad:';
+
+/** An IndexedDB database name that has passed through {@link cacheDbName} — namespaced under the `copad:` prefix. */
+export type CacheDbName = string & { readonly _brand: 'CacheDbName' };
 
 /** Whether the local document cache is on for a session — a branded boolean so
  *  the adapter `cache` option can't be confused with any other on/off flag. */
@@ -39,22 +43,22 @@ export function setLocalCacheEnabled(on: boolean): void {
 }
 
 /** IndexedDB database name for a room — namespaced so "clear" only touches ours. */
-export function cacheDbName(room: string): string {
-  return DB_PREFIX + room;
+export function cacheDbName(room: RoomId): CacheDbName {
+  return (DB_PREFIX + room) as CacheDbName;
 }
 
-function readRooms(): string[] {
+function readRooms(): RoomId[] {
   try {
     const raw = localStorage.getItem(KEY_ROOMS);
     const list = raw ? JSON.parse(raw) : [];
-    return Array.isArray(list) ? list.filter((r): r is string => typeof r === 'string') : [];
+    return Array.isArray(list) ? list.filter((r): r is string => typeof r === 'string') as RoomId[] : [];
   } catch {
     return [];
   }
 }
 
 /** Record that a room has a local cache, so clearLocalCache() can find it later. */
-export function rememberCachedRoom(room: string): void {
+export function rememberCachedRoom(room: RoomId): void {
   try {
     const rooms = readRooms();
     if (!rooms.includes(room)) {
@@ -101,7 +105,7 @@ export interface LocalCache {
  * This is the single place that touches y-indexeddb — transport adapters just
  * ask for a LocalCache, staying decoupled from the storage mechanism.
  */
-export function attachLocalCache(room: string, doc: Y.Doc): LocalCache {
+export function attachLocalCache(room: RoomId, doc: Y.Doc): LocalCache {
   const idb = new IndexeddbPersistence(cacheDbName(room), doc);
   rememberCachedRoom(room);
   return { destroy: () => void idb.destroy() };

@@ -35,7 +35,7 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
 
     // Local cache: keeps the doc across reloads even with no storage backend.
     const cache: LocalCache | undefined = opts.cache
-      ? attachLocalCache(room as string, doc)
+      ? attachLocalCache(room, doc)
       : undefined;
 
     const statusFns = new Set<(s: ConnStatus) => void>();

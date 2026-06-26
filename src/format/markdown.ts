@@ -6,7 +6,7 @@ import {
 } from 'prosemirror-markdown';
 import { schema } from '../editor/schema.js';
 import { writePmDoc, readPmDoc } from './pm.js';
-import type { Codec } from './types.js';
+import type { Codec, FileExtension } from './types.js';
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -42,7 +42,7 @@ const serializer = new MarkdownSerializer(defaultMarkdownSerializer.nodes, {
 export const markdownCodec: Codec = {
   id: 'markdown',
   label: 'Markdown',
-  extensions: ['.md', '.markdown'],
+  extensions: ['.md', '.markdown'] as FileExtension[],
 
   decode(bytes, doc) {
     const parsed = parser.parse(decoder.decode(bytes));

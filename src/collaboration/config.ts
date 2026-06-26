@@ -34,11 +34,17 @@ export interface SignalingResolution {
   readonly technicalWarning?: string;
 }
 
+/** The page origin details needed to detect mixed-content and local-dev conditions. */
+export interface PageLocation {
+  readonly protocol: string;
+  readonly hostname: string;
+}
+
 const DEFAULT_STUN = 'stun:stun.l.google.com:19302';
 
 export function resolveSignaling(
   raw: string | undefined,
-  loc: { protocol: string; hostname: string },
+  loc: PageLocation,
 ): SignalingResolution {
   const isLocalHost = LOCAL_HOSTS.has(loc.hostname);
   const isSecurePage = loc.protocol === 'https:';
@@ -110,7 +116,7 @@ export function resolveTransport(raw: string | undefined): CollabTransport {
  */
 export function resolveWebsocket(
   raw: string | undefined,
-  loc: { protocol: string },
+  loc: Pick<PageLocation, 'protocol'>,
 ): WebsocketResolution {
   const trimmed = (raw ?? '').trim();
   if (!trimmed) return { url: '' };

@@ -3,9 +3,9 @@ import { textCodec } from './text.js';
 import { markdownCodec } from './markdown.js';
 import { htmlCodec } from './html.js';
 import { jsonCodec } from './json.js';
-import { extensionOf, type Codec } from './types.js';
+import { extensionOf, type Codec, type FileExtension } from './types.js';
 
-export type { Codec };
+export type { Codec, FileExtension };
 export { extensionOf };
 
 /** Every codec Copad can read/write. The first one (`.yjs`) is the native default. */
@@ -15,7 +15,7 @@ export const codecs: Codec[] = [yjsCodec, textCodec, markdownCodec, htmlCodec, j
 export const DEFAULT_CODEC = yjsCodec;
 
 /** Every extension any codec handles, e.g. `['.yjs', '.txt', '.md', …]`. */
-export function knownExtensions(): string[] {
+export function knownExtensions(): FileExtension[] {
   return codecs.flatMap(c => c.extensions);
 }
 
