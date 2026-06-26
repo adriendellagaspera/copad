@@ -31,8 +31,28 @@ function storageIds<const Ids extends readonly string[]>(
 /** The canonical id for each storage backend — the single source of truth. */
 export const STORAGE_ID = storageIds('dropbox', 'pcloud', 'webdav', 'github', 'local');
 
+/**
+ * A config field's name, doubling as the storage sub-key for that field. Adapter-
+ * defined (`repo`, `appKey`, …), so it's the open arm of a {@link KeyPurpose} —
+ * branded once at the configStore boundary rather than enumerated here.
+ */
+export type ConfigFieldName = string & { readonly _brand: 'ConfigFieldName' };
+
+/**
+ * The slot a value persists in under a backend's namespace. The fixed singleton
+ * slots are spelled out so call sites are typo-checked; a {@link ConfigFieldName}
+ * is the open arm for per-field config keys.
+ */
+export type KeyPurpose =
+  | 'token'
+  | 'session'
+  | 'conf'
+  | 'validated'
+  | 'filename'
+  | ConfigFieldName;
+
 /** localStorage key for one of a backend's persisted values: `storage.<id>.<purpose>`. */
-export const backendKey = (id: StorageId, purpose: string): StorageKey =>
+export const backendKey = (id: StorageId, purpose: KeyPurpose): StorageKey =>
   storageKey(`storage.${id}.${purpose}`);
 
 // ── Env-override helpers (the env IO boundary for this vertical) ───────────────
