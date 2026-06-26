@@ -28,7 +28,11 @@
   // WebRTC, so no STUN/TURN — works on mobile carrier NATs where P2P can't connect).
   // Transport + its config are decided once; the cache flag is applied per build
   // so toggling the local cache can rebuild `connect` (and remount the Editor).
-  function planCollab(): { build: (cache: LocalCacheEnabled) => CollabConnect; warning?: string } {
+  function planCollab(): {
+    build: (cache: LocalCacheEnabled) => CollabConnect;
+    warning?: string;
+    technicalWarning?: string;
+  } {
     if (resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket') {
       const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, location);
       if (ws.url) {
@@ -56,11 +60,14 @@
           cache,
         }),
       warning: signaling.warning,
+      technicalWarning: signaling.technicalWarning,
     };
   }
 
   const collabPlan = planCollab();
-  if (collabPlan.warning) console.warn(`Copad: ${collabPlan.warning}`);
+  if (collabPlan.technicalWarning ?? collabPlan.warning) {
+    console.warn(`Copad: ${collabPlan.technicalWarning ?? collabPlan.warning}`);
+  }
   const collabWarning = collabPlan.warning;
 
   // Local document cache (IndexedDB). On by default; the Settings toggle flips it.
@@ -191,8 +198,8 @@
 
 
   {#if collabWarning}
-    <p class="signaling-warning" role="alert">
-      <strong>Real-time collaboration is disabled.</strong> {collabWarning}
+    <p class="signaling-warning" role="note">
+      Collaboration between devices is unavailable on this site. {collabWarning}
     </p>
   {/if}
 
