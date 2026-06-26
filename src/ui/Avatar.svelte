@@ -1,10 +1,12 @@
 <script lang="ts">
+  import type { CursorColor } from '../collaboration/types.js';
+
   let {
     name,
     color,
     size = 28,
     self = false,
-  }: { name: string; color: string; size?: number; self?: boolean } = $props();
+  }: { name: string; color: CursorColor; size?: number; self?: boolean } = $props();
 
   const initials = $derived(
     ((name || 'Anonymous')
