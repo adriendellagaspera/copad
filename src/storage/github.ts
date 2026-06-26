@@ -3,9 +3,30 @@ import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import { extensionOf } from '../format/types.js';
+import { localStore } from '../persistence/local.js';
+import {
+  parseRepo,
+  parseBranch,
+  parseGitHubValidated,
+  parseGitHubErrorBody,
+  parseGitHubCommitResponse,
+  parseGitHubLoadResponse,
+} from './parse.js';
+import {
+  STORAGE_ID,
+  GITHUB_API_URL,
+  GITHUB_VALIDATED_KEY,
+  GITHUB_DEFAULT_FILENAME,
+  GITHUB_DEFAULT_BRANCH,
+  BASE64_CHUNK,
+} from './constants.js';
 
-const API = 'https://api.github.com';
-const VALIDATED_KEY = 'storage.github.validated';
+/** localStorage + parsing for the token-validated flag, abstracted behind read/write/clear. */
+const validated = localStore<boolean>(
+  GITHUB_VALIDATED_KEY,
+  parseGitHubValidated,
+  (on) => (on ? '1' : null),
+);
 
 // ── Branded types ─────────────────────────────────────────────────────────────
 
@@ -21,37 +42,24 @@ export type GitHubBranch = string & { readonly _brand: 'GitHubBranch' };
 /** A file SHA returned by the GitHub Contents API, required to update an existing file. */
 export type GitHubFileSha = string & { readonly _brand: 'GitHubFileSha' };
 
-// ── Parse functions (single point of validation per type) ─────────────────────
-
-/** Accepts `owner/repo` — rejects empty strings, bare names, and multi-segment paths. */
-function parseRepo(raw: string): GitHubRepo | null {
-  const s = raw.trim();
-  return /^[^/\s]+\/[^/\s]+$/.test(s) ? (s as GitHubRepo) : null;
-}
-
-/** Always succeeds — returns `'main'` when the input is empty. */
-function parseBranch(raw: string): GitHubBranch {
-  return (raw.trim() || 'main') as GitHubBranch;
-}
-
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const fileName = filenameStore('github', 'notes.md');
+const fileName = filenameStore(STORAGE_ID.github, GITHUB_DEFAULT_FILENAME);
 
-const cfg = configStore('github', [
+const cfg = configStore(STORAGE_ID.github, [
   {
     name: 'repo',
     label: 'Repository',
     placeholder: 'owner/repo',
     help: 'GitHub repository to save files in (e.g. alice/my-notes).',
-    env: import.meta.env.VITE_GITHUB_REPO as string | undefined,
+    env: import.meta.env.VITE_GITHUB_REPO,
   },
   {
     name: 'branch',
     label: 'Branch',
-    placeholder: 'main',
-    help: 'Branch to commit to. Leave empty for the default branch (main).',
-    env: import.meta.env.VITE_GITHUB_BRANCH as string | undefined,
+    placeholder: GITHUB_DEFAULT_BRANCH,
+    help: `Branch to commit to. Leave empty for the default branch (${GITHUB_DEFAULT_BRANCH}).`,
+    env: import.meta.env.VITE_GITHUB_BRANCH,
   },
   {
     name: 'token',
@@ -59,7 +67,7 @@ const cfg = configStore('github', [
     type: 'password' as const,
     placeholder: 'ghp_…',
     help: 'A fine-grained PAT with Contents: Read and write, or a classic token with the repo scope.',
-    env: import.meta.env.VITE_GITHUB_TOKEN as string | undefined,
+    env: import.meta.env.VITE_GITHUB_TOKEN,
   },
 ]);
 
@@ -76,9 +84,8 @@ function apiHeaders(token: GitHubToken): Record<string, string> {
 /** GitHub always requires base64. Chunked to stay within stack limits on large files. */
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  for (let i = 0; i < bytes.length; i += BASE64_CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + BASE64_CHUNK));
   }
   return btoa(binary);
 }
@@ -103,7 +110,7 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
     // Env-managed tokens are deployment-trusted; user-entered tokens require a
     // successful login() (GET /user validation) before they are branded.
     if (cfg.configLocked('token')) return raw as GitHubToken;
-    if (!localStorage.getItem(VALIDATED_KEY)) return null;
+    if (!validated.read()) return null;
     return raw as GitHubToken;
   }
 
@@ -132,26 +139,25 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
     };
     if (fileSha) body.sha = fileSha;
 
-    const res = await fetch(`${API}/repos/${repo}/contents/${encodeURIComponent(path)}`, {
+    const res = await fetch(`${GITHUB_API_URL}/repos/${repo}/contents/${encodeURIComponent(path)}`, {
       method: 'PUT',
       headers: { ...apiHeaders(tok), 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
 
     if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-      throw new Error(`GitHub save failed: ${String(err.message ?? res.status)}`);
+      const err = parseGitHubErrorBody(await res.json().catch(() => ({})));
+      throw new Error(`GitHub save failed: ${String(err['message'] ?? res.status)}`);
     }
 
-    const data = (await res.json()) as { content: { sha: string } };
-    fileSha = data.content.sha as GitHubFileSha;
+    fileSha = parseGitHubCommitResponse(await res.json()).content.sha;
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
   function setConfig(name: string, value: string): void {
     // Changing repo or token invalidates a prior Connect — force re-validation.
-    if (name === 'token' || name === 'repo') localStorage.removeItem(VALIDATED_KEY);
+    if (name === 'token' || name === 'repo') validated.clear();
     cfg.setConfig(name, value);
   }
 
@@ -166,7 +172,7 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
       }
       // Use the raw string here — we are the validation step; GitHubToken is
       // only produced after a successful response.
-      const res = await fetch(`${API}/user`, {
+      const res = await fetch(`${GITHUB_API_URL}/user`, {
         headers: {
           Authorization: `Bearer ${rawToken}`,
           Accept: 'application/vnd.github+json',
@@ -177,11 +183,11 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
         throw new Error('Invalid token — check it has Contents read and write access.');
       }
       if (!res.ok) throw new Error(`GitHub auth check failed: ${res.status}`);
-      localStorage.setItem(VALIDATED_KEY, '1');
+      validated.write(true);
     },
 
     logout() {
-      localStorage.removeItem(VALIDATED_KEY);
+      validated.clear();
       fileSha = null;
     },
 
@@ -197,8 +203,9 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
   // ── Storage ───────────────────────────────────────────────────────────────
 
   const storage: Storage = {
-    id: 'github',
+    id: STORAGE_ID.github,
     label: 'GitHub',
+    availability: { ok: true },
     blurb:
       'Commits files to a GitHub repository — great as a version-controlled knowledge base.',
 
@@ -218,15 +225,15 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
       const path = fileName.get();
       const branch = resolvedBranch();
       const res = await fetch(
-        `${API}/repos/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`,
+        `${GITHUB_API_URL}/repos/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`,
         { headers: apiHeaders(tok) },
       );
 
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`GitHub load failed: ${res.status}`);
 
-      const data = (await res.json()) as { content: string; sha: string };
-      fileSha = data.sha as GitHubFileSha;
+      const data = parseGitHubLoadResponse(await res.json());
+      fileSha = data.sha;
 
       // GitHub always returns base64; strip the newlines it inserts every 60 chars.
       const raw = atob(data.content.replace(/\n/g, ''));

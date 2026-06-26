@@ -4,36 +4,39 @@ import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import type { Fetch } from '../network/types.js';
+import { type PCloudSession, parsePCloudSession, parsePCloudFileLinkResponse } from './parse.js';
+import { localStore } from '../persistence/local.js';
+import {
+  STORAGE_ID,
+  CLOUD_FOLDER,
+  PCLOUD_SESSION_KEY,
+  PCLOUD_API_HOST,
+  PCLOUD_EU_API_HOST,
+  PCLOUD_GETFILELINK_PATH,
+  PCLOUD_UPLOAD_PATH,
+} from './constants.js';
 
-const FOLDER = '/copad';
-const fileName = filenameStore('pcloud');
-const filePath = () => `${FOLDER}/${fileName.get()}`;
-const STORAGE_KEY = 'storage.pcloud';
+const fileName = filenameStore(STORAGE_ID.pcloud);
+const filePath = () => `${CLOUD_FOLDER}/${fileName.get()}`;
+const sessionStore = localStore<PCloudSession | null>(
+  PCLOUD_SESSION_KEY,
+  parsePCloudSession,
+  (s) => (s ? JSON.stringify(s) : null),
+);
 
-interface PCloudSession {
-  token: string;
-  host: string;
-}
-
-const cfg = configStore('pcloud', [
+// Persisted under `storage.pcloud.clientId` — same key the old connect form used.
+const cfg = configStore(STORAGE_ID.pcloud, [
   {
     name: 'clientId',
     label: 'Client ID',
     placeholder: 'your-client-id',
     help: 'Register an OAuth app at pcloud.com/oauth2-apps, then paste its Client ID here.',
-    env: import.meta.env.VITE_PCLOUD_CLIENT_ID as string | undefined,
+    env: import.meta.env.VITE_PCLOUD_CLIENT_ID,
   },
 ]);
 
 export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: Storage } {
-  const session = (): PCloudSession | null => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as PCloudSession) : null;
-    } catch {
-      return null;
-    }
-  };
+  const session = (): PCloudSession | null => sessionStore.read();
 
   const auth: StorageAuth = {
     isAuthenticated: () => !!session(),
@@ -47,8 +50,8 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
           clientId,
           (token: string, locationid?: number) => {
             const host =
-              (locationid ?? 1) === 2 ? 'eapi.pcloud.com' : 'api.pcloud.com';
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, host }));
+              (locationid ?? 1) === 2 ? PCLOUD_EU_API_HOST : PCLOUD_API_HOST;
+            sessionStore.write({ token, host });
             resolve();
           },
           (err: unknown) => reject(new Error(`pCloud auth failed: ${String(err)}`))
@@ -57,7 +60,7 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
     },
 
     logout() {
-      localStorage.removeItem(STORAGE_KEY);
+      sessionStore.clear();
     },
 
     configFields: cfg.fields,
@@ -68,9 +71,10 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
   };
 
   const storage: Storage = {
-    id: 'pcloud',
+    id: STORAGE_ID.pcloud,
     label: 'pCloud',
     blurb: 'Saves to a /copad folder in your pCloud via OAuth.',
+    availability: { ok: true },
 
     filename: () => fileName.get(),
     setFilename: fileName.set,
@@ -82,15 +86,14 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
       if (!s) throw new Error('pCloud: not connected');
 
       try {
-        const meta = await fetch(
-          `https://${s.host}/getfilelink?path=${encodeURIComponent(filePath())}&auth=${s.token}`
-        ).then(r => r.json() as Promise<Record<string, unknown>>);
+        const rawMeta: unknown = await fetch(
+          `https://${s.host}${PCLOUD_GETFILELINK_PATH}?path=${encodeURIComponent(filePath())}&auth=${s.token}`
+        ).then(r => r.json());
+        const meta = parsePCloudFileLinkResponse(rawMeta);
 
-        if (meta['result'] !== 0) return null;
+        if (meta.result !== 0) return null;
 
-        const hosts = meta['hosts'] as string[];
-        const path = meta['path'] as string;
-        const contentUrl = `https://${hosts[0]}${path}`;
+        const contentUrl = `https://${meta.hosts[0]}${meta.path}`;
 
         const res = await netFetch(contentUrl);
         if (!res.ok) {
@@ -111,12 +114,12 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
 
       const form = new FormData();
       form.append('filename', fileName.get());
-      form.append('path', FOLDER);
+      form.append('path', CLOUD_FOLDER);
       form.append('nopartial', '1');
       form.append('file', new Blob([content.bytes as BlobPart]));
 
       const res = await netFetch(
-        `https://${s.host}/uploadfile?auth=${s.token}`,
+        `https://${s.host}${PCLOUD_UPLOAD_PATH}?auth=${s.token}`,
         { method: 'POST', body: form }
       );
       if (!res.ok) throw new Error(`pCloud save failed: ${res.status}`);

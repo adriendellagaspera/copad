@@ -1,4 +1,7 @@
 import type { RoomId } from './types.js';
+import { parseRoomCredential } from './parse.js';
+import { localStore } from '../persistence/local.js';
+import { roomPasswordKey } from './constants.js';
 
 /** The four room-access strategies, parsed from `VITE_ROOM_AUTH` at the env
  *  boundary. The union carries the invariant: once you hold a `RoomAccess`,
@@ -35,15 +38,18 @@ export function publicAccess(): RoomAccess {
  * `VITE_ROOM_PASSWORD` env var. Whitespace-only values are treated as absent.
  */
 export function sitePassword(envPassword: string): RoomAccess {
-  const trimmed = envPassword.trim();
-  const cred: RoomCredential | null = trimmed
-    ? (trimmed as RoomCredential)
-    : null;
+  const cred = parseRoomCredential(envPassword);
   return { mode: 'site-password', credential: () => cred };
 }
 
-const roomPasswordKey = (room: RoomId): string =>
-  `collab.room-password.${room}`;
+/** Per-room password store — credential parsing and localStorage are both hidden
+ *  behind read/write/clear, keyed by room. Whitespace-only values clear the entry. */
+const roomPasswordStore = (room: RoomId) =>
+  localStore<RoomCredential | null>(
+    roomPasswordKey(room),
+    parseRoomCredential,
+    (cred) => (cred && cred.trim() ? cred : null),
+  );
 
 /**
  * Each room has its own password, typed by the user and remembered in
@@ -52,23 +58,16 @@ const roomPasswordKey = (room: RoomId): string =>
 export function roomPassword(): RoomAccess {
   return {
     mode: 'room-password',
-    credential: (room) => {
-      const stored = localStorage.getItem(roomPasswordKey(room));
-      return stored ? (stored as RoomCredential) : null;
-    },
+    credential: (room) => roomPasswordStore(room).read(),
   };
 }
 
 /** Persist a per-room password. Pass an empty string to clear it. */
 export function setRoomPassword(room: RoomId, password: string): void {
-  if (password) {
-    localStorage.setItem(roomPasswordKey(room), password);
-  } else {
-    localStorage.removeItem(roomPasswordKey(room));
-  }
+  roomPasswordStore(room).write(password as RoomCredential);
 }
 
 /** Remove the stored password for a room. */
 export function clearRoomPassword(room: RoomId): void {
-  localStorage.removeItem(roomPasswordKey(room));
+  roomPasswordStore(room).clear();
 }

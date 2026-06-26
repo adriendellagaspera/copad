@@ -20,7 +20,7 @@ export interface StorageBackend {
 
 /** Returns all storage backends available in this environment. */
 export function backends(): StorageBackend[] {
-  const proxyUrl = import.meta.env.VITE_PROXY_URL as string | undefined;
+  const proxyUrl = import.meta.env.VITE_PROXY_URL;
   const netFetch = proxyUrl ? proxiedFetch(proxyUrl) : directFetch;
 
   return [
@@ -28,7 +28,7 @@ export function backends(): StorageBackend[] {
     dropboxStorage(),
     webdavStorage(netFetch),
     githubStorage(),
-    // Always offer local-file storage; it self-reports unavailableReason when
+    // Always offer local-file storage; it self-reports availability.ok=false when
     // the File System Access API is absent (e.g. Firefox, Safari, Brave Shields).
     localFsStorage(),
   ];

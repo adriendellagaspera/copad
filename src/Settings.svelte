@@ -212,7 +212,7 @@
           <span class="backend-name">{b.storage.label}</span>
           {#if authed}
             <span class="badge ok">Connected</span>
-          {:else if b.storage.unavailableReason}
+          {:else if !b.storage.availability.ok}
             <span class="badge unavailable">Unavailable</span>
           {:else}
             <span class="badge">Ready</span>
@@ -220,10 +220,10 @@
         </div>
         {#if b.storage.blurb}<p class="backend-blurb">{b.storage.blurb}</p>{/if}
 
-        {#if !b.storage.unavailableReason}{@render filenameField(b)}{/if}
+        {#if b.storage.availability.ok}{@render filenameField(b)}{/if}
 
-        {#if b.storage.unavailableReason}
-          <p class="unavailable-reason">{b.storage.unavailableReason}</p>
+        {#if !b.storage.availability.ok}
+          <p class="unavailable-reason">{b.storage.availability.reason}</p>
         {:else if authed}
           <div class="backend-actions">
             <button onclick={() => disconnect(b)}>Disconnect</button>
@@ -238,7 +238,7 @@
                     type={f.type ?? 'text'}
                     placeholder={f.placeholder ?? ''}
                     value={creds[b.storage.id]?.[f.name] ?? ''}
-                    oninput={e => { creds = { ...creds, [b.storage.id]: { ...(creds[b.storage.id] ?? {}), [f.name]: e.currentTarget.value } as SessionCredentials }; }}
+                    oninput={e => { creds = { ...creds, [b.storage.id]: { ...(creds[b.storage.id] ?? {}), [f.name]: e.currentTarget.value } }; }}
                   />
                 </label>
               {/each}

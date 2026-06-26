@@ -7,6 +7,7 @@ import {
   rememberCachedRoom,
   clearLocalCache,
 } from './cache.js';
+import type { RoomId } from './types.js';
 
 beforeEach(() => localStorage.clear());
 
@@ -27,13 +28,13 @@ describe('local cache preferences', () => {
   });
 
   it('namespaces the IndexedDB name', () => {
-    expect(cacheDbName('my-room')).toBe('copad:my-room');
+    expect(cacheDbName('my-room' as RoomId)).toBe('copad:my-room');
   });
 
   it('remembers cached rooms without duplicates and clears them', async () => {
-    rememberCachedRoom('a');
-    rememberCachedRoom('b');
-    rememberCachedRoom('a');
+    rememberCachedRoom('a' as RoomId);
+    rememberCachedRoom('b' as RoomId);
+    rememberCachedRoom('a' as RoomId);
     expect(JSON.parse(localStorage.getItem('copad:cachedRooms')!)).toEqual(['a', 'b']);
 
     await clearLocalCache();
