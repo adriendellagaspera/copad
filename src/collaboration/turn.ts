@@ -3,10 +3,13 @@
 // a rebuild. Read by App.svelte when building the WebRTC ICE list; takes effect on
 // the next reconnect. Env vars (VITE_TURN_*) remain the deployment-level default.
 
-const KEY = 'copad:turn';
+import { localStore } from '../persistence/local.js';
+import { nsKey } from '../config.js';
+import { parseTurnPrefs } from './parse.js';
 
 export interface TurnPrefs {
-  /** Custom TURN url(s), comma-separated. Empty = use env / public default. */
+  /** Custom TURN url(s), comma-separated. Empty = use env / public default.
+   *  Stays a raw string here (user form input); branded to TurnUrl in resolveIceServers. */
   url: string;
   username: string;
   credential: string;
@@ -14,22 +17,14 @@ export interface TurnPrefs {
   useDefault: boolean;
 }
 
-const EMPTY: TurnPrefs = { url: '', username: '', credential: '', useDefault: true };
+// localStorage + parsing are abstracted behind the store: callers read/write a
+// typed TurnPrefs and never touch localStorage or a parser directly.
+const turnStore = localStore<TurnPrefs>(nsKey('turn'), parseTurnPrefs, (p) => JSON.stringify(p));
 
 export function getTurnPrefs(): TurnPrefs {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) return { ...EMPTY, ...JSON.parse(raw) };
-  } catch {
-    /* ignore */
-  }
-  return { ...EMPTY };
+  return turnStore.read();
 }
 
 export function setTurnPrefs(prefs: TurnPrefs): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(prefs));
-  } catch {
-    /* ignore */
-  }
+  turnStore.write(prefs);
 }

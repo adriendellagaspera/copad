@@ -1,6 +1,7 @@
 import type { DisplayName, CursorColor, SessionRole, PeerAwarenessState, RoomId } from './types.js';
 import type { RoomCredential } from './roomAccess.js';
 import type { LocalCacheEnabled } from './cache.js';
+import type { TurnPrefs } from './turn.js';
 import { FALLBACK_NAME, FALLBACK_COLOR } from './peerDefaults.js';
 
 /**
@@ -54,5 +55,27 @@ export function parseRoomList(raw: string | null): RoomId[] {
       .filter((r): r is RoomId => r !== null);
   } catch {
     return [];
+  }
+}
+
+/** Runtime TURN prefs when none are stored (or the stored value is malformed). */
+const TURN_PREFS_FALLBACK: TurnPrefs = { url: '', username: '', credential: '', useDefault: true };
+
+/** Parse persisted runtime TURN prefs from localStorage JSON — the single
+ *  narrowing site, filling any missing/invalid field from the defaults. */
+export function parseTurnPrefs(raw: string | null): TurnPrefs {
+  if (!raw) return { ...TURN_PREFS_FALLBACK };
+  try {
+    const obj: unknown = JSON.parse(raw);
+    if (typeof obj !== 'object' || obj === null) return { ...TURN_PREFS_FALLBACK };
+    const o = obj as Record<string, unknown>;
+    return {
+      url: typeof o['url'] === 'string' ? o['url'] : TURN_PREFS_FALLBACK.url,
+      username: typeof o['username'] === 'string' ? o['username'] : TURN_PREFS_FALLBACK.username,
+      credential: typeof o['credential'] === 'string' ? o['credential'] : TURN_PREFS_FALLBACK.credential,
+      useDefault: typeof o['useDefault'] === 'boolean' ? o['useDefault'] : TURN_PREFS_FALLBACK.useDefault,
+    };
+  } catch {
+    return { ...TURN_PREFS_FALLBACK };
   }
 }

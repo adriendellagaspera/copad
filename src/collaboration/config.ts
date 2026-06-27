@@ -35,6 +35,19 @@ function parseWebsocketUrl(raw: string): WebsocketUrl | null {
   return WS_URL.test(raw) ? (raw as WebsocketUrl) : null;
 }
 
+/** stun: / turn: / turns: — the ICE URL schemes WebRTC understands. */
+const ICE_URL = /^(?:stun|turns?):\S+$/i;
+
+/** Parse a single STUN URL, branding it only if it is a real stun/turn(s) URL. */
+function parseStunUrl(raw: string): StunUrl | null {
+  return ICE_URL.test(raw) ? (raw as StunUrl) : null;
+}
+
+/** Parse a single TURN URL, branding it only if it is a real stun/turn(s) URL. */
+function parseTurnUrl(raw: string): TurnUrl | null {
+  return ICE_URL.test(raw) ? (raw as TurnUrl) : null;
+}
+
 export interface SignalingResolution {
   /** Signaling servers to hand to y-webrtc (may be empty if misconfigured). */
   readonly servers: SignalingUrl[];
@@ -239,12 +252,16 @@ export function resolveIceServers(
   const servers: RTCIceServer[] = [];
 
   // VITE_STUN_URL="" (explicitly empty) disables the STUN default on purpose.
-  // Brand the validated lists here (list() is shared, so it returns plain
-  // strings); they erase back to string[] when handed to RTCIceServer below.
-  const stun = list(env.VITE_STUN_URL ?? DEFAULT_STUN) as StunUrl[];
+  // list() is shared and returns plain strings; parse each entry here, dropping
+  // anything that isn't a real stun/turn(s) URL (the single STUN/TURN cast site).
+  const stun = list(env.VITE_STUN_URL ?? DEFAULT_STUN)
+    .map(parseStunUrl)
+    .filter((s): s is StunUrl => s !== null);
   if (stun.length) servers.push({ urls: stun });
 
-  const turnUrls = list(env.VITE_TURN_URL) as TurnUrl[];
+  const turnUrls = list(env.VITE_TURN_URL)
+    .map(parseTurnUrl)
+    .filter((t): t is TurnUrl => t !== null);
   if (turnUrls.length) {
     const turn: RTCIceServer = { urls: turnUrls };
     if (env.VITE_TURN_USERNAME) turn.username = env.VITE_TURN_USERNAME;

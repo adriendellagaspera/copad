@@ -1,6 +1,6 @@
 import * as Y from 'yjs';
 import { WebrtcProvider } from 'y-webrtc';
-import type { Collab, CollabConnect, ConnStatus, RoomId, SignalingUrl, Diagnostics } from './types.js';
+import type { Collab, CollabConnect, ConnStatus, RoomId, SignalingUrl, Diagnostics, PeerConnId } from './types.js';
 import type { RoomCipher } from './roomCipher.js';
 import { attachLocalCache, type LocalCache, type LocalCacheEnabled } from './cache.js';
 
@@ -136,7 +136,8 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
         const connections = await Promise.all(
           entries.map(async ([id, c]) => {
             const pc = c?.peer?._pc as RTCPeerConnection | undefined;
-            return { id, type: pc ? await peerConnectionType(pc) : ('unknown' as const) };
+            // Cast the y-webrtc map key to the branded id at this IO boundary.
+            return { id: id as PeerConnId, type: pc ? await peerConnectionType(pc) : ('unknown' as const) };
           }),
         );
         return {

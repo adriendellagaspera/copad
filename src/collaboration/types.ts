@@ -69,9 +69,13 @@ export type ConnStatus = 'connecting' | 'waiting' | 'connected' | 'offline';
  */
 export type Transport = 'p2p' | 'hub';
 
+/** Identifier of a single peer connection, taken from the WebRTC layer's
+ *  connection map — branded so it can't be confused with any other id string. */
+export type PeerConnId = string & { readonly _brand: 'PeerConnId' };
+
 /** How a single peer connection is carried — surfaced in the diagnostics panel. */
 export interface PeerConnectionInfo {
-  readonly id: string;
+  readonly id: PeerConnId;
   /** `direct` = host/srflx candidate; `relay` = routed through a TURN server. */
   readonly type: 'direct' | 'relay' | 'unknown';
 }
