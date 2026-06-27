@@ -1,6 +1,7 @@
 <script lang="ts">
-  import type { Storage, SessionCredentials } from './storage/types.js';
-  import { isConfigured } from './storage/types.js';
+  import type { SessionCredentials } from './storage/types.js';
+  import type { StorageBackend } from './storage/index.js';
+  import { isConfigured } from './storage/auth.js';
 
   let {
     backends,
@@ -13,15 +14,15 @@
     onconnect,
     ondisconnect,
   }: {
-    backends: Storage[];
+    backends: StorageBackend[];
     open?: boolean;
     focusId?: string;
     localCache?: boolean;
     onCacheChange?: (on: boolean) => void;
     onCacheClear?: () => void | Promise<void>;
     onchange?: () => void;
-    onconnect?: (s: Storage) => void;
-    ondisconnect?: (s: Storage) => void;
+    onconnect?: (b: StorageBackend) => void;
+    ondisconnect?: (b: StorageBackend) => void;
   } = $props();
 
   let clearing = $state(false);
@@ -34,8 +35,12 @@
     }
   }
 
-  const configurable = $derived(backends.filter(s => s.configFields && s.configFields.length > 0));
-  const connectable = $derived(backends.filter(s => !s.configFields || s.configFields.length === 0));
+  const configurable = $derived(
+    backends.filter(b => b.auth.configFields && b.auth.configFields.length > 0)
+  );
+  const connectable = $derived(
+    backends.filter(b => !b.auth.configFields || b.auth.configFields.length === 0)
+  );
 
   // Per-backend busy/error state — keyed by backend id.
   let busy = $state<Record<string, boolean>>({});
@@ -45,37 +50,37 @@
   // Per-backend filename overrides — keyed by backend id (cloud backends).
   let fnames = $state<Record<string, string>>({});
 
-  function setConfig(s: Storage, name: string, value: string) {
-    s.setConfig?.(name, value);
+  function setConfig(b: StorageBackend, name: string, value: string) {
+    b.auth.setConfig?.(name, value);
     onchange?.();
   }
 
-  function filenameOf(s: Storage): string {
-    return fnames[s.id] ?? s.filename?.() ?? '';
+  function filenameOf(b: StorageBackend): string {
+    return fnames[b.storage.id] ?? b.storage.filename?.() ?? '';
   }
 
-  function setFilename(s: Storage, value: string) {
-    fnames = { ...fnames, [s.id]: value };
-    s.setFilename?.(value);
+  function setFilename(b: StorageBackend, value: string) {
+    fnames = { ...fnames, [b.storage.id]: value };
+    b.storage.setFilename?.(value);
     onchange?.();
   }
 
-  async function connect(s: Storage, c?: SessionCredentials) {
-    busy = { ...busy, [s.id]: true };
-    errors = { ...errors, [s.id]: '' };
+  async function connect(b: StorageBackend, c?: SessionCredentials) {
+    busy = { ...busy, [b.storage.id]: true };
+    errors = { ...errors, [b.storage.id]: '' };
     try {
-      await s.connect(c);
-      onconnect?.(s);
+      await b.auth.login(c);
+      onconnect?.(b);
     } catch (e) {
-      errors = { ...errors, [s.id]: (e as Error).message };
+      errors = { ...errors, [b.storage.id]: (e as Error).message };
     } finally {
-      busy = { ...busy, [s.id]: false };
+      busy = { ...busy, [b.storage.id]: false };
     }
   }
 
-  function disconnect(s: Storage) {
-    s.disconnect();
-    ondisconnect?.(s);
+  function disconnect(b: StorageBackend) {
+    b.auth.logout();
+    ondisconnect?.(b);
   }
 
   function close() {
@@ -127,14 +132,14 @@
       </div>
     </section>
 
-    {#snippet filenameField(s: Storage)}
-      {#if s.setFilename}
+    {#snippet filenameField(b: StorageBackend)}
+      {#if b.storage.setFilename}
         <label class="field">
           <span class="field-label">File name</span>
           <input
-            value={filenameOf(s)}
+            value={filenameOf(b)}
             placeholder="document.yjs"
-            oninput={e => setFilename(s, e.currentTarget.value)}
+            oninput={e => setFilename(b, e.currentTarget.value)}
           />
           <small class="field-help">
             The extension picks the format — .yjs (native), .md, .html, .json (PM), or any
@@ -145,22 +150,22 @@
       {/if}
     {/snippet}
 
-    {#each configurable as s (s.id)}
-      {@const ready = isConfigured(s)}
-      {@const authed = s.isAuthenticated()}
-      <section class="backend" class:focused={s.id === focusId}>
+    {#each configurable as b (b.storage.id)}
+      {@const ready = isConfigured(b.auth)}
+      {@const authed = b.auth.isAuthenticated()}
+      <section class="backend" class:focused={b.storage.id === focusId}>
         <div class="backend-head">
-          <span class="backend-name">{s.label}</span>
+          <span class="backend-name">{b.storage.label}</span>
           {#if authed}
             <span class="badge ok">Connected</span>
           {:else}
             <span class="badge">{ready ? 'Ready' : 'Needs setup'}</span>
           {/if}
         </div>
-        {#if s.blurb}<p class="backend-blurb">{s.blurb}</p>{/if}
+        {#if b.storage.blurb}<p class="backend-blurb">{b.storage.blurb}</p>{/if}
 
-        {#each s.configFields ?? [] as f (f.name)}
-          {@const locked = s.configLocked?.(f.name) ?? false}
+        {#each b.auth.configFields ?? [] as f (f.name)}
+          {@const locked = b.auth.configLocked?.(f.name) ?? false}
           <label class="field">
             <span class="field-label">
               {f.label}
@@ -169,29 +174,29 @@
             <input
               type={f.type ?? 'text'}
               placeholder={f.placeholder ?? ''}
-              value={s.config?.(f.name) ?? ''}
+              value={b.auth.config?.(f.name) ?? ''}
               disabled={locked}
-              oninput={e => setConfig(s, f.name, e.currentTarget.value)}
+              oninput={e => setConfig(b, f.name, e.currentTarget.value)}
             />
             {#if f.help}<small class="field-help">{f.help}</small>{/if}
           </label>
         {/each}
 
-        {@render filenameField(s)}
+        {@render filenameField(b)}
 
         <div class="backend-actions">
           {#if authed}
-            <button onclick={() => disconnect(s)}>Disconnect</button>
+            <button onclick={() => disconnect(b)}>Disconnect</button>
           {:else}
             <button
               class="primary"
-              onclick={() => connect(s)}
-              disabled={!ready || busy[s.id]}
+              onclick={() => connect(b)}
+              disabled={!ready || busy[b.storage.id]}
             >
-              {busy[s.id] ? 'Connecting…' : `Connect ${s.label}`}
+              {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
             </button>
           {/if}
-          {#if errors[s.id]}<p class="error">{errors[s.id]}</p>{/if}
+          {#if errors[b.storage.id]}<p class="error">{errors[b.storage.id]}</p>{/if}
         </div>
       </section>
     {/each}
@@ -200,66 +205,66 @@
       <p class="settings-empty">No storage backends require configuration.</p>
     {/if}
 
-    {#each connectable as s (s.id)}
-      {@const authed = s.isAuthenticated()}
-      <section class="backend" class:focused={s.id === focusId}>
+    {#each connectable as b (b.storage.id)}
+      {@const authed = b.auth.isAuthenticated()}
+      <section class="backend" class:focused={b.storage.id === focusId}>
         <div class="backend-head">
-          <span class="backend-name">{s.label}</span>
+          <span class="backend-name">{b.storage.label}</span>
           {#if authed}
             <span class="badge ok">Connected</span>
-          {:else if s.unavailableReason}
+          {:else if !b.storage.availability.ok}
             <span class="badge unavailable">Unavailable</span>
           {:else}
             <span class="badge">Ready</span>
           {/if}
         </div>
-        {#if s.blurb}<p class="backend-blurb">{s.blurb}</p>{/if}
+        {#if b.storage.blurb}<p class="backend-blurb">{b.storage.blurb}</p>{/if}
 
-        {#if !s.unavailableReason}{@render filenameField(s)}{/if}
+        {#if b.storage.availability.ok}{@render filenameField(b)}{/if}
 
-        {#if s.unavailableReason}
-          <p class="unavailable-reason">{s.unavailableReason}</p>
+        {#if !b.storage.availability.ok}
+          <p class="unavailable-reason">{b.storage.availability.reason}</p>
         {:else if authed}
           <div class="backend-actions">
-            <button onclick={() => disconnect(s)}>Disconnect</button>
+            <button onclick={() => disconnect(b)}>Disconnect</button>
           </div>
         {:else}
-          {#if s.credentialFields}
-            <form class="creds" onsubmit={e => { e.preventDefault(); connect(s, creds[s.id] ?? {}); }}>
-              {#each s.credentialFields as f (f.name)}
+          {#if b.auth.credentialFields}
+            <form class="creds" onsubmit={e => { e.preventDefault(); connect(b, creds[b.storage.id] ?? {}); }}>
+              {#each b.auth.credentialFields as f (f.name)}
                 <label class="field">
                   <span class="field-label">{f.label}</span>
                   <input
                     type={f.type ?? 'text'}
                     placeholder={f.placeholder ?? ''}
-                    value={creds[s.id]?.[f.name] ?? ''}
-                    oninput={e => { creds = { ...creds, [s.id]: { ...(creds[s.id] ?? {}), [f.name]: e.currentTarget.value } as SessionCredentials }; }}
+                    value={creds[b.storage.id]?.[f.name] ?? ''}
+                    oninput={e => { creds = { ...creds, [b.storage.id]: { ...(creds[b.storage.id] ?? {}), [f.name]: e.currentTarget.value } }; }}
                   />
                 </label>
               {/each}
               <div class="backend-actions">
-                <button class="primary" type="submit" disabled={busy[s.id]}>
-                  {busy[s.id] ? 'Connecting…' : `Connect ${s.label}`}
+                <button class="primary" type="submit" disabled={busy[b.storage.id]}>
+                  {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
                 </button>
               </div>
             </form>
-          {:else if s.id === 'local'}
+          {:else if b.storage.id === 'local'}
             <div class="backend-actions">
-              <button class="primary" onclick={() => connect(s)} disabled={busy[s.id]}>
-                {busy[s.id] ? 'Opening…' : 'Open file'}
+              <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
+                {busy[b.storage.id] ? 'Opening…' : 'Open file'}
               </button>
-              <button onclick={() => connect(s, { mode: 'new' })} disabled={busy[s.id]}>
+              <button onclick={() => connect(b, { mode: 'new' })} disabled={busy[b.storage.id]}>
                 New file
               </button>
             </div>
           {:else}
             <div class="backend-actions">
-              <button class="primary" onclick={() => connect(s)} disabled={busy[s.id]}>
-                {busy[s.id] ? 'Connecting…' : `Connect ${s.label}`}
+              <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
+                {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
               </button>
             </div>
           {/if}
-          {#if errors[s.id]}<p class="error">{errors[s.id]}</p>{/if}
+          {#if errors[b.storage.id]}<p class="error">{errors[b.storage.id]}</p>{/if}
         {/if}
       </section>
     {/each}

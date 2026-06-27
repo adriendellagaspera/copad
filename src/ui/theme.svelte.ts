@@ -3,24 +3,23 @@
  * this keeps it in sync afterwards. Functional: createTheme() returns a plain
  * rune-backed object, no class. */
 
+import { localStore } from '../persistence/local.js';
+import { nsKey } from '../config.js';
+
 export type ThemeChoice = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 
-const KEY = 'copad:theme';
-
-function read(): ThemeChoice {
-  try {
-    const v = localStorage.getItem(KEY);
-    if (v === 'light' || v === 'dark' || v === 'system') return v;
-  } catch {
-    /* ignore */
-  }
-  return 'system';
+/** Parse a stored theme choice — the single narrowing site, defaulting to 'system'. */
+function parseThemeChoice(raw: string | null): ThemeChoice {
+  return raw === 'light' || raw === 'dark' || raw === 'system' ? raw : 'system';
 }
+
+// localStorage + parsing are abstracted behind this store.
+const themeStore = localStore<ThemeChoice>(nsKey('theme'), parseThemeChoice, (v) => v);
 
 export function createTheme() {
   const mql = window.matchMedia('(prefers-color-scheme: dark)');
-  let choice = $state<ThemeChoice>(read());
+  let choice = $state<ThemeChoice>(themeStore.read());
   let systemDark = $state(mql.matches);
 
   const resolved = $derived<ResolvedTheme>(
@@ -33,11 +32,7 @@ export function createTheme() {
 
   function set(next: ThemeChoice): void {
     choice = next;
-    try {
-      localStorage.setItem(KEY, next);
-    } catch {
-      /* ignore */
-    }
+    themeStore.write(next);
     apply(next === 'system' ? (systemDark ? 'dark' : 'light') : next);
   }
 

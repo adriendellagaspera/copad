@@ -1,14 +1,15 @@
 import * as Y from 'yjs';
 import { WebrtcProvider } from 'y-webrtc';
 import type { Collab, CollabConnect, ConnStatus, RoomId, SignalingUrl } from './types.js';
+import type { RoomCipher } from './roomCipher.js';
 import { attachLocalCache, type LocalCache, type LocalCacheEnabled } from './cache.js';
 
 export interface WebrtcCollabOptions {
   /** Validated signaling servers peers use to discover each other. */
   signaling: SignalingUrl[];
-  /** Room encryption password. A function is resolved per room, so each room can
-   *  carry its own key (e.g. from the share link or a user-set password). */
-  password?: string | ((room: RoomId) => string | undefined);
+  /** Room cipher — supplies the y-webrtc AES password per room, or null for
+   *  plaintext. Applies to this transport only; the WebSocket hub ignores it. */
+  cipher?: RoomCipher;
   /** ICE servers (STUN/TURN) for WebRTC NAT traversal. Passing TURN here is
    *  what makes desktop↔mobile work across restrictive carrier NATs. */
   iceServers?: RTCIceServer[];
@@ -19,8 +20,9 @@ export interface WebrtcCollabOptions {
 export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
   return (room: RoomId): Collab => {
     const doc = new Y.Doc();
-    const password = typeof opts.password === 'function' ? opts.password(room) : opts.password;
     // RoomId extends string — cast back to string at the y-webrtc IO boundary.
+    // cipher.password() returns null for no encryption; y-webrtc expects undefined.
+    const password = opts.cipher?.password(room) ?? undefined;
     const webrtc = new WebrtcProvider(room as string, doc, {
       signaling: opts.signaling,
       password,
@@ -33,7 +35,7 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
 
     // Local cache: keeps the doc across reloads even with no storage backend.
     const cache: LocalCache | undefined = opts.cache
-      ? attachLocalCache(room as string, doc)
+      ? attachLocalCache(room, doc)
       : undefined;
 
     const statusFns = new Set<(s: ConnStatus) => void>();

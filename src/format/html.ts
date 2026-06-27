@@ -2,6 +2,7 @@ import { DOMParser as PMDOMParser, DOMSerializer } from 'prosemirror-model';
 import { schema } from '../editor/schema.js';
 import { writePmDoc, readPmDoc } from './pm.js';
 import type { Codec } from './types.js';
+import { extensionOf } from './types.js';
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -25,7 +26,7 @@ function requireDom(): void {
 export const htmlCodec: Codec = {
   id: 'html',
   label: 'HTML',
-  extensions: ['.html', '.htm'],
+  extensions: ['.html', '.htm'].map(extensionOf),
 
   decode(bytes, doc) {
     requireDom();

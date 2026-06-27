@@ -1,22 +1,35 @@
 <script lang="ts">
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
-  import type { Storage } from './storage/types.js';
+  import type { StorageBackend } from './storage/index.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
   import { websocketCollab } from './collaboration/websocket.js';
-  import { resolveSignaling, resolveIceServers, resolveWebsocket, resolveTransport } from './collaboration/config.js';
+  import {
+    resolveSignaling,
+    resolveIceServers,
+    resolveWebsocket,
+    resolveTransport,
+    resolveRoomStrategy,
+    resolveDefaultRoom,
+    type PageProtocol,
+    type PageHostname,
+  } from './collaboration/config.js';
+  import { parseRoomId } from './collaboration/parse.js';
   import {
     localCacheEnabled,
     setLocalCacheEnabled,
     clearLocalCache,
     type LocalCacheEnabled,
   } from './collaboration/cache.js';
-  import { resolveRoomPassword } from './collaboration/roomKey.js';
+  import { roomPassword } from './collaboration/roomAccess.js';
+  import { currentSecretKey } from './collaboration/secretLink.js';
+  import type { RoomCipher } from './collaboration/roomCipher.js';
   import type { SessionRole, DisplayName, CursorColor, RoomId, CollabConnect } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
   import ShareDialog from './ui/ShareDialog.svelte';
   import Toast from './ui/Toast.svelte';
+  import InfoBanner from './ui/InfoBanner.svelte';
   import { createTheme } from './ui/theme.svelte.js';
   import { createToasts } from './ui/toasts.svelte.js';
 
@@ -24,14 +37,34 @@
   const toasts = createToasts();
   let shareOpen = $state(false);
 
+  // Effective per-room cipher (WebRTC end-to-end encryption). Resolved fresh on
+  // each connect, in precedence order: secure-link key (#k= in the URL) → per-room
+  // password (set in the Share dialog) → the deployment's configured VITE_ROOM_AUTH
+  // strategy. The Editor remounts on a security change (collabEpoch), so a link or
+  // password set in Share takes effect on the next connection.
+  const { cipher: envCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
+  const perRoomPassword = roomPassword();
+  const roomCipher: RoomCipher = {
+    password: (r) => currentSecretKey() ?? perRoomPassword.credential(r) ?? envCipher.password(r),
+  };
+  // Cast browser Location to typed PageLocation — single IO-boundary parse site.
+  const loc = {
+    protocol: location.protocol as PageProtocol,
+    hostname: location.hostname as PageHostname,
+  };
+
   // Pick the collaboration transport — chosen explicitly via VITE_COLLAB_TRANSPORT
   // (default 'webrtc'). 'websocket' routes edits through a central hub server (no
   // WebRTC, so no STUN/TURN — works on mobile carrier NATs where P2P can't connect).
   // Transport + its config are decided once; the cache flag is applied per build
   // so toggling the local cache can rebuild `connect` (and remount the Editor).
-  function planCollab(): { build: (cache: LocalCacheEnabled) => CollabConnect; warning?: string } {
+  function planCollab(): {
+    build: (cache: LocalCacheEnabled) => CollabConnect;
+    warning?: string;
+    technicalWarning?: string;
+  } {
     if (resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket') {
-      const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, location);
+      const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, loc);
       if (ws.url) {
         // Pin the narrowed (non-empty) WebsocketUrl in a const so it stays branded
         // inside the build closure — TS won't carry property narrowing into it.
@@ -41,28 +74,31 @@
       // Misconfigured: transport selected but no URL — warn and fall back to WebRTC.
       console.warn('Copad: VITE_COLLAB_TRANSPORT=websocket but VITE_WEBSOCKET_URL is unset — using WebRTC.');
     }
-    const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, location);
+    const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, loc);
     const iceServers = resolveIceServers({
       VITE_STUN_URL: import.meta.env.VITE_STUN_URL,
       VITE_TURN_URL: import.meta.env.VITE_TURN_URL,
       VITE_TURN_USERNAME: import.meta.env.VITE_TURN_USERNAME,
       VITE_TURN_CREDENTIAL: import.meta.env.VITE_TURN_CREDENTIAL,
     });
+    const cipher = roomCipher;
     return {
       build: (cache) =>
         webrtcCollab({
           signaling: signaling.servers,
-          // Per-room key: share-link hash → remembered password → env fallback.
-          password: (r) => resolveRoomPassword(r, location, import.meta.env.VITE_ROOM_PASSWORD),
+          cipher,
           iceServers,
           cache,
         }),
       warning: signaling.warning,
+      technicalWarning: signaling.technicalWarning,
     };
   }
 
   const collabPlan = planCollab();
-  if (collabPlan.warning) console.warn(`Copad: ${collabPlan.warning}`);
+  if (collabPlan.technicalWarning ?? collabPlan.warning) {
+    console.warn(`Copad: ${collabPlan.technicalWarning ?? collabPlan.warning}`);
+  }
   const collabWarning = collabPlan.warning;
 
   // Local document cache (IndexedDB). On by default; the Settings toggle flips it.
@@ -76,8 +112,8 @@
   let collabEpoch = $state(0);
 
   function setLocalCache(on: boolean): void {
-    localCache = on as LocalCacheEnabled;
     setLocalCacheEnabled(on);
+    localCache = localCacheEnabled();
     if (!on) void clearLocalCache().then(() => toasts.info('Local copies cleared'));
   }
 
@@ -93,14 +129,16 @@
 
   // Start with whichever backend is already authenticated (returning user),
   // falling back to the env-var default or the first available.
-  function initialStorage(): Storage | null {
-    const authed = storageBackends.find(s => s.isAuthenticated());
+  function initialStorage(): StorageBackend | null {
+    const authed = storageBackends.find(b => b.auth.isAuthenticated());
     if (authed) return authed;
-    const byDefault = storageBackends.find(s => !s.unavailableReason && s.id === DEFAULT_BACKEND);
-    return byDefault ?? storageBackends.find(s => !s.unavailableReason) ?? null;
+    const byDefault = storageBackends.find(
+      b => b.storage.availability.ok && b.storage.id === DEFAULT_BACKEND
+    );
+    return byDefault ?? storageBackends.find(b => b.storage.availability.ok) ?? null;
   }
 
-  let storage = $state<Storage | null>(initialStorage());
+  let storage = $state<StorageBackend | null>(initialStorage());
   // Cast at the IO boundary: user-typed strings enter the domain as DisplayName here.
   let name = $state<DisplayName>('Anonymous' as DisplayName);
 
@@ -109,7 +147,7 @@
   const bump = () => { tick += 1; };
 
   // Derived so bump() after connect/disconnect recomputes automatically.
-  let connected = $derived(tick >= 0 && !!storage && storage.isAuthenticated());
+  let connected = $derived(tick >= 0 && !!storage && storage.auth.isAuthenticated());
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
@@ -121,22 +159,21 @@
     settingsOpen = true;
   }
 
-  function afterConnect(s: Storage) {
-    storage = s;
+  function afterConnect(b: StorageBackend) {
+    storage = b;
     bump();
   }
 
-  function afterDisconnect(_s: Storage) {
+  function afterDisconnect(_b: StorageBackend) {
     bump();
   }
 
   // ── Document / room ────────────────────────────────────────────────────────
 
-  // Cast at IO boundary: env var and URL strings enter the domain as RoomId here.
-  const DEFAULT_ROOM = (import.meta.env.VITE_DEFAULT_ROOM ?? 'copad-demo') as RoomId;
+  const DEFAULT_ROOM = resolveDefaultRoom(import.meta.env.VITE_DEFAULT_ROOM);
 
   function roomFromUrl(): RoomId {
-    return (new URLSearchParams(location.search).get('room') || DEFAULT_ROOM) as RoomId;
+    return parseRoomId(new URLSearchParams(location.search).get('room')) ?? DEFAULT_ROOM;
   }
 
   // Role is fixed for the session — it comes from the URL so the host can share
@@ -150,8 +187,7 @@
   const sessionRole: SessionRole = roleFromUrl();
 
   function goToRoom(id: string) {
-    // id arrives from user input (IO boundary) — cast to RoomId on entry.
-    const r = (id.trim() || DEFAULT_ROOM) as RoomId;
+    const r = parseRoomId(id) ?? DEFAULT_ROOM;
     const qs = r === DEFAULT_ROOM ? '' : `?room=${encodeURIComponent(r)}`;
     history.pushState({}, '', location.pathname + qs);
     room = r;
@@ -197,17 +233,14 @@
 
 
   {#if collabWarning}
-    <p class="signaling-warning" role="alert">
-      <strong>Real-time collaboration is disabled.</strong> {collabWarning}
-    </p>
-  {/if}
-
-  {#if !connected}
-    <p class="hint">
-      You can collaborate <strong>right now</strong> — P2P, no server.
+    <InfoBanner>
+      Collaboration between devices is unavailable on this site. {collabWarning}
+    </InfoBanner>
+  {:else if !connected}
+    <InfoBanner autoDismissMs={7000}>
       Set up a storage backend in <button class="link" onclick={() => openSettings()}>Settings ⚙</button>
-      to <strong>save &amp; restore</strong> the document across sessions.
-    </p>
+      to <strong>save &amp; restore</strong> your document across sessions.
+    </InfoBanner>
   {/if}
 
   {#key `${room}|${localCache}|${collabEpoch}`}
@@ -218,7 +251,7 @@
       role={sessionRole}
       {connect}
       {toasts}
-      storage={connected ? storage : null}
+      storage={connected ? storage!.storage : null}
       onstoragestatus={() => openSettings()}
     />
   {/key}

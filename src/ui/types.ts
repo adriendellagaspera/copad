@@ -1,8 +1,10 @@
+import type { DisplayName, CursorColor } from '../collaboration/types.js';
+
 /** A peer present in the room (derived from y-protocols awareness state). */
 export interface PeerUser {
   id: number;
-  name: string;
-  color: string;
+  name: DisplayName;
+  color: CursorColor;
   self?: boolean;
 }
 

@@ -2,13 +2,8 @@
   import Dialog from './Dialog.svelte';
   import type { Toasts } from './toasts.svelte.js';
   import type { RoomId } from '../collaboration/types.js';
-  import {
-    getLinkKey,
-    rememberedRoomPassword,
-    setRoomPassword,
-    setLinkKey,
-    generateRoomKey,
-  } from '../collaboration/roomKey.js';
+  import { roomPassword, setRoomPassword, clearRoomPassword } from '../collaboration/roomAccess.js';
+  import { currentSecretKey, clearSecretKey, rotateSecretKey } from '../collaboration/secretLink.js';
 
   let {
     open,
@@ -28,6 +23,7 @@
   } = $props();
 
   let inputEl = $state<HTMLInputElement | undefined>();
+  let readerInputEl = $state<HTMLInputElement | undefined>();
 
   // Local mirror of the room's current encryption, re-read whenever the dialog
   // opens (location.hash / localStorage aren't reactive on their own).
@@ -37,21 +33,24 @@
 
   $effect(() => {
     if (open) {
-      linkKey = getLinkKey(location);
-      storedPw = rememberedRoomPassword(room) ?? '';
+      linkKey = currentSecretKey() ?? undefined;
+      storedPw = roomPassword().credential(room) ?? '';
       pwInput = storedPw;
     }
   });
 
   const base = $derived(`${location.origin}${location.pathname}?room=${encodeURIComponent(room)}`);
-  const url = $derived(linkKey ? `${base}#k=${encodeURIComponent(linkKey)}` : base);
+  // Keep the #k= key (when present) at the very end so it stays in the hash and the
+  // role flag stays in the query string.
+  const hashSuffix = $derived(linkKey ? `#k=${encodeURIComponent(linkKey)}` : '');
+  const url = $derived(`${base}${hashSuffix}`);
+  const readerUrl = $derived(`${base}&role=reader${hashSuffix}`);
   const encrypted = $derived(!!linkKey || !!storedPw || !!envPassword);
   const envOnly = $derived(!linkKey && !storedPw && !!envPassword);
 
   function makeSecureLink(): void {
-    const key = generateRoomKey();
-    setLinkKey(key, location, history);
-    setRoomPassword(room, null);
+    const key = rotateSecretKey();
+    clearRoomPassword(room); // link and password are mutually exclusive
     linkKey = key;
     storedPw = '';
     pwInput = '';
@@ -61,8 +60,8 @@
 
   function applyPassword(): void {
     const pw = pwInput.trim();
-    setRoomPassword(room, pw || null);
-    setLinkKey(null, location, history);
+    setRoomPassword(room, pw); // empty string clears the entry
+    clearSecretKey();
     linkKey = undefined;
     storedPw = pw;
     onSecurityChange?.();
@@ -70,8 +69,8 @@
   }
 
   function removeEncryption(): void {
-    setLinkKey(null, location, history);
-    setRoomPassword(room, null);
+    clearSecretKey();
+    clearRoomPassword(room);
     linkKey = undefined;
     storedPw = '';
     pwInput = '';
@@ -79,17 +78,16 @@
     toasts.info('Encryption removed from this room');
   }
 
-  async function copy(): Promise<void> {
+  async function copyTo(text: string, el: HTMLInputElement | undefined, label: string): Promise<void> {
     try {
-      await navigator.clipboard.writeText(url);
-      toasts.success('Invite link copied to clipboard');
+      await navigator.clipboard.writeText(text);
+      toasts.success(label);
       onclose();
       return;
     } catch {
       /* fall through to the manual fallback */
     }
-    // Fallback for non-secure contexts / denied clipboard permission.
-    inputEl?.select();
+    el?.select();
     let ok = false;
     try {
       ok = document.execCommand('copy');
@@ -97,12 +95,15 @@
       ok = false;
     }
     if (ok) {
-      toasts.success('Invite link copied');
+      toasts.success(label);
       onclose();
     } else {
       toasts.info('Press ⌘/Ctrl+C to copy the selected link');
     }
   }
+
+  const copy = () => copyTo(url, inputEl, 'Invite link copied to clipboard');
+  const copyReader = () => copyTo(readerUrl, readerInputEl, 'View-only link copied to clipboard');
 </script>
 
 <Dialog {open} {onclose} title="Share this document">
@@ -112,6 +113,7 @@
       <strong>This link carries the room's encryption key</strong>, so keep it private.
     {/if}
   </p>
+
   <div class="share-row">
     <input
       bind:this={inputEl}
@@ -123,9 +125,28 @@
     />
     <button class="primary" onclick={copy}>Copy link</button>
   </div>
-  <p class="share-room">
-    Document: <code>{room}</code>
-  </p>
+
+  <details class="reader-section">
+    <summary>Share a view-only link</summary>
+    <div class="reader-body">
+      <div class="share-row">
+        <input
+          bind:this={readerInputEl}
+          type="text"
+          readonly
+          value={readerUrl}
+          aria-label="View-only invite link"
+          onfocus={(e) => e.currentTarget.select()}
+        />
+        <button onclick={copyReader}>Copy link</button>
+      </div>
+      <p class="reader-caveat">
+        The view-only role disables editing in the UI, but is not technically enforced —
+        a recipient could bypass it by removing <code>role=reader</code> from the URL.
+        Use this for trusted collaborators you'd like to signal shouldn't edit.
+      </p>
+    </div>
+  </details>
 
   <section class="share-security">
     <h3>
@@ -173,6 +194,10 @@
       </small>
     {/if}
   </section>
+
+  <p class="share-room">
+    Document: <code>{room}</code>
+  </p>
 </Dialog>
 
 <style>
@@ -194,12 +219,31 @@
   .share-row button {
     flex-shrink: 0;
   }
-  .share-room {
-    margin: var(--sp-4) 0 0;
-    font-size: var(--fs-300);
-    color: var(--text-faint);
+  .reader-section {
+    margin-top: var(--sp-4);
   }
-  .share-room code {
+  .reader-section summary {
+    cursor: pointer;
+    font-size: var(--fs-300);
+    color: var(--text-muted);
+    user-select: none;
+  }
+  .reader-section summary:hover {
+    color: var(--text);
+  }
+  .reader-body {
+    margin-top: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+  .reader-caveat {
+    margin: 0;
+    font-size: var(--fs-300);
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  .reader-caveat code {
     font-family: var(--font-mono);
     color: var(--text-muted);
   }
@@ -252,5 +296,14 @@
     color: var(--text-faint);
     font-size: 0.75rem;
     line-height: 1.4;
+  }
+  .share-room {
+    margin: var(--sp-4) 0 0;
+    font-size: var(--fs-300);
+    color: var(--text-faint);
+  }
+  .share-room code {
+    font-family: var(--font-mono);
+    color: var(--text-muted);
   }
 </style>

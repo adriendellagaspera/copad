@@ -42,6 +42,8 @@ vi.mock('y-indexeddb', () => {
 
 import { webrtcCollab } from './webrtc.js';
 import type { RoomId, SignalingUrl } from './types.js';
+import type { RoomCipher } from './roomCipher.js';
+import type { RoomCredential } from './roomAccess.js';
 import type { LocalCacheEnabled } from './cache.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -119,6 +121,25 @@ describe('webrtcCollab local cache', () => {
     (globalThis as Record<string, unknown>).__idb = undefined;
     webrtcCollab({ signaling: SIGNALING })(ROOM);
     expect((globalThis as Record<string, unknown>).__idb).toBeUndefined();
+  });
+});
+
+describe('webrtcCollab cipher', () => {
+  it('forwards cipher.password(room) to the provider as password', () => {
+    const cipher: RoomCipher = { password: (room) => `key-for-${room}` as RoomCredential };
+    webrtcCollab({ signaling: SIGNALING, cipher })(ROOM);
+    expect(provider().opts.password).toBe(`key-for-${ROOM}`);
+  });
+
+  it('passes undefined when no cipher is given', () => {
+    webrtcCollab({ signaling: SIGNALING })(ROOM);
+    expect(provider().opts.password).toBeUndefined();
+  });
+
+  it('passes undefined when cipher.password returns null (plaintext)', () => {
+    const cipher: RoomCipher = { password: () => null };
+    webrtcCollab({ signaling: SIGNALING, cipher })(ROOM);
+    expect(provider().opts.password).toBeUndefined();
   });
 });
 

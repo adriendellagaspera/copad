@@ -1,3 +1,12 @@
+/** Opaque identifier for a storage backend instance (e.g. `'dropbox'`, `'local'`). */
+export type StorageId = string & { readonly _brand: 'StorageId' };
+
+/**
+ * A target filename including its extension (e.g. `'notes.md'`, `'document.yjs'`).
+ * The extension drives which codec is used to read/write the document.
+ */
+export type Filename = string & { readonly _brand: 'Filename' };
+
 /**
  * The document content exchanged between the Editor and a Storage backend.
  * Binary backends (Dropbox, pCloud, WebDAV, local) use the Yjs state snapshot.
@@ -14,6 +23,14 @@ export type DocContent =
  * local). Present when the backend can report it (e.g. SharePoint via Graph).
  */
 export type StorageAccess = 'read' | 'write' | 'owner';
+
+/**
+ * Whether this backend can be used in the current environment.
+ * Absent from the check only when the browser/API makes it impossible.
+ */
+export type StorageAvailability =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: string };
 
 /**
  * Key-value pairs collected from the session credential form, keyed by
@@ -47,54 +64,35 @@ export interface ConfigField {
   help?: string;
 }
 
+/**
+ * The bytes-only storage port. Authentication, configuration, and credentials
+ * live on {@link StorageAuth} (see `src/storage/auth.ts`). A non-null `Storage`
+ * reference passed to the Editor already implies the user is authenticated —
+ * `App.svelte` gates the prop to `null` until auth is established.
+ */
 export interface Storage {
-  readonly id: string;
+  readonly id: StorageId;
   readonly label: string;
   /** One-line description shown in Settings and as a pill tooltip. */
   readonly blurb?: string;
-  /** Set when this backend cannot be used in the current browser environment. */
-  readonly unavailableReason?: string;
-
-  // ── One-time configuration (Settings) ──────────────────────────────────────
-  // Backends that need no setup (Local, WebDAV) omit these entirely.
-  /** Configurable app-level fields shown in the Settings panel. */
-  readonly configFields?: ConfigField[];
-  /** Effective value of a config field (env var or saved). */
-  config?(name: string): string;
-  /** Persist a config value. No-op when the field is locked by an env var. */
-  setConfig?(name: string, value: string): void;
-  /** True when the field is fixed by an env var (managed by the deployment). */
-  configLocked?(name: string): boolean;
-  /** True when all required configuration is present (ready to connect). */
-  configured?(): boolean;
+  readonly availability: StorageAvailability;
 
   // ── Target file / format ───────────────────────────────────────────────────
   // The filename's extension selects the codec (see src/format). Backends that
   // omit these default to `document.yjs` (the native Copad format).
   /** Effective target filename including extension, e.g. `notes.md`. */
-  filename?(): string;
+  filename?(): Filename;
   /** Change the target filename. Absent where the name is fixed by the backend. */
   setFilename?(name: string): void;
 
-  // ── Per-session authentication ─────────────────────────────────────────────
-  isAuthenticated(): boolean;
-  /** Session credentials collected on the connect form (e.g. WebDAV login). */
-  readonly credentialFields?: CredentialField[];
-  connect(creds?: SessionCredentials): Promise<void>;
-  disconnect(): void;
-  /** Whether this backend stores a Yjs binary snapshot or the file's raw text. */
   readonly contentFormat: DocContent['format'];
   load(): Promise<DocContent | null>;
   save(content: DocContent): Promise<void>;
+
   /**
    * The authenticated user's access level on this specific file/resource.
    * Absent when the backend has no per-user ACL (Dropbox, WebDAV, local).
    * Present when the backend can report it (e.g. SharePoint via Graph API).
    */
   access?(): Promise<StorageAccess>;
-}
-
-/** Whether a backend has the one-time config it needs to attempt a connect. */
-export function isConfigured(s: Storage): boolean {
-  return s.configured ? s.configured() : true;
 }

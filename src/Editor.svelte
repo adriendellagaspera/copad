@@ -28,6 +28,7 @@
     CursorColor,
     PeerAwarenessState,
   } from './collaboration/types.js';
+  import { parsePeerAwarenessState } from './collaboration/parse.js';
 
   type Props = {
     storage: Storage | null;
@@ -72,7 +73,7 @@
 
   $effect(() => {
     const s = storage;
-    if (!s?.isAuthenticated()) {
+    if (!s) {
       canPersist = false;
       return;
     }
@@ -86,16 +87,24 @@
   });
 
   // ── Presence (derived from awareness) ──────────────────────────────────────
+  // Parse each raw awareness entry from peers at the IO boundary.
+  const parsedStates = (): ReadonlyMap<number, PeerAwarenessState> => {
+    const result = new Map<number, PeerAwarenessState>();
+    collab.awareness.getStates().forEach((raw, id) => {
+      result.set(id, parsePeerAwarenessState(raw));
+    });
+    return result;
+  };
+
   const readUsers = (): PeerUser[] => {
-    const states = collab.awareness.getStates();
+    const states = parsedStates();
     const selfId = collab.doc.clientID;
     const list: PeerUser[] = [];
     states.forEach((state, id) => {
-      const u = (state as { user?: { name?: string; color?: string } }).user;
       list.push({
         id,
-        name: u?.name || 'Anonymous',
-        color: u?.color || '#888888',
+        name: state.user.name,
+        color: state.user.color,
         self: id === selfId,
       });
     });
@@ -128,7 +137,7 @@
 
   // Load from storage when adapter becomes available (or changes to a different backend).
   $effect(() => {
-    if (!storage?.isAuthenticated() || !view || loadedFrom === storage.id) return;
+    if (!storage || !view || loadedFrom === storage.id) return;
     const id = storage.id;
     const codec = codecForFilename(storage.filename?.() ?? 'document.yjs');
     const label = storage.label;
@@ -154,7 +163,7 @@
   // allowing a peer without storage access (e.g. a SharePoint guest) to have
   // their edits relayed and persisted by an authenticated leader.
   const isLeader = (): boolean => {
-    const states = collab.awareness.getStates() as unknown as ReadonlyMap<number, PeerAwarenessState>;
+    const states = parsedStates();
     const persisterIds = [...states.entries()]
       .filter(([, s]) => s.canPersist)
       .map(([id]) => id);
@@ -164,7 +173,7 @@
 
   const flush = (): void => {
     const s = storage;
-    if (!s?.isAuthenticated() || !isLeader()) return;
+    if (!s || !isLeader()) return;
     const codec = codecForFilename(s.filename?.() ?? 'document.yjs');
     const label = s.label;
     saveStatus = 'saving';
@@ -190,7 +199,7 @@
   };
 
   collab.doc.on('update', () => {
-    if (!storage?.isAuthenticated()) return;
+    if (!storage) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flush, SAVE_DEBOUNCE);
   });
@@ -246,10 +255,10 @@
     <StatusPill
       {conn}
       {saveStatus}
-      hasStorage={storage?.isAuthenticated() ?? false}
+      hasStorage={storage !== null}
       storageLabel={storage?.label}
       transport={collab.transport}
-      onclick={storage?.isAuthenticated() ? undefined : onstoragestatus}
+      onclick={storage !== null ? undefined : onstoragestatus}
     />
     <PresenceBar {users} />
     <span class="peer-count">{peers} {peers === 1 ? 'peer' : 'peers'}</span>

@@ -182,37 +182,6 @@ button.ghost:hover:not(:disabled) {
   margin: 0;
 }
 
-/* ── Info / hint banner ── */
-
-.hint {
-  margin: 0;
-  font-size: var(--fs-300);
-  color: var(--text-muted);
-  background: var(--warn-soft);
-  border: 1px solid var(--warn-border);
-  border-radius: var(--r-md);
-  padding: var(--sp-3) var(--sp-4);
-}
-.hint strong {
-  color: var(--text);
-}
-
-/* ── Misconfiguration banner (e.g. signaling unreachable) ── */
-
-.signaling-warning {
-  margin: 0;
-  font-size: var(--fs-300);
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid var(--danger);
-  border-radius: var(--r-md);
-  padding: var(--sp-3) var(--sp-4);
-  line-height: 1.5;
-}
-.signaling-warning strong {
-  color: var(--danger);
-}
-
 /* ── Icon button (settings gear, drawer close) ── */
 
 .icon-btn {

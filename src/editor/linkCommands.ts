@@ -1,5 +1,6 @@
 import type { Command, EditorState } from 'prosemirror-state';
 import { schema } from './schema.js';
+import { linkHref } from './parse.js';
 
 const linkType = schema.marks.link;
 
@@ -21,12 +22,12 @@ export function currentLinkHref(state: EditorState): string | null {
   const { from, $from, to, empty } = state.selection;
   if (empty) {
     const mark = linkType.isInSet(state.storedMarks ?? $from.marks());
-    return mark ? (mark.attrs.href as string) : null;
+    return mark ? linkHref(mark) : null;
   }
   let href: string | null = null;
   state.doc.nodesBetween(from, to, (node) => {
     const mark = node.marks.find((m) => m.type === linkType);
-    if (mark) href = mark.attrs.href as string;
+    if (mark) href = linkHref(mark);
   });
   return href;
 }
