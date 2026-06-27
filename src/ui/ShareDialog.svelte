@@ -2,7 +2,8 @@
   import Dialog from './Dialog.svelte';
   import type { Toasts } from './toasts.svelte.js';
   import type { RoomId } from '../collaboration/types.js';
-  import { roomPassword, setRoomPassword, clearRoomPassword } from '../collaboration/roomAccess.js';
+  import { roomPassword, setRoomPassword, clearRoomPassword, type RoomCredential } from '../collaboration/roomAccess.js';
+  import { parseRoomCredential } from '../collaboration/parse.js';
   import { currentSecretKey, clearSecretKey, rotateSecretKey } from '../collaboration/secretLink.js';
 
   let {
@@ -26,16 +27,18 @@
   let readerInputEl = $state<HTMLInputElement | undefined>();
 
   // Local mirror of the room's current encryption, re-read whenever the dialog
-  // opens (location.hash / localStorage aren't reactive on their own).
-  let linkKey = $state<string | undefined>(undefined);
-  let storedPw = $state('');
+  // opens (location.hash / localStorage aren't reactive on their own). linkKey and
+  // storedPw carry RoomCredential — the same branded type the domain uses — while
+  // pwInput is the raw editable text field (user input stays a string until accepted).
+  let linkKey = $state<RoomCredential | undefined>(undefined);
+  let storedPw = $state<RoomCredential | null>(null);
   let pwInput = $state('');
 
   $effect(() => {
     if (open) {
       linkKey = currentSecretKey() ?? undefined;
-      storedPw = roomPassword().credential(room) ?? '';
-      pwInput = storedPw;
+      storedPw = roomPassword().credential(room);
+      pwInput = storedPw ?? '';
     }
   });
 
@@ -52,7 +55,7 @@
     const key = rotateSecretKey();
     clearRoomPassword(room); // link and password are mutually exclusive
     linkKey = key;
-    storedPw = '';
+    storedPw = null;
     pwInput = '';
     onSecurityChange?.();
     toasts.success('Secure link created — anyone with the link can read this room');
@@ -63,7 +66,7 @@
     setRoomPassword(room, pw); // empty string clears the entry
     clearSecretKey();
     linkKey = undefined;
-    storedPw = pw;
+    storedPw = parseRoomCredential(pw); // accept user input into the domain via the canonical parser
     onSecurityChange?.();
     toasts.success(pw ? 'Room password applied' : 'Room password removed');
   }
@@ -72,7 +75,7 @@
     clearSecretKey();
     clearRoomPassword(room);
     linkKey = undefined;
-    storedPw = '';
+    storedPw = null;
     pwInput = '';
     onSecurityChange?.();
     toasts.info('Encryption removed from this room');
@@ -183,7 +186,7 @@
           onkeydown={(e) => e.key === 'Enter' && applyPassword()}
           aria-label="Room password"
         />
-        <button onclick={applyPassword} disabled={pwInput.trim() === storedPw}>
+        <button onclick={applyPassword} disabled={pwInput.trim() === (storedPw ?? '')}>
           {storedPw ? 'Update' : 'Set'}
         </button>
         {#if storedPw}<button onclick={removeEncryption}>Remove</button>{/if}
