@@ -30,7 +30,7 @@ File storage services (Dropbox, Nextcloud, pCloud…) are great at durability bu
 no concept of real-time collaboration. Copad separates the two concerns:
 
 - **Real-time collaboration** → [Yjs](https://github.com/yjs/yjs) (CRDT) over a swappable transport: edits merge without conflicts. Two transports ship behind the same `Collab` port:
-  - **[y-webrtc](https://github.com/yjs/y-webrtc) (default)** — **peer-to-peer**, no server in the data path. Needs STUN, and a TURN relay on mobile/symmetric NAT.
+  - **[y-webrtc](https://github.com/yjs/y-webrtc) (default)** — **peer-to-peer**, no server in the data path. Needs STUN, and a TURN relay on mobile/symmetric NAT. Each room can be **end-to-end encrypted** from the Share dialog — a "secure link" (key in the URL `#hash`, never sent to the server) or a password you share separately.
   - **[y-websocket](https://github.com/yjs/y-websocket) hub (opt-in)** — every client connects to one central relay. No WebRTC, so **no STUN/TURN and no NAT traversal** — the reliable choice for mobile / restrictive networks. Set `VITE_COLLAB_TRANSPORT=websocket` (+ a hub URL) to switch (the server is then in the data path, so end-to-end encryption no longer applies).
 - **Persistence** → a swappable `StorageAdapter`: loads the document on startup, autosaves on changes. The storage layer only ever sees an **opaque binary blob** (the Yjs snapshot) — it knows nothing about CRDTs.
 

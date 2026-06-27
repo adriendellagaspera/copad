@@ -7,7 +7,7 @@ const ROOM = 'r' as RoomId;
 // since the module reads location.hash at call time.
 let mockHash = '';
 const replaceState = vi.fn();
-vi.stubGlobal('location', { get hash() { return mockHash; } });
+vi.stubGlobal('location', { get hash() { return mockHash; }, pathname: '/', search: '' });
 vi.stubGlobal('history', { replaceState });
 vi.stubGlobal('crypto', { randomUUID: () => 'test-uuid-1234' });
 
@@ -17,7 +17,7 @@ beforeEach(() => {
 });
 
 // Dynamic import so the stubs above are in place before the module initialises.
-const { secretLink, rotateSecretKey } = await import('./secretLink.js');
+const { secretLink, rotateSecretKey, currentSecretKey, clearSecretKey } = await import('./secretLink.js');
 
 describe('secretLink', () => {
   it('has mode secret-link', () => {
@@ -65,5 +65,36 @@ describe('rotateSecretKey', () => {
     const key = rotateSecretKey();
     expect(replaceState).toHaveBeenCalledOnce();
     expect(key).toBe('test-uuid-1234');
+  });
+});
+
+describe('currentSecretKey', () => {
+  it('returns the key in the fragment without generating one', () => {
+    mockHash = '#k=peek-me';
+    expect(currentSecretKey()).toBe('peek-me');
+    expect(replaceState).not.toHaveBeenCalled();
+  });
+
+  it('returns null when no key is present', () => {
+    mockHash = '';
+    expect(currentSecretKey()).toBeNull();
+    expect(replaceState).not.toHaveBeenCalled();
+  });
+});
+
+describe('clearSecretKey', () => {
+  it('removes the k= key while preserving other fragment params', () => {
+    mockHash = '#k=gone&foo=bar';
+    clearSecretKey();
+    const written = replaceState.mock.calls[0][2] as string;
+    expect(written).toContain('foo=bar');
+    expect(written).not.toContain('k=gone');
+  });
+
+  it('clears the hash entirely when k= was the only param', () => {
+    mockHash = '#k=only';
+    clearSecretKey();
+    const written = replaceState.mock.calls[0][2] as string;
+    expect(written).not.toContain('k=');
   });
 });

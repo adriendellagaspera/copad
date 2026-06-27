@@ -20,6 +20,9 @@
     clearLocalCache,
     type LocalCacheEnabled,
   } from './collaboration/cache.js';
+  import { roomPassword } from './collaboration/roomAccess.js';
+  import { currentSecretKey } from './collaboration/secretLink.js';
+  import type { RoomCipher } from './collaboration/roomCipher.js';
   import type { SessionRole, DisplayName, CursorColor, RoomId, CollabConnect } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
@@ -34,10 +37,16 @@
   const toasts = createToasts();
   let shareOpen = $state(false);
 
-  // Room access + cipher — resolved once at startup from VITE_ROOM_AUTH.
-  // `publicAccess` + `plaintext` are the defaults (current behaviour). Only the
-  // cipher is consumed here; the access gate travels with it inside the strategy.
-  const { cipher: roomCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
+  // Effective per-room cipher (WebRTC end-to-end encryption). Resolved fresh on
+  // each connect, in precedence order: secure-link key (#k= in the URL) → per-room
+  // password (set in the Share dialog) → the deployment's configured VITE_ROOM_AUTH
+  // strategy. The Editor remounts on a security change (collabEpoch), so a link or
+  // password set in Share takes effect on the next connection.
+  const { cipher: envCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
+  const perRoomPassword = roomPassword();
+  const roomCipher: RoomCipher = {
+    password: (r) => currentSecretKey() ?? perRoomPassword.credential(r) ?? envCipher.password(r),
+  };
   // Cast browser Location to typed PageLocation — single IO-boundary parse site.
   const loc = {
     protocol: location.protocol as PageProtocol,
@@ -97,6 +106,10 @@
   // below remounts the Editor so the change takes effect immediately.
   let localCache = $state(localCacheEnabled());
   const connect = $derived(collabPlan.build(localCache));
+
+  // Bumped when room encryption changes (secure link / password set), forcing an
+  // Editor remount so the connection re-resolves the new room password.
+  let collabEpoch = $state(0);
 
   function setLocalCache(on: boolean): void {
     setLocalCacheEnabled(on);
@@ -230,7 +243,7 @@
     </InfoBanner>
   {/if}
 
-  {#key `${room}|${localCache}`}
+  {#key `${room}|${localCache}|${collabEpoch}`}
     <Editor
       {name}
       {color}
@@ -256,5 +269,12 @@
   ondisconnect={afterDisconnect}
 />
 
-<ShareDialog open={shareOpen} onclose={() => (shareOpen = false)} {room} {toasts} />
+<ShareDialog
+  open={shareOpen}
+  onclose={() => (shareOpen = false)}
+  {room}
+  {toasts}
+  envPassword={import.meta.env.VITE_ROOM_PASSWORD}
+  onSecurityChange={() => (collabEpoch += 1)}
+/>
 <Toast {toasts} />

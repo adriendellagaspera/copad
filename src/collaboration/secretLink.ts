@@ -52,3 +52,18 @@ export function rotateSecretKey(): RoomCredential {
   writeKey(key);
   return key;
 }
+
+/** The key currently in the URL `#k=` fragment, or `null` — *without* generating
+ *  one (unlike {@link secretLink}). For UI that inspects the current state. */
+export function currentSecretKey(): RoomCredential | null {
+  return parseKey();
+}
+
+/** Remove the `#k=` key from the URL, turning off secret-link encryption. */
+export function clearSecretKey(): void {
+  if (typeof location === 'undefined' || typeof history === 'undefined') return;
+  const params = new URLSearchParams(location.hash.slice(1));
+  params.delete(FRAGMENT_KEY);
+  const hash = params.toString();
+  history.replaceState(null, '', hash ? '#' + hash : location.pathname + location.search);
+}
