@@ -16,6 +16,7 @@
   import Outline from './editor/ui/Outline.svelte';
   import StatusPill from './ui/StatusPill.svelte';
   import PresenceBar from './ui/PresenceBar.svelte';
+  import ConnectionDialog from './ui/ConnectionDialog.svelte';
   import type { PeerUser, SaveStatus } from './ui/types.js';
   import type { Toasts } from './ui/toasts.svelte.js';
   import type { Storage, StorageAccess, DocContent } from './storage/types.js';
@@ -61,6 +62,7 @@
   let users = $state<PeerUser[]>([]);
   let peers = $state(1);
   let conn = $state<ConnStatus>('connecting');
+  let diagOpen = $state(false);
   let saveStatus = $state<SaveStatus>('idle');
   let loadedFrom = $state<string | null>(null);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -262,6 +264,16 @@
     />
     <PresenceBar {users} />
     <span class="peer-count">{peers} {peers === 1 ? 'peer' : 'peers'}</span>
+    <button
+      class="diag-btn"
+      onclick={() => (diagOpen = true)}
+      title="Connection details"
+      aria-label="Connection details"
+    >
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2 20h.01M7 20v-4M12 20v-8M17 20V8M22 4v16" />
+      </svg>
+    </button>
     <span class="spacer"></span>
     <WordCount {editorState} />
     <Outline {view} {editorState} />
@@ -270,3 +282,11 @@
   <SlashMenu {view} {editorState} />
   <LinkPopover {view} />
 </div>
+
+<ConnectionDialog
+  open={diagOpen}
+  onclose={() => (diagOpen = false)}
+  transport={collab.transport}
+  getDiagnostics={collab.getDiagnostics ? () => collab.getDiagnostics!() : undefined}
+  reconnect={collab.reconnect}
+/>

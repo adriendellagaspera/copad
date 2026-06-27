@@ -53,6 +53,19 @@ export function websocketCollab(opts: WebsocketCollabOptions): CollabConnect {
       transport: 'hub',
       onStatus: core.onStatus,
       onSynced: core.onSynced,
+      reconnect() {
+        provider.disconnect();
+        provider.connect();
+      },
+      async getDiagnostics() {
+        // No per-peer carriage on the hub — everyone talks to the same server.
+        return {
+          transport: 'hub' as const,
+          signaling: !!provider.wsconnected,
+          peers: Math.max(0, provider.awareness.getStates().size - 1),
+          connections: [],
+        };
+      },
       destroy() {
         // Drop the awareness listener, then core detaches the cache before we
         // tear down the provider and doc.

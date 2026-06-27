@@ -14,11 +14,19 @@ vi.mock('y-webrtc', () => {
       this.opts = opts;
       (globalThis as Record<string, unknown>).__wp = this;
     }
+    disconnectCount = 0;
+    connectCount = 0;
     on(ev: string, fn: (...a: unknown[]) => void) {
       (this.handlers[ev] ||= []).push(fn);
     }
     emit(ev: string, arg?: unknown) {
       (this.handlers[ev] || []).forEach((fn) => fn(arg));
+    }
+    disconnect() {
+      this.disconnectCount++;
+    }
+    connect() {
+      this.connectCount++;
     }
     destroy() {}
   }
@@ -140,6 +148,26 @@ describe('webrtcCollab cipher', () => {
     const cipher: RoomCipher = { password: () => null };
     webrtcCollab({ signaling: SIGNALING, cipher })(ROOM);
     expect(provider().opts.password).toBeUndefined();
+  });
+});
+
+describe('webrtcCollab reconnect & diagnostics', () => {
+  it('reconnect drops and re-attaches the provider', () => {
+    const collab = webrtcCollab({ signaling: SIGNALING })(ROOM);
+    collab.reconnect?.();
+    expect(provider().disconnectCount).toBe(1);
+    expect(provider().connectCount).toBe(1);
+    collab.destroy();
+  });
+
+  it('getDiagnostics reports transport, signaling and peer count', async () => {
+    const collab = webrtcCollab({ signaling: SIGNALING })(ROOM);
+    const d = await collab.getDiagnostics?.();
+    expect(d?.transport).toBe('p2p');
+    expect(d?.signaling).toBe(true);
+    expect(d?.peers).toBe(0);
+    expect(d?.connections).toEqual([]);
+    collab.destroy();
   });
 });
 
