@@ -48,11 +48,11 @@ function pickFileMobile(): Promise<File> {
       cleanup();
       const file = input.files?.[0];
       if (file) resolve(file);
-      else reject(new DOMException('No file selected', 'AbortError'));
+      else reject(new Error('No file selected'));
     });
     input.addEventListener('cancel', () => {
       cleanup();
-      reject(new DOMException('The user aborted a request.', 'AbortError'));
+      reject(new Error('The user aborted a request.'));
     });
     document.body.appendChild(input);
     input.click();
@@ -103,36 +103,49 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
 
     // The picked file's name selects the codec; `.yjs` is the native default.
     filename(): Filename {
-      if (state.mode === 'native') return state.handle.name as Filename;
-      if (state.mode === 'imported') return state.file.name as Filename;
-      return 'document.yjs' as Filename;
+      const name =
+        state.mode === 'native' ? state.handle.name
+        : state.mode === 'imported' ? state.file.name
+        : 'document.yjs';
+      return name as Filename;
     },
 
     contentFormat: 'binary',
 
     async load(): Promise<DocContent | null> {
-      if (state.mode === 'native') {
-        const file = await state.handle.getFile();
-        if (file.size === 0) return null;
-        return { format: 'binary', bytes: new Uint8Array(await file.arrayBuffer()) };
+      switch (state.mode) {
+        case 'native': {
+          const file = await state.handle.getFile();
+          return file.size === 0
+            ? null
+            : { format: 'binary', bytes: new Uint8Array(await file.arrayBuffer()) };
+        }
+        case 'imported':
+          return state.file.size === 0
+            ? null
+            : { format: 'binary', bytes: new Uint8Array(await state.file.arrayBuffer()) };
+        case 'new':
+          return null; // Empty document; content comes from collaborators.
+        case 'idle':
+          throw new Error('Local: not connected');
       }
-      if (state.mode === 'imported') {
-        if (state.file.size === 0) return null;
-        return { format: 'binary', bytes: new Uint8Array(await state.file.arrayBuffer()) };
-      }
-      if (state.mode === 'new') return null; // Empty document; content comes from collaborators.
-      throw new Error('Local: not connected');
     },
 
     async save(content: DocContent): Promise<void> {
       if (content.format !== 'binary') throw new Error('Local storage expects binary content');
-      if (state.mode === 'native') {
-        const writable = await state.handle.createWritable();
-        await writable.write(content.bytes as unknown as FileSystemWriteChunkType);
-        await writable.close();
-        return;
+      switch (state.mode) {
+        case 'native': {
+          const writable = await state.handle.createWritable();
+          await writable.write(content.bytes as unknown as FileSystemWriteChunkType);
+          await writable.close();
+          return;
+        }
+        case 'imported':
+        case 'new':
+          return; // No write-back — edits persist in the Y.Doc and local cache.
+        case 'idle':
+          throw new Error('Local: not connected');
       }
-      // Fallback path: no write-back — edits persist in the Y.Doc and local cache.
     },
   };
 
