@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { ConnStatus, Transport } from '../collaboration/types.js';
-  import type { SaveStatus } from './types.js';
+  import { ConnStatus, Transport } from '../collaboration/types.js';
+  import { SaveStatus } from './types.js';
 
   let {
     conn,
@@ -23,7 +23,7 @@
 
   // A short badge + sentence describing the transport, woven into the live states
   // so a user can tell at a glance whether the server sees their content.
-  const isP2P = $derived(transport === 'p2p');
+  const isP2P = $derived(transport === Transport.P2P);
   const tag = $derived(isP2P ? 'P2P' : 'Relay');
   const transportTitle = $derived(
     isP2P
@@ -33,9 +33,9 @@
 
   const state = $derived.by(
     (): { label: string; tone: Tone; icon: Icon; title: string; tag?: string } => {
-      if (conn === 'offline')
+      if (conn === ConnStatus.Offline)
         return { label: 'Offline', tone: 'warn', icon: 'offline', title: 'No network connection' };
-      if (conn === 'connecting')
+      if (conn === ConnStatus.Connecting)
         return {
           label: 'Connecting…',
           tone: 'muted',
@@ -47,13 +47,13 @@
       // connected or waiting — save status is orthogonal and takes precedence while active.
       if (hasStorage) {
         const where = storageLabel ?? 'storage';
-        if (saveStatus === 'error')
+        if (saveStatus === SaveStatus.Error)
           return { label: 'Save failed', tone: 'danger', icon: 'cloud', title: `Could not save to ${where}` };
-        if (saveStatus === 'saving')
+        if (saveStatus === SaveStatus.Saving)
           return { label: 'Saving…', tone: 'muted', icon: 'spinner', title: `Saving to ${where}` };
-        if (saveStatus === 'saved')
+        if (saveStatus === SaveStatus.Saved)
           return { label: 'Saved', tone: 'ok', icon: 'check', title: `Saved to ${where}` };
-        if (conn === 'waiting')
+        if (conn === ConnStatus.Waiting)
           return {
             label: 'No peers yet',
             tone: 'muted',
@@ -63,7 +63,7 @@
           };
         return { label: 'Synced', tone: 'ok', icon: 'cloud', title: `Synced — saving to ${where}`, tag };
       }
-      if (conn === 'waiting')
+      if (conn === ConnStatus.Waiting)
         return {
           label: 'No peers yet',
           tone: 'muted',

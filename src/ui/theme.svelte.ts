@@ -6,12 +6,17 @@
 import { localStore } from '../persistence/local.js';
 import { nsKey } from '../config.js';
 
-export type ThemeChoice = 'light' | 'dark' | 'system';
-export type ResolvedTheme = 'light' | 'dark';
+export const ThemeChoice = { Light: 'light', Dark: 'dark', System: 'system' } as const;
+export type ThemeChoice = (typeof ThemeChoice)[keyof typeof ThemeChoice];
+
+export const ResolvedTheme = { Light: 'light', Dark: 'dark' } as const;
+export type ResolvedTheme = (typeof ResolvedTheme)[keyof typeof ResolvedTheme];
 
 /** Parse a stored theme choice — the single narrowing site, defaulting to 'system'. */
 function parseThemeChoice(raw: string | null): ThemeChoice {
-  return raw === 'light' || raw === 'dark' || raw === 'system' ? raw : 'system';
+  return raw === ThemeChoice.Light || raw === ThemeChoice.Dark || raw === ThemeChoice.System
+    ? raw
+    : ThemeChoice.System;
 }
 
 // localStorage + parsing are abstracted behind this store.
@@ -23,7 +28,7 @@ export function createTheme() {
   let systemDark = $state(mql.matches);
 
   const resolved = $derived<ResolvedTheme>(
-    choice === 'system' ? (systemDark ? 'dark' : 'light') : choice
+    choice === ThemeChoice.System ? (systemDark ? ResolvedTheme.Dark : ResolvedTheme.Light) : choice
   );
 
   function apply(theme: ResolvedTheme): void {
@@ -33,13 +38,13 @@ export function createTheme() {
   function set(next: ThemeChoice): void {
     choice = next;
     themeStore.write(next);
-    apply(next === 'system' ? (systemDark ? 'dark' : 'light') : next);
+    apply(next === ThemeChoice.System ? (systemDark ? ResolvedTheme.Dark : ResolvedTheme.Light) : next);
   }
 
   // React to OS theme changes while the user is on "system".
   mql.addEventListener('change', (e) => {
     systemDark = e.matches;
-    if (choice === 'system') apply(e.matches ? 'dark' : 'light');
+    if (choice === ThemeChoice.System) apply(e.matches ? ResolvedTheme.Dark : ResolvedTheme.Light);
   });
 
   return {
@@ -52,7 +57,7 @@ export function createTheme() {
     set,
     /** Flip to the opposite of whatever is currently showing. */
     toggle(): void {
-      set(resolved === 'dark' ? 'light' : 'dark');
+      set(resolved === ResolvedTheme.Dark ? ThemeChoice.Light : ThemeChoice.Dark);
     },
   };
 }

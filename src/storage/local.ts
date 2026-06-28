@@ -1,4 +1,5 @@
 import type { Storage, StorageAvailability, SessionCredentials, DocContent, Filename } from './types.js';
+import { DocFormat, OpenMode } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { knownExtensions } from '../format/index.js';
 import { STORAGE_ID } from './constants.js';
@@ -49,7 +50,7 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
           accept: { 'application/octet-stream': knownExtensions() },
         },
       ];
-      if (creds?.mode === 'new') {
+      if (creds?.mode === OpenMode.New) {
         handle = await window.showSaveFilePicker({ suggestedName: 'document.yjs', types });
       } else {
         [handle] = await window.showOpenFilePicker({ types });
@@ -73,17 +74,17 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
     // The picked file's name selects the codec; `.yjs` is the native default.
     filename: () => (handle?.name ?? 'document.yjs') as Filename,
 
-    contentFormat: 'binary',
+    contentFormat: DocFormat.Binary,
 
     async load(): Promise<DocContent | null> {
       if (!handle) throw new Error('Local: not connected');
       const file = await handle.getFile();
       if (file.size === 0) return null;
-      return { format: 'binary', bytes: new Uint8Array(await file.arrayBuffer()) };
+      return { format: DocFormat.Binary, bytes: new Uint8Array(await file.arrayBuffer()) };
     },
 
     async save(content: DocContent): Promise<void> {
-      if (content.format !== 'binary') throw new Error('Local storage expects binary content');
+      if (content.format !== DocFormat.Binary) throw new Error('Local storage expects binary content');
       if (!handle) throw new Error('Local: not connected');
       const writable = await handle.createWritable();
       await writable.write(content.bytes as unknown as FileSystemWriteChunkType);

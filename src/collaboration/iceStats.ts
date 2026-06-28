@@ -5,8 +5,8 @@
 // below are what Chrome/Firefox/Safari report for the entries we care about.
 // Shape the entries we actually read so cast sites are explicit and localised.
 
-import type { IceCandidateType } from './types.js';
-export type { IceCandidateType };
+import { IceCandidateType } from './types.js';
+export { IceCandidateType };
 
 /** The subset of `RTCPeerConnection` that `IceStatsReader` actually uses — an ACL
  *  so tests and browser-quirk overrides don't depend on the full browser API type. */
@@ -44,16 +44,16 @@ export const defaultIceStatsReader: IceStatsReader = async (conn) => {
       rows.find((r): r is CandidatePairStats => r.type === 'candidate-pair' && (r as CandidatePairStats).id === pairId) ??
       rows.find((r): r is CandidatePairStats => r.type === 'candidate-pair' && !!((r as CandidatePairStats).nominated || (r as CandidatePairStats).selected)) ??
       rows.find((r): r is CandidatePairStats => r.type === 'candidate-pair' && (r as CandidatePairStats).state === 'succeeded');
-    if (!pair) return 'unknown';
+    if (!pair) return IceCandidateType.Unknown;
 
     const local = rows.find(
       (r): r is LocalCandidateStats => r.type === 'local-candidate' && (r as LocalCandidateStats).id === pair.localCandidateId,
     );
     const t = local?.candidateType;
-    if (t === 'relay') return 'relay';
-    if (t) return 'direct';
-    return 'unknown';
+    if (t === 'relay') return IceCandidateType.Relay;
+    if (t) return IceCandidateType.Direct;
+    return IceCandidateType.Unknown;
   } catch {
-    return 'unknown';
+    return IceCandidateType.Unknown;
   }
 };

@@ -1,8 +1,9 @@
 import type {
-  DisplayName, CursorColor, SessionRole, PeerAwarenessState, RoomId,
+  DisplayName, CursorColor, PeerAwarenessState, RoomId,
   SignalingUrl, WebsocketUrl,
-  StunUrl, TurnUrl, TurnUsername, TurnCredential, FallbackTurnPolicy,
+  StunUrl, TurnUrl, TurnUsername, TurnCredential,
 } from './types.js';
+import { SessionRole, FallbackTurnPolicy } from './types.js';
 import type { RoomCredential } from './roomAccess.js';
 import type { LocalCacheEnabled } from './cache.js';
 import type { TurnPrefs } from './turn.js';
@@ -63,7 +64,7 @@ export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
   const color: CursorColor = (typeof colorRaw === 'string' && /^#[0-9a-fA-F]{6}$/.test(colorRaw))
     ? colorRaw as CursorColor
     : FALLBACK_COLOR;
-  const role: SessionRole = obj['role'] === 'reader' ? 'reader' : 'writer';
+  const role: SessionRole = obj['role'] === SessionRole.Reader ? SessionRole.Reader : SessionRole.Writer;
   const canPersist = obj['canPersist'] === true;
   return { user: { name, color }, role, canPersist };
 }
@@ -104,7 +105,7 @@ const TURN_PREFS_FALLBACK: TurnPrefs = {
   urls: [],
   username: parseTurnUsername(''),
   credential: parseTurnCredential(''),
-  fallback: 'openrelay',
+  fallback: FallbackTurnPolicy.OpenRelay,
 };
 
 /** Parse persisted runtime TURN prefs from localStorage JSON — the single
@@ -125,7 +126,8 @@ export function parseTurnPrefs(raw: string | null): TurnPrefs {
       : TURN_PREFS_FALLBACK.urls;
 
     const fallbackRaw = o['fallback'];
-    const fallback: FallbackTurnPolicy = fallbackRaw === 'none' ? 'none' : 'openrelay';
+    const fallback: FallbackTurnPolicy =
+      fallbackRaw === FallbackTurnPolicy.None ? FallbackTurnPolicy.None : FallbackTurnPolicy.OpenRelay;
 
     return {
       urls,

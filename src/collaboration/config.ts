@@ -7,7 +7,8 @@
 // 2. An insecure ws:// server on an https:// page — browsers block this as
 //    mixed content, so the signaling socket never opens.
 
-import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, FallbackTurnPolicy, RoomId, IceServer } from './types.js';
+import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, RoomId, IceServer } from './types.js';
+import { FallbackTurnPolicy } from './types.js';
 import type { RoomAccess } from './roomAccess.js';
 import type { RoomCipher } from './roomCipher.js';
 import { publicAccess, sitePassword, roomPassword } from './roomAccess.js';
@@ -246,7 +247,7 @@ export function resolveIceServers(
       ...(env.VITE_TURN_USERNAME ? { username: parseTurnUsername(env.VITE_TURN_USERNAME) } : {}),
       ...(env.VITE_TURN_CREDENTIAL ? { credential: parseTurnCredential(env.VITE_TURN_CREDENTIAL) } : {}),
     });
-  } else if ((opts.fallback ?? 'openrelay') !== 'none') {
+  } else if ((opts.fallback ?? FallbackTurnPolicy.OpenRelay) !== FallbackTurnPolicy.None) {
     // No TURN configured — fall back to the public relay for restrictive NATs.
     servers.push(DEFAULT_TURN);
   }

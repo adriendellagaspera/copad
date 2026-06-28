@@ -1,4 +1,5 @@
 import type { Storage, CredentialField, SessionCredentials, DocContent } from './types.js';
+import { DocFormat } from './types.js';
 import type { StorageAuth } from './auth.js';
 import type { Fetch } from '../network/types.js';
 import { filenameStore } from './filename.js';
@@ -66,7 +67,7 @@ export function webdavStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
     filename: () => fileName.get(),
     setFilename: fileName.set,
 
-    contentFormat: 'binary',
+    contentFormat: DocFormat.Binary,
 
     async load(): Promise<DocContent | null> {
       const c = conf();
@@ -78,11 +79,11 @@ export function webdavStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
 
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`WebDAV load failed: ${res.status}`);
-      return { format: 'binary', bytes: new Uint8Array(await res.arrayBuffer()) };
+      return { format: DocFormat.Binary, bytes: new Uint8Array(await res.arrayBuffer()) };
     },
 
     async save(content: DocContent): Promise<void> {
-      if (content.format !== 'binary') throw new Error('WebDAV storage expects binary content');
+      if (content.format !== DocFormat.Binary) throw new Error('WebDAV storage expects binary content');
       const c = conf();
       if (!c) throw new Error('WebDAV: not connected');
 
