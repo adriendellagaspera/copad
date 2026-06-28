@@ -7,13 +7,13 @@
 // 2. An insecure ws:// server on an https:// page — browsers block this as
 //    mixed content, so the signaling socket never opens.
 
-import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, FallbackTurnPolicy, RoomId } from './types.js';
+import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, FallbackTurnPolicy, RoomId, IceServer } from './types.js';
 import type { RoomAccess } from './roomAccess.js';
 import type { RoomCipher } from './roomCipher.js';
 import { publicAccess, sitePassword, roomPassword } from './roomAccess.js';
 import { plaintext } from './roomCipher.js';
 import { secretLink, type SecretLinkPort } from './secretLink.js';
-import { parseRoomId, parseSignalingUrl, parseWebsocketUrl, parseStunUrl, parseTurnUrl } from './parse.js';
+import { parseRoomId, parseSignalingUrl, parseWebsocketUrl, parseStunUrl, parseTurnUrl, parseTurnUsername, parseTurnCredential } from './parse.js';
 import { LOCAL_HOSTS, DEFAULT_DEV_SIGNALING, DEFAULT_STUN, DEFAULT_ROOM_NAME } from './constants.js';
 
 const list = (raw: string | undefined): string[] =>
@@ -147,14 +147,14 @@ export function resolveWebsocket(
  * but configure your own (env or Settings) for anything serious. Disable via
  * `{ fallback: 'none' }` in `resolveIceServers`.
  */
-export const DEFAULT_TURN: RTCIceServer = {
+export const DEFAULT_TURN: IceServer = {
   urls: [
-    'turn:openrelay.metered.ca:80',
-    'turn:openrelay.metered.ca:443',
-    'turns:openrelay.metered.ca:443',
+    parseTurnUrl('turn:openrelay.metered.ca:80')!,
+    parseTurnUrl('turn:openrelay.metered.ca:443')!,
+    parseTurnUrl('turns:openrelay.metered.ca:443')!,
   ],
-  username: 'openrelayproject',
-  credential: 'openrelayproject',
+  username: parseTurnUsername('openrelayproject'),
+  credential: parseTurnCredential('openrelayproject'),
 };
 
 /**
@@ -224,8 +224,8 @@ export interface IceEnv {
 export function resolveIceServers(
   env: IceEnv,
   opts: { fallback?: FallbackTurnPolicy } = {},
-): RTCIceServer[] {
-  const servers: RTCIceServer[] = [];
+): IceServer[] {
+  const servers: IceServer[] = [];
 
   // VITE_STUN_URL="" (explicitly empty) disables the STUN default on purpose.
   // list() is shared and returns plain strings; parse each entry here, dropping
@@ -239,10 +239,13 @@ export function resolveIceServers(
     .map(parseTurnUrl)
     .filter((t): t is TurnUrl => t !== null);
   if (turnUrls.length) {
-    const turn: RTCIceServer = { urls: turnUrls };
-    if (env.VITE_TURN_USERNAME) turn.username = env.VITE_TURN_USERNAME;
-    if (env.VITE_TURN_CREDENTIAL) turn.credential = env.VITE_TURN_CREDENTIAL;
-    servers.push(turn);
+    // Env-var values cross the IO boundary here — parse to branded types so
+    // the rest of the domain never sees raw strings.
+    servers.push({
+      urls: turnUrls,
+      ...(env.VITE_TURN_USERNAME ? { username: parseTurnUsername(env.VITE_TURN_USERNAME) } : {}),
+      ...(env.VITE_TURN_CREDENTIAL ? { credential: parseTurnCredential(env.VITE_TURN_CREDENTIAL) } : {}),
+    });
   } else if ((opts.fallback ?? 'openrelay') !== 'none') {
     // No TURN configured — fall back to the public relay for restrictive NATs.
     servers.push(DEFAULT_TURN);

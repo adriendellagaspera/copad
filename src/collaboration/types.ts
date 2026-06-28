@@ -23,6 +23,15 @@ export type StunUrl = string & { readonly _brand: 'StunUrl' };
  *  media when direct/STUN paths fail (carrier / symmetric NAT). */
 export type TurnUrl = string & { readonly _brand: 'TurnUrl' };
 
+/** An ICE server descriptor — STUN or TURN — in a domain-typed form.
+ *  Structurally compatible with `RTCIceServer` (branded strings extend `string`)
+ *  so it passes straight through to WebRTC APIs without conversion. */
+export interface IceServer {
+  readonly urls: (StunUrl | TurnUrl)[];
+  readonly username?: TurnUsername;
+  readonly credential?: TurnCredential;
+}
+
 /** TURN long-term credential username, cast from user input at the Settings
  *  form boundary by `parseTurnUsername()` in `parse.ts`. */
 export type TurnUsername = string & { readonly _brand: 'TurnUsername' };

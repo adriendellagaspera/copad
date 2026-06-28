@@ -78,7 +78,7 @@
     const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, loc);
     // ICE is resolved per build (not once) so runtime TURN changes from Settings
     // apply on the next reconnect. Precedence: runtime TURN → env TURN → public default.
-    const buildIce = (): RTCIceServer[] => {
+    const buildIce = () => {
       const turn = getTurnPrefs();
       const hasRuntimeTurn = turn.urls.length > 0;
       return resolveIceServers(

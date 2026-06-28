@@ -53,6 +53,7 @@ import type { RoomId, SignalingUrl } from './types.js';
 import type { RoomCipher } from './roomCipher.js';
 import type { RoomCredential } from './roomAccess.js';
 import type { LocalCacheEnabled } from './cache.js';
+import { parseTurnUrl, parseTurnUsername, parseTurnCredential } from './parse.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const provider = (): any => (globalThis as Record<string, unknown>).__wp;
@@ -173,7 +174,11 @@ describe('webrtcCollab reconnect & diagnostics', () => {
 
 describe('webrtcCollab ICE configuration', () => {
   it('forwards iceServers to the provider as peerOpts.config', () => {
-    const ice = [{ urls: 'turn:t.example:3478', username: 'u', credential: 'c' }];
+    const ice = [{
+      urls: [parseTurnUrl('turn:t.example:3478')!],
+      username: parseTurnUsername('u'),
+      credential: parseTurnCredential('c'),
+    }];
     webrtcCollab({ signaling: SIGNALING, iceServers: ice })(ROOM);
     expect(provider().opts.peerOpts).toEqual({ config: { iceServers: ice } });
   });

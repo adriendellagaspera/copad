@@ -8,10 +8,16 @@
 import type { IceCandidateType } from './types.js';
 export type { IceCandidateType };
 
-/** Strategy for reading the selected ICE candidate type from an RTCPeerConnection.
+/** The subset of `RTCPeerConnection` that `IceStatsReader` actually uses — an ACL
+ *  so tests and browser-quirk overrides don't depend on the full browser API type. */
+export interface PeerConnectionLike {
+  getStats(): Promise<RTCStatsReport>;
+}
+
+/** Strategy for reading the selected ICE candidate type from a peer connection.
  *  The default (`defaultIceStatsReader`) works on every major browser via
  *  `getStats()`; inject a custom reader in tests or to handle browser quirks. */
-export type IceStatsReader = (pc: RTCPeerConnection) => Promise<IceCandidateType>;
+export type IceStatsReader = (conn: PeerConnectionLike) => Promise<IceCandidateType>;
 
 // Typed shapes for the specific getStats() entries we inspect.
 // Only the fields we read are listed; extra browser-specific ones are ignored.
@@ -22,10 +28,10 @@ type StatsEntry = TransportStats | CandidatePairStats | LocalCandidateStats | { 
 
 /** Standard ICE stats reader — works on Chrome, Firefox, and Safari.
  *  Resolves to `'unknown'` when stats are unavailable or the PC is closed. */
-export const defaultIceStatsReader: IceStatsReader = async (pc) => {
+export const defaultIceStatsReader: IceStatsReader = async (conn) => {
   try {
     const rows: StatsEntry[] = [];
-    (await pc.getStats()).forEach((r) => rows.push(r as StatsEntry));
+    (await conn.getStats()).forEach((r) => rows.push(r as StatsEntry));
 
     let pairId: string | undefined;
     for (const r of rows) {

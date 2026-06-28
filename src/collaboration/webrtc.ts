@@ -1,16 +1,16 @@
 import * as Y from 'yjs';
 import { WebrtcProvider } from 'y-webrtc';
-import type { Collab, CollabConnect, RoomId, SignalingUrl, Diagnostics, PeerConnId } from './types.js';
+import type { Collab, CollabConnect, RoomId, SignalingUrl, Diagnostics, PeerConnId, IceServer } from './types.js';
 import type { RoomCipher } from './roomCipher.js';
 import type { LocalCacheEnabled } from './cache.js';
 import { createCollabCore } from './core.js';
-import { defaultIceStatsReader, type IceStatsReader } from './iceStats.js';
+import { defaultIceStatsReader, type IceStatsReader, type PeerConnectionLike } from './iceStats.js';
 
 // Local types for y-webrtc's private room internals — an IO boundary between
 // this adapter and the library. Localising them here means a y-webrtc API
 // change only touches this interface, not the whole adapter.
 interface WebrtcRoomConn {
-  readonly peer?: { readonly _pc?: RTCPeerConnection };
+  readonly peer?: { readonly _pc?: PeerConnectionLike };
 }
 interface WebrtcRoom {
   readonly webrtcConns: Map<string, WebrtcRoomConn>;
@@ -25,7 +25,7 @@ export interface WebrtcCollabOptions {
   cipher?: RoomCipher;
   /** ICE servers (STUN/TURN) for WebRTC NAT traversal. Passing TURN here is
    *  what makes desktop↔mobile work across restrictive carrier NATs. */
-  iceServers?: RTCIceServer[];
+  iceServers?: IceServer[];
   /** Mirror the doc into IndexedDB so it survives a reload without a backend. */
   cache?: LocalCacheEnabled;
   /** Override how the selected ICE candidate type is read from an RTCPeerConnection.
