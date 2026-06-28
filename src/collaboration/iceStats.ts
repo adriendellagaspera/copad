@@ -5,8 +5,8 @@
 // below are what Chrome/Firefox/Safari report for the entries we care about.
 // Shape the entries we actually read so cast sites are explicit and localised.
 
-/** How a live peer connection carries its media. */
-export type IceCandidateType = 'direct' | 'relay' | 'unknown';
+import type { IceCandidateType } from './types.js';
+export type { IceCandidateType };
 
 /** Strategy for reading the selected ICE candidate type from an RTCPeerConnection.
  *  The default (`defaultIceStatsReader`) works on every major browser via

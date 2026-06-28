@@ -91,11 +91,16 @@ export type Transport = 'p2p' | 'hub';
  *  connection map — branded so it can't be confused with any other id string. */
 export type PeerConnId = string & { readonly _brand: 'PeerConnId' };
 
+/** Whether a peer connection is carried directly (host/srflx candidate) or
+ *  via a TURN relay. `'unknown'` means stats are unavailable or the PC is still
+ *  negotiating. Single source of truth — used by both `IceStatsReader` and
+ *  `PeerConnectionInfo`. */
+export type IceCandidateType = 'direct' | 'relay' | 'unknown';
+
 /** How a single peer connection is carried — surfaced in the diagnostics panel. */
 export interface PeerConnectionInfo {
   readonly id: PeerConnId;
-  /** `direct` = host/srflx candidate; `relay` = routed through a TURN server. */
-  readonly type: 'direct' | 'relay' | 'unknown';
+  readonly type: IceCandidateType;
 }
 
 /** A snapshot of the live connection, for the diagnostics panel. */

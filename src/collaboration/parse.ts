@@ -1,11 +1,25 @@
 import type {
   DisplayName, CursorColor, SessionRole, PeerAwarenessState, RoomId,
+  SignalingUrl, WebsocketUrl,
   StunUrl, TurnUrl, TurnUsername, TurnCredential, FallbackTurnPolicy,
 } from './types.js';
 import type { RoomCredential } from './roomAccess.js';
 import type { LocalCacheEnabled } from './cache.js';
 import type { TurnPrefs } from './turn.js';
 import { FALLBACK_NAME, FALLBACK_COLOR } from './peerDefaults.js';
+
+/** ws:// or wss:// — the only schemes y-webrtc / y-websocket understand. */
+const WS_URL = /^wss?:\/\/\S+$/i;
+
+/** Single cast site for SignalingUrl. */
+export function parseSignalingUrl(raw: string): SignalingUrl | null {
+  return WS_URL.test(raw) ? (raw as SignalingUrl) : null;
+}
+
+/** Single cast site for WebsocketUrl. */
+export function parseWebsocketUrl(raw: string): WebsocketUrl | null {
+  return WS_URL.test(raw) ? (raw as WebsocketUrl) : null;
+}
 
 /** stun: / turn: / turns: — the ICE URL schemes WebRTC understands. */
 const ICE_URL = /^(?:stun|turns?):\S+$/i;

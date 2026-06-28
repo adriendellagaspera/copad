@@ -13,7 +13,7 @@ import type { RoomCipher } from './roomCipher.js';
 import { publicAccess, sitePassword, roomPassword } from './roomAccess.js';
 import { plaintext } from './roomCipher.js';
 import { secretLink, type SecretLinkPort } from './secretLink.js';
-import { parseRoomId, parseStunUrl, parseTurnUrl } from './parse.js';
+import { parseRoomId, parseSignalingUrl, parseWebsocketUrl, parseStunUrl, parseTurnUrl } from './parse.js';
 import { LOCAL_HOSTS, DEFAULT_DEV_SIGNALING, DEFAULT_STUN, DEFAULT_ROOM_NAME } from './constants.js';
 
 const list = (raw: string | undefined): string[] =>
@@ -22,18 +22,6 @@ const list = (raw: string | undefined): string[] =>
     .map((s) => s.trim())
     .filter(Boolean);
 
-/** ws:// or wss:// — the only schemes y-webrtc / y-websocket understand. */
-const WS_URL = /^wss?:\/\/\S+$/i;
-
-/** Parse a single signaling URL, branding it only if it is a real ws/wss URL. */
-function parseSignalingUrl(raw: string): SignalingUrl | null {
-  return WS_URL.test(raw) ? (raw as SignalingUrl) : null;
-}
-
-/** Parse the hub URL, branding it only if it is a real ws/wss URL. */
-function parseWebsocketUrl(raw: string): WebsocketUrl | null {
-  return WS_URL.test(raw) ? (raw as WebsocketUrl) : null;
-}
 
 
 export interface SignalingResolution {

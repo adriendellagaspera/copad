@@ -12,7 +12,7 @@
     open: boolean;
     onclose: () => void;
     transport: Transport;
-    getDiagnostics?: () => Promise<Diagnostics> | undefined;
+    getDiagnostics?: () => Promise<Diagnostics>;
     reconnect?: () => void;
   } = $props();
 
