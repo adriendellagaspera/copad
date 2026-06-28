@@ -4,35 +4,17 @@ import type { Collab, CollabConnect, RoomId, SignalingUrl, Diagnostics, PeerConn
 import type { RoomCipher } from './roomCipher.js';
 import type { LocalCacheEnabled } from './cache.js';
 import { createCollabCore } from './core.js';
+import { defaultIceStatsReader, type IceStatsReader } from './iceStats.js';
 
-// Best-effort: inspect a peer connection's selected ICE candidate pair to tell
-// whether the media path is direct (host/srflx) or routed through a TURN relay.
-// Reaches into RTCPeerConnection.getStats(); guarded since shapes vary by browser.
-async function peerConnectionType(
-  pc: RTCPeerConnection,
-): Promise<'direct' | 'relay' | 'unknown'> {
-  try {
-    const stats = await pc.getStats();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows: any[] = [];
-    stats.forEach((r) => rows.push(r));
-    let pairId: string | undefined;
-    for (const r of rows) {
-      if (r.type === 'transport' && r.selectedCandidatePairId) pairId = r.selectedCandidatePairId;
-    }
-    let pair =
-      rows.find((r) => r.type === 'candidate-pair' && r.id === pairId) ??
-      rows.find((r) => r.type === 'candidate-pair' && (r.nominated || r.selected)) ??
-      rows.find((r) => r.type === 'candidate-pair' && r.state === 'succeeded');
-    if (!pair) return 'unknown';
-    const local = rows.find((r) => r.type === 'local-candidate' && r.id === pair.localCandidateId);
-    const t = local?.candidateType as string | undefined;
-    if (t === 'relay') return 'relay';
-    if (t) return 'direct';
-    return 'unknown';
-  } catch {
-    return 'unknown';
-  }
+// Local types for y-webrtc's private room internals — an IO boundary between
+// this adapter and the library. Localising them here means a y-webrtc API
+// change only touches this interface, not the whole adapter.
+interface WebrtcRoomConn {
+  readonly peer?: { readonly _pc?: RTCPeerConnection };
+}
+interface WebrtcRoom {
+  readonly webrtcConns: Map<string, WebrtcRoomConn>;
+  readonly bcConns: Map<string, unknown>;
 }
 
 export interface WebrtcCollabOptions {
@@ -46,11 +28,16 @@ export interface WebrtcCollabOptions {
   iceServers?: RTCIceServer[];
   /** Mirror the doc into IndexedDB so it survives a reload without a backend. */
   cache?: LocalCacheEnabled;
+  /** Override how the selected ICE candidate type is read from an RTCPeerConnection.
+   *  Defaults to `defaultIceStatsReader`; inject a custom reader in tests or for
+   *  browser-specific stat shapes. */
+  iceStatsReader?: IceStatsReader;
 }
 
 export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
   return (room: RoomId): Collab => {
     const doc = new Y.Doc();
+    const readIceStats = opts.iceStatsReader ?? defaultIceStatsReader;
     // RoomId extends string — cast back to string at the y-webrtc IO boundary.
     // cipher.password() returns null for no encryption; y-webrtc expects undefined.
     const password = opts.cipher?.password(room) ?? undefined;
@@ -64,9 +51,15 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
         : {}),
     });
 
+    // Cast at the single IO boundary with the library; narrowed by WebrtcRoom.
+    // Go through `unknown` because y-webrtc's Room type differs structurally
+    // (e.g. bcConns is a Set, not a Map) — the cast documents the intentional
+    // mismatch between library internals and our local ACL interface.
+    const room_ = (): WebrtcRoom | undefined => webrtc.room as unknown as WebrtcRoom | undefined;
+
     // Peer carriage is read from the y-webrtc room (WebRTC + same-browser BroadcastChannel).
     const peerCount = (): number => {
-      const r = webrtc.room;
+      const r = room_();
       if (!r) return 0;
       return (r.webrtcConns?.size ?? 0) + (r.bcConns?.size ?? 0);
     };
@@ -97,21 +90,19 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
         webrtc.connect();
       },
       async getDiagnostics(): Promise<Diagnostics> {
-        const r = webrtc.room;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const webrtcConns: Map<string, any> | undefined = r?.webrtcConns;
-        const entries = webrtcConns ? [...webrtcConns.entries()] : [];
+        const r = room_();
+        const entries = r ? [...r.webrtcConns.entries()] : [];
         const connections = await Promise.all(
           entries.map(async ([id, c]) => {
-            const pc = c?.peer?._pc as RTCPeerConnection | undefined;
+            const pc = c.peer?._pc;
             // Cast the y-webrtc map key to the branded id at this IO boundary.
-            return { id: id as PeerConnId, type: pc ? await peerConnectionType(pc) : ('unknown' as const) };
+            return { id: id as PeerConnId, type: pc ? await readIceStats(pc) : ('unknown' as const) };
           }),
         );
         return {
           transport: 'p2p',
           signaling: !!webrtc.connected,
-          peers: (r?.webrtcConns?.size ?? 0) + (r?.bcConns?.size ?? 0),
+          peers: (r?.webrtcConns.size ?? 0) + (r?.bcConns.size ?? 0),
           connections,
         };
       },

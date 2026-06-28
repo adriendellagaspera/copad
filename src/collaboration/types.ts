@@ -15,13 +15,31 @@ export type SignalingUrl = string & { readonly _brand: 'SignalingUrl' };
  *  validation — the central relay that carries edits on the hub transport. */
 export type WebsocketUrl = string & { readonly _brand: 'WebsocketUrl' };
 
-/** A STUN server URL validated by `resolveIceServers()`. STUN only reveals a
- *  peer's public address; it never carries media. */
+/** A STUN server URL validated by `parseStunUrl()` in `parse.ts`. STUN only
+ *  reveals a peer's public address; it never carries media. */
 export type StunUrl = string & { readonly _brand: 'StunUrl' };
 
-/** A TURN relay URL validated by `resolveIceServers()`. TURN relays media when
- *  direct/STUN paths fail (carrier / symmetric NAT). */
+/** A TURN relay URL validated by `parseTurnUrl()` in `parse.ts`. TURN relays
+ *  media when direct/STUN paths fail (carrier / symmetric NAT). */
 export type TurnUrl = string & { readonly _brand: 'TurnUrl' };
+
+/** TURN long-term credential username, cast from user input at the Settings
+ *  form boundary by `parseTurnUsername()` in `parse.ts`. */
+export type TurnUsername = string & { readonly _brand: 'TurnUsername' };
+
+/** TURN long-term credential secret, cast from user input at the Settings
+ *  form boundary by `parseTurnCredential()` in `parse.ts`. */
+export type TurnCredential = string & { readonly _brand: 'TurnCredential' };
+
+/**
+ * Controls which public TURN fallback (if any) is used when no custom TURN
+ * relay is configured. Richer than a boolean so future relay options can be
+ * added without a breaking change.
+ *
+ * - `'openrelay'` — use the bundled public OpenRelay (best-effort, free tier).
+ * - `'none'`      — no fallback; peers on restrictive NATs may fail to connect.
+ */
+export type FallbackTurnPolicy = 'openrelay' | 'none';
 
 /** The name a peer chose to display next to their cursor. */
 export type DisplayName = string & { readonly _brand: 'DisplayName' };

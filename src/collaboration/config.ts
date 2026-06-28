@@ -7,13 +7,13 @@
 // 2. An insecure ws:// server on an https:// page — browsers block this as
 //    mixed content, so the signaling socket never opens.
 
-import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, RoomId } from './types.js';
+import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, FallbackTurnPolicy, RoomId } from './types.js';
 import type { RoomAccess } from './roomAccess.js';
 import type { RoomCipher } from './roomCipher.js';
 import { publicAccess, sitePassword, roomPassword } from './roomAccess.js';
 import { plaintext } from './roomCipher.js';
 import { secretLink, type SecretLinkPort } from './secretLink.js';
-import { parseRoomId } from './parse.js';
+import { parseRoomId, parseStunUrl, parseTurnUrl } from './parse.js';
 import { LOCAL_HOSTS, DEFAULT_DEV_SIGNALING, DEFAULT_STUN, DEFAULT_ROOM_NAME } from './constants.js';
 
 const list = (raw: string | undefined): string[] =>
@@ -35,18 +35,6 @@ function parseWebsocketUrl(raw: string): WebsocketUrl | null {
   return WS_URL.test(raw) ? (raw as WebsocketUrl) : null;
 }
 
-/** stun: / turn: / turns: — the ICE URL schemes WebRTC understands. */
-const ICE_URL = /^(?:stun|turns?):\S+$/i;
-
-/** Parse a single STUN URL, branding it only if it is a real stun/turn(s) URL. */
-function parseStunUrl(raw: string): StunUrl | null {
-  return ICE_URL.test(raw) ? (raw as StunUrl) : null;
-}
-
-/** Parse a single TURN URL, branding it only if it is a real stun/turn(s) URL. */
-function parseTurnUrl(raw: string): TurnUrl | null {
-  return ICE_URL.test(raw) ? (raw as TurnUrl) : null;
-}
 
 export interface SignalingResolution {
   /** Signaling servers to hand to y-webrtc (may be empty if misconfigured). */
@@ -169,7 +157,7 @@ export function resolveWebsocket(
  * desktop↔mobile session can still connect through carrier NAT. This is the free
  * OpenRelay project (metered.ca): best-effort and rate-limited — fine for a demo,
  * but configure your own (env or Settings) for anything serious. Disable via
- * `{ defaultTurn: false }`.
+ * `{ fallback: 'none' }` in `resolveIceServers`.
  */
 export const DEFAULT_TURN: RTCIceServer = {
   urls: [
@@ -243,11 +231,11 @@ export interface IceEnv {
  * home/office NATs; a TURN relay is needed for restrictive networks — notably
  * mobile carriers (CGNAT / symmetric NAT), where STUN alone fails and
  * desktop↔phone sessions never connect. When no TURN is configured we fall back
- * to a public relay so it "just works" — unless `defaultTurn` is false.
+ * to a public relay so it "just works" — unless `fallback` is `'none'`.
  */
 export function resolveIceServers(
   env: IceEnv,
-  opts: { defaultTurn?: boolean } = {},
+  opts: { fallback?: FallbackTurnPolicy } = {},
 ): RTCIceServer[] {
   const servers: RTCIceServer[] = [];
 
@@ -267,7 +255,7 @@ export function resolveIceServers(
     if (env.VITE_TURN_USERNAME) turn.username = env.VITE_TURN_USERNAME;
     if (env.VITE_TURN_CREDENTIAL) turn.credential = env.VITE_TURN_CREDENTIAL;
     servers.push(turn);
-  } else if (opts.defaultTurn !== false) {
+  } else if ((opts.fallback ?? 'openrelay') !== 'none') {
     // No TURN configured — fall back to the public relay for restrictive NATs.
     servers.push(DEFAULT_TURN);
   }

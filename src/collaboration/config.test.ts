@@ -124,8 +124,8 @@ describe('resolveIceServers', () => {
     ]);
   });
 
-  it('omits the default TURN when defaultTurn is false', () => {
-    expect(resolveIceServers({}, { defaultTurn: false })).toEqual([
+  it('omits the default TURN when fallback is none', () => {
+    expect(resolveIceServers({}, { fallback: 'none' })).toEqual([
       { urls: ['stun:stun.l.google.com:19302'] },
     ]);
   });
@@ -157,8 +157,8 @@ describe('resolveIceServers', () => {
     expect(resolveIceServers({ VITE_STUN_URL: '' })).toEqual([DEFAULT_TURN]);
   });
 
-  it('returns nothing when STUN is empty and default TURN is off', () => {
-    expect(resolveIceServers({ VITE_STUN_URL: '' }, { defaultTurn: false })).toEqual([]);
+  it('returns nothing when STUN is empty and fallback is none', () => {
+    expect(resolveIceServers({ VITE_STUN_URL: '' }, { fallback: 'none' })).toEqual([]);
   });
 });
 

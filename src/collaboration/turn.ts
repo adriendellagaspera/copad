@@ -6,15 +6,17 @@
 import { localStore } from '../persistence/local.js';
 import { nsKey } from '../config.js';
 import { parseTurnPrefs } from './parse.js';
+import type { TurnUrl, TurnUsername, TurnCredential, FallbackTurnPolicy } from './types.js';
 
 export interface TurnPrefs {
-  /** Custom TURN url(s), comma-separated. Empty = use env / public default.
-   *  Stays a raw string here (user form input); branded to TurnUrl in resolveIceServers. */
-  url: string;
-  username: string;
-  credential: string;
-  /** Use the bundled public relay when no custom/env TURN is set. */
-  useDefault: boolean;
+  /** Validated TURN URLs from the Settings form — empty means use env/public default. */
+  urls: TurnUrl[];
+  /** TURN long-term credential username. */
+  username: TurnUsername;
+  /** TURN long-term credential secret. */
+  credential: TurnCredential;
+  /** Which public relay (if any) to use when no custom/env TURN is set. */
+  fallback: FallbackTurnPolicy;
 }
 
 // localStorage + parsing are abstracted behind the store: callers read/write a

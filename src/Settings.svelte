@@ -4,6 +4,9 @@
   import { isConfigured } from './storage/auth.js';
 
   import type { TurnPrefs } from './collaboration/turn.js';
+  import type { FallbackTurnPolicy } from './collaboration/types.js';
+  import { parseTurnUrl, parseTurnUsername, parseTurnCredential } from './collaboration/parse.js';
+  import type { TurnUrl } from './collaboration/types.js';
 
   let {
     backends,
@@ -41,15 +44,31 @@
     }
   }
 
-  // Local, editable copy of the TURN settings — (re)synced from the prop when the
-  // drawer opens, committed back on "Apply".
-  const EMPTY_TURN: TurnPrefs = { url: '', username: '', credential: '', useDefault: true };
-  let turn = $state<TurnPrefs>({ ...EMPTY_TURN });
+  // Raw form strings (IO boundary — not TurnPrefs). Re-synced from the prop when
+  // the drawer opens; converted to domain types only when the user hits Apply.
+  let rawUrl = $state('');
+  let rawUsername = $state('');
+  let rawCredential = $state('');
+  let turnFallback = $state<FallbackTurnPolicy>('openrelay');
   $effect(() => {
-    if (open) turn = { ...EMPTY_TURN, ...turnPrefs };
+    if (open) {
+      rawUrl = (turnPrefs?.urls ?? []).join(', ');
+      rawUsername = turnPrefs?.username ?? '';
+      rawCredential = turnPrefs?.credential ?? '';
+      turnFallback = turnPrefs?.fallback ?? 'openrelay';
+    }
   });
   function applyTurn() {
-    onTurnChange?.({ ...turn, url: turn.url.trim() });
+    const urls = rawUrl
+      .split(',')
+      .map((s) => parseTurnUrl(s.trim()))
+      .filter((u): u is TurnUrl => u !== null);
+    onTurnChange?.({
+      urls,
+      username: parseTurnUsername(rawUsername),
+      credential: parseTurnCredential(rawCredential),
+      fallback: turnFallback,
+    });
   }
 
   const configurable = $derived(
@@ -162,8 +181,8 @@
         <label class="toggle">
           <input
             type="checkbox"
-            checked={turn.useDefault}
-            onchange={e => (turn = { ...turn, useDefault: e.currentTarget.checked })}
+            checked={turnFallback === 'openrelay'}
+            onchange={e => (turnFallback = e.currentTarget.checked ? 'openrelay' : 'none')}
           />
           <span>Use a public TURN relay when none is configured</span>
         </label>
@@ -171,21 +190,21 @@
           <span class="field-label">TURN URL(s)</span>
           <input
             placeholder="turns:your-turn.example:5349"
-            value={turn.url}
-            oninput={e => (turn = { ...turn, url: e.currentTarget.value })}
+            value={rawUrl}
+            oninput={e => (rawUrl = e.currentTarget.value)}
           />
           <small class="field-help">Comma-separated. Overrides both the default and any deployment TURN.</small>
         </label>
         <label class="field">
           <span class="field-label">TURN username</span>
-          <input value={turn.username} oninput={e => (turn = { ...turn, username: e.currentTarget.value })} />
+          <input value={rawUsername} oninput={e => (rawUsername = e.currentTarget.value)} />
         </label>
         <label class="field">
           <span class="field-label">TURN credential</span>
           <input
             type="password"
-            value={turn.credential}
-            oninput={e => (turn = { ...turn, credential: e.currentTarget.value })}
+            value={rawCredential}
+            oninput={e => (rawCredential = e.currentTarget.value)}
           />
         </label>
         <div class="backend-actions">
