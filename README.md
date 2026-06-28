@@ -1,5 +1,8 @@
 # Copad
 
+[![CI](https://github.com/adriendellagaspera/copad/actions/workflows/ci.yml/badge.svg)](https://github.com/adriendellagaspera/copad/actions/workflows/ci.yml)
+[![Deploy](https://github.com/adriendellagaspera/copad/actions/workflows/deploy.yml/badge.svg)](https://github.com/adriendellagaspera/copad/actions/workflows/deploy.yml)
+
 > **⚠️ Work in progress.** Not ready for production use.
 
 I wanted to collaborate on a file in my pCloud. I found nothing off the shelf so I built this.
