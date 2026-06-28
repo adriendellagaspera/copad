@@ -137,9 +137,15 @@
     collab.awareness.setLocalState(state);
   });
 
-  // Load from storage when adapter becomes available (or changes to a different backend).
+  // Load from storage when adapter becomes available, changes backend, or reconnects.
+  // Reset loadedFrom on disconnect so that reconnecting (even to the same backend
+  // with a different file, as local FS allows) triggers a fresh load.
   $effect(() => {
-    if (!storage || !view || loadedFrom === storage.id) return;
+    if (!storage) {
+      loadedFrom = null;
+      return;
+    }
+    if (!view || loadedFrom === storage.id) return;
     const id = storage.id;
     const codec = codecForFilename(storage.filename?.() ?? 'document.yjs');
     const label = storage.label;
