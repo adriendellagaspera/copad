@@ -3,8 +3,7 @@ import type { StorageAuth } from './auth.js';
 import { knownExtensions } from '../format/index.js';
 import { STORAGE_ID } from './constants.js';
 
-// showOpenFilePicker / showSaveFilePicker: File System Access API Living Standard.
-// Not yet in TypeScript's lib.dom.d.ts at this version.
+// showOpenFilePicker / showSaveFilePicker not yet in TypeScript's lib.dom.d.ts at this version.
 declare global {
   interface Window {
     showOpenFilePicker(opts?: {
@@ -19,35 +18,21 @@ declare global {
 }
 
 // Module-level state — survives Svelte reactivity cycles but not page refresh.
-// The user re-picks the file after a refresh (file permissions can't be
-// re-granted without a user gesture anyway).
 let handle: FileSystemFileHandle | null = null; // File System Access API path
 let mobileFile: File | null = null;             // <input type="file"> fallback path
 let mobileNewFile = false;                       // "New file" selected in fallback mode
 
-/** True when the browser supports the File System Access API (Chrome/Edge/Safari desktop). */
 function hasFsAccessApi(): boolean {
   return typeof window !== 'undefined' && 'showOpenFilePicker' in window;
 }
 
-/** Reason this backend is entirely unavailable in the current environment, if any. */
 function unavailableReason(): string | undefined {
   if (typeof window === 'undefined') return 'Not in a browser context.';
-  if (!isSecureContext) {
-    return 'Requires a secure context — open via https:// or http://localhost.';
-  }
-  // Available: File System Access API (Chrome/Edge/Safari desktop) or
-  // <input type="file"> import fallback (Firefox, iOS Safari, older Android).
+  if (!isSecureContext) return 'Requires a secure context — open via https:// or http://localhost.';
   return undefined;
 }
 
-/**
- * Open a file-picker via a hidden <input type="file"> element.
- * Used on browsers without the File System Access API (mobile, Firefox).
- * The `cancel` event fires on Chrome 113+ and Safari 16.4+; on older iOS the
- * promise hangs until the user interacts again (acceptable first-implementation
- * limitation — the Settings connect button resets on reload).
- */
+// cancel fires on Chrome 113+ / Safari 16.4+; on older iOS the promise hangs until reload.
 function pickFileMobile(): Promise<File> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
@@ -86,9 +71,7 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
           [handle] = await window.showOpenFilePicker({ types });
         }
       } else {
-        // Mobile / Firefox fallback.
-        // "New file" starts an empty document; saving is a no-op (the Y.Doc and
-        // local cache are the persistence layer on devices without FS write access).
+        // Fallback: "New file" starts an empty document; save is a no-op.
         if (creds?.mode === 'new') {
           mobileFile = null;
           mobileNewFile = true;
@@ -145,14 +128,12 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
     async save(content: DocContent): Promise<void> {
       if (content.format !== 'binary') throw new Error('Local storage expects binary content');
       if (handle) {
-        // Desktop path: write in place via File System Access API.
         const writable = await handle.createWritable();
         await writable.write(content.bytes as unknown as FileSystemWriteChunkType);
         await writable.close();
         return;
       }
-      // Mobile / fallback path: no write-back to the original file.
-      // Edits are preserved by the collaborative Y.Doc and the local IndexedDB cache.
+      // Fallback path: no write-back — edits persist in the Y.Doc and local cache.
     },
   };
 
