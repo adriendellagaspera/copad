@@ -17,10 +17,14 @@ declare global {
   }
 }
 
+type LocalState =
+  | { readonly mode: 'idle' }
+  | { readonly mode: 'native'; readonly handle: FileSystemFileHandle }
+  | { readonly mode: 'imported'; readonly file: File }
+  | { readonly mode: 'new' };
+
 // Module-level state — survives Svelte reactivity cycles but not page refresh.
-let handle: FileSystemFileHandle | null = null; // File System Access API path
-let mobileFile: File | null = null;             // <input type="file"> fallback path
-let mobileNewFile = false;                       // "New file" selected in fallback mode
+let state: LocalState = { mode: 'idle' };
 
 function hasFsAccessApi(): boolean {
   return typeof window !== 'undefined' && 'showOpenFilePicker' in window;
@@ -57,7 +61,7 @@ function pickFileMobile(): Promise<File> {
 
 export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
   const auth: StorageAuth = {
-    isAuthenticated: () => handle !== null || mobileFile !== null || mobileNewFile,
+    isAuthenticated: () => state.mode !== 'idle',
 
     async login(creds?: SessionCredentials) {
       if (hasFsAccessApi()) {
@@ -66,26 +70,21 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
           accept: { 'application/octet-stream': knownExtensions() },
         }];
         if (creds?.mode === 'new') {
-          handle = await window.showSaveFilePicker({ suggestedName: 'document.yjs', types });
+          state = { mode: 'native', handle: await window.showSaveFilePicker({ suggestedName: 'document.yjs', types }) };
         } else {
-          [handle] = await window.showOpenFilePicker({ types });
+          const [handle] = await window.showOpenFilePicker({ types });
+          state = { mode: 'native', handle };
         }
       } else {
         // Fallback: "New file" starts an empty document; save is a no-op.
-        if (creds?.mode === 'new') {
-          mobileFile = null;
-          mobileNewFile = true;
-        } else {
-          mobileFile = await pickFileMobile();
-          mobileNewFile = false;
-        }
+        state = creds?.mode === 'new'
+          ? { mode: 'new' }
+          : { mode: 'imported', file: await pickFileMobile() };
       }
     },
 
     logout() {
-      handle = null;
-      mobileFile = null;
-      mobileNewFile = false;
+      state = { mode: 'idle' };
     },
   };
 
@@ -104,31 +103,31 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
 
     // The picked file's name selects the codec; `.yjs` is the native default.
     filename(): Filename {
-      if (handle) return handle.name as Filename;
-      if (mobileFile) return mobileFile.name as Filename;
+      if (state.mode === 'native') return state.handle.name as Filename;
+      if (state.mode === 'imported') return state.file.name as Filename;
       return 'document.yjs' as Filename;
     },
 
     contentFormat: 'binary',
 
     async load(): Promise<DocContent | null> {
-      if (handle) {
-        const file = await handle.getFile();
+      if (state.mode === 'native') {
+        const file = await state.handle.getFile();
         if (file.size === 0) return null;
         return { format: 'binary', bytes: new Uint8Array(await file.arrayBuffer()) };
       }
-      if (mobileFile) {
-        if (mobileFile.size === 0) return null;
-        return { format: 'binary', bytes: new Uint8Array(await mobileFile.arrayBuffer()) };
+      if (state.mode === 'imported') {
+        if (state.file.size === 0) return null;
+        return { format: 'binary', bytes: new Uint8Array(await state.file.arrayBuffer()) };
       }
-      if (mobileNewFile) return null; // Empty document; content comes from collaborators.
+      if (state.mode === 'new') return null; // Empty document; content comes from collaborators.
       throw new Error('Local: not connected');
     },
 
     async save(content: DocContent): Promise<void> {
       if (content.format !== 'binary') throw new Error('Local storage expects binary content');
-      if (handle) {
-        const writable = await handle.createWritable();
+      if (state.mode === 'native') {
+        const writable = await state.handle.createWritable();
         await writable.write(content.bytes as unknown as FileSystemWriteChunkType);
         await writable.close();
         return;
