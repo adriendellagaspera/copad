@@ -1,5 +1,5 @@
 import type { Storage, CredentialField, SessionCredentials, DocContent } from './types.js';
-import { DocFormat } from './types.js';
+import { DocFormat, InputType } from './types.js';
 import type { StorageAuth } from './auth.js';
 import type { Fetch } from '../network/types.js';
 import { filenameStore } from './filename.js';
@@ -23,7 +23,7 @@ const credentialFields: CredentialField[] = [
       'https://cloud.example.com/remote.php/dav/files/USER/Collab',
   },
   { name: 'username', label: 'Username' },
-  { name: 'password', label: 'App password', type: 'password' },
+  { name: 'password', label: 'App password', type: InputType.Password },
 ];
 
 export function webdavStorage(netFetch: Fetch): { auth: StorageAuth; storage: Storage } {

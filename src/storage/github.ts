@@ -1,5 +1,5 @@
 import type { Storage, DocContent } from './types.js';
-import { DocFormat } from './types.js';
+import { DocFormat, InputType } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
@@ -65,7 +65,7 @@ const cfg = configStore(STORAGE_ID.github, [
   {
     name: 'token',
     label: 'Personal Access Token',
-    type: 'password' as const,
+    type: InputType.Password,
     placeholder: 'ghp_…',
     help: 'A fine-grained PAT with Contents: Read and write, or a classic token with the repo scope.',
     env: import.meta.env.VITE_GITHUB_TOKEN,

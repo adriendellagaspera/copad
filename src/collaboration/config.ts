@@ -11,7 +11,7 @@ import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, RoomId, IceServer } 
 import { FallbackTurnPolicy } from './types.js';
 import type { RoomAccess } from './roomAccess.js';
 import type { RoomCipher } from './roomCipher.js';
-import { publicAccess, sitePassword, roomPassword } from './roomAccess.js';
+import { publicAccess, sitePassword, roomPassword, RoomAccessMode } from './roomAccess.js';
 import { plaintext } from './roomCipher.js';
 import { secretLink, type SecretLinkPort } from './secretLink.js';
 import { parseRoomId, parseSignalingUrl, parseWebsocketUrl, parseStunUrl, parseTurnUrl, parseTurnUsername, parseTurnCredential } from './parse.js';
@@ -185,15 +185,15 @@ function sharedKeyCipher(access: RoomAccess): RoomCipher {
  */
 export function resolveRoomStrategy(raw: string | undefined): RoomStrategy {
   switch ((raw ?? '').trim().toLowerCase()) {
-    case 'site-password': {
+    case RoomAccessMode.SitePassword: {
       const access = sitePassword(import.meta.env.VITE_ROOM_PASSWORD ?? '');
       return { access, cipher: sharedKeyCipher(access) };
     }
-    case 'room-password': {
+    case RoomAccessMode.RoomPassword: {
       const access = roomPassword();
       return { access, cipher: sharedKeyCipher(access) };
     }
-    case 'secret-link': {
+    case RoomAccessMode.SecretLink: {
       const link: SecretLinkPort = secretLink();
       return { access: link, cipher: link };
     }

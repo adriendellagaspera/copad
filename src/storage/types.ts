@@ -58,13 +58,21 @@ export const OpenMode = { New: 'new' } as const;
 export type OpenMode = (typeof OpenMode)[keyof typeof OpenMode];
 
 /**
+ * How a {@link CredentialField} / {@link ConfigField} input renders — a closed
+ * set we own (it happens to map onto the HTML `<input type>` attribute). Named
+ * so field definitions and defaults use `InputType.Password` over a bare literal.
+ */
+export const InputType = { Text: 'text', Password: 'password' } as const;
+export type InputType = (typeof InputType)[keyof typeof InputType];
+
+/**
  * A per-session authentication input collected at connect time (e.g. a WebDAV
  * username/password). Distinct from {@link ConfigField}, which is one-time setup.
  */
 export interface CredentialField {
   name: string;
   label: string;
-  type?: 'text' | 'password';
+  type?: InputType;
   placeholder?: string;
 }
 
@@ -76,7 +84,7 @@ export interface CredentialField {
 export interface ConfigField {
   name: string;
   label: string;
-  type?: 'text' | 'password';
+  type?: InputType;
   placeholder?: string;
   /** Short hint shown under the input — e.g. where to obtain the value. */
   help?: string;

@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { SessionCredentials } from './storage/types.js';
-  import { OpenMode } from './storage/types.js';
+  import { OpenMode, InputType } from './storage/types.js';
   import type { StorageBackend } from './storage/index.js';
   import { isConfigured } from './storage/auth.js';
 
@@ -254,7 +254,7 @@
               {#if locked}<span class="lock" title="Set by this deployment">🔒 managed</span>{/if}
             </span>
             <input
-              type={f.type ?? 'text'}
+              type={f.type ?? InputType.Text}
               placeholder={f.placeholder ?? ''}
               value={b.auth.config?.(f.name) ?? ''}
               disabled={locked}
@@ -317,7 +317,7 @@
                 <label class="field">
                   <span class="field-label">{f.label}</span>
                   <input
-                    type={f.type ?? 'text'}
+                    type={f.type ?? InputType.Text}
                     placeholder={f.placeholder ?? ''}
                     value={creds[b.storage.id]?.[f.name] ?? ''}
                     oninput={e => { creds = { ...creds, [b.storage.id]: { ...(creds[b.storage.id] ?? {}), [f.name]: e.currentTarget.value } }; }}
