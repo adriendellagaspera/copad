@@ -7,13 +7,13 @@
 // 2. An insecure ws:// server on an https:// page — browsers block this as
 //    mixed content, so the signaling socket never opens.
 
-import type { SignalingUrl, WebsocketUrl, RoomId } from './types.js';
+import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, FallbackTurnPolicy, RoomId, IceServer } from './types.js';
 import type { RoomAccess } from './roomAccess.js';
 import type { RoomCipher } from './roomCipher.js';
 import { publicAccess, sitePassword, roomPassword } from './roomAccess.js';
 import { plaintext } from './roomCipher.js';
 import { secretLink, type SecretLinkPort } from './secretLink.js';
-import { parseRoomId } from './parse.js';
+import { parseRoomId, parseSignalingUrl, parseWebsocketUrl, parseStunUrl, parseTurnUrl, parseTurnUsername, parseTurnCredential } from './parse.js';
 import { LOCAL_HOSTS, DEFAULT_DEV_SIGNALING, DEFAULT_STUN, DEFAULT_ROOM_NAME } from './constants.js';
 
 const list = (raw: string | undefined): string[] =>
@@ -22,18 +22,7 @@ const list = (raw: string | undefined): string[] =>
     .map((s) => s.trim())
     .filter(Boolean);
 
-/** ws:// or wss:// — the only schemes y-webrtc / y-websocket understand. */
-const WS_URL = /^wss?:\/\/\S+$/i;
 
-/** Parse a single signaling URL, branding it only if it is a real ws/wss URL. */
-function parseSignalingUrl(raw: string): SignalingUrl | null {
-  return WS_URL.test(raw) ? (raw as SignalingUrl) : null;
-}
-
-/** Parse the hub URL, branding it only if it is a real ws/wss URL. */
-function parseWebsocketUrl(raw: string): WebsocketUrl | null {
-  return WS_URL.test(raw) ? (raw as WebsocketUrl) : null;
-}
 
 export interface SignalingResolution {
   /** Signaling servers to hand to y-webrtc (may be empty if misconfigured). */
@@ -152,6 +141,23 @@ export function resolveWebsocket(
 }
 
 /**
+ * Public TURN relay used out-of-the-box when no TURN is configured, so a
+ * desktop↔mobile session can still connect through carrier NAT. This is the free
+ * OpenRelay project (metered.ca): best-effort and rate-limited — fine for a demo,
+ * but configure your own (env or Settings) for anything serious. Disable via
+ * `{ fallback: 'none' }` in `resolveIceServers`.
+ */
+export const DEFAULT_TURN: IceServer = {
+  urls: [
+    parseTurnUrl('turn:openrelay.metered.ca:80')!,
+    parseTurnUrl('turn:openrelay.metered.ca:443')!,
+    parseTurnUrl('turns:openrelay.metered.ca:443')!,
+  ],
+  username: parseTurnUsername('openrelayproject'),
+  credential: parseTurnCredential('openrelayproject'),
+};
+
+/**
  * A room's access gate paired with the cipher that encrypts it. Resolved as one
  * value so each strategy keeps its concrete type end-to-end — in particular the
  * `secret-link` object, which *is* both ports, is never widened to `RoomAccess`
@@ -212,21 +218,37 @@ export interface IceEnv {
  * Build the ICE server list for WebRTC. A public STUN server is enough for most
  * home/office NATs; a TURN relay is needed for restrictive networks — notably
  * mobile carriers (CGNAT / symmetric NAT), where STUN alone fails and
- * desktop↔phone sessions never connect.
+ * desktop↔phone sessions never connect. When no TURN is configured we fall back
+ * to a public relay so it "just works" — unless `fallback` is `'none'`.
  */
-export function resolveIceServers(env: IceEnv): RTCIceServer[] {
-  const servers: RTCIceServer[] = [];
+export function resolveIceServers(
+  env: IceEnv,
+  opts: { fallback?: FallbackTurnPolicy } = {},
+): IceServer[] {
+  const servers: IceServer[] = [];
 
   // VITE_STUN_URL="" (explicitly empty) disables the STUN default on purpose.
-  const stun = list(env.VITE_STUN_URL ?? DEFAULT_STUN);
+  // list() is shared and returns plain strings; parse each entry here, dropping
+  // anything that isn't a real stun/turn(s) URL (the single STUN/TURN cast site).
+  const stun = list(env.VITE_STUN_URL ?? DEFAULT_STUN)
+    .map(parseStunUrl)
+    .filter((s): s is StunUrl => s !== null);
   if (stun.length) servers.push({ urls: stun });
 
-  const turnUrls = list(env.VITE_TURN_URL);
+  const turnUrls = list(env.VITE_TURN_URL)
+    .map(parseTurnUrl)
+    .filter((t): t is TurnUrl => t !== null);
   if (turnUrls.length) {
-    const turn: RTCIceServer = { urls: turnUrls };
-    if (env.VITE_TURN_USERNAME) turn.username = env.VITE_TURN_USERNAME;
-    if (env.VITE_TURN_CREDENTIAL) turn.credential = env.VITE_TURN_CREDENTIAL;
-    servers.push(turn);
+    // Env-var values cross the IO boundary here — parse to branded types so
+    // the rest of the domain never sees raw strings.
+    servers.push({
+      urls: turnUrls,
+      ...(env.VITE_TURN_USERNAME ? { username: parseTurnUsername(env.VITE_TURN_USERNAME) } : {}),
+      ...(env.VITE_TURN_CREDENTIAL ? { credential: parseTurnCredential(env.VITE_TURN_CREDENTIAL) } : {}),
+    });
+  } else if ((opts.fallback ?? 'openrelay') !== 'none') {
+    // No TURN configured — fall back to the public relay for restrictive NATs.
+    servers.push(DEFAULT_TURN);
   }
 
   return servers;

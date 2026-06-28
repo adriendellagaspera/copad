@@ -3,6 +3,11 @@
   import type { StorageBackend } from './storage/index.js';
   import { isConfigured } from './storage/auth.js';
 
+  import type { TurnPrefs } from './collaboration/turn.js';
+  import type { FallbackTurnPolicy } from './collaboration/types.js';
+  import { parseTurnUrl, parseTurnUsername, parseTurnCredential } from './collaboration/parse.js';
+  import type { TurnUrl } from './collaboration/types.js';
+
   let {
     backends,
     open = $bindable(false),
@@ -10,6 +15,8 @@
     localCache = true,
     onCacheChange,
     onCacheClear,
+    turnPrefs,
+    onTurnChange,
     onchange,
     onconnect,
     ondisconnect,
@@ -20,6 +27,8 @@
     localCache?: boolean;
     onCacheChange?: (on: boolean) => void;
     onCacheClear?: () => void | Promise<void>;
+    turnPrefs?: TurnPrefs;
+    onTurnChange?: (p: TurnPrefs) => void;
     onchange?: () => void;
     onconnect?: (b: StorageBackend) => void;
     ondisconnect?: (b: StorageBackend) => void;
@@ -33,6 +42,33 @@
     } finally {
       clearing = false;
     }
+  }
+
+  // Raw form strings (IO boundary — not TurnPrefs). Re-synced from the prop when
+  // the drawer opens; converted to domain types only when the user hits Apply.
+  let rawUrl = $state('');
+  let rawUsername = $state('');
+  let rawCredential = $state('');
+  let turnFallback = $state<FallbackTurnPolicy>('openrelay');
+  $effect(() => {
+    if (open) {
+      rawUrl = (turnPrefs?.urls ?? []).join(', ');
+      rawUsername = turnPrefs?.username ?? '';
+      rawCredential = turnPrefs?.credential ?? '';
+      turnFallback = turnPrefs?.fallback ?? 'openrelay';
+    }
+  });
+  function applyTurn() {
+    const urls = rawUrl
+      .split(',')
+      .map((s) => parseTurnUrl(s.trim()))
+      .filter((u): u is TurnUrl => u !== null);
+    onTurnChange?.({
+      urls,
+      username: parseTurnUsername(rawUsername),
+      credential: parseTurnCredential(rawCredential),
+      fallback: turnFallback,
+    });
   }
 
   const configurable = $derived(
@@ -131,6 +167,51 @@
         </button>
       </div>
     </section>
+
+    {#if onTurnChange}
+      <section class="backend">
+        <div class="backend-head">
+          <span class="backend-name">Connection (WebRTC)</span>
+        </div>
+        <p class="backend-blurb">
+          Peer-to-peer needs a TURN relay to connect across mobile carrier networks
+          (CGNAT / symmetric NAT). A free public relay is used by default; add your
+          own for reliability. Changes apply on the next reconnect.
+        </p>
+        <label class="toggle">
+          <input
+            type="checkbox"
+            checked={turnFallback === 'openrelay'}
+            onchange={e => (turnFallback = e.currentTarget.checked ? 'openrelay' : 'none')}
+          />
+          <span>Use a public TURN relay when none is configured</span>
+        </label>
+        <label class="field">
+          <span class="field-label">TURN URL(s)</span>
+          <input
+            placeholder="turns:your-turn.example:5349"
+            value={rawUrl}
+            oninput={e => (rawUrl = e.currentTarget.value)}
+          />
+          <small class="field-help">Comma-separated. Overrides both the default and any deployment TURN.</small>
+        </label>
+        <label class="field">
+          <span class="field-label">TURN username</span>
+          <input value={rawUsername} oninput={e => (rawUsername = e.currentTarget.value)} />
+        </label>
+        <label class="field">
+          <span class="field-label">TURN credential</span>
+          <input
+            type="password"
+            value={rawCredential}
+            oninput={e => (rawCredential = e.currentTarget.value)}
+          />
+        </label>
+        <div class="backend-actions">
+          <button class="primary" onclick={applyTurn}>Apply &amp; reconnect</button>
+        </div>
+      </section>
+    {/if}
 
     {#snippet filenameField(b: StorageBackend)}
       {#if b.storage.setFilename}

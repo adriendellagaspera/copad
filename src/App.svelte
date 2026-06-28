@@ -23,6 +23,7 @@
   import { roomPassword } from './collaboration/roomAccess.js';
   import { currentSecretKey } from './collaboration/secretLink.js';
   import type { RoomCipher } from './collaboration/roomCipher.js';
+  import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
   import type { SessionRole, DisplayName, CursorColor, RoomId, CollabConnect } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
@@ -75,19 +76,28 @@
       console.warn('Copad: VITE_COLLAB_TRANSPORT=websocket but VITE_WEBSOCKET_URL is unset — using WebRTC.');
     }
     const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, loc);
-    const iceServers = resolveIceServers({
-      VITE_STUN_URL: import.meta.env.VITE_STUN_URL,
-      VITE_TURN_URL: import.meta.env.VITE_TURN_URL,
-      VITE_TURN_USERNAME: import.meta.env.VITE_TURN_USERNAME,
-      VITE_TURN_CREDENTIAL: import.meta.env.VITE_TURN_CREDENTIAL,
-    });
+    // ICE is resolved per build (not once) so runtime TURN changes from Settings
+    // apply on the next reconnect. Precedence: runtime TURN → env TURN → public default.
+    const buildIce = () => {
+      const turn = getTurnPrefs();
+      const hasRuntimeTurn = turn.urls.length > 0;
+      return resolveIceServers(
+        {
+          VITE_STUN_URL: import.meta.env.VITE_STUN_URL,
+          VITE_TURN_URL: hasRuntimeTurn ? turn.urls.join(',') : import.meta.env.VITE_TURN_URL,
+          VITE_TURN_USERNAME: hasRuntimeTurn ? turn.username : import.meta.env.VITE_TURN_USERNAME,
+          VITE_TURN_CREDENTIAL: hasRuntimeTurn ? turn.credential : import.meta.env.VITE_TURN_CREDENTIAL,
+        },
+        { fallback: turn.fallback },
+      );
+    };
     const cipher = roomCipher;
     return {
       build: (cache) =>
         webrtcCollab({
           signaling: signaling.servers,
           cipher,
-          iceServers,
+          iceServers: buildIce(),
           cache,
         }),
       warning: signaling.warning,
@@ -105,11 +115,15 @@
   // `connect` is derived so flipping it rebuilds the factory, and the keyed block
   // below remounts the Editor so the change takes effect immediately.
   let localCache = $state(localCacheEnabled());
-  const connect = $derived(collabPlan.build(localCache));
 
-  // Bumped when room encryption changes (secure link / password set), forcing an
-  // Editor remount so the connection re-resolves the new room password.
+  // Bumped when a TURN settings change needs the Editor to reconnect. Read in
+  // `connect` so the factory rebuilds with fresh ICE, and in the keyed block
+  // below to remount.
   let collabEpoch = $state(0);
+  const connect = $derived.by(() => {
+    void collabEpoch;
+    return collabPlan.build(localCache);
+  });
 
   function setLocalCache(on: boolean): void {
     setLocalCacheEnabled(on);
@@ -120,6 +134,15 @@
   async function clearLocalCopies(): Promise<void> {
     await clearLocalCache();
     toasts.success('Cleared local copies of your documents');
+  }
+
+  // Runtime TURN config (Settings) — persisted; applied on the next reconnect.
+  let turnPrefs = $state<TurnPrefs>(getTurnPrefs());
+  function saveTurnPrefs(p: TurnPrefs): void {
+    turnPrefs = p;
+    setTurnPrefs(p);
+    collabEpoch += 1; // rebuild ICE + remount so the change takes effect
+    toasts.info('Connection settings applied');
   }
 
   const COLORS: CursorColor[] = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'] as CursorColor[];
@@ -264,6 +287,8 @@
   {localCache}
   onCacheChange={setLocalCache}
   onCacheClear={clearLocalCopies}
+  {turnPrefs}
+  onTurnChange={saveTurnPrefs}
   onchange={bump}
   onconnect={afterConnect}
   ondisconnect={afterDisconnect}

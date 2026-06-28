@@ -1,7 +1,49 @@
-import type { DisplayName, CursorColor, SessionRole, PeerAwarenessState, RoomId } from './types.js';
+import type {
+  DisplayName, CursorColor, SessionRole, PeerAwarenessState, RoomId,
+  SignalingUrl, WebsocketUrl,
+  StunUrl, TurnUrl, TurnUsername, TurnCredential, FallbackTurnPolicy,
+} from './types.js';
 import type { RoomCredential } from './roomAccess.js';
 import type { LocalCacheEnabled } from './cache.js';
+import type { TurnPrefs } from './turn.js';
 import { FALLBACK_NAME, FALLBACK_COLOR } from './peerDefaults.js';
+
+/** ws:// or wss:// — the only schemes y-webrtc / y-websocket understand. */
+const WS_URL = /^wss?:\/\/\S+$/i;
+
+/** Single cast site for SignalingUrl. */
+export function parseSignalingUrl(raw: string): SignalingUrl | null {
+  return WS_URL.test(raw) ? (raw as SignalingUrl) : null;
+}
+
+/** Single cast site for WebsocketUrl. */
+export function parseWebsocketUrl(raw: string): WebsocketUrl | null {
+  return WS_URL.test(raw) ? (raw as WebsocketUrl) : null;
+}
+
+/** stun: / turn: / turns: — the ICE URL schemes WebRTC understands. */
+const ICE_URL = /^(?:stun|turns?):\S+$/i;
+
+/** Single cast site for StunUrl — call from resolveIceServers or any ICE config parser. */
+export function parseStunUrl(raw: string): StunUrl | null {
+  return ICE_URL.test(raw) ? (raw as StunUrl) : null;
+}
+
+/** Single cast site for TurnUrl — call from resolveIceServers or any ICE config parser. */
+export function parseTurnUrl(raw: string): TurnUrl | null {
+  return ICE_URL.test(raw) ? (raw as TurnUrl) : null;
+}
+
+/** Cast site for TurnUsername from user form input. Any non-null string is accepted;
+ *  validation (required, format) is the caller's responsibility at the UI layer. */
+export function parseTurnUsername(raw: string): TurnUsername {
+  return raw as TurnUsername;
+}
+
+/** Cast site for TurnCredential from user form input. */
+export function parseTurnCredential(raw: string): TurnCredential {
+  return raw as TurnCredential;
+}
 
 /**
  * Parse an unknown awareness state value arriving from a peer browser.
@@ -54,5 +96,44 @@ export function parseRoomList(raw: string | null): RoomId[] {
       .filter((r): r is RoomId => r !== null);
   } catch {
     return [];
+  }
+}
+
+/** Runtime TURN prefs when none are stored (or the stored value is malformed). */
+const TURN_PREFS_FALLBACK: TurnPrefs = {
+  urls: [],
+  username: parseTurnUsername(''),
+  credential: parseTurnCredential(''),
+  fallback: 'openrelay',
+};
+
+/** Parse persisted runtime TURN prefs from localStorage JSON — the single
+ *  narrowing site, filling any missing/invalid field from the defaults. */
+export function parseTurnPrefs(raw: string | null): TurnPrefs {
+  if (!raw) return { ...TURN_PREFS_FALLBACK };
+  try {
+    const obj: unknown = JSON.parse(raw);
+    if (typeof obj !== 'object' || obj === null) return { ...TURN_PREFS_FALLBACK };
+    const o = obj as Record<string, unknown>;
+
+    const rawUrls = o['urls'];
+    const urls: TurnUrl[] = Array.isArray(rawUrls)
+      ? rawUrls
+          .filter((u): u is string => typeof u === 'string')
+          .map(parseTurnUrl)
+          .filter((u): u is TurnUrl => u !== null)
+      : TURN_PREFS_FALLBACK.urls;
+
+    const fallbackRaw = o['fallback'];
+    const fallback: FallbackTurnPolicy = fallbackRaw === 'none' ? 'none' : 'openrelay';
+
+    return {
+      urls,
+      username: parseTurnUsername(typeof o['username'] === 'string' ? o['username'] : ''),
+      credential: parseTurnCredential(typeof o['credential'] === 'string' ? o['credential'] : ''),
+      fallback,
+    };
+  } catch {
+    return { ...TURN_PREFS_FALLBACK };
   }
 }

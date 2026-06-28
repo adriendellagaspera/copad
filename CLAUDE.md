@@ -195,6 +195,7 @@ This codebase uses **functional naming** — no OO suffixes.
 - **Leader election** — only the peer with the lowest `clientID` writes to storage, preventing concurrent-write races.
 - **Local cache** — `src/collaboration/cache.ts` owns local caching end to end (prefs + DB naming + clear + `attachLocalCache(room, doc): LocalCache`, the single place importing `y-indexeddb`). Both adapters just call `attachLocalCache` when their `cache` opt is true (DB name `copad:<room>`), so a reload survives without a backend. On by default; the Settings toggle flips a localStorage pref that `App.svelte` reads, rebuilds `connect`, and remounts the Editor via `{#key room|localCache}`. Stores **plaintext** at rest (independent of the room password) — the toggle + "Clear local copies" are the privacy control. `clearLocalCache()` uses a remembered-rooms index (not `indexedDB.databases()`, which Firefox lacks).
 - **Per-room encryption** — `src/collaboration/roomKey.ts`: `webrtcCollab`'s `password` is a `(room) => string | undefined` resolver. `resolveRoomPassword()` precedence: URL hash `#k=` (a "secure link" — the hash is never sent to the signaling server) → per-room password remembered in localStorage → `VITE_ROOM_PASSWORD`. The `ShareDialog` sets either mode; changing it bumps `collabEpoch` in `App.svelte` so `{#key …|collabEpoch}` remounts the Editor and reconnects with the new key. Cooperative only — a wrong/missing key just fails to sync (no hard error). WebRTC only; the hub relay sees plaintext.
+- **TURN / connectivity** — `config.ts:DEFAULT_TURN` (public OpenRelay) is the out-of-the-box fallback so desktop↔mobile connects without setup; `resolveIceServers(env, { defaultTurn })` precedence runtime (`turn.ts`, edited in Settings) → env → default. `App.svelte` resolves ICE *inside* `build()` so a TURN change (bump `collabEpoch`) reconnects with fresh servers. The `Collab` port has optional `reconnect()` + `getDiagnostics()`; the webrtc adapter reads selected ICE candidate type via `peer._pc.getStats()` (best-effort, guarded) to report Direct vs Relayed in `ConnectionDialog.svelte` (opened from the status bar).
 - **WebDAV** — hidden from the UI unless `VITE_PROXY_URL` is set; most WebDAV servers don't send CORS headers.
 
 ## Environment variables
@@ -230,7 +231,7 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_WEBDAV_URL` | no | Pre-fill the WebDAV URL input |
 | `VITE_STORAGE_BACKEND` | no | Default storage backend id |
 | `VITE_STUN_URL` | no | STUN server(s), comma-separated (default: `stun:stun.l.google.com:19302`; set empty to disable). Via `resolveIceServers()`. |
-| `VITE_TURN_URL` | no | TURN relay url(s), comma-separated. Needed for restrictive/mobile NATs (CGNAT / symmetric NAT). |
+| `VITE_TURN_URL` | no | TURN relay url(s), comma-separated. Needed for restrictive/mobile NATs (CGNAT / symmetric NAT). When unset, a public default relay (`DEFAULT_TURN` in `config.ts`) is used unless disabled. Runtime Settings TURN (`turn.ts`) overrides this. |
 | `VITE_TURN_USERNAME` | no | TURN long-term credential username. |
 | `VITE_TURN_CREDENTIAL` | no | TURN long-term credential secret. |
 

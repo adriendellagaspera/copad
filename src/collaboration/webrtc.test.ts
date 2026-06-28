@@ -14,11 +14,19 @@ vi.mock('y-webrtc', () => {
       this.opts = opts;
       (globalThis as Record<string, unknown>).__wp = this;
     }
+    disconnectCount = 0;
+    connectCount = 0;
     on(ev: string, fn: (...a: unknown[]) => void) {
       (this.handlers[ev] ||= []).push(fn);
     }
     emit(ev: string, arg?: unknown) {
       (this.handlers[ev] || []).forEach((fn) => fn(arg));
+    }
+    disconnect() {
+      this.disconnectCount++;
+    }
+    connect() {
+      this.connectCount++;
     }
     destroy() {}
   }
@@ -45,6 +53,7 @@ import type { RoomId, SignalingUrl } from './types.js';
 import type { RoomCipher } from './roomCipher.js';
 import type { RoomCredential } from './roomAccess.js';
 import type { LocalCacheEnabled } from './cache.js';
+import { parseTurnUrl, parseTurnUsername, parseTurnCredential } from './parse.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const provider = (): any => (globalThis as Record<string, unknown>).__wp;
@@ -143,9 +152,33 @@ describe('webrtcCollab cipher', () => {
   });
 });
 
+describe('webrtcCollab reconnect & diagnostics', () => {
+  it('reconnect drops and re-attaches the provider', () => {
+    const collab = webrtcCollab({ signaling: SIGNALING })(ROOM);
+    collab.reconnect?.();
+    expect(provider().disconnectCount).toBe(1);
+    expect(provider().connectCount).toBe(1);
+    collab.destroy();
+  });
+
+  it('getDiagnostics reports transport, signaling and peer count', async () => {
+    const collab = webrtcCollab({ signaling: SIGNALING })(ROOM);
+    const d = await collab.getDiagnostics?.();
+    expect(d?.transport).toBe('p2p');
+    expect(d?.signaling).toBe(true);
+    expect(d?.peers).toBe(0);
+    expect(d?.connections).toEqual([]);
+    collab.destroy();
+  });
+});
+
 describe('webrtcCollab ICE configuration', () => {
   it('forwards iceServers to the provider as peerOpts.config', () => {
-    const ice = [{ urls: 'turn:t.example:3478', username: 'u', credential: 'c' }];
+    const ice = [{
+      urls: [parseTurnUrl('turn:t.example:3478')!],
+      username: parseTurnUsername('u'),
+      credential: parseTurnCredential('c'),
+    }];
     webrtcCollab({ signaling: SIGNALING, iceServers: ice })(ROOM);
     expect(provider().opts.peerOpts).toEqual({ config: { iceServers: ice } });
   });
