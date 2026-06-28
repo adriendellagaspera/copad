@@ -2,12 +2,14 @@ import type {
   DisplayName, CursorColor, PeerAwarenessState, RoomId,
   SignalingUrl, WebsocketUrl,
   StunUrl, TurnUrl, TurnUsername, TurnCredential,
+  TurnAuthUrl, TurnCredentials,
 } from './types.js';
 import { SessionRole, FallbackTurnPolicy } from './types.js';
 import type { RoomCredential } from './roomAccess.js';
 import type { LocalCacheEnabled } from './cache.js';
 import type { TurnPrefs } from './turn.js';
 import { FALLBACK_NAME, FALLBACK_COLOR } from './peerDefaults.js';
+import { DEFAULT_TURN_TTL_SECONDS } from './constants.js';
 
 /** ws:// or wss:// — the only schemes y-webrtc / y-websocket understand. */
 const WS_URL = /^wss?:\/\/\S+$/i;
@@ -44,6 +46,43 @@ export function parseTurnUsername(raw: string): TurnUsername {
 /** Cast site for TurnCredential from user form input. */
 export function parseTurnCredential(raw: string): TurnCredential {
   return raw as TurnCredential;
+}
+
+/** http(s):// — the schemes a TURN credential-minting endpoint is fetched over. */
+const HTTP_URL = /^https?:\/\/\S+$/i;
+
+/** Single cast site for TurnAuthUrl — the endpoint that mints short-lived TURN
+ *  credentials. Returns null for anything that isn't an http(s) URL. */
+export function parseTurnAuthUrl(raw: string): TurnAuthUrl | null {
+  return HTTP_URL.test(raw) ? (raw as TurnAuthUrl) : null;
+}
+
+/** Parse a TURN REST API response (`{ urls, username, credential, ttl }`) into
+ *  typed {@link TurnCredentials} — the single narrowing site for credentials
+ *  arriving from the minting endpoint. Returns null when the payload is malformed
+ *  or carries no usable TURN URL, so callers fall back to static/default ICE. */
+export function parseTurnCredentialsResponse(raw: unknown): TurnCredentials | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const o = raw as Record<string, unknown>;
+
+  const urls: TurnUrl[] = Array.isArray(o['urls'])
+    ? o['urls']
+        .filter((u): u is string => typeof u === 'string')
+        .map(parseTurnUrl)
+        .filter((u): u is TurnUrl => u !== null)
+    : [];
+  if (urls.length === 0) return null;
+  if (typeof o['username'] !== 'string' || typeof o['credential'] !== 'string') return null;
+
+  const ttlRaw = o['ttl'];
+  const ttlSeconds = typeof ttlRaw === 'number' && ttlRaw > 0 ? ttlRaw : DEFAULT_TURN_TTL_SECONDS;
+
+  return {
+    urls,
+    username: parseTurnUsername(o['username']),
+    credential: parseTurnCredential(o['credential']),
+    ttlSeconds,
+  };
 }
 
 /**

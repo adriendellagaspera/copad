@@ -41,6 +41,24 @@ export type TurnUsername = string & { readonly _brand: 'TurnUsername' };
  *  form boundary by `parseTurnCredential()` in `parse.ts`. */
 export type TurnCredential = string & { readonly _brand: 'TurnCredential' };
 
+/** URL of a TURN credential-minting endpoint (the TURN REST API). The server
+ *  there holds the static auth secret and returns short-lived credentials, so
+ *  the secret never ships in the client bundle. Validated by `parseTurnAuthUrl()`
+ *  in `parse.ts`. */
+export type TurnAuthUrl = string & { readonly _brand: 'TurnAuthUrl' };
+
+/** Short-lived TURN credentials fetched from a {@link TurnAuthUrl} endpoint
+ *  (coturn's `use-auth-secret` / TURN REST API). Parsed at the network boundary
+ *  by `parseTurnCredentialsResponse()` — the single narrowing site. */
+export interface TurnCredentials {
+  readonly urls: TurnUrl[];
+  readonly username: TurnUsername;
+  readonly credential: TurnCredential;
+  /** Seconds the credentials remain valid — operators should set this to exceed
+   *  a typical editing session (see `turn/README.md`). */
+  readonly ttlSeconds: number;
+}
+
 /**
  * Controls which public TURN fallback (if any) is used when no custom TURN
  * relay is configured. Richer than a boolean so future relay options can be
