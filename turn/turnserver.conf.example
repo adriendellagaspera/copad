@@ -1,0 +1,89 @@
+# coturn configuration for Copad's WebRTC TURN relay.
+#
+# Copy this file to `turnserver.conf` (which is git-ignored so your real secret
+# and public IP never get committed) and replace YOUR_DOMAIN, the public IP, and
+# the shared secret before deploying:
+#   cp turnserver.conf.example turnserver.conf
+#
+# Then point the app at it (VITE_TURN_* or Settings → Connection):
+#   VITE_TURN_URL=turns:YOUR_DOMAIN:5349
+#   VITE_TURN_USERNAME=copad
+#   VITE_TURN_PASSWORD=CHANGE_ME_STRONG_SECRET
+#
+# ⚠ The credential is PUBLIC. Whether you set it via VITE_* (baked into the
+#   client bundle) or the in-app Settings panel, anyone who loads Copad can read
+#   it and relay traffic through this server. Treat it as a shared, rotatable
+#   key — not a secret. The quotas below cap the blast radius; for a hardened
+#   deployment use time-limited credentials instead (see "Stronger auth" below).
+
+# ── Listening ────────────────────────────────────────────────────────────────
+listening-port=3478
+tls-listening-port=5349
+
+# Public IP of this server. On a cloud VM behind 1:1 NAT use PUBLIC/PRIVATE:
+#   external-ip=203.0.113.10/10.0.0.5
+external-ip=YOUR_PUBLIC_IP
+
+realm=YOUR_DOMAIN
+server-name=YOUR_DOMAIN
+
+# ── Auth (long-term credentials — simplest) ──────────────────────────────────
+# Every Copad user authenticates as this one shared username (the credential is
+# public — see the warning above), so the quotas in the Hardening section are
+# server-wide, not per-person.
+lt-cred-mech
+user=copad:CHANGE_ME_STRONG_SECRET
+
+# Stronger auth (optional): instead of a static password, use HMAC time-limited
+# credentials so a leaked credential expires on its own. This needs a tiny
+# server-side endpoint to mint tokens (the static secret never reaches the
+# browser), so it's more setup than this static-credential default:
+#   use-auth-secret
+#   static-auth-secret=CHANGE_ME_LONG_RANDOM_SECRET
+
+# ── Relay UDP port range — OPEN THIS RANGE on your firewall / security group ──
+# The IANA ephemeral range (coturn's own default). One UDP port is consumed per
+# relay allocation, so this must be wide: the previous 41-port range capped the
+# server at ~20 concurrent relayed peers before allocations failed (TURN 508).
+min-port=49152
+max-port=65535
+
+# ── TLS for turns:// (recommended) ───────────────────────────────────────────
+# Provide certs (e.g. Let's Encrypt / certbot) and uncomment. WITHOUT these the
+# tls-listening-port (5349) never serves, so a `turns:` URL silently yields no
+# relay candidates even though plain `turn:` on 3478 still works — verify the
+# turns: path explicitly (see the README "Verify" section).
+# cert=/etc/coturn/certs/fullchain.pem
+# pkey=/etc/coturn/certs/privkey.pem
+
+# ── Hardening ────────────────────────────────────────────────────────────────
+fingerprint          # required by WebRTC
+no-cli               # disable the telnet admin interface
+no-tcp-relay         # WebRTC only needs UDP relay
+stale-nonce=600
+no-multicast-peers
+
+# Quotas — the credential is public, so cap abuse server-wide. total-quota is the
+# max simultaneous allocations; max-bps throttles per-allocation bandwidth so one
+# session can't saturate the uplink (and your egress bill).
+total-quota=1200
+max-bps=2000000
+
+# Deny relaying to internal / special-use ranges so the relay can't be turned
+# into an SSRF proxy into your host or cloud network. Notably 169.254.0.0/16
+# covers the cloud metadata service (169.254.169.254 — IAM creds on AWS/GCP/
+# Azure) and 127.0.0.0/8 covers loopback (reachable directly under host
+# networking). TURN only ever relays between peers' PUBLIC addresses, so denying
+# these costs nothing legitimate.
+# IPv4:
+denied-peer-ip=0.0.0.0-0.255.255.255
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=100.64.0.0-100.127.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+# IPv6 (in case the VM is dual-stack):
+denied-peer-ip=::1
+denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff

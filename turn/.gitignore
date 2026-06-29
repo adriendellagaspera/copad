@@ -1,0 +1,6 @@
+# Your live config holds a real shared secret and the server's public IP — never
+# commit it. Deploy from turnserver.conf.example: `cp turnserver.conf.example turnserver.conf`.
+turnserver.conf
+
+# Mounted TLS certificates.
+certs/

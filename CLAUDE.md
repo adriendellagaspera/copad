@@ -232,8 +232,8 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_STORAGE_BACKEND` | no | Default storage backend id |
 | `VITE_STUN_URL` | no | STUN server(s), comma-separated (default: `stun:stun.l.google.com:19302`; set empty to disable). Via `resolveIceServers()`. |
 | `VITE_TURN_URL` | no | TURN relay url(s), comma-separated. Needed for restrictive/mobile NATs (CGNAT / symmetric NAT). When unset, a public default relay (`DEFAULT_TURN` in `config.ts`) is used unless disabled. Runtime Settings TURN (`turn.ts`) overrides this. |
-| `VITE_TURN_USERNAME` | no | TURN long-term credential username. |
-| `VITE_TURN_CREDENTIAL` | no | TURN long-term credential secret. |
+| `VITE_TURN_USERNAME` | no | TURN username. |
+| `VITE_TURN_PASSWORD` | no | TURN password. |
 
 ## Collaboration servers
 
@@ -248,3 +248,10 @@ upstream package's bundled server (don't reinvent the wheel):
 To deploy either, point a host (Render/Fly/any VPS) at a 3-line `package.json` that depends on
 the upstream package with `"start"` calling its bin — `npm install` puts it in `node_modules`
 on the host. See README "Deploying a collaboration server".
+
+**`turn/`** is the one server-ish thing we ship — a self-hosted [coturn](https://github.com/coturn/coturn)
+TURN relay (`turnserver.conf.example` + `docker-compose.yml` + guide) for WebRTC NAT traversal, because
+coturn has no equivalent drop-in. TURN needs a UDP port range, so it wants a VPS, not a PaaS. The shipped
+config is a template: the live `turnserver.conf` is git-ignored (it holds the shared secret + public IP),
+the credential is treated as public (it's inlined into the client bundle), and the config caps abuse with
+TURN quotas + SSRF deny ranges. Optional — a free public default relay (`DEFAULT_TURN`) works out of the box.
