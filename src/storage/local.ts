@@ -3,8 +3,7 @@ import type { StorageAuth } from './auth.js';
 import { knownExtensions } from '../format/index.js';
 import { STORAGE_ID } from './constants.js';
 
-// showOpenFilePicker is part of the File System Access API Living Standard
-// and not yet in TypeScript's lib.dom.d.ts at this version.
+// showOpenFilePicker / showSaveFilePicker not yet in TypeScript's lib.dom.d.ts at this version.
 declare global {
   interface Window {
     showOpenFilePicker(opts?: {
@@ -18,76 +17,135 @@ declare global {
   }
 }
 
-// Module-level handle — survives Svelte reactivity cycles but not page refresh.
-// The user re-picks the file after a refresh (FileSystemFileHandle permission
-// can't be re-granted without a user gesture anyway).
-let handle: FileSystemFileHandle | null = null;
+type LocalState =
+  | { readonly mode: 'idle' }
+  | { readonly mode: 'native'; readonly handle: FileSystemFileHandle }
+  | { readonly mode: 'imported'; readonly file: File }
+  | { readonly mode: 'new' };
 
-function fsAccessUnavailableReason(): string | undefined {
+// Module-level state — survives Svelte reactivity cycles but not page refresh.
+let state: LocalState = { mode: 'idle' };
+
+function hasFsAccessApi(): boolean {
+  return typeof window !== 'undefined' && 'showOpenFilePicker' in window;
+}
+
+function unavailableReason(): string | undefined {
   if (typeof window === 'undefined') return 'Not in a browser context.';
-  if ('showOpenFilePicker' in window) return undefined;
-  if (!isSecureContext) {
-    return 'The File System Access API requires a secure context. ' +
-      'Open this app via https:// or http://localhost instead of a plain HTTP URL.';
-  }
-  const isBrave = (navigator as Navigator & { brave?: unknown }).brave != null;
-  return isBrave
-    ? 'Brave disables the File System Access API by default. ' +
-      'Go to brave://flags, search for "File System Access API", set it to Enabled, ' +
-      'then relaunch Brave.'
-    : 'Requires a browser that supports the File System Access API (Chrome/Edge).';
+  if (!isSecureContext) return 'Requires a secure context — open via https:// or http://localhost.';
+  return undefined;
+}
+
+// cancel fires on Chrome 113+ / Safari 16.4+; on older iOS the promise hangs until reload.
+function pickFileMobile(): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = knownExtensions().join(',');
+    input.style.cssText = 'position:fixed;top:-9999px';
+    const cleanup = () => input.remove();
+    input.addEventListener('change', () => {
+      cleanup();
+      const file = input.files?.[0];
+      if (file) resolve(file);
+      else reject(new Error('No file selected'));
+    });
+    input.addEventListener('cancel', () => {
+      cleanup();
+      reject(new Error('The user aborted a request.'));
+    });
+    document.body.appendChild(input);
+    input.click();
+  });
 }
 
 export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
   const auth: StorageAuth = {
-    isAuthenticated: () => handle !== null,
+    isAuthenticated: () => state.mode !== 'idle',
 
     async login(creds?: SessionCredentials) {
-      const types = [
-        {
+      if (hasFsAccessApi()) {
+        const types = [{
           description: 'Copad / text documents',
           accept: { 'application/octet-stream': knownExtensions() },
-        },
-      ];
-      if (creds?.mode === 'new') {
-        handle = await window.showSaveFilePicker({ suggestedName: 'document.yjs', types });
+        }];
+        if (creds?.mode === 'new') {
+          state = { mode: 'native', handle: await window.showSaveFilePicker({ suggestedName: 'document.yjs', types }) };
+        } else {
+          const [handle] = await window.showOpenFilePicker({ types });
+          state = { mode: 'native', handle };
+        }
       } else {
-        [handle] = await window.showOpenFilePicker({ types });
+        // Fallback: "New file" starts an empty document; save is a no-op.
+        state = creds?.mode === 'new'
+          ? { mode: 'new' }
+          : { mode: 'imported', file: await pickFileMobile() };
       }
     },
 
     logout() {
-      handle = null;
+      state = { mode: 'idle' };
     },
   };
 
   const storage: Storage = {
     id: STORAGE_ID.local,
     label: 'Local file',
-    blurb: 'Opens any text or source file on your device — .yjs, .md, .txt, .html, .json, .py, .js, .rs, … (Chrome/Edge).',
+    get blurb(): string {
+      return hasFsAccessApi()
+        ? 'Opens any text or source file on your device — .yjs, .md, .txt, .html, .json, .py, .js, .rs, …'
+        : 'Import a file from your device — .yjs, .md, .txt, .html, .json, … Changes sync in real time and are preserved in the browser\'s local cache.';
+    },
     get availability(): StorageAvailability {
-      const reason = fsAccessUnavailableReason();
+      const reason = unavailableReason();
       return reason ? { ok: false, reason } : { ok: true };
     },
 
     // The picked file's name selects the codec; `.yjs` is the native default.
-    filename: () => (handle?.name ?? 'document.yjs') as Filename,
+    filename(): Filename {
+      const name =
+        state.mode === 'native' ? state.handle.name
+        : state.mode === 'imported' ? state.file.name
+        : 'document.yjs';
+      return name as Filename;
+    },
 
     contentFormat: 'binary',
 
     async load(): Promise<DocContent | null> {
-      if (!handle) throw new Error('Local: not connected');
-      const file = await handle.getFile();
-      if (file.size === 0) return null;
-      return { format: 'binary', bytes: new Uint8Array(await file.arrayBuffer()) };
+      switch (state.mode) {
+        case 'native': {
+          const file = await state.handle.getFile();
+          return file.size === 0
+            ? null
+            : { format: 'binary', bytes: new Uint8Array(await file.arrayBuffer()) };
+        }
+        case 'imported':
+          return state.file.size === 0
+            ? null
+            : { format: 'binary', bytes: new Uint8Array(await state.file.arrayBuffer()) };
+        case 'new':
+          return null; // Empty document; content comes from collaborators.
+        case 'idle':
+          throw new Error('Local: not connected');
+      }
     },
 
     async save(content: DocContent): Promise<void> {
       if (content.format !== 'binary') throw new Error('Local storage expects binary content');
-      if (!handle) throw new Error('Local: not connected');
-      const writable = await handle.createWritable();
-      await writable.write(content.bytes as unknown as FileSystemWriteChunkType);
-      await writable.close();
+      switch (state.mode) {
+        case 'native': {
+          const writable = await state.handle.createWritable();
+          await writable.write(content.bytes as unknown as FileSystemWriteChunkType);
+          await writable.close();
+          return;
+        }
+        case 'imported':
+        case 'new':
+          return; // No write-back — edits persist in the Y.Doc and local cache.
+        case 'idle':
+          throw new Error('Local: not connected');
+      }
     },
   };
 
