@@ -1,5 +1,5 @@
-import type { Storage, StorageAvailability, SessionCredentials, DocContent, Filename } from './types.js';
-import { DocFormat, OpenMode } from './types.js';
+import type { Storage, StorageAvailability, LoginOptions, DocContent, Filename } from './types.js';
+import { DocFormat, OpenMode, LoginKind } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { knownExtensions } from '../format/index.js';
 import { STORAGE_ID } from './constants.js';
@@ -69,13 +69,14 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
   const auth: StorageAuth = {
     isAuthenticated: () => state.mode !== LocalMode.Idle,
 
-    async login(creds?: SessionCredentials) {
+    async login(opts?: LoginOptions) {
+      const createNew = opts?.kind === LoginKind.Open && opts.mode === OpenMode.New;
       if (hasFsAccessApi()) {
         const types = [{
           description: 'Copad / text documents',
           accept: { 'application/octet-stream': knownExtensions() },
         }];
-        if (creds?.mode === OpenMode.New) {
+        if (createNew) {
           state = { mode: LocalMode.Native, handle: await window.showSaveFilePicker({ suggestedName: 'document.yjs', types }) };
         } else {
           const [handle] = await window.showOpenFilePicker({ types });
@@ -83,7 +84,7 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
         }
       } else {
         // Fallback: "New file" starts an empty document; save is a no-op.
-        state = creds?.mode === OpenMode.New
+        state = createNew
           ? { mode: LocalMode.New }
           : { mode: LocalMode.Imported, file: await pickFileMobile() };
       }

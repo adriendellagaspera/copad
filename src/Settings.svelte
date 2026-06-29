@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { SessionCredentials } from './storage/types.js';
-  import { OpenMode, InputType } from './storage/types.js';
+  import type { SessionCredentials, LoginOptions } from './storage/types.js';
+  import { OpenMode, InputType, LoginKind } from './storage/types.js';
   import type { StorageBackend } from './storage/index.js';
   import { isConfigured } from './storage/auth.js';
 
@@ -102,11 +102,11 @@
     onchange?.();
   }
 
-  async function connect(b: StorageBackend, c?: SessionCredentials) {
+  async function connect(b: StorageBackend, opts?: LoginOptions) {
     busy = { ...busy, [b.storage.id]: true };
     errors = { ...errors, [b.storage.id]: '' };
     try {
-      await b.auth.login(c);
+      await b.auth.login(opts);
       onconnect?.(b);
     } catch (e) {
       errors = { ...errors, [b.storage.id]: (e as Error).message };
@@ -312,7 +312,7 @@
           </div>
         {:else}
           {#if b.auth.credentialFields}
-            <form class="creds" onsubmit={e => { e.preventDefault(); connect(b, creds[b.storage.id] ?? {}); }}>
+            <form class="creds" onsubmit={e => { e.preventDefault(); connect(b, { kind: LoginKind.Credentials, credentials: creds[b.storage.id] ?? {} }); }}>
               {#each b.auth.credentialFields as f (f.name)}
                 <label class="field">
                   <span class="field-label">{f.label}</span>
@@ -335,7 +335,7 @@
               <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
                 {busy[b.storage.id] ? 'Opening…' : 'Open file'}
               </button>
-              <button onclick={() => connect(b, { mode: OpenMode.New })} disabled={busy[b.storage.id]}>
+              <button onclick={() => connect(b, { kind: LoginKind.Open, mode: OpenMode.New })} disabled={busy[b.storage.id]}>
                 New file
               </button>
             </div>

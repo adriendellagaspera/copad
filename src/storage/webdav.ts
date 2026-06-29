@@ -1,5 +1,5 @@
-import type { Storage, CredentialField, SessionCredentials, DocContent } from './types.js';
-import { DocFormat, InputType } from './types.js';
+import type { Storage, CredentialField, LoginOptions, DocContent } from './types.js';
+import { DocFormat, InputType, LoginKind } from './types.js';
 import type { StorageAuth } from './auth.js';
 import type { Fetch } from '../network/types.js';
 import { filenameStore } from './filename.js';
@@ -32,7 +32,8 @@ export function webdavStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
   const auth: StorageAuth = {
     isAuthenticated: () => !!conf(),
 
-    async login(creds: SessionCredentials = {}) {
+    async login(opts?: LoginOptions) {
+      const creds = opts?.kind === LoginKind.Credentials ? opts.credentials : {};
       const { baseUrl = '', username = '', password = '' } = creds;
       if (!baseUrl.trim() || !username.trim())
         throw new Error('URL and username are required');
