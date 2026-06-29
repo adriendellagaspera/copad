@@ -86,7 +86,7 @@
           VITE_STUN_URL: import.meta.env.VITE_STUN_URL,
           VITE_TURN_URL: hasRuntimeTurn ? turn.urls.join(',') : import.meta.env.VITE_TURN_URL,
           VITE_TURN_USERNAME: hasRuntimeTurn ? turn.username : import.meta.env.VITE_TURN_USERNAME,
-          VITE_TURN_CREDENTIAL: hasRuntimeTurn ? turn.credential : import.meta.env.VITE_TURN_CREDENTIAL,
+          VITE_TURN_PASSWORD: hasRuntimeTurn ? turn.credential : import.meta.env.VITE_TURN_PASSWORD,
         },
         { fallback: turn.fallback },
       );

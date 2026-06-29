@@ -134,7 +134,7 @@ describe('resolveIceServers', () => {
     const ice = resolveIceServers({
       VITE_TURN_URL: 'turn:relay.example:3478',
       VITE_TURN_USERNAME: 'user',
-      VITE_TURN_CREDENTIAL: 'secret',
+      VITE_TURN_PASSWORD: 'secret',
     });
     expect(ice).toEqual([
       { urls: ['stun:stun.l.google.com:19302'] },

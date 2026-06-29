@@ -211,7 +211,7 @@ export interface IceEnv {
   VITE_STUN_URL?: string;
   VITE_TURN_URL?: string;
   VITE_TURN_USERNAME?: string;
-  VITE_TURN_CREDENTIAL?: string;
+  VITE_TURN_PASSWORD?: string;
 }
 
 /**
@@ -244,7 +244,7 @@ export function resolveIceServers(
     servers.push({
       urls: turnUrls,
       ...(env.VITE_TURN_USERNAME ? { username: parseTurnUsername(env.VITE_TURN_USERNAME) } : {}),
-      ...(env.VITE_TURN_CREDENTIAL ? { credential: parseTurnCredential(env.VITE_TURN_CREDENTIAL) } : {}),
+      ...(env.VITE_TURN_PASSWORD ? { credential: parseTurnCredential(env.VITE_TURN_PASSWORD) } : {}),
     });
   } else if ((opts.fallback ?? 'openrelay') !== 'none') {
     // No TURN configured — fall back to the public relay for restrictive NATs.
