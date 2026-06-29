@@ -9,4 +9,5 @@ export interface PeerUser {
 }
 
 /** Storage save lifecycle, surfaced by the StatusPill. */
-export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+export const SaveStatus = { Idle: 'idle', Saving: 'saving', Saved: 'saved', Error: 'error' } as const;
+export type SaveStatus = (typeof SaveStatus)[keyof typeof SaveStatus];

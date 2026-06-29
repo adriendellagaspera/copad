@@ -1,6 +1,7 @@
 import * as Y from 'yjs';
 import { WebrtcProvider } from 'y-webrtc';
 import type { Collab, CollabConnect, RoomId, SignalingUrl, Diagnostics, PeerConnId, IceServer } from './types.js';
+import { Transport, IceCandidateType } from './types.js';
 import type { RoomCipher } from './roomCipher.js';
 import type { LocalCacheEnabled } from './cache.js';
 import { createCollabCore } from './core.js';
@@ -80,7 +81,7 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
     return {
       doc,
       awareness: webrtc.awareness,
-      transport: 'p2p',
+      transport: Transport.P2P,
       onStatus: core.onStatus,
       onSynced: core.onSynced,
       reconnect() {
@@ -96,11 +97,11 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
           entries.map(async ([id, c]) => {
             const pc = c.peer?._pc;
             // Cast the y-webrtc map key to the branded id at this IO boundary.
-            return { id: id as PeerConnId, type: pc ? await readIceStats(pc) : ('unknown' as const) };
+            return { id: id as PeerConnId, type: pc ? await readIceStats(pc) : IceCandidateType.Unknown };
           }),
         );
         return {
-          transport: 'p2p',
+          transport: Transport.P2P,
           signaling: !!webrtc.connected,
           peers: (r?.webrtcConns.size ?? 0) + (r?.bcConns.size ?? 0),
           connections,

@@ -24,7 +24,8 @@
   import { currentSecretKey } from './collaboration/secretLink.js';
   import type { RoomCipher } from './collaboration/roomCipher.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
-  import type { SessionRole, DisplayName, CursorColor, RoomId, CollabConnect } from './collaboration/types.js';
+  import type { DisplayName, CursorColor, RoomId, CollabConnect } from './collaboration/types.js';
+  import { SessionRole } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
@@ -203,7 +204,9 @@
   // a read-only link (?role=reader). Cooperative only: a modified client could
   // ignore it, but it's appropriate for trusted collaborators.
   function roleFromUrl(): SessionRole {
-    return new URLSearchParams(location.search).get('role') === 'reader' ? 'reader' : 'writer';
+    return new URLSearchParams(location.search).get('role') === SessionRole.Reader
+      ? SessionRole.Reader
+      : SessionRole.Writer;
   }
 
   let room = $state<RoomId>(roomFromUrl());

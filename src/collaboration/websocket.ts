@@ -1,6 +1,7 @@
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import type { Collab, CollabConnect, RoomId, WebsocketUrl } from './types.js';
+import { Transport } from './types.js';
 import type { LocalCacheEnabled } from './cache.js';
 import { createCollabCore } from './core.js';
 
@@ -50,7 +51,7 @@ export function websocketCollab(opts: WebsocketCollabOptions): CollabConnect {
     return {
       doc,
       awareness: provider.awareness,
-      transport: 'hub',
+      transport: Transport.Hub,
       onStatus: core.onStatus,
       onSynced: core.onSynced,
       reconnect() {
@@ -60,7 +61,7 @@ export function websocketCollab(opts: WebsocketCollabOptions): CollabConnect {
       async getDiagnostics() {
         // No per-peer carriage on the hub — everyone talks to the same server.
         return {
-          transport: 'hub' as const,
+          transport: Transport.Hub,
           signaling: !!provider.wsconnected,
           peers: Math.max(0, provider.awareness.getStates().size - 1),
           connections: [],

@@ -7,10 +7,11 @@
 // 2. An insecure ws:// server on an https:// page — browsers block this as
 //    mixed content, so the signaling socket never opens.
 
-import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, FallbackTurnPolicy, RoomId, IceServer } from './types.js';
+import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, RoomId, IceServer } from './types.js';
+import { FallbackTurnPolicy } from './types.js';
 import type { RoomAccess } from './roomAccess.js';
 import type { RoomCipher } from './roomCipher.js';
-import { publicAccess, sitePassword, roomPassword } from './roomAccess.js';
+import { publicAccess, sitePassword, roomPassword, RoomAccessMode } from './roomAccess.js';
 import { plaintext } from './roomCipher.js';
 import { secretLink, type SecretLinkPort } from './secretLink.js';
 import { parseRoomId, parseSignalingUrl, parseWebsocketUrl, parseStunUrl, parseTurnUrl, parseTurnUsername, parseTurnCredential } from './parse.js';
@@ -184,15 +185,15 @@ function sharedKeyCipher(access: RoomAccess): RoomCipher {
  */
 export function resolveRoomStrategy(raw: string | undefined): RoomStrategy {
   switch ((raw ?? '').trim().toLowerCase()) {
-    case 'site-password': {
+    case RoomAccessMode.SitePassword: {
       const access = sitePassword(import.meta.env.VITE_ROOM_PASSWORD ?? '');
       return { access, cipher: sharedKeyCipher(access) };
     }
-    case 'room-password': {
+    case RoomAccessMode.RoomPassword: {
       const access = roomPassword();
       return { access, cipher: sharedKeyCipher(access) };
     }
-    case 'secret-link': {
+    case RoomAccessMode.SecretLink: {
       const link: SecretLinkPort = secretLink();
       return { access: link, cipher: link };
     }
@@ -246,7 +247,7 @@ export function resolveIceServers(
       ...(env.VITE_TURN_USERNAME ? { username: parseTurnUsername(env.VITE_TURN_USERNAME) } : {}),
       ...(env.VITE_TURN_CREDENTIAL ? { credential: parseTurnCredential(env.VITE_TURN_CREDENTIAL) } : {}),
     });
-  } else if ((opts.fallback ?? 'openrelay') !== 'none') {
+  } else if ((opts.fallback ?? FallbackTurnPolicy.OpenRelay) !== FallbackTurnPolicy.None) {
     // No TURN configured — fall back to the public relay for restrictive NATs.
     servers.push(DEFAULT_TURN);
   }

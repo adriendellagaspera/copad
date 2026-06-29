@@ -1,5 +1,6 @@
 import pcloudSdk from 'pcloud-sdk-js';
 import type { Storage, DocContent } from './types.js';
+import { DocFormat } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
@@ -79,7 +80,7 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
     filename: () => fileName.get(),
     setFilename: fileName.set,
 
-    contentFormat: 'binary',
+    contentFormat: DocFormat.Binary,
 
     async load(): Promise<DocContent | null> {
       const s = session();
@@ -100,7 +101,7 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
           console.warn('pCloud load failed (starting with empty doc):', res.status);
           return null;
         }
-        return { format: 'binary', bytes: new Uint8Array(await res.arrayBuffer()) };
+        return { format: DocFormat.Binary, bytes: new Uint8Array(await res.arrayBuffer()) };
       } catch (e) {
         console.warn('pCloud load failed (starting with empty doc):', e);
         return null;
@@ -108,7 +109,7 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
     },
 
     async save(content: DocContent): Promise<void> {
-      if (content.format !== 'binary') throw new Error('pCloud storage expects binary content');
+      if (content.format !== DocFormat.Binary) throw new Error('pCloud storage expects binary content');
       const s = session();
       if (!s) throw new Error('pCloud: not connected');
 

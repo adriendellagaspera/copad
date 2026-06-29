@@ -1,14 +1,15 @@
 <script lang="ts">
   import type { Toasts } from './toasts.svelte.js';
+  import { ToastKind } from './toasts.svelte.js';
 
   let { toasts }: { toasts: Toasts } = $props();
 </script>
 
 <div class="toasts" aria-live="polite" aria-atomic="false">
   {#each toasts.items as t (t.id)}
-    <div class="toast {t.kind}" role={t.kind === 'error' ? 'alert' : 'status'}>
+    <div class="toast {t.kind}" role={t.kind === ToastKind.Error ? 'alert' : 'status'}>
       <span class="toast-icon" aria-hidden="true">
-        {#if t.kind === 'error'}✕{:else if t.kind === 'success'}✓{:else}i{/if}
+        {#if t.kind === ToastKind.Error}✕{:else if t.kind === ToastKind.Success}✓{:else}i{/if}
       </span>
       <span class="toast-text">{t.text}</span>
       <button class="toast-close ghost" onclick={() => toasts.dismiss(t.id)} aria-label="Dismiss">

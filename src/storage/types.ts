@@ -13,16 +13,25 @@ export type Filename = string & { readonly _brand: 'Filename' };
  * Text backends (GitHub, SharePoint…) use the file's raw text so the stored
  * file remains human-readable and committable.
  */
+/**
+ * Document content formats. The const object holds the wire values; the type is
+ * the union of its members, so internal code matches against `DocFormat.Binary`
+ * rather than a bare `'binary'` literal — no primitives at the domain boundary.
+ */
+export const DocFormat = { Binary: 'binary', Text: 'text' } as const;
+export type DocFormat = (typeof DocFormat)[keyof typeof DocFormat];
+
 export type DocContent =
-  | { readonly format: 'binary'; readonly bytes: Uint8Array }
-  | { readonly format: 'text';   readonly text: string };
+  | { readonly format: typeof DocFormat.Binary; readonly bytes: Uint8Array }
+  | { readonly format: typeof DocFormat.Text;   readonly text: string };
 
 /**
  * The level of access the authenticated user has on this specific file or
  * resource. Absent when the backend has no per-user ACL (Dropbox, WebDAV,
  * local). Present when the backend can report it (e.g. SharePoint via Graph).
  */
-export type StorageAccess = 'read' | 'write' | 'owner';
+export const StorageAccess = { Read: 'read', Write: 'write', Owner: 'owner' } as const;
+export type StorageAccess = (typeof StorageAccess)[keyof typeof StorageAccess];
 
 /**
  * Whether this backend can be used in the current environment.
@@ -40,13 +49,30 @@ export type StorageAvailability =
 export type SessionCredentials = Readonly<Record<string, string>>;
 
 /**
+ * The "open mode" chosen on the connect form. `New` starts a fresh, empty
+ * document; its absence means open/import an existing file. Read by the local
+ * backend (cloud backends ignore it). Named so call sites match `OpenMode.New`
+ * rather than a bare `'new'` literal.
+ */
+export const OpenMode = { New: 'new' } as const;
+export type OpenMode = (typeof OpenMode)[keyof typeof OpenMode];
+
+/**
+ * How a {@link CredentialField} / {@link ConfigField} input renders — a closed
+ * set we own (it happens to map onto the HTML `<input type>` attribute). Named
+ * so field definitions and defaults use `InputType.Password` over a bare literal.
+ */
+export const InputType = { Text: 'text', Password: 'password' } as const;
+export type InputType = (typeof InputType)[keyof typeof InputType];
+
+/**
  * A per-session authentication input collected at connect time (e.g. a WebDAV
  * username/password). Distinct from {@link ConfigField}, which is one-time setup.
  */
 export interface CredentialField {
   name: string;
   label: string;
-  type?: 'text' | 'password';
+  type?: InputType;
   placeholder?: string;
 }
 
@@ -58,7 +84,7 @@ export interface CredentialField {
 export interface ConfigField {
   name: string;
   label: string;
-  type?: 'text' | 'password';
+  type?: InputType;
   placeholder?: string;
   /** Short hint shown under the input — e.g. where to obtain the value. */
   help?: string;
@@ -85,7 +111,7 @@ export interface Storage {
   /** Change the target filename. Absent where the name is fixed by the backend. */
   setFilename?(name: string): void;
 
-  readonly contentFormat: DocContent['format'];
+  readonly contentFormat: DocFormat;
   load(): Promise<DocContent | null>;
   save(content: DocContent): Promise<void>;
 

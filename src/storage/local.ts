@@ -1,4 +1,5 @@
 import type { Storage, StorageAvailability, SessionCredentials, DocContent, Filename } from './types.js';
+import { DocFormat, OpenMode } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { knownExtensions } from '../format/index.js';
 import { STORAGE_ID } from './constants.js';
@@ -17,14 +18,19 @@ declare global {
   }
 }
 
+// How the local backend is currently bound to a file — a closed set we own, so
+// the state machine below matches `LocalMode.Native` over a bare `'native'`.
+const LocalMode = { Idle: 'idle', Native: 'native', Imported: 'imported', New: 'new' } as const;
+type LocalMode = (typeof LocalMode)[keyof typeof LocalMode];
+
 type LocalState =
-  | { readonly mode: 'idle' }
-  | { readonly mode: 'native'; readonly handle: FileSystemFileHandle }
-  | { readonly mode: 'imported'; readonly file: File }
-  | { readonly mode: 'new' };
+  | { readonly mode: typeof LocalMode.Idle }
+  | { readonly mode: typeof LocalMode.Native; readonly handle: FileSystemFileHandle }
+  | { readonly mode: typeof LocalMode.Imported; readonly file: File }
+  | { readonly mode: typeof LocalMode.New };
 
 // Module-level state — survives Svelte reactivity cycles but not page refresh.
-let state: LocalState = { mode: 'idle' };
+let state: LocalState = { mode: LocalMode.Idle };
 
 function hasFsAccessApi(): boolean {
   return typeof window !== 'undefined' && 'showOpenFilePicker' in window;
@@ -61,7 +67,7 @@ function pickFileMobile(): Promise<File> {
 
 export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
   const auth: StorageAuth = {
-    isAuthenticated: () => state.mode !== 'idle',
+    isAuthenticated: () => state.mode !== LocalMode.Idle,
 
     async login(creds?: SessionCredentials) {
       if (hasFsAccessApi()) {
@@ -69,22 +75,22 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
           description: 'Copad / text documents',
           accept: { 'application/octet-stream': knownExtensions() },
         }];
-        if (creds?.mode === 'new') {
-          state = { mode: 'native', handle: await window.showSaveFilePicker({ suggestedName: 'document.yjs', types }) };
+        if (creds?.mode === OpenMode.New) {
+          state = { mode: LocalMode.Native, handle: await window.showSaveFilePicker({ suggestedName: 'document.yjs', types }) };
         } else {
           const [handle] = await window.showOpenFilePicker({ types });
-          state = { mode: 'native', handle };
+          state = { mode: LocalMode.Native, handle };
         }
       } else {
         // Fallback: "New file" starts an empty document; save is a no-op.
-        state = creds?.mode === 'new'
-          ? { mode: 'new' }
-          : { mode: 'imported', file: await pickFileMobile() };
+        state = creds?.mode === OpenMode.New
+          ? { mode: LocalMode.New }
+          : { mode: LocalMode.Imported, file: await pickFileMobile() };
       }
     },
 
     logout() {
-      state = { mode: 'idle' };
+      state = { mode: LocalMode.Idle };
     },
   };
 
@@ -104,46 +110,46 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
     // The picked file's name selects the codec; `.yjs` is the native default.
     filename(): Filename {
       const name =
-        state.mode === 'native' ? state.handle.name
-        : state.mode === 'imported' ? state.file.name
+        state.mode === LocalMode.Native ? state.handle.name
+        : state.mode === LocalMode.Imported ? state.file.name
         : 'document.yjs';
       return name as Filename;
     },
 
-    contentFormat: 'binary',
+    contentFormat: DocFormat.Binary,
 
     async load(): Promise<DocContent | null> {
       switch (state.mode) {
-        case 'native': {
+        case LocalMode.Native: {
           const file = await state.handle.getFile();
           return file.size === 0
             ? null
-            : { format: 'binary', bytes: new Uint8Array(await file.arrayBuffer()) };
+            : { format: DocFormat.Binary, bytes: new Uint8Array(await file.arrayBuffer()) };
         }
-        case 'imported':
+        case LocalMode.Imported:
           return state.file.size === 0
             ? null
-            : { format: 'binary', bytes: new Uint8Array(await state.file.arrayBuffer()) };
-        case 'new':
+            : { format: DocFormat.Binary, bytes: new Uint8Array(await state.file.arrayBuffer()) };
+        case LocalMode.New:
           return null; // Empty document; content comes from collaborators.
-        case 'idle':
+        case LocalMode.Idle:
           throw new Error('Local: not connected');
       }
     },
 
     async save(content: DocContent): Promise<void> {
-      if (content.format !== 'binary') throw new Error('Local storage expects binary content');
+      if (content.format !== DocFormat.Binary) throw new Error('Local storage expects binary content');
       switch (state.mode) {
-        case 'native': {
+        case LocalMode.Native: {
           const writable = await state.handle.createWritable();
           await writable.write(content.bytes as unknown as FileSystemWriteChunkType);
           await writable.close();
           return;
         }
-        case 'imported':
-        case 'new':
+        case LocalMode.Imported:
+        case LocalMode.New:
           return; // No write-back — edits persist in the Y.Doc and local cache.
-        case 'idle':
+        case LocalMode.Idle:
           throw new Error('Local: not connected');
       }
     },

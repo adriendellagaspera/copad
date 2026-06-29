@@ -1,7 +1,8 @@
 /* Toast store — replaces silent console.warn for user-visible errors.
  * createToasts() returns a plain rune-backed object (no class). */
 
-export type ToastKind = 'error' | 'info' | 'success';
+export const ToastKind = { Error: 'error', Info: 'info', Success: 'success' } as const;
+export type ToastKind = (typeof ToastKind)[keyof typeof ToastKind];
 export interface Toast {
   id: number;
   kind: ToastKind;
@@ -29,9 +30,9 @@ export function createToasts() {
     },
     push,
     dismiss,
-    error: (text: string, ttl = 9000) => push('error', text, ttl),
-    info: (text: string, ttl = 6000) => push('info', text, ttl),
-    success: (text: string, ttl = 4000) => push('success', text, ttl),
+    error: (text: string, ttl = 9000) => push(ToastKind.Error, text, ttl),
+    info: (text: string, ttl = 6000) => push(ToastKind.Info, text, ttl),
+    success: (text: string, ttl = 4000) => push(ToastKind.Success, text, ttl),
   };
 }
 

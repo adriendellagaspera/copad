@@ -1,4 +1,5 @@
 import type { Storage, DocContent } from './types.js';
+import { DocFormat } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
@@ -97,7 +98,7 @@ export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
     filename: () => fileName.get(),
     setFilename: fileName.set,
 
-    contentFormat: 'binary',
+    contentFormat: DocFormat.Binary,
 
     async load(): Promise<DocContent | null> {
       const tok = token();
@@ -113,11 +114,11 @@ export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
 
       if (res.status === 409) return null; // file not found
       if (!res.ok) throw new Error(`Dropbox load failed: ${res.status}`);
-      return { format: 'binary', bytes: new Uint8Array(await res.arrayBuffer()) };
+      return { format: DocFormat.Binary, bytes: new Uint8Array(await res.arrayBuffer()) };
     },
 
     async save(content: DocContent): Promise<void> {
-      if (content.format !== 'binary') throw new Error('Dropbox storage expects binary content');
+      if (content.format !== DocFormat.Binary) throw new Error('Dropbox storage expects binary content');
       const tok = token();
       if (!tok) throw new Error('Dropbox: not connected');
 

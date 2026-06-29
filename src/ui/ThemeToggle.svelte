@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { Theme } from './theme.svelte.js';
+  import { ResolvedTheme } from './theme.svelte.js';
 
   let { theme }: { theme: Theme } = $props();
 
-  const isDark = $derived(theme.resolved === 'dark');
+  const isDark = $derived(theme.resolved === ResolvedTheme.Dark);
 </script>
 
 <button

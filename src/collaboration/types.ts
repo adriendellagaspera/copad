@@ -2,7 +2,8 @@ import type * as Y from 'yjs';
 import type { Awareness } from 'y-protocols/awareness';
 
 /** Whether a peer may edit the document in this session. */
-export type SessionRole = 'writer' | 'reader';
+export const SessionRole = { Writer: 'writer', Reader: 'reader' } as const;
+export type SessionRole = (typeof SessionRole)[keyof typeof SessionRole];
 
 /** A collaboration room identifier, derived from the URL or generated randomly. */
 export type RoomId = string & { readonly _brand: 'RoomId' };
@@ -48,7 +49,8 @@ export type TurnCredential = string & { readonly _brand: 'TurnCredential' };
  * - `'openrelay'` — use the bundled public OpenRelay (best-effort, free tier).
  * - `'none'`      — no fallback; peers on restrictive NATs may fail to connect.
  */
-export type FallbackTurnPolicy = 'openrelay' | 'none';
+export const FallbackTurnPolicy = { OpenRelay: 'openrelay', None: 'none' } as const;
+export type FallbackTurnPolicy = (typeof FallbackTurnPolicy)[keyof typeof FallbackTurnPolicy];
 
 /** The name a peer chose to display next to their cursor. */
 export type DisplayName = string & { readonly _brand: 'DisplayName' };
@@ -86,7 +88,13 @@ export interface PeerAwarenessState {
  * - `connected`  — at least one peer is present, so edits flow in real time.
  * - `offline`    — the browser reports no network connection.
  */
-export type ConnStatus = 'connecting' | 'waiting' | 'connected' | 'offline';
+export const ConnStatus = {
+  Connecting: 'connecting',
+  Waiting: 'waiting',
+  Connected: 'connected',
+  Offline: 'offline',
+} as const;
+export type ConnStatus = (typeof ConnStatus)[keyof typeof ConnStatus];
 
 /**
  * Which kind of transport backs a `Collab` session:
@@ -94,7 +102,8 @@ export type ConnStatus = 'connecting' | 'waiting' | 'connected' | 'offline';
  * - `hub` — y-websocket, edits are relayed through a central server.
  * Surfaced in the UI so a user knows whether the server sees their content.
  */
-export type Transport = 'p2p' | 'hub';
+export const Transport = { P2P: 'p2p', Hub: 'hub' } as const;
+export type Transport = (typeof Transport)[keyof typeof Transport];
 
 /** Identifier of a single peer connection, taken from the WebRTC layer's
  *  connection map — branded so it can't be confused with any other id string. */
@@ -104,7 +113,8 @@ export type PeerConnId = string & { readonly _brand: 'PeerConnId' };
  *  via a TURN relay. `'unknown'` means stats are unavailable or the PC is still
  *  negotiating. Single source of truth — used by both `IceStatsReader` and
  *  `PeerConnectionInfo`. */
-export type IceCandidateType = 'direct' | 'relay' | 'unknown';
+export const IceCandidateType = { Direct: 'direct', Relay: 'relay', Unknown: 'unknown' } as const;
+export type IceCandidateType = (typeof IceCandidateType)[keyof typeof IceCandidateType];
 
 /** How a single peer connection is carried — surfaced in the diagnostics panel. */
 export interface PeerConnectionInfo {

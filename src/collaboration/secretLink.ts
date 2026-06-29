@@ -1,5 +1,6 @@
 import type { RoomId } from './types.js';
 import type { RoomAccess, RoomCredential } from './roomAccess.js';
+import { RoomAccessMode } from './roomAccess.js';
 import type { RoomCipher } from './roomCipher.js';
 import { parseRoomCredential } from './parse.js';
 
@@ -39,7 +40,7 @@ export function secretLink(): SecretLinkPort {
   const key: RoomCredential = existing ?? (crypto.randomUUID() as RoomCredential);
   if (!existing) writeKey(key);
   return {
-    mode: 'secret-link',
+    mode: RoomAccessMode.SecretLink,
     credential: (_room: RoomId) => key,
     password: (_room: RoomId) => key,
   };

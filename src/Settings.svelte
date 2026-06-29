@@ -1,10 +1,11 @@
 <script lang="ts">
   import type { SessionCredentials } from './storage/types.js';
+  import { OpenMode, InputType } from './storage/types.js';
   import type { StorageBackend } from './storage/index.js';
   import { isConfigured } from './storage/auth.js';
 
   import type { TurnPrefs } from './collaboration/turn.js';
-  import type { FallbackTurnPolicy } from './collaboration/types.js';
+  import { FallbackTurnPolicy } from './collaboration/types.js';
   import { parseTurnUrl, parseTurnUsername, parseTurnCredential } from './collaboration/parse.js';
   import type { TurnUrl } from './collaboration/types.js';
 
@@ -49,13 +50,13 @@
   let rawUrl = $state('');
   let rawUsername = $state('');
   let rawCredential = $state('');
-  let turnFallback = $state<FallbackTurnPolicy>('openrelay');
+  let turnFallback = $state<FallbackTurnPolicy>(FallbackTurnPolicy.OpenRelay);
   $effect(() => {
     if (open) {
       rawUrl = (turnPrefs?.urls ?? []).join(', ');
       rawUsername = turnPrefs?.username ?? '';
       rawCredential = turnPrefs?.credential ?? '';
-      turnFallback = turnPrefs?.fallback ?? 'openrelay';
+      turnFallback = turnPrefs?.fallback ?? FallbackTurnPolicy.OpenRelay;
     }
   });
   function applyTurn() {
@@ -181,8 +182,8 @@
         <label class="toggle">
           <input
             type="checkbox"
-            checked={turnFallback === 'openrelay'}
-            onchange={e => (turnFallback = e.currentTarget.checked ? 'openrelay' : 'none')}
+            checked={turnFallback === FallbackTurnPolicy.OpenRelay}
+            onchange={e => (turnFallback = e.currentTarget.checked ? FallbackTurnPolicy.OpenRelay : FallbackTurnPolicy.None)}
           />
           <span>Use a public TURN relay when none is configured</span>
         </label>
@@ -253,7 +254,7 @@
               {#if locked}<span class="lock" title="Set by this deployment">🔒 managed</span>{/if}
             </span>
             <input
-              type={f.type ?? 'text'}
+              type={f.type ?? InputType.Text}
               placeholder={f.placeholder ?? ''}
               value={b.auth.config?.(f.name) ?? ''}
               disabled={locked}
@@ -316,7 +317,7 @@
                 <label class="field">
                   <span class="field-label">{f.label}</span>
                   <input
-                    type={f.type ?? 'text'}
+                    type={f.type ?? InputType.Text}
                     placeholder={f.placeholder ?? ''}
                     value={creds[b.storage.id]?.[f.name] ?? ''}
                     oninput={e => { creds = { ...creds, [b.storage.id]: { ...(creds[b.storage.id] ?? {}), [f.name]: e.currentTarget.value } }; }}
@@ -334,7 +335,7 @@
               <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
                 {busy[b.storage.id] ? 'Opening…' : 'Open file'}
               </button>
-              <button onclick={() => connect(b, { mode: 'new' })} disabled={busy[b.storage.id]}>
+              <button onclick={() => connect(b, { mode: OpenMode.New })} disabled={busy[b.storage.id]}>
                 New file
               </button>
             </div>

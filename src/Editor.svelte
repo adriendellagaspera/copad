@@ -17,18 +17,19 @@
   import StatusPill from './ui/StatusPill.svelte';
   import PresenceBar from './ui/PresenceBar.svelte';
   import ConnectionDialog from './ui/ConnectionDialog.svelte';
-  import type { PeerUser, SaveStatus } from './ui/types.js';
+  import type { PeerUser } from './ui/types.js';
+  import { SaveStatus } from './ui/types.js';
   import type { Toasts } from './ui/toasts.svelte.js';
-  import type { Storage, StorageAccess, DocContent } from './storage/types.js';
+  import type { Storage, DocContent } from './storage/types.js';
+  import { StorageAccess, DocFormat } from './storage/types.js';
   import type {
     CollabConnect,
-    ConnStatus,
     RoomId,
-    SessionRole,
     DisplayName,
     CursorColor,
     PeerAwarenessState,
   } from './collaboration/types.js';
+  import { ConnStatus, SessionRole } from './collaboration/types.js';
   import { parsePeerAwarenessState } from './collaboration/parse.js';
 
   type Props = {
@@ -42,7 +43,7 @@
     onstoragestatus?: () => void;
   };
 
-  let { storage, name, color, room, role = 'writer', connect, toasts, onstoragestatus }: Props =
+  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, onstoragestatus }: Props =
     $props();
 
   const SAVE_DEBOUNCE = 3_000;
@@ -61,9 +62,9 @@
   let editorState = $state.raw<EditorState | null>(null);
   let users = $state<PeerUser[]>([]);
   let peers = $state(1);
-  let conn = $state<ConnStatus>('connecting');
+  let conn = $state<ConnStatus>(ConnStatus.Connecting);
   let diagOpen = $state(false);
-  let saveStatus = $state<SaveStatus>('idle');
+  let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
   let loadedFrom = $state<string | null>(null);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let savedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -84,7 +85,7 @@
       return;
     }
     s.access().then((a: StorageAccess) => {
-      canPersist = a !== 'read';
+      canPersist = a !== StorageAccess.Read;
     });
   });
 
@@ -147,7 +148,7 @@
       .load()
       .then(async (content: DocContent | null) => {
         if (content) {
-          const bytes = content.format === 'binary'
+          const bytes = content.format === DocFormat.Binary
             ? content.bytes
             : new TextEncoder().encode(content.text);
           await codec.decode(bytes, collab.doc);
@@ -178,23 +179,23 @@
     if (!s || !isLeader()) return;
     const codec = codecForFilename(s.filename?.() ?? 'document.yjs');
     const label = s.label;
-    saveStatus = 'saving';
+    saveStatus = SaveStatus.Saving;
     Promise.resolve(codec.encode(collab.doc))
       .then((bytes) => {
-        const content: DocContent = s.contentFormat === 'text'
-          ? { format: 'text', text: new TextDecoder().decode(bytes) }
-          : { format: 'binary', bytes };
+        const content: DocContent = s.contentFormat === DocFormat.Text
+          ? { format: DocFormat.Text, text: new TextDecoder().decode(bytes) }
+          : { format: DocFormat.Binary, bytes };
         return s.save(content);
       })
       .then(() => {
-        saveStatus = 'saved';
+        saveStatus = SaveStatus.Saved;
         clearTimeout(savedTimer);
         savedTimer = setTimeout(() => {
-          if (saveStatus === 'saved') saveStatus = 'idle';
+          if (saveStatus === SaveStatus.Saved) saveStatus = SaveStatus.Idle;
         }, 2_500);
       })
       .catch((e: Error) => {
-        saveStatus = 'error';
+        saveStatus = SaveStatus.Error;
         console.warn('Copad: autosave failed', e);
         toasts.error(`Couldn't save to ${label}: ${e.message}`);
       });
@@ -225,7 +226,7 @@
       state,
       // role is URL-derived and fixed for the session; untrack avoids a
       // reactive dependency inside ProseMirror's render cycle.
-      editable: () => untrack(() => role) === 'writer',
+      editable: () => untrack(() => role) === SessionRole.Writer,
       // ProseMirror calls dispatchTransaction with the EditorView as `this`,
       // so we use `this` here instead of closing over the outer `view` variable.
       // Closing over `view` would fail on the first call because ProseMirror

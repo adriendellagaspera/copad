@@ -1,6 +1,7 @@
 <script lang="ts">
   import Dialog from './Dialog.svelte';
-  import type { Diagnostics, Transport } from '../collaboration/types.js';
+  import type { Diagnostics } from '../collaboration/types.js';
+  import { Transport, IceCandidateType } from '../collaboration/types.js';
 
   let {
     open,
@@ -50,7 +51,7 @@
   <ul class="diag">
     <li>
       <span>Transport</span>
-      <strong>{transport === 'p2p' ? 'Peer-to-peer (WebRTC)' : 'Relay (server)'}</strong>
+      <strong>{transport === Transport.P2P ? 'Peer-to-peer (WebRTC)' : 'Relay (server)'}</strong>
     </li>
     <li>
       <span>Signaling</span>
@@ -62,7 +63,7 @@
     </li>
   </ul>
 
-  {#if transport === 'p2p'}
+  {#if transport === Transport.P2P}
     {#if diag && diag.connections.length}
       <h3>Peer connections</h3>
       <ul class="diag-peers">
@@ -70,9 +71,9 @@
           <li>
             <code>{c.id.slice(0, 8)}</code>
             <span class="conn-type {c.type}">
-              {c.type === 'relay'
+              {c.type === IceCandidateType.Relay
                 ? 'Relayed via TURN'
-                : c.type === 'direct'
+                : c.type === IceCandidateType.Direct
                   ? 'Direct'
                   : 'Negotiating…'}
             </span>

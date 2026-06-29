@@ -1,4 +1,5 @@
 import type { Storage, DocContent } from './types.js';
+import { DocFormat, InputType } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
@@ -64,7 +65,7 @@ const cfg = configStore(STORAGE_ID.github, [
   {
     name: 'token',
     label: 'Personal Access Token',
-    type: 'password' as const,
+    type: InputType.Password,
     placeholder: 'ghp_…',
     help: 'A fine-grained PAT with Contents: Read and write, or a classic token with the repo scope.',
     env: import.meta.env.VITE_GITHUB_TOKEN,
@@ -127,7 +128,7 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
     content: DocContent,
   ): Promise<void> {
     const bytes =
-      content.format === 'text'
+      content.format === DocFormat.Text
         ? new TextEncoder().encode(content.text)
         : content.bytes;
     const path = fileName.get();
@@ -212,8 +213,8 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
     filename: () => fileName.get(),
     setFilename: fileName.set,
 
-    get contentFormat(): DocContent['format'] {
-      return extensionOf(fileName.get()) === '.yjs' ? 'binary' : 'text';
+    get contentFormat(): DocFormat {
+      return extensionOf(fileName.get()) === '.yjs' ? DocFormat.Binary : DocFormat.Text;
     },
 
     async load(): Promise<DocContent | null> {
@@ -239,10 +240,10 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
       const raw = atob(data.content.replace(/\n/g, ''));
       const bytes = Uint8Array.from(raw, (c) => c.charCodeAt(0));
 
-      if (storage.contentFormat === 'text') {
-        return { format: 'text', text: new TextDecoder().decode(bytes) };
+      if (storage.contentFormat === DocFormat.Text) {
+        return { format: DocFormat.Text, text: new TextDecoder().decode(bytes) };
       }
-      return { format: 'binary', bytes };
+      return { format: DocFormat.Binary, bytes };
     },
 
     async save(content: DocContent): Promise<void> {

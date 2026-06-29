@@ -9,7 +9,8 @@
 // to `emitStatus`/`setSynced`.
 
 import type * as Y from 'yjs';
-import type { ConnStatus, RoomId } from './types.js';
+import type { RoomId } from './types.js';
+import { ConnStatus } from './types.js';
 import { attachLocalCache, type LocalCache, type LocalCacheEnabled } from './cache.js';
 
 export interface CollabCoreOptions {
@@ -52,9 +53,9 @@ export function createCollabCore(opts: CollabCoreOptions): CollabCore {
   // `connected` once another peer appears. That distinction tells a user whether
   // the transport is broken (stuck on `connecting`) or nobody else has joined yet.
   const computeStatus = (): ConnStatus => {
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
-    if (!isAttached()) return 'connecting';
-    return peerCount() > 0 ? 'connected' : 'waiting';
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return ConnStatus.Offline;
+    if (!isAttached()) return ConnStatus.Connecting;
+    return peerCount() > 0 ? ConnStatus.Connected : ConnStatus.Waiting;
   };
 
   const emitStatus = (): void => {
