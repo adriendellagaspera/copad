@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { localFsStorage } from './local.js';
 import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
+import { LoginKind, OpenMode } from './types.js';
 
 // happy-dom has no showOpenFilePicker, so every test here exercises the
 // <input type="file"> fallback path (mobile / Firefox), not the native one.
@@ -34,7 +35,7 @@ describe('localFsStorage — fallback path (no File System Access API)', () => {
 
   describe('"New file" (no native picker)', () => {
     beforeEach(async () => {
-      await auth.login({ mode: 'new' });
+      await auth.login({ kind: LoginKind.Open, mode: OpenMode.New });
     });
 
     it('authenticates without touching the filesystem', () => {
@@ -57,14 +58,14 @@ describe('localFsStorage — fallback path (no File System Access API)', () => {
   });
 
   it('save rejects non-binary content', async () => {
-    await auth.login({ mode: 'new' });
+    await auth.login({ kind: LoginKind.Open, mode: OpenMode.New });
     await expect(
       storage.save({ format: 'text', text: 'hello' }),
     ).rejects.toThrow('expects binary content');
   });
 
   it('logout returns to the disconnected state', async () => {
-    await auth.login({ mode: 'new' });
+    await auth.login({ kind: LoginKind.Open, mode: OpenMode.New });
     auth.logout();
     expect(auth.isAuthenticated()).toBe(false);
   });

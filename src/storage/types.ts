@@ -58,6 +58,29 @@ export const OpenMode = { New: 'new' } as const;
 export type OpenMode = (typeof OpenMode)[keyof typeof OpenMode];
 
 /**
+ * Which kind of input a {@link StorageAuth.login} call carries — a closed set we
+ * own, matched as `LoginKind.Credentials` over a bare `'credentials'` literal.
+ */
+export const LoginKind = { Credentials: 'credentials', Open: 'open' } as const;
+export type LoginKind = (typeof LoginKind)[keyof typeof LoginKind];
+
+/**
+ * Structured input to {@link StorageAuth.login}, modelled as a discriminated
+ * union so the two intents can never co-occur or be half-specified:
+ * - `Credentials` — a per-session credentialed login (WebDAV), carrying the
+ *   form values; the credential bag is *not* a control channel.
+ * - `Open` — how the local picker opens its file ({@link OpenMode}).
+ *
+ * Backends needing neither (OAuth: Dropbox/pCloud/GitHub) and the local
+ * open/import-existing path are called with no argument. Each arm requires its
+ * payload, so a credentials login always carries credentials and an open always
+ * carries a mode — illegal states are unrepresentable.
+ */
+export type LoginOptions =
+  | { readonly kind: typeof LoginKind.Credentials; readonly credentials: SessionCredentials }
+  | { readonly kind: typeof LoginKind.Open;        readonly mode: OpenMode };
+
+/**
  * How a {@link CredentialField} / {@link ConfigField} input renders — a closed
  * set we own (it happens to map onto the HTML `<input type>` attribute). Named
  * so field definitions and defaults use `InputType.Password` over a bare literal.

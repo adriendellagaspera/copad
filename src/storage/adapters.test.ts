@@ -3,6 +3,7 @@ import { dropboxStorage } from './dropbox.js';
 import { webdavStorage } from './webdav.js';
 import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
+import { LoginKind } from './types.js';
 import type { Fetch } from '../network/types.js';
 
 const mockFetch = vi.fn();
@@ -110,20 +111,20 @@ describe('webdavStorage', () => {
 
   it('login throws on missing URL', async () => {
     await expect(
-      auth.login({ baseUrl: '', username: 'u', password: 'p' })
+      auth.login({ kind: LoginKind.Credentials, credentials: { baseUrl: '', username: 'u', password: 'p' } })
     ).rejects.toThrow('URL and username are required');
   });
 
   it('login throws on 401', async () => {
     mockFetch.mockResolvedValueOnce({ status: 401, ok: false } as Response);
     await expect(
-      auth.login({ baseUrl: 'https://cloud.example.com/dav', username: 'u', password: 'p' })
+      auth.login({ kind: LoginKind.Credentials, credentials: { baseUrl: 'https://cloud.example.com/dav', username: 'u', password: 'p' } })
     ).rejects.toThrow('invalid credentials');
   });
 
   it('login succeeds on 200', async () => {
     mockFetch.mockResolvedValueOnce({ status: 200, ok: true } as Response);
-    await auth.login({ baseUrl: 'https://cloud.example.com/dav', username: 'u', password: 'p' });
+    await auth.login({ kind: LoginKind.Credentials, credentials: { baseUrl: 'https://cloud.example.com/dav', username: 'u', password: 'p' } });
     expect(auth.isAuthenticated()).toBe(true);
   });
 

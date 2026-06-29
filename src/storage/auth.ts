@@ -1,4 +1,4 @@
-import type { SessionCredentials, CredentialField, ConfigField } from './types.js';
+import type { LoginOptions, CredentialField, ConfigField } from './types.js';
 
 /**
  * The authentication and configuration slice of a storage backend — separated
@@ -9,8 +9,9 @@ import type { SessionCredentials, CredentialField, ConfigField } from './types.j
 export interface StorageAuth {
   isAuthenticated(): boolean;
   /** Initiate authentication. For OAuth backends this opens a popup; for
-   *  WebDAV it verifies the supplied credentials against the server. */
-  login(creds?: SessionCredentials): Promise<void>;
+   *  WebDAV it verifies the supplied credentials against the server; for the
+   *  local file backend an `Open` option selects a new vs existing file. */
+  login(opts?: LoginOptions): Promise<void>;
   /** Clear the stored token / session. */
   logout(): void;
 
