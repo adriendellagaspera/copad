@@ -8,7 +8,7 @@
 # Then point the app at it (VITE_TURN_* or Settings → Connection):
 #   VITE_TURN_URL=turns:YOUR_DOMAIN:5349
 #   VITE_TURN_USERNAME=copad
-#   VITE_TURN_CREDENTIAL=CHANGE_ME_STRONG_SECRET
+#   VITE_TURN_PASSWORD=CHANGE_ME_STRONG_SECRET
 #
 # ⚠ The credential is PUBLIC. Whether you set it via VITE_* (baked into the
 #   client bundle) or the in-app Settings panel, anyone who loads Copad can read

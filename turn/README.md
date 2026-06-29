@@ -47,7 +47,7 @@ Either set build-time env vars (see [`.env.example`](../.env.example)):
 ```
 VITE_TURN_URL=turns:your-domain:5349
 VITE_TURN_USERNAME=copad
-VITE_TURN_CREDENTIAL=CHANGE_ME_STRONG_SECRET
+VITE_TURN_PASSWORD=CHANGE_ME_STRONG_SECRET
 ```
 
 …or enter the same values at runtime in the app's **Settings → Connection**
