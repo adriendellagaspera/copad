@@ -232,8 +232,8 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_STORAGE_BACKEND` | no | Default storage backend id |
 | `VITE_STUN_URL` | no | STUN server(s), comma-separated (default: `stun:stun.l.google.com:19302`; set empty to disable). Via `resolveIceServers()`. |
 | `VITE_TURN_URL` | no | TURN relay url(s), comma-separated. Needed for restrictive/mobile NATs (CGNAT / symmetric NAT). When unset, a public default relay (`DEFAULT_TURN` in `config.ts`) is used unless disabled. Runtime Settings TURN (`turn.ts`) overrides this. |
-| `VITE_TURN_USERNAME` | no | TURN long-term credential username. |
-| `VITE_TURN_CREDENTIAL` | no | TURN long-term credential secret. |
+| `VITE_TURN_USERNAME` | no | TURN username. |
+| `VITE_TURN_PASSWORD` | no | TURN password. |
 
 ## Collaboration servers
 

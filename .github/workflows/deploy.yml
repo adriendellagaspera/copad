@@ -31,10 +31,8 @@ jobs:
 
       - run: npm run build -- --base=/copad/
         # NOTE: every VITE_* var is inlined into the public client bundle at build
-        # time, so none of these is actually secret. They live as repo *Variables*
-        # (Settings → Secrets and variables → Variables). The TURN credential is the
-        # one sensitive value — kept in Secrets, though it too ends up in the bundle
-        # (client-side TURN creds can't be hidden; rotate them / use short-lived creds).
+        # time, so none of these is actually secret. They all live as repo *Variables*
+        # (Settings → Secrets and variables → Variables).
         env:
           VITE_DROPBOX_APP_KEY:   ${{ vars.VITE_DROPBOX_APP_KEY }}
           VITE_PCLOUD_CLIENT_ID:  ${{ vars.VITE_PCLOUD_CLIENT_ID }}
@@ -58,9 +56,8 @@ jobs:
           # TURN is needed for restrictive networks (mobile carriers / symmetric NAT).
           VITE_STUN_URL:          ${{ vars.VITE_STUN_URL }}
           VITE_TURN_URL:          ${{ vars.VITE_TURN_URL }}
-          # Sensitive — kept in Secrets (but see the note above; it still ships).
-          VITE_TURN_USERNAME:     ${{ secrets.VITE_TURN_USERNAME }}
-          VITE_TURN_CREDENTIAL:   ${{ secrets.VITE_TURN_CREDENTIAL }}
+          VITE_TURN_USERNAME:     ${{ vars.VITE_TURN_USERNAME }}
+          VITE_TURN_PASSWORD:     ${{ vars.VITE_TURN_PASSWORD }}
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
