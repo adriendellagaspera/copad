@@ -7,14 +7,14 @@
 // 2. An insecure ws:// server on an https:// page — browsers block this as
 //    mixed content, so the signaling socket never opens.
 
-import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, RoomId, IceServer } from './types.js';
+import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, RoomId, IceServer, TurnAuthUrl } from './types.js';
 import { FallbackTurnPolicy } from './types.js';
 import type { RoomAccess } from './roomAccess.js';
 import type { RoomCipher } from './roomCipher.js';
 import { publicAccess, sitePassword, roomPassword, RoomAccessMode } from './roomAccess.js';
 import { plaintext } from './roomCipher.js';
 import { secretLink, type SecretLinkPort } from './secretLink.js';
-import { parseRoomId, parseSignalingUrl, parseWebsocketUrl, parseStunUrl, parseTurnUrl, parseTurnUsername, parseTurnCredential } from './parse.js';
+import { parseRoomId, parseSignalingUrl, parseWebsocketUrl, parseStunUrl, parseTurnUrl, parseTurnUsername, parseTurnCredential, parseTurnAuthUrl } from './parse.js';
 import { LOCAL_HOSTS, DEFAULT_DEV_SIGNALING, DEFAULT_STUN, DEFAULT_ROOM_NAME } from './constants.js';
 
 const list = (raw: string | undefined): string[] =>
@@ -205,6 +205,16 @@ export function resolveRoomStrategy(raw: string | undefined): RoomStrategy {
 /** Parse the default room from `VITE_DEFAULT_ROOM` — the single cast site for the default RoomId. */
 export function resolveDefaultRoom(raw: string | undefined): RoomId {
   return parseRoomId(raw ?? '') ?? DEFAULT_ROOM_NAME;
+}
+
+/**
+ * Resolve `VITE_TURN_AUTH_URL` — the endpoint that mints short-lived TURN
+ * credentials (coturn `use-auth-secret`). When set, the app fetches credentials
+ * from it instead of reading static `VITE_TURN_*`, so no TURN secret is baked
+ * into the client bundle. Returns null when unset or not an http(s) URL.
+ */
+export function resolveTurnAuthUrl(raw: string | undefined): TurnAuthUrl | null {
+  return parseTurnAuthUrl((raw ?? '').trim());
 }
 
 /** ICE server environment variables read at startup for WebRTC NAT traversal. */

@@ -10,10 +10,12 @@
     resolveTransport,
     resolveRoomStrategy,
     resolveDefaultRoom,
+    resolveTurnAuthUrl,
     type PageProtocol,
     type PageHostname,
   } from './collaboration/config.js';
   import { parseRoomId } from './collaboration/parse.js';
+  import { fetchTurnIceServers } from './collaboration/turnAuth.js';
   import {
     localCacheEnabled,
     setLocalCacheEnabled,
@@ -24,7 +26,7 @@
   import { currentSecretKey } from './collaboration/secretLink.js';
   import type { RoomCipher } from './collaboration/roomCipher.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
-  import type { DisplayName, CursorColor, RoomId, CollabConnect } from './collaboration/types.js';
+  import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
   import { SessionRole } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
@@ -55,6 +57,12 @@
     hostname: location.hostname as PageHostname,
   };
 
+  // Short-lived TURN credentials (TURN REST API). When VITE_TURN_AUTH_URL is set
+  // we fetch them once at startup (below); buildIce prefers them, falling back to
+  // the static-secret path (env / Settings) while the fetch is pending or fails.
+  let mintedIce = $state<IceServer[] | null>(null);
+  const turnAuthUrl = resolveTurnAuthUrl(import.meta.env.VITE_TURN_AUTH_URL);
+
   // Pick the collaboration transport — chosen explicitly via VITE_COLLAB_TRANSPORT
   // (default 'webrtc'). 'websocket' routes edits through a central hub server (no
   // WebRTC, so no STUN/TURN — works on mobile carrier NATs where P2P can't connect).
@@ -78,8 +86,12 @@
     }
     const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, loc);
     // ICE is resolved per build (not once) so runtime TURN changes from Settings
-    // apply on the next reconnect. Precedence: runtime TURN → env TURN → public default.
+    // apply on the next reconnect. Precedence: minted short-lived creds (TURN REST
+    // API, VITE_TURN_AUTH_URL) → runtime TURN → env TURN → public default. Minted
+    // creds, once fetched, win because they carry no secret in the bundle; we fall
+    // through to the static path while they're pending or if the endpoint is down.
     const buildIce = () => {
+      if (mintedIce) return mintedIce;
       const turn = getTurnPrefs();
       const hasRuntimeTurn = turn.urls.length > 0;
       return resolveIceServers(
@@ -125,6 +137,18 @@
     void collabEpoch;
     return collabPlan.build(localCache);
   });
+
+  // Fetch the minted TURN credentials once at startup. We fetch per session (not
+  // on a mid-session timer) to avoid disrupting the editor with a remount, so set
+  // a TTL that comfortably exceeds a session (see turn/README.md). On success we
+  // bump collabEpoch to rebuild ICE and remount the Editor with the minted creds.
+  if (turnAuthUrl) {
+    void fetchTurnIceServers(turnAuthUrl).then((ice) => {
+      if (!ice) return; // endpoint down / malformed — keep the static fallback
+      mintedIce = ice;
+      collabEpoch += 1;
+    });
+  }
 
   function setLocalCache(on: boolean): void {
     setLocalCacheEnabled(on);

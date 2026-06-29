@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parsePeerAwarenessState } from './parse.js';
+import {
+  parsePeerAwarenessState,
+  parseTurnAuthUrl,
+  parseTurnCredentialsResponse,
+} from './parse.js';
+import { DEFAULT_TURN_TTL_SECONDS } from './constants.js';
 
 describe('parsePeerAwarenessState — fallback behaviour', () => {
   it('returns safe defaults for null', () => {
@@ -151,5 +156,65 @@ describe('parsePeerAwarenessState — role handling', () => {
   it('coerces "writer" string to "writer"', () => {
     const input = { user: { name: 'Pat', color: '#000000' }, role: 'writer', canPersist: false };
     expect(parsePeerAwarenessState(input).role).toBe('writer');
+  });
+});
+
+describe('parseTurnAuthUrl', () => {
+  it('accepts http and https URLs', () => {
+    expect(parseTurnAuthUrl('https://turn-auth.example/creds')).toBe('https://turn-auth.example/creds');
+    expect(parseTurnAuthUrl('http://localhost:8787/')).toBe('http://localhost:8787/');
+  });
+
+  it('rejects non-http schemes and junk', () => {
+    expect(parseTurnAuthUrl('wss://turn-auth.example')).toBeNull();
+    expect(parseTurnAuthUrl('turns:turn.example:5349')).toBeNull();
+    expect(parseTurnAuthUrl('turn-auth.example')).toBeNull();
+    expect(parseTurnAuthUrl('')).toBeNull();
+  });
+});
+
+describe('parseTurnCredentialsResponse', () => {
+  const valid = {
+    urls: ['turns:turn.example:5349'],
+    username: '1700000000:copad',
+    credential: 'abc123==',
+    ttl: 600,
+  };
+
+  it('parses a valid TURN REST API response', () => {
+    const r = parseTurnCredentialsResponse(valid);
+    expect(r).not.toBeNull();
+    expect(r!.urls).toEqual(['turns:turn.example:5349']);
+    expect(r!.username).toBe('1700000000:copad');
+    expect(r!.credential).toBe('abc123==');
+    expect(r!.ttlSeconds).toBe(600);
+  });
+
+  it('keeps only valid TURN urls and drops the rest', () => {
+    const r = parseTurnCredentialsResponse({ ...valid, urls: ['turns:turn.example:5349', 'not-a-url', 42] });
+    expect(r!.urls).toEqual(['turns:turn.example:5349']);
+  });
+
+  it('falls back to the default ttl when ttl is missing or invalid', () => {
+    expect(parseTurnCredentialsResponse({ ...valid, ttl: undefined })!.ttlSeconds).toBe(DEFAULT_TURN_TTL_SECONDS);
+    expect(parseTurnCredentialsResponse({ ...valid, ttl: -5 })!.ttlSeconds).toBe(DEFAULT_TURN_TTL_SECONDS);
+    expect(parseTurnCredentialsResponse({ ...valid, ttl: 'soon' })!.ttlSeconds).toBe(DEFAULT_TURN_TTL_SECONDS);
+  });
+
+  it('returns null when no usable ICE url is present', () => {
+    expect(parseTurnCredentialsResponse({ ...valid, urls: [] })).toBeNull();
+    expect(parseTurnCredentialsResponse({ ...valid, urls: ['not-a-url', 42] })).toBeNull();
+    expect(parseTurnCredentialsResponse({ ...valid, urls: 'turns:turn.example:5349' })).toBeNull();
+  });
+
+  it('returns null when username or credential is missing or not a string', () => {
+    expect(parseTurnCredentialsResponse({ ...valid, username: undefined })).toBeNull();
+    expect(parseTurnCredentialsResponse({ ...valid, credential: 123 })).toBeNull();
+  });
+
+  it('returns null for non-object input', () => {
+    expect(parseTurnCredentialsResponse(null)).toBeNull();
+    expect(parseTurnCredentialsResponse('nope')).toBeNull();
+    expect(parseTurnCredentialsResponse(undefined)).toBeNull();
   });
 });

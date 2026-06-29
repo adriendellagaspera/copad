@@ -5,6 +5,7 @@ import {
   resolveWebsocket,
   resolveTransport,
   resolveRoomStrategy,
+  resolveTurnAuthUrl,
   DEFAULT_TURN,
   type PageProtocol,
   type PageHostname,
@@ -217,5 +218,18 @@ describe('resolveRoomStrategy — cipher', () => {
     // No VITE_ROOM_PASSWORD in test env → sitePassword('') → null
     const { access, cipher } = resolveRoomStrategy('site-password');
     expect(cipher.password(ROOM)).toBe(access.credential(ROOM));
+  });
+});
+
+describe('resolveTurnAuthUrl', () => {
+  it('returns the URL for http(s) endpoints', () => {
+    expect(resolveTurnAuthUrl('https://turn-auth.example/creds')).toBe('https://turn-auth.example/creds');
+    expect(resolveTurnAuthUrl('  http://localhost:8787/  ')).toBe('http://localhost:8787/');
+  });
+
+  it('returns null when unset or not an http(s) URL', () => {
+    expect(resolveTurnAuthUrl(undefined)).toBeNull();
+    expect(resolveTurnAuthUrl('')).toBeNull();
+    expect(resolveTurnAuthUrl('turns:turn.example:5349')).toBeNull();
   });
 });

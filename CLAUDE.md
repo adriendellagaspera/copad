@@ -153,7 +153,7 @@ IO boundaries in this codebase and how each is handled:
 | Network peer awareness | `parsePeerAwarenessState(raw: unknown)` in `src/collaboration/parse.ts` |
 | ProseMirror node/mark attrs (`any`) | typed accessors in `src/editor/parse.ts` and `getSlashMeta` in `src/editor/ui/slashMenu.ts` |
 | User form input | stays `string` until accepted into the domain by a login/connect function |
-| External API JSON | parse function in the vertical's `parse.ts` (e.g. `parseGitHubLoadResponse`), narrowing `await res.json()` typed as `unknown` |
+| External API JSON | parse function in the vertical's `parse.ts` (e.g. `parseGitHubLoadResponse`, `parseTurnCredentialsResponse`), narrowing `await res.json()` typed as `unknown` |
 | postMessage (OAuth popup) | `parseOAuthCode(data: unknown)` in `src/storage/parse.ts` |
 | Filename from browser API | `handle?.name as Filename` inside `localFsStorage()` in `src/storage/local.ts` |
 
@@ -233,7 +233,8 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_STUN_URL` | no | STUN server(s), comma-separated (default: `stun:stun.l.google.com:19302`; set empty to disable). Via `resolveIceServers()`. |
 | `VITE_TURN_URL` | no | TURN relay url(s), comma-separated. Needed for restrictive/mobile NATs (CGNAT / symmetric NAT). When unset, a public default relay (`DEFAULT_TURN` in `config.ts`) is used unless disabled. Runtime Settings TURN (`turn.ts`) overrides this. |
 | `VITE_TURN_USERNAME` | no | TURN username. |
-| `VITE_TURN_PASSWORD` | no | TURN password. |
+| `VITE_TURN_PASSWORD` | no | TURN password. **Public** — inlined into the client bundle; treat as a shared rotatable key, not a secret. Prefer `VITE_TURN_AUTH_URL` for a hardened deploy. |
+| `VITE_TURN_AUTH_URL` | no | Endpoint that mints short-lived TURN credentials (TURN REST API / coturn `use-auth-secret`; `turn/turn-credentials-worker.js` is a ready-made one). When set, the app fetches credentials from it (`resolveTurnAuthUrl()` → `fetchTurnIceServers()`) and ignores the static `VITE_TURN_*`, so the TURN secret never ships in the bundle. Falls back to the static/public path if the endpoint is unreachable. |
 
 ## Collaboration servers
 
@@ -254,4 +255,6 @@ TURN relay (`turnserver.conf.example` + `docker-compose.yml` + guide) for WebRTC
 coturn has no equivalent drop-in. TURN needs a UDP port range, so it wants a VPS, not a PaaS. The shipped
 config is a template: the live `turnserver.conf` is git-ignored (it holds the shared secret + public IP),
 the credential is treated as public (it's inlined into the client bundle), and the config caps abuse with
-TURN quotas + SSRF deny ranges. Optional — a free public default relay (`DEFAULT_TURN`) works out of the box.
+TURN quotas + SSRF deny ranges. For a hardened deploy, `turn-credentials-worker.js` is a minting endpoint
+(coturn `use-auth-secret`): set `VITE_TURN_AUTH_URL` and the app fetches short-lived credentials so the TURN
+secret never ships. Optional — a free public default relay (`DEFAULT_TURN`) works out of the box.

@@ -72,3 +72,43 @@ production traffic actually uses:
 
 In Copad, the status-bar connection panel will then report peers as
 **Relayed via TURN** when a direct path isn't available.
+
+## Stronger auth — short-lived credentials (no secret in the bundle)
+
+The static-credential setup above is simple but the credential is **public** (see
+the warning at the top). The hardened alternative is coturn's TURN REST API
+(`use-auth-secret`): a minting endpoint holds the secret server-side and hands the
+browser a short-lived credential derived by HMAC. coturn validates it by recomputing
+the same HMAC — no shared state. A leaked credential expires on its own, and nothing
+secret ever ships to the client.
+
+1. **coturn** — in `turnserver.conf`, replace `lt-cred-mech` + `user=…` with:
+   ```
+   use-auth-secret
+   static-auth-secret=CHANGE_ME_LONG_RANDOM_SECRET
+   ```
+
+2. **Minting endpoint** — deploy [`turn-credentials-worker.js`](turn-credentials-worker.js)
+   (a Cloudflare Worker / any serverless runtime with Web Crypto). Give it the **same**
+   secret plus your TURN URL(s):
+   ```
+   TURN_SECRET = CHANGE_ME_LONG_RANDOM_SECRET   # never sent to the browser
+   TURN_URLS   = turns:your-domain:5349
+   TURN_TTL    = 3600                            # seconds (optional)
+   ALLOW_ORIGIN= https://your-copad-app          # CORS (optional, defaults to *)
+   ```
+
+3. **Copad** — point at the endpoint instead of the static `VITE_TURN_*`:
+   ```
+   VITE_TURN_AUTH_URL=https://your-worker-host/
+   ```
+   When set, the app fetches fresh credentials at startup and uses them in place of
+   the static values; if the endpoint is unreachable it falls back to the static /
+   public-default path, so connectivity degrades gracefully rather than breaking.
+
+> **TTL vs. session length.** Copad fetches credentials once per session (and per
+> reconnect), not on a mid-session timer — that avoids interrupting the editor with a
+> reconnect. Set `TURN_TTL` to comfortably exceed a typical editing session so a live
+> session's relay doesn't expire under it. The security win over static credentials is
+> twofold regardless: the secret never reaches the browser, and any scraped credential
+> stops working after the TTL instead of lasting forever.

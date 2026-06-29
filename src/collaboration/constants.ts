@@ -23,6 +23,10 @@ export const DEFAULT_STUN = 'stun:stun.l.google.com:19302';
 /** Landing room when neither `?room=` nor `VITE_DEFAULT_ROOM` provides one. */
 export const DEFAULT_ROOM_NAME = 'copad-demo' as RoomId;
 
+/** Validity assumed for minted TURN credentials when the endpoint omits a `ttl`.
+ *  Only used to label the parsed response; the endpoint's own ttl is authoritative. */
+export const DEFAULT_TURN_TTL_SECONDS = 3600;
+
 // ── Browser-local keys ────────────────────────────────────────────────────────
 
 /** Local-document-cache on/off preference. */

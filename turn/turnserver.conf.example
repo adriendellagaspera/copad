@@ -34,10 +34,11 @@ server-name=YOUR_DOMAIN
 lt-cred-mech
 user=copad:CHANGE_ME_STRONG_SECRET
 
-# Stronger auth (optional): instead of a static password, use HMAC time-limited
-# credentials so a leaked credential expires on its own. This needs a tiny
-# server-side endpoint to mint tokens (the static secret never reaches the
-# browser), so it's more setup than this static-credential default:
+# Stronger auth (recommended): instead of a static password, use HMAC time-limited
+# credentials so a leaked credential expires on its own AND no secret ships in the
+# client bundle. Replace the two lines above (lt-cred-mech + user=) with these, then
+# deploy the matching minting endpoint (turn-credentials-worker.js) with the SAME
+# secret and point the app at it via VITE_TURN_AUTH_URL. See README "Stronger auth".
 #   use-auth-secret
 #   static-auth-secret=CHANGE_ME_LONG_RANDOM_SECRET
 
