@@ -227,11 +227,12 @@
 
   window.addEventListener('beforeunload', flush);
 
-  // Apply lang + spellcheck reactively to the contenteditable ProseMirror node.
+  // Apply lang + spellcheck via ProseMirror's attributes EditorProp so they
+  // survive ProseMirror re-renders (direct DOM manipulation would be patched
+  // away by PM's decoration diffing on each state update).
   $effect(() => {
     if (!view) return;
-    view.dom.setAttribute('lang', lang);
-    (view.dom as HTMLElement).spellcheck = spellcheck;
+    view.setProps({ attributes: { lang, spellcheck: spellcheck ? 'true' : 'false' } });
   });
 
   onMount(() => {
@@ -249,6 +250,12 @@
 
     view = new EditorView(editorEl!, {
       state,
+      // Set lang and spellcheck from the start so the browser picks up the
+      // correct dictionary before the first $effect fires.
+      attributes: {
+        lang: untrack(() => lang),
+        spellcheck: untrack(() => spellcheck) ? 'true' : 'false',
+      },
       // role is URL-derived and fixed for the session; untrack avoids a
       // reactive dependency inside ProseMirror's render cycle.
       editable: () => untrack(() => role) === SessionRole.Writer,
