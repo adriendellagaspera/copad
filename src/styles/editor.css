@@ -56,6 +56,8 @@
 
 /* ── Status bar ── */
 
+/* Footer bar at the bottom of the editor — document meta (word count, outline).
+   Session/connection/presence now live in the app header. */
 .status {
   display: flex;
   align-items: center;
@@ -63,7 +65,7 @@
   padding: var(--sp-2) var(--sp-3);
   font-size: var(--fs-300);
   color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
   background: var(--surface-2);
 }
 .status .spacer {

@@ -16,7 +16,12 @@
   import { parseRoomId, parseRoomName } from './collaboration/parse.js';
   import { roomName, renameRoom } from './collaboration/roomName.svelte.js';
   import { recordRoomVisit, updateRecentRoomName } from './collaboration/recentRooms.js';
+  import { sessionState } from './collaboration/sessionState.svelte.js';
   import RoomSwitcher from './ui/RoomSwitcher.svelte';
+  import IdentityMenu from './ui/IdentityMenu.svelte';
+  import StatusPill from './ui/StatusPill.svelte';
+  import PresenceBar from './ui/PresenceBar.svelte';
+  import ConnectionDialog from './ui/ConnectionDialog.svelte';
   import {
     localCacheEnabled,
     setLocalCacheEnabled,
@@ -152,7 +157,9 @@
   }
 
   const COLORS: CursorColor[] = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'] as CursorColor[];
-  const color: CursorColor = COLORS[Math.floor((Date.now() / 1000) % COLORS.length)];
+  // Editable from the identity menu (avatar) in the header; seeds to a rotating
+  // default. Passed to the Editor, which broadcasts it in awareness to peers.
+  let color = $state<CursorColor>(COLORS[Math.floor((Date.now() / 1000) % COLORS.length)]);
 
   const storageBackends = backends();
 
@@ -177,6 +184,12 @@
 
   // Derived so bump() after connect/disconnect recomputes automatically.
   let connected = $derived(tick >= 0 && !!storage && storage.auth.isAuthenticated());
+
+  // ── Session presence / connection (header) ──────────────────────────────────
+  // The Editor pushes these into the sessionState bridge; the header renders them.
+  // Self is shown by the identity menu, so the presence bar lists only others.
+  let diagOpen = $state(false);
+  const otherPeers = $derived(sessionState.users.filter((u) => !u.self));
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
@@ -267,12 +280,40 @@
       <h1>Copad</h1>
     </div>
     <div class="controls">
-      <label>
-        Name
-        <input value={name} oninput={e => { name = e.currentTarget.value as DisplayName; }} />
-      </label>
       <RoomSwitcher {room} name={roomName.value} onRename={renameCurrentRoom} onOpen={goToRoom} />
       <button class="btn-new" onclick={newRoom} title="New document">New</button>
+
+      <div class="session">
+        <StatusPill
+          conn={sessionState.conn}
+          saveStatus={sessionState.saveStatus}
+          hasStorage={connected}
+          storageLabel={storage?.storage.label}
+          transport={sessionState.diagnostics.transport}
+          onclick={connected ? undefined : () => openSettings()}
+        />
+        {#if otherPeers.length > 0}
+          <PresenceBar users={otherPeers} />
+        {/if}
+        <button
+          class="diag-btn"
+          onclick={() => (diagOpen = true)}
+          title="Connection details"
+          aria-label="Connection details"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 20h.01M7 20v-4M12 20v-8M17 20V8M22 4v16" />
+          </svg>
+        </button>
+      </div>
+
+      <IdentityMenu
+        {name}
+        {color}
+        colors={COLORS}
+        onName={(v) => { name = v as DisplayName; }}
+        onColor={(c) => { color = c; }}
+      />
       <button class="share-btn" onclick={() => (shareOpen = true)} title="Share / invite collaborators">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
@@ -309,10 +350,17 @@
       storage={connected ? storage!.storage : null}
       lang={language.resolved}
       spellcheck={language.spellcheck}
-      onstoragestatus={() => openSettings()}
     />
   {/key}
 </div>
+
+<ConnectionDialog
+  open={diagOpen}
+  onclose={() => (diagOpen = false)}
+  transport={sessionState.diagnostics.transport}
+  getDiagnostics={sessionState.diagnostics.getDiagnostics}
+  reconnect={sessionState.diagnostics.reconnect}
+/>
 
 <Settings
   backends={storageBackends}
