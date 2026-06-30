@@ -6,10 +6,12 @@ on:
 
 # Push to the gh-pages branch (branch-based Pages source, not the artifact API).
 # This lets PR previews coexist as pr-<N>/ subdirectories on the same branch.
-# Required GitHub Pages setting: Settings → Pages → Source = "Deploy from a branch",
-# branch = gh-pages, folder = / (root).
+# Pages source (Settings → Pages → Source = "Deploy from a branch", gh-pages / root)
+# is enforced automatically by the "Ensure Pages serves the gh-pages branch" step
+# below — no manual toggle required. pages: write lets that step configure Pages.
 permissions:
   contents: write
+  pages: write
 
 concurrency:
   group: gh-pages
@@ -67,3 +69,55 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
           keep_files: true
+
+      # Self-heal the one setting the whole branch-based scheme depends on: make
+      # GitHub Pages serve the gh-pages branch at / (root). If it's left on the
+      # "GitHub Actions" source (or never enabled), every branch push — production
+      # AND pr-<N>/ previews — is silently ignored and the live site 404s. This
+      # step flips it back on every deploy. Best-effort: it never fails the build,
+      # only warns with the manual fix if the token lacks the rights.
+      - name: Ensure Pages serves the gh-pages branch
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const source = { branch: 'gh-pages', path: '/' };
+            const manual =
+              'Set it manually: Settings → Pages → Source = "Deploy from a branch", branch = gh-pages, folder = / (root).';
+            try {
+              const { data } = await github.rest.repos.getPages({ owner, repo });
+              if (
+                data.build_type === 'legacy' &&
+                data.source &&
+                data.source.branch === source.branch &&
+                data.source.path === source.path
+              ) {
+                core.info('Pages already serves gh-pages / (root).');
+                return;
+              }
+              await github.rest.repos.updateInformationAboutPagesSite({
+                owner,
+                repo,
+                build_type: 'legacy',
+                source,
+              });
+              core.info('Switched Pages source to the gh-pages branch / (root).');
+            } catch (error) {
+              if (error.status === 404) {
+                try {
+                  await github.rest.repos.createPagesSite({
+                    owner,
+                    repo,
+                    build_type: 'legacy',
+                    source,
+                  });
+                  core.info('Enabled Pages on the gh-pages branch / (root).');
+                  return;
+                } catch (createError) {
+                  core.warning(`Could not enable Pages automatically: ${createError.message}. ${manual}`);
+                  return;
+                }
+              }
+              core.warning(`Could not configure Pages automatically: ${error.message}. ${manual}`);
+            }
