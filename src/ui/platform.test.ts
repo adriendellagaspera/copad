@@ -1,37 +1,43 @@
 import { describe, it, expect } from 'vitest';
-import { isMacPlatform, modKeyLabel } from './platform.js';
+import { parseOS, modKey, keyCap, OS } from './platform.js';
 
-describe('isMacPlatform', () => {
-  it('detects macOS via userAgentData.platform (modern, preferred)', () => {
-    expect(isMacPlatform({ userAgentData: { platform: 'macOS' }, platform: '' })).toBe(true);
+describe('parseOS', () => {
+  it('parses Apple via userAgentData.platform (modern, preferred)', () => {
+    expect(parseOS({ userAgentData: { platform: 'macOS' }, platform: '' })).toBe(OS.Apple);
   });
 
-  it('detects macOS via navigator.platform ("MacIntel")', () => {
-    expect(isMacPlatform({ platform: 'MacIntel' })).toBe(true);
+  it('parses Apple via navigator.platform ("MacIntel")', () => {
+    expect(parseOS({ platform: 'MacIntel' })).toBe(OS.Apple);
   });
 
-  it('detects iOS/iPadOS', () => {
-    expect(isMacPlatform({ platform: 'iPhone' })).toBe(true);
-    expect(isMacPlatform({ platform: 'iPad' })).toBe(true);
+  it('parses iOS / iPadOS as Apple', () => {
+    expect(parseOS({ platform: 'iPhone' })).toBe(OS.Apple);
+    expect(parseOS({ platform: 'iPad' })).toBe(OS.Apple);
   });
 
   it('falls back to the UA string when platform is empty', () => {
-    expect(isMacPlatform({ platform: '', userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' })).toBe(true);
+    expect(parseOS({ platform: '', userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' })).toBe(OS.Apple);
   });
 
-  it('returns false for Windows / Linux', () => {
-    expect(isMacPlatform({ userAgentData: { platform: 'Windows' }, platform: 'Win32' })).toBe(false);
-    expect(isMacPlatform({ platform: 'Linux x86_64' })).toBe(false);
+  it('parses Windows / Linux as Other', () => {
+    expect(parseOS({ userAgentData: { platform: 'Windows' }, platform: 'Win32' })).toBe(OS.Other);
+    expect(parseOS({ platform: 'Linux x86_64' })).toBe(OS.Other);
   });
 
-  it('returns false when navigator is unavailable (SSR)', () => {
-    expect(isMacPlatform(undefined)).toBe(false);
+  it('defaults to Other when navigator is unavailable (SSR)', () => {
+    expect(parseOS(undefined)).toBe(OS.Other);
   });
 });
 
-describe('modKeyLabel', () => {
-  it('is ⌘ on Apple platforms and Ctrl elsewhere', () => {
-    expect(modKeyLabel(true)).toBe('⌘');
-    expect(modKeyLabel(false)).toBe('Ctrl');
+describe('modKey', () => {
+  it('resolves ⌘ on Apple and Ctrl elsewhere', () => {
+    expect(modKey(OS.Apple)).toBe('⌘');
+    expect(modKey(OS.Other)).toBe('Ctrl');
+  });
+});
+
+describe('keyCap', () => {
+  it('brands a literal cap unchanged', () => {
+    expect(keyCap('B')).toBe('B');
   });
 });

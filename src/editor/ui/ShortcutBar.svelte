@@ -4,27 +4,30 @@
   // physical keyboard, so the footer there keeps just the document meta.
   //
   // The shortcuts mirror the keymap in src/editor/plugins.ts; keep them in sync.
-  import { modKeyLabel } from '../../ui/platform.js';
+  import { modKey, keyCap, type KeyCap } from '../../ui/platform.js';
 
-  // OS-aware modifier glyph: ⌘ on macOS/iOS, Ctrl on Windows/Linux.
-  const mod = modKeyLabel();
+  // OS-resolved modifier cap: ⌘ on macOS/iOS, Ctrl on Windows/Linux.
+  const mod: KeyCap = modKey();
 
-  type Hint = { keys: string[]; label: string };
-  const hints: Hint[] = [
-    { keys: [mod, 'B'], label: 'Bold' },
-    { keys: [mod, 'I'], label: 'Italic' },
-    { keys: [mod, 'K'], label: 'Link' },
-    { keys: ['/'], label: 'Commands' },
-    { keys: [mod, 'Z'], label: 'Undo' },
+  interface Shortcut {
+    readonly keys: readonly KeyCap[];
+    readonly label: string;
+  }
+  const shortcuts: Shortcut[] = [
+    { keys: [mod, keyCap('B')], label: 'Bold' },
+    { keys: [mod, keyCap('I')], label: 'Italic' },
+    { keys: [mod, keyCap('K')], label: 'Link' },
+    { keys: [keyCap('/')], label: 'Commands' },
+    { keys: [mod, keyCap('Z')], label: 'Undo' },
   ];
 </script>
 
 <div class="shortcut-bar" aria-hidden="true">
-  {#each hints as h, i (h.label)}
+  {#each shortcuts as s, i (s.label)}
     {#if i > 0}<span class="sc-dot">·</span>{/if}
     <span class="sc-hint">
-      {#each h.keys as k (k)}<kbd>{k}</kbd>{/each}
-      <span class="sc-label">{h.label}</span>
+      {#each s.keys as k (k)}<kbd>{k}</kbd>{/each}
+      <span class="sc-label">{s.label}</span>
     </span>
   {/each}
 </div>
