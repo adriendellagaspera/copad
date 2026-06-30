@@ -58,6 +58,45 @@
   flex-shrink: 0;
 }
 
+/* ── Floating selection toolbar (desktop) ── */
+
+/* The bubble reuses the .toolbar markup but floats over the selection. Hidden
+   by default; only the fine-pointer (desktop) media query reveals it, and only
+   when .visible is set by SelectionToolbar. */
+.sel-toolbar {
+  display: none;
+}
+
+.sel-toolbar .toolbar {
+  /* Override the fixed-bar chrome: a self-contained card, single row. */
+  border-bottom: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  flex-wrap: nowrap;
+  padding: var(--sp-1) var(--sp-2);
+}
+
+/* Drop the auto-margin spacer so the bubble hugs its buttons in one tight row
+   instead of stretching to push "Copy MD" to a far edge. */
+.sel-toolbar .toolbar .spacer {
+  display: none;
+}
+
+@media (pointer: fine) {
+  /* On desktop the bubble replaces the fixed bar. */
+  .fixed-toolbar {
+    display: none;
+  }
+  .sel-toolbar.visible {
+    display: block;
+    position: fixed;
+    z-index: var(--z-menu);
+    /* top/left are set inline from the selection coords. */
+  }
+}
+
 /* ── Status bar ── */
 
 /* Footer bar at the bottom of the editor — document meta (word count, outline).
