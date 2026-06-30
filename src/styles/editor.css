@@ -103,7 +103,7 @@
 /* ── Writing surface ── */
 
 .content {
-  padding: var(--sp-6) var(--sp-5);
+  padding: var(--sp-4) var(--sp-5);
   min-height: 60vh;
   outline: none;
 }
@@ -128,7 +128,7 @@
 }
 
 .ProseMirror p {
-  margin: 0 0 0.75em;
+  margin: 0 0 0.55em;
 }
 .ProseMirror h1,
 .ProseMirror h2,
