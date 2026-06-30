@@ -1,4 +1,6 @@
-export const en = {
+import type { Messages } from './types.js';
+
+export const en: Messages = {
   app: {
     nameLabel: 'Name',
     newDoc: 'New',
@@ -225,5 +227,3 @@ export const en = {
     },
   },
 };
-
-export type Messages = typeof en;

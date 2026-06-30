@@ -5,19 +5,22 @@
 
 import { setContext, getContext } from 'svelte';
 import type { Language } from '../ui/language.svelte.js';
-import { en, type Messages } from './en.js';
+import { LocaleCode, type Messages } from './types.js';
+import { en } from './en.js';
 import { fr } from './fr.js';
 
-export type { Messages };
+export type { Messages, LocaleCode };
 
 const I18N_KEY = Symbol('i18n');
 
-const LOCALES = { en, fr } satisfies Record<string, Messages>;
-export type LocaleCode = keyof typeof LOCALES;
+const LOCALES: Record<LocaleCode, Messages> = {
+  [LocaleCode.En]: en,
+  [LocaleCode.Fr]: fr,
+};
 
 function resolveLocale(tag: string): LocaleCode {
-  const primary = tag.split('-')[0].toLowerCase();
-  return (primary in LOCALES ? primary : 'en') as LocaleCode;
+  const primary = tag.split('-')[0].toLowerCase() as LocaleCode;
+  return primary in LOCALES ? primary : LocaleCode.En;
 }
 
 export type I18n = {
