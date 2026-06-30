@@ -42,10 +42,12 @@
     role?: SessionRole;
     connect: CollabConnect;
     toasts: Toasts;
+    lang?: string;
+    spellcheck?: boolean;
     onstoragestatus?: () => void;
   };
 
-  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, onstoragestatus }: Props =
+  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, onstoragestatus }: Props =
     $props();
 
   const SAVE_DEBOUNCE = 3_000;
@@ -224,6 +226,13 @@
   });
 
   window.addEventListener('beforeunload', flush);
+
+  // Apply lang + spellcheck reactively to the contenteditable ProseMirror node.
+  $effect(() => {
+    if (!view) return;
+    view.dom.setAttribute('lang', lang);
+    (view.dom as HTMLElement).spellcheck = spellcheck;
+  });
 
   onMount(() => {
     const state = EditorState.create({

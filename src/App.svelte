@@ -37,9 +37,11 @@
   import InfoBanner from './ui/InfoBanner.svelte';
   import { createTheme } from './ui/theme.svelte.js';
   import { createToasts } from './ui/toasts.svelte.js';
+  import { createLanguage } from './ui/language.svelte.js';
 
   const theme = createTheme();
   const toasts = createToasts();
+  const language = createLanguage();
   let shareOpen = $state(false);
 
   // Effective per-room cipher (WebRTC end-to-end encryption). Resolved fresh on
@@ -305,6 +307,8 @@
       {connect}
       {toasts}
       storage={connected ? storage!.storage : null}
+      lang={language.resolved}
+      spellcheck={language.spellcheck}
       onstoragestatus={() => openSettings()}
     />
   {/key}
@@ -319,6 +323,10 @@
   onCacheClear={clearLocalCopies}
   {turnPrefs}
   onTurnChange={saveTurnPrefs}
+  languageChoice={language.choice}
+  spellcheck={language.spellcheck}
+  onLanguageChange={language.setChoice}
+  onSpellcheckChange={language.setSpellcheck}
   onchange={bump}
   onconnect={afterConnect}
   ondisconnect={afterDisconnect}
