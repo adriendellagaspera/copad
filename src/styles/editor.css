@@ -12,6 +12,10 @@
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+  /* Grow to fill the column the parent .app stretches to 100dvh; min-height:0
+     lets the inner .content scroll instead of pushing the card past the fold. */
+  flex: 1;
+  min-height: 0;
 }
 
 /* ── Toolbar ── */
@@ -104,13 +108,19 @@
 
 .content {
   padding: var(--sp-4) var(--sp-5);
-  min-height: 60vh;
+  /* Fill the editor card and scroll internally so the toolbar + status bar
+     stay pinned. min-height:0 is required for the flex child to actually scroll. */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   outline: none;
 }
 
 .ProseMirror {
   outline: none;
-  min-height: 56vh;
+  /* Fill the content area so clicking anywhere in the empty space below the
+     text still focuses the editor (Notion-like). */
+  min-height: 100%;
   max-width: var(--measure);
   margin: 0 auto;
   font-family: var(--font-read);
