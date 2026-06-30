@@ -23,6 +23,21 @@ export const DEFAULT_STUN = 'stun:stun.l.google.com:19302';
 /** Landing room when neither `?room=` nor `VITE_DEFAULT_ROOM` provides one. */
 export const DEFAULT_ROOM_NAME = 'copad-demo' as RoomId;
 
+/**
+ * How often to ping each signaling server over HTTP so a host that spins down on
+ * idle (e.g. Render free/starter) stays warm — otherwise it sleeps after ~15 min
+ * and peer discovery fails on a cold start. 4 min sits comfortably below that
+ * threshold. Override via `VITE_SIGNALING_KEEPALIVE_MS` for a host with a
+ * different idle window; an unset/invalid value keeps the default.
+ */
+const rawKeepalive = Number(import.meta.env.VITE_SIGNALING_KEEPALIVE_MS);
+export const SIGNALING_KEEPALIVE_MS =
+  Number.isInteger(rawKeepalive) && rawKeepalive > 0 ? rawKeepalive : 4 * 60_000;
+
+/** How long a single keep-alive GET may run before it's aborted — bounded so a
+ *  hung request can't leak across the ping interval. */
+export const SIGNALING_KEEPALIVE_TIMEOUT_MS = 10_000;
+
 // ── Browser-local keys ────────────────────────────────────────────────────────
 
 /** Local-document-cache on/off preference. */
