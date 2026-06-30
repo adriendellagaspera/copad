@@ -53,8 +53,8 @@
   --fs-800: 2.25rem;    /* 36px — display */
 
   --lh-tight: 1.25;
-  --lh-body: 1.7;
-  --measure: 68ch;      /* ideal reading width */
+  --lh-body: 1.6;
+  --measure: 74ch;      /* ideal reading width */
 
   /* ── Spacing (4px base) ── */
   --sp-1: 0.25rem;
