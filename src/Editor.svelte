@@ -14,9 +14,6 @@
   import LinkPopover from './editor/ui/LinkPopover.svelte';
   import WordCount from './editor/ui/WordCount.svelte';
   import Outline from './editor/ui/Outline.svelte';
-  import StatusPill from './ui/StatusPill.svelte';
-  import PresenceBar from './ui/PresenceBar.svelte';
-  import ConnectionDialog from './ui/ConnectionDialog.svelte';
   import type { PeerUser } from './ui/types.js';
   import { SaveStatus } from './ui/types.js';
   import type { Toasts } from './ui/toasts.svelte.js';
@@ -33,6 +30,13 @@
   import type { RoomName } from './collaboration/types.js';
   import { parsePeerAwarenessState, parseRoomName } from './collaboration/parse.js';
   import { bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
+  import {
+    setSessionConn,
+    setSessionSave,
+    setSessionPresence,
+    setSessionDiagnostics,
+    resetSessionState,
+  } from './collaboration/sessionState.svelte.js';
 
   type Props = {
     storage: Storage | null;
@@ -44,10 +48,9 @@
     toasts: Toasts;
     lang?: string;
     spellcheck?: boolean;
-    onstoragestatus?: () => void;
   };
 
-  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, onstoragestatus }: Props =
+  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true }: Props =
     $props();
 
   const SAVE_DEBOUNCE = 3_000;
@@ -81,7 +84,6 @@
   let users = $state<PeerUser[]>([]);
   let peers = $state(1);
   let conn = $state<ConnStatus>(ConnStatus.Connecting);
-  let diagOpen = $state(false);
   let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
   let loadedFrom = $state<string | null>(null);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -145,6 +147,19 @@
   const offStatus = collab.onStatus((s) => {
     conn = s;
   });
+
+  // ── Push session state to the header bridge ─────────────────────────────────
+  // Connection/presence/save status are derived here from `collab` but rendered
+  // in App's header (outside this component). Diagnostics are fixed for the
+  // session; the rest are mirrored reactively as they change.
+  setSessionDiagnostics({
+    transport: collab.transport,
+    getDiagnostics: collab.getDiagnostics ? () => collab.getDiagnostics!() : undefined,
+    reconnect: collab.reconnect,
+  });
+  $effect(() => setSessionConn(conn));
+  $effect(() => setSessionSave(saveStatus));
+  $effect(() => setSessionPresence(users, peers));
 
   // Broadcast full typed awareness state whenever any field changes.
   $effect(() => {
@@ -280,6 +295,7 @@
     offStatus();
     roomMeta.unobserve(onRoomMeta);
     unbindRoomName();
+    resetSessionState();
     window.removeEventListener('beforeunload', flush);
     view?.destroy();
     collab.destroy();
@@ -288,40 +304,12 @@
 
 <div class="editor">
   <Toolbar {view} {editorState} {toasts} />
+  <div class="content" bind:this={editorEl}></div>
   <div class="status">
-    <StatusPill
-      {conn}
-      {saveStatus}
-      hasStorage={storage !== null}
-      storageLabel={storage?.label}
-      transport={collab.transport}
-      onclick={storage !== null ? undefined : onstoragestatus}
-    />
-    <PresenceBar {users} />
-    <span class="peer-count">{peers} {peers === 1 ? 'peer' : 'peers'}</span>
-    <button
-      class="diag-btn"
-      onclick={() => (diagOpen = true)}
-      title="Connection details"
-      aria-label="Connection details"
-    >
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M2 20h.01M7 20v-4M12 20v-8M17 20V8M22 4v16" />
-      </svg>
-    </button>
     <span class="spacer"></span>
     <WordCount {editorState} />
     <Outline {view} {editorState} />
   </div>
-  <div class="content" bind:this={editorEl}></div>
   <SlashMenu {view} {editorState} />
   <LinkPopover {view} />
 </div>
-
-<ConnectionDialog
-  open={diagOpen}
-  onclose={() => (diagOpen = false)}
-  transport={collab.transport}
-  getDiagnostics={collab.getDiagnostics ? () => collab.getDiagnostics!() : undefined}
-  reconnect={collab.reconnect}
-/>
