@@ -6,10 +6,12 @@ on:
 
 # Push to the gh-pages branch (branch-based Pages source, not the artifact API).
 # This lets PR previews coexist as pr-<N>/ subdirectories on the same branch.
-# Required GitHub Pages setting: Settings → Pages → Source = "Deploy from a branch",
-# branch = gh-pages, folder = / (root).
+# Pages source (Settings → Pages → Source = "Deploy from a branch", gh-pages / root)
+# is enforced automatically by the "Ensure Pages serves the gh-pages branch" step
+# below — no manual toggle required. pages: write lets that step configure Pages.
 permissions:
   contents: write
+  pages: write
 
 concurrency:
   group: gh-pages
@@ -67,3 +69,14 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
           keep_files: true
+
+      # Self-heal the one setting the whole branch-based scheme depends on: make
+      # GitHub Pages serve the gh-pages branch at / (root). Without it, every
+      # branch push — production AND pr-<N>/ previews — is silently ignored and
+      # the live site 404s. Best-effort; never fails the build. See the script.
+      - name: Ensure Pages serves the gh-pages branch
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const ensurePagesSource = require('./.github/scripts/ensure-pages-source.cjs')
+            await ensurePagesSource({ github, context, core })

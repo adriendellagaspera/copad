@@ -56,42 +56,8 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const pr = context.payload.pull_request.number;
-            const sha = context.payload.pull_request.head.sha.slice(0, 7);
-            const url = `https://adriendellagaspera.github.io/copad/pr-${pr}/`;
-            const marker = '<!-- gh-pages-preview -->';
-            const body = [
-              marker,
-              '### Preview deployed',
-              '',
-              `**URL:** ${url}`,
-              `**Commit:** \`${sha}\``,
-              '',
-              '_Updated automatically on every push to this PR. Removed when the PR closes._',
-            ].join('\n');
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pr,
-            });
-
-            const existing = comments.find(c => c.body && c.body.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr,
-                body,
-              });
-            }
+            const upsertPreviewComment = require('./.github/scripts/upsert-preview-comment.cjs')
+            await upsertPreviewComment({ github, context })
 
   cleanup:
     if: github.event.action == 'closed'
@@ -125,3 +91,10 @@ jobs:
           git add -A
           git commit -m "cleanup: remove preview for PR #${{ github.event.pull_request.number }} [skip ci]"
           git push origin gh-pages
+
+      - name: Remove preview comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deletePreviewComment = require('./.github/scripts/delete-preview-comment.cjs')
+            await deletePreviewComment({ github, context })
