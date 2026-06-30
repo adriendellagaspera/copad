@@ -4,13 +4,15 @@ on:
   push:
     branches: [main]
 
+# Push to the gh-pages branch (branch-based Pages source, not the artifact API).
+# This lets PR previews coexist as pr-<N>/ subdirectories on the same branch.
+# Required GitHub Pages setting: Settings → Pages → Source = "Deploy from a branch",
+# branch = gh-pages, folder = / (root).
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: gh-pages
   cancel-in-progress: false
 
 jobs:
@@ -18,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: https://adriendellagaspera.github.io/copad/
 
     steps:
       - uses: actions/checkout@v4
@@ -59,9 +61,9 @@ jobs:
           VITE_TURN_USERNAME:     ${{ vars.VITE_TURN_USERNAME }}
           VITE_TURN_PASSWORD:     ${{ vars.VITE_TURN_PASSWORD }}
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      # keep_files: true preserves pr-<N>/ preview directories from other workflow runs.
+      - uses: peaceiris/actions-gh-pages@v4
         with:
-          path: dist
-      - uses: actions/deploy-pages@v4
-        id: deployment
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          keep_files: true
