@@ -1,8 +1,12 @@
 <script lang="ts">
   import Avatar from './Avatar.svelte';
   import type { PeerUser } from './types.js';
+  import { useI18n } from '../i18n/index.svelte.js';
 
   let { users, max = 5 }: { users: PeerUser[]; max?: number } = $props();
+
+  const i18n = useI18n();
+  const t = $derived(i18n.t);
 
   const shown = $derived(users.slice(0, max));
   const overflow = $derived(Math.max(0, users.length - max));
@@ -17,13 +21,13 @@
 
 <div
   class="presence"
-  aria-label="{count} {count === 1 ? 'person' : 'people'} editing"
+  aria-label={t.presence.editing(count)}
 >
   {#each shown as u (u.id)}
     <Avatar name={u.name} color={u.color} self={u.self} />
   {/each}
   {#if overflow > 0}
-    <span class="presence-more" title={overflowNames} aria-label="and {overflow} more: {overflowNames}">
+    <span class="presence-more" title={overflowNames} aria-label={t.presence.more(overflow, overflowNames)}>
       +{overflow}
     </span>
   {/if}

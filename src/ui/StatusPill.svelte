@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ConnStatus, Transport } from '../collaboration/types.js';
   import { SaveStatus } from './types.js';
+  import { useI18n } from '../i18n/index.svelte.js';
 
   let {
     conn,
@@ -18,64 +19,59 @@
     onclick?: () => void;
   } = $props();
 
+  const i18n = useI18n();
+  const t = $derived(i18n.t);
+
   type Tone = 'muted' | 'ok' | 'warn' | 'danger' | 'accent';
   type Icon = 'offline' | 'spinner' | 'check' | 'cloud' | 'live';
 
-  // A short badge + sentence describing the transport, woven into the live states
-  // so a user can tell at a glance whether the server sees their content.
   const isP2P = $derived(transport === Transport.P2P);
-  const tag = $derived(isP2P ? 'P2P' : 'Relay');
-  const transportTitle = $derived(
-    isP2P
-      ? 'Peer-to-peer — edits travel directly between browsers, no server in the data path'
-      : 'Relayed — edits travel through the collaboration server',
-  );
+  const tag = $derived(isP2P ? t.status.p2p : t.status.relay);
+  const transportTitle = $derived(isP2P ? t.status.p2pTitle : t.status.relayTitle);
 
   const state = $derived.by(
     (): { label: string; tone: Tone; icon: Icon; title: string; tag?: string } => {
       if (conn === ConnStatus.Offline)
-        return { label: 'Offline', tone: 'warn', icon: 'offline', title: 'No network connection' };
+        return { label: t.status.offline, tone: 'warn', icon: 'offline', title: t.status.offlineTitle };
       if (conn === ConnStatus.Connecting)
         return {
-          label: 'Connecting…',
+          label: t.status.connecting,
           tone: 'muted',
           icon: 'spinner',
-          title: isP2P
-            ? 'Connecting to the signaling server'
-            : 'Connecting to the collaboration server',
+          title: isP2P ? t.status.connectingP2P : t.status.connectingRelay,
         };
       // connected or waiting — save status is orthogonal and takes precedence while active.
       if (hasStorage) {
         const where = storageLabel ?? 'storage';
         if (saveStatus === SaveStatus.Error)
-          return { label: 'Save failed', tone: 'danger', icon: 'cloud', title: `Could not save to ${where}` };
+          return { label: t.status.saveFailed, tone: 'danger', icon: 'cloud', title: t.status.saveFailedTitle(where) };
         if (saveStatus === SaveStatus.Saving)
-          return { label: 'Saving…', tone: 'muted', icon: 'spinner', title: `Saving to ${where}` };
+          return { label: t.status.saving, tone: 'muted', icon: 'spinner', title: t.status.savingTitle(where) };
         if (saveStatus === SaveStatus.Saved)
-          return { label: 'Saved', tone: 'ok', icon: 'check', title: `Saved to ${where}` };
+          return { label: t.status.saved, tone: 'ok', icon: 'check', title: t.status.savedTitle(where) };
         if (conn === ConnStatus.Waiting)
           return {
-            label: 'No peers yet',
+            label: t.status.noPeers,
             tone: 'muted',
             icon: 'cloud',
-            title: `Connected — share the link to collaborate. Autosaving to ${where}`,
+            title: t.status.noPeersStorageTitle(where),
             tag,
           };
-        return { label: 'Synced', tone: 'ok', icon: 'cloud', title: `Synced — saving to ${where}`, tag };
+        return { label: t.status.synced, tone: 'ok', icon: 'cloud', title: t.status.syncedTitle(where), tag };
       }
       if (conn === ConnStatus.Waiting)
         return {
-          label: 'No peers yet',
+          label: t.status.noPeers,
           tone: 'muted',
           icon: 'live',
-          title: `${transportTitle}. Share the link to invite collaborators`,
+          title: t.status.noPeersTitle(transportTitle),
           tag,
         };
       return {
-        label: 'Live',
+        label: t.status.live,
         tone: 'accent',
         icon: 'live',
-        title: `${transportTitle}. Connect storage to save across sessions`,
+        title: t.status.liveTitle(transportTitle),
         tag,
       };
     },

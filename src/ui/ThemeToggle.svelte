@@ -1,8 +1,12 @@
 <script lang="ts">
   import type { Theme } from './theme.svelte.js';
   import { ResolvedTheme } from './theme.svelte.js';
+  import { useI18n } from '../i18n/index.svelte.js';
 
   let { theme }: { theme: Theme } = $props();
+
+  const i18n = useI18n();
+  const t = $derived(i18n.t);
 
   const isDark = $derived(theme.resolved === ResolvedTheme.Dark);
 </script>
@@ -11,8 +15,8 @@
   class="ghost icon-btn"
   type="button"
   onclick={() => theme.toggle()}
-  aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
-  title={isDark ? 'Light theme' : 'Dark theme'}
+  aria-label={isDark ? t.theme.toLight : t.theme.toDark}
+  title={isDark ? t.theme.lightTitle : t.theme.darkTitle}
 >
   {#if isDark}
     <!-- sun -->

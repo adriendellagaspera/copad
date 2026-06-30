@@ -2,6 +2,7 @@
   import Dialog from './Dialog.svelte';
   import type { Diagnostics } from '../collaboration/types.js';
   import { Transport, IceCandidateType } from '../collaboration/types.js';
+  import { useI18n } from '../i18n/index.svelte.js';
 
   let {
     open,
@@ -16,6 +17,9 @@
     getDiagnostics?: () => Promise<Diagnostics>;
     reconnect?: () => void;
   } = $props();
+
+  const i18n = useI18n();
+  const t = $derived(i18n.t);
 
   let diag = $state<Diagnostics | undefined>(undefined);
   let loading = $state(false);
@@ -37,8 +41,8 @@
   $effect(() => {
     if (!open) return;
     void refresh();
-    const t = setInterval(refresh, 2500);
-    return () => clearInterval(t);
+    const timer = setInterval(refresh, 2500);
+    return () => clearInterval(timer);
   });
 
   function doReconnect(): void {
@@ -47,51 +51,48 @@
   }
 </script>
 
-<Dialog {open} {onclose} title="Connection">
+<Dialog {open} {onclose} title={t.connection.title}>
   <ul class="diag">
     <li>
-      <span>Transport</span>
-      <strong>{transport === Transport.P2P ? 'Peer-to-peer (WebRTC)' : 'Relay (server)'}</strong>
+      <span>{t.connection.transport}</span>
+      <strong>{transport === Transport.P2P ? t.connection.p2p : t.connection.relay}</strong>
     </li>
     <li>
-      <span>Signaling</span>
-      <strong>{diag?.signaling ? 'Connected' : 'Not connected'}</strong>
+      <span>{t.connection.signaling}</span>
+      <strong>{diag?.signaling ? t.connection.signalingOk : t.connection.signalingKo}</strong>
     </li>
     <li>
-      <span>Peers</span>
+      <span>{t.connection.peers}</span>
       <strong>{diag?.peers ?? 0}</strong>
     </li>
   </ul>
 
   {#if transport === Transport.P2P}
     {#if diag && diag.connections.length}
-      <h3>Peer connections</h3>
+      <h3>{t.connection.peerConnections}</h3>
       <ul class="diag-peers">
         {#each diag.connections as c (c.id)}
           <li>
             <code>{c.id.slice(0, 8)}</code>
             <span class="conn-type {c.type}">
               {c.type === IceCandidateType.Relay
-                ? 'Relayed via TURN'
+                ? t.connection.relayed
                 : c.type === IceCandidateType.Direct
-                  ? 'Direct'
-                  : 'Negotiating…'}
+                  ? t.connection.direct
+                  : t.connection.negotiating}
             </span>
           </li>
         {/each}
       </ul>
     {:else}
-      <p class="diag-note">No peer connections yet — share the link to invite someone.</p>
+      <p class="diag-note">{t.connection.noPeers}</p>
     {/if}
-    <p class="diag-help">
-      "Relayed via TURN" means your network blocked a direct path — common on mobile.
-      If peers can't connect at all, add a TURN relay in Settings.
-    </p>
+    <p class="diag-help">{t.connection.turnHelp}</p>
   {/if}
 
   <div class="diag-actions">
-    <button onclick={doReconnect} disabled={!reconnect}>Reconnect</button>
-    {#if loading}<span class="diag-loading">refreshing…</span>{/if}
+    <button onclick={doReconnect} disabled={!reconnect}>{t.connection.reconnect}</button>
+    {#if loading}<span class="diag-loading">{t.connection.refreshing}</span>{/if}
   </div>
 </Dialog>
 

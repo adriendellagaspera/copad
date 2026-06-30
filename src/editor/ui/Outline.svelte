@@ -3,9 +3,13 @@
   import type { EditorState } from 'prosemirror-state';
   import { TextSelection } from 'prosemirror-state';
   import { headingLevel } from '../parse.js';
+  import { useI18n } from '../../i18n/index.svelte.js';
 
   let { view, editorState }: { view: EditorView | null; editorState: EditorState | null } =
     $props();
+
+  const i18n = useI18n();
+  const t = $derived(i18n.t);
 
   interface Heading {
     level: number;
@@ -18,7 +22,7 @@
     const list: Heading[] = [];
     editorState.doc.descendants((node, pos) => {
       if (node.type.name === 'heading') {
-        list.push({ level: headingLevel(node), text: node.textContent || 'Untitled', pos });
+        list.push({ level: headingLevel(node), text: node.textContent || t.outline.untitled, pos });
       }
     });
     return list;
@@ -41,16 +45,16 @@
       class="ghost outline-btn"
       onclick={() => (open = !open)}
       aria-expanded={open}
-      title="Document outline"
+      title={t.outline.buttonTitle}
     >
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
-      Contents
+      {t.outline.contents}
     </button>
     {#if open}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div class="outline-backdrop" onmousedown={() => (open = false)}></div>
-      <div class="outline-panel" role="menu" aria-label="Document outline">
+      <div class="outline-panel" role="menu" aria-label={t.outline.menuLabel}>
         {#each headings as h (h.pos)}
           <button
             class="outline-item"

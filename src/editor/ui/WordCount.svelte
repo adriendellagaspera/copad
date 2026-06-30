@@ -1,7 +1,11 @@
 <script lang="ts">
   import type { EditorState } from 'prosemirror-state';
+  import { useI18n } from '../../i18n/index.svelte.js';
 
   let { editorState }: { editorState: EditorState | null } = $props();
+
+  const i18n = useI18n();
+  const t = $derived(i18n.t);
 
   const plain = $derived(
     editorState ? editorState.doc.textBetween(0, editorState.doc.content.size, ' ', ' ') : ''
@@ -10,9 +14,9 @@
   const chars = $derived(editorState ? editorState.doc.textContent.length : 0);
 </script>
 
-<span class="wordcount" title="{chars} characters">
+<span class="wordcount" title={t.wordcount.characters(chars)}>
   {words}
-  {words === 1 ? 'word' : 'words'}
+  {words === 1 ? t.wordcount.word : t.wordcount.words}
 </span>
 
 <style>

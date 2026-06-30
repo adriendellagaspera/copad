@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { slide } from 'svelte/transition';
+  import { useI18n } from '../i18n/index.svelte.js';
 
   let {
     autoDismissMs = 0,
@@ -9,6 +10,9 @@
     autoDismissMs?: number;
     children: Snippet;
   } = $props();
+
+  const i18n = useI18n();
+  const t = $derived(i18n.t);
 
   let visible = $state(true);
 
@@ -23,7 +27,7 @@
 {#if visible}
   <div class="info-banner" transition:slide={{ duration: 220 }} role="note">
     <span class="info-banner-text">{@render children()}</span>
-    <button class="info-banner-close" onclick={() => { visible = false; }} aria-label="Dismiss">✕</button>
+    <button class="info-banner-close" onclick={() => { visible = false; }} aria-label={t.infobanner.dismiss}>✕</button>
   </div>
 {/if}
 
