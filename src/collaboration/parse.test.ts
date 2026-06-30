@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePeerAwarenessState } from './parse.js';
+import { parsePeerAwarenessState, parseRoomName, parseRecentRooms } from './parse.js';
 
 describe('parsePeerAwarenessState — fallback behaviour', () => {
   it('returns safe defaults for null', () => {
@@ -151,5 +151,50 @@ describe('parsePeerAwarenessState — role handling', () => {
   it('coerces "writer" string to "writer"', () => {
     const input = { user: { name: 'Pat', color: '#000000' }, role: 'writer', canPersist: false };
     expect(parsePeerAwarenessState(input).role).toBe('writer');
+  });
+});
+
+describe('parseRoomName', () => {
+  it('trims and brands a non-empty name', () => {
+    expect(parseRoomName('  Team Notes  ')).toBe('Team Notes');
+  });
+
+  it('returns null for empty / whitespace / null', () => {
+    expect(parseRoomName('')).toBeNull();
+    expect(parseRoomName('   ')).toBeNull();
+    expect(parseRoomName(null)).toBeNull();
+  });
+});
+
+describe('parseRecentRooms', () => {
+  it('returns an empty list for null or invalid JSON', () => {
+    expect(parseRecentRooms(null)).toEqual([]);
+    expect(parseRecentRooms('not json')).toEqual([]);
+    expect(parseRecentRooms('{}')).toEqual([]);
+  });
+
+  it('parses valid entries and brands their fields', () => {
+    const raw = JSON.stringify([
+      { id: 'a', name: 'Alpha', visitedAt: 5 },
+      { id: 'b', name: null, visitedAt: 2 },
+    ]);
+    expect(parseRecentRooms(raw)).toEqual([
+      { id: 'a', name: 'Alpha', visitedAt: 5 },
+      { id: 'b', name: null, visitedAt: 2 },
+    ]);
+  });
+
+  it('drops entries with a missing/blank id', () => {
+    const raw = JSON.stringify([
+      { id: '', name: 'X', visitedAt: 1 },
+      { name: 'Y', visitedAt: 1 },
+      { id: 'ok', name: 'Z', visitedAt: 1 },
+    ]);
+    expect(parseRecentRooms(raw).map((r) => r.id)).toEqual(['ok']);
+  });
+
+  it('defaults a malformed name to null and a missing visitedAt to 0', () => {
+    const raw = JSON.stringify([{ id: 'a', name: 42 }]);
+    expect(parseRecentRooms(raw)).toEqual([{ id: 'a', name: null, visitedAt: 0 }]);
   });
 });

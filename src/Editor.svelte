@@ -30,7 +30,9 @@
     PeerAwarenessState,
   } from './collaboration/types.js';
   import { ConnStatus, SessionRole } from './collaboration/types.js';
-  import { parsePeerAwarenessState } from './collaboration/parse.js';
+  import type { RoomName } from './collaboration/types.js';
+  import { parsePeerAwarenessState, parseRoomName } from './collaboration/parse.js';
+  import { bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
 
   type Props = {
     storage: Storage | null;
@@ -53,6 +55,20 @@
   // remounts this component whenever room changes.
   const collab = untrack(() => connect)(untrack(() => room));
   const yFragment = collab.doc.getXmlFragment('prosemirror');
+
+  // Shared, editable room name. It lives in a dedicated Y.Map — NOT the
+  // prosemirror fragment — so it syncs to every peer and rides along in the .yjs
+  // format, yet never leaks into text/markdown/html/json exports (codecs only
+  // read the fragment). The header edits it through the roomName bridge.
+  const roomMeta = collab.doc.getMap('roomMeta');
+  const readRoomName = (): RoomName | null =>
+    parseRoomName(typeof roomMeta.get('name') === 'string' ? (roomMeta.get('name') as string) : null);
+  bindRoomName(readRoomName(), (n) => {
+    if (n) roomMeta.set('name', n);
+    else roomMeta.delete('name');
+  });
+  const onRoomMeta = (): void => setRoomNameLocal(readRoomName());
+  roomMeta.observe(onRoomMeta);
 
   let editorEl = $state<HTMLDivElement | undefined>();
   // $state.raw: track reference changes for reactivity but don't proxy the
@@ -246,6 +262,8 @@
     clearTimeout(saveTimer);
     clearTimeout(savedTimer);
     offStatus();
+    roomMeta.unobserve(onRoomMeta);
+    unbindRoomName();
     window.removeEventListener('beforeunload', flush);
     view?.destroy();
     collab.destroy();
