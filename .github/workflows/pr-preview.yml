@@ -1,0 +1,127 @@
+name: PR Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build preview
+        run: npm run build -- --base=/copad/pr-${{ github.event.pull_request.number }}/
+        env:
+          VITE_DROPBOX_APP_KEY:   ${{ vars.VITE_DROPBOX_APP_KEY }}
+          VITE_PCLOUD_CLIENT_ID:  ${{ vars.VITE_PCLOUD_CLIENT_ID }}
+          VITE_PROXY_URL:         ${{ vars.VITE_PROXY_URL }}
+          VITE_WEBDAV_URL:        ${{ vars.VITE_WEBDAV_URL }}
+          VITE_STORAGE_BACKEND:   ${{ vars.VITE_STORAGE_BACKEND }}
+          VITE_REDIRECT_URI:      https://adriendellagaspera.github.io/copad/redirect.html
+          VITE_COLLAB_TRANSPORT:  ${{ vars.VITE_COLLAB_TRANSPORT }}
+          VITE_SIGNALING_URL:     ${{ vars.VITE_SIGNALING_URL }}
+          VITE_WEBSOCKET_URL:     ${{ vars.VITE_WEBSOCKET_URL }}
+          VITE_DEFAULT_ROOM:      ${{ vars.VITE_DEFAULT_ROOM }}
+          VITE_ROOM_PASSWORD:     ${{ vars.VITE_ROOM_PASSWORD }}
+          VITE_STUN_URL:          ${{ vars.VITE_STUN_URL }}
+          VITE_TURN_URL:          ${{ vars.VITE_TURN_URL }}
+          VITE_TURN_USERNAME:     ${{ vars.VITE_TURN_USERNAME }}
+          VITE_TURN_PASSWORD:     ${{ vars.VITE_TURN_PASSWORD }}
+
+      - name: Deploy to gh-pages/pr-${{ github.event.pull_request.number }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          destination_dir: pr-${{ github.event.pull_request.number }}
+          keep_files: true
+
+      - name: Post or update preview comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request.number;
+            const sha = context.payload.pull_request.head.sha.slice(0, 7);
+            const url = `https://adriendellagaspera.github.io/copad/pr-${pr}/`;
+            const marker = '<!-- gh-pages-preview -->';
+            const body = [
+              marker,
+              '### Preview deployed',
+              '',
+              `**URL:** ${url}`,
+              `**Commit:** \`${sha}\``,
+              '',
+              '_Updated automatically on every push to this PR. Removed when the PR closes._',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr,
+            });
+
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr,
+                body,
+              });
+            }
+
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove pr-${{ github.event.pull_request.number }} from gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_DIR="pr-${{ github.event.pull_request.number }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+
+          if ! git fetch origin gh-pages 2>/dev/null; then
+            echo "gh-pages branch does not exist — nothing to clean up"
+            exit 0
+          fi
+
+          git checkout gh-pages
+
+          if [ ! -d "$PR_DIR" ]; then
+            echo "No preview directory for PR #${{ github.event.pull_request.number }}"
+            exit 0
+          fi
+
+          rm -rf "$PR_DIR"
+          git add -A
+          git commit -m "cleanup: remove preview for PR #${{ github.event.pull_request.number }} [skip ci]"
+          git push origin gh-pages
