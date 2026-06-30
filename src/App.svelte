@@ -38,10 +38,12 @@
   import { createTheme } from './ui/theme.svelte.js';
   import { createToasts } from './ui/toasts.svelte.js';
   import { createLanguage } from './ui/language.svelte.js';
+  import { provideI18n } from './i18n/index.svelte.js';
 
   const theme = createTheme();
   const toasts = createToasts();
   const language = createLanguage();
+  const i18n = provideI18n(language);
   let shareOpen = $state(false);
 
   // Effective per-room cipher (WebRTC end-to-end encryption). Resolved fresh on
@@ -134,12 +136,12 @@
   function setLocalCache(on: boolean): void {
     setLocalCacheEnabled(on);
     localCache = localCacheEnabled();
-    if (!on) void clearLocalCache().then(() => toasts.info('Local copies cleared'));
+    if (!on) void clearLocalCache().then(() => toasts.info(i18n.t.editor.localCopiesCleared));
   }
 
   async function clearLocalCopies(): Promise<void> {
     await clearLocalCache();
-    toasts.success('Cleared local copies of your documents');
+    toasts.success(i18n.t.editor.clearedLocalCopies);
   }
 
   // Runtime TURN config (Settings) — persisted; applied on the next reconnect.
@@ -148,7 +150,7 @@
     turnPrefs = p;
     setTurnPrefs(p);
     collabEpoch += 1; // rebuild ICE + remount so the change takes effect
-    toasts.info('Connection settings applied');
+    toasts.info(i18n.t.settings.backends.apply);
   }
 
   const COLORS: CursorColor[] = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'] as CursorColor[];
@@ -268,19 +270,19 @@
     </div>
     <div class="controls">
       <label>
-        Name
+        {i18n.t.app.nameLabel}
         <input value={name} oninput={e => { name = e.currentTarget.value as DisplayName; }} />
       </label>
       <RoomSwitcher {room} name={roomName.value} onRename={renameCurrentRoom} onOpen={goToRoom} />
-      <button class="btn-new" onclick={newRoom} title="New document">New</button>
-      <button class="share-btn" onclick={() => (shareOpen = true)} title="Share / invite collaborators">
+      <button class="btn-new" onclick={newRoom} title={i18n.t.app.newDocTitle}>{i18n.t.app.newDoc}</button>
+      <button class="share-btn" onclick={() => (shareOpen = true)} title={i18n.t.app.shareTitle}>
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
           <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
         </svg>
-        Share
+        {i18n.t.app.share}
       </button>
-      <button class="icon-btn" onclick={() => openSettings()} title="Settings" aria-label="Settings">⚙</button>
+      <button class="icon-btn" onclick={() => openSettings()} title={i18n.t.app.settingsTitle} aria-label={i18n.t.app.settingsTitle}>⚙</button>
       <ThemeToggle {theme} />
     </div>
   </header>
@@ -289,12 +291,12 @@
 
   {#if collabWarning}
     <InfoBanner>
-      Collaboration between devices is unavailable on this site. {collabWarning}
+      {i18n.t.app.bannerNoCollab(collabWarning)}
     </InfoBanner>
   {:else if !connected}
     <InfoBanner autoDismissMs={7000}>
-      Set up a storage backend in <button class="link" onclick={() => openSettings()}>Settings ⚙</button>
-      to <strong>save &amp; restore</strong> your document across sessions.
+      {i18n.t.app.bannerNoStoragePre} <button class="link" onclick={() => openSettings()}>{i18n.t.app.bannerSettingsLink}</button>
+      {i18n.t.app.bannerNoStorageMid} <strong>{i18n.t.app.bannerNoStorageBold}</strong> {i18n.t.app.bannerNoStoragePost}
     </InfoBanner>
   {/if}
 

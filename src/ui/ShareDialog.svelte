@@ -5,6 +5,7 @@
   import { roomPassword, setRoomPassword, clearRoomPassword, type RoomCredential } from '../collaboration/roomAccess.js';
   import { parseRoomCredential } from '../collaboration/parse.js';
   import { currentSecretKey, clearSecretKey, rotateSecretKey } from '../collaboration/secretLink.js';
+  import { useI18n } from '../i18n/index.svelte.js';
 
   let {
     open,
@@ -22,6 +23,9 @@
     /** Called after the room's encryption changes, so the Editor can reconnect. */
     onSecurityChange?: () => void;
   } = $props();
+
+  const i18n = useI18n();
+  const t = $derived(i18n.t);
 
   let inputEl = $state<HTMLInputElement | undefined>();
   let readerInputEl = $state<HTMLInputElement | undefined>();
@@ -58,7 +62,7 @@
     storedPw = null;
     pwInput = '';
     onSecurityChange?.();
-    toasts.success('Secure link created — anyone with the link can read this room');
+    toasts.success(t.share.secureCreated);
   }
 
   function applyPassword(): void {
@@ -68,7 +72,7 @@
     linkKey = undefined;
     storedPw = parseRoomCredential(pw); // accept user input into the domain via the canonical parser
     onSecurityChange?.();
-    toasts.success(pw ? 'Room password applied' : 'Room password removed');
+    toasts.success(pw ? t.share.passwordApplied : t.share.passwordRemoved);
   }
 
   function removeEncryption(): void {
@@ -78,7 +82,7 @@
     storedPw = null;
     pwInput = '';
     onSecurityChange?.();
-    toasts.info('Encryption removed from this room');
+    toasts.info(t.share.encryptionRemoved);
   }
 
   async function copyTo(text: string, el: HTMLInputElement | undefined, label: string): Promise<void> {
@@ -101,19 +105,19 @@
       toasts.success(label);
       onclose();
     } else {
-      toasts.info('Press ⌘/Ctrl+C to copy the selected link');
+      toasts.info(t.share.copyManual);
     }
   }
 
-  const copy = () => copyTo(url, inputEl, 'Invite link copied to clipboard');
-  const copyReader = () => copyTo(readerUrl, readerInputEl, 'View-only link copied to clipboard');
+  const copy = () => copyTo(url, inputEl, t.share.inviteCopied);
+  const copyReader = () => copyTo(readerUrl, readerInputEl, t.share.viewOnlyCopied);
 </script>
 
-<Dialog {open} {onclose} title="Share this document">
+<Dialog {open} {onclose} title={t.share.title}>
   <p class="share-hint">
-    Anyone with this link joins and edits in real time — peer-to-peer, no account needed.
+    {t.share.hint}
     {#if linkKey}
-      <strong>This link carries the room's encryption key</strong>, so keep it private.
+      <strong>{t.share.hintEncrypted}</strong>{t.share.hintEncryptedSuffix}
     {/if}
   </p>
 
@@ -123,14 +127,14 @@
       type="text"
       readonly
       value={url}
-      aria-label="Invite link"
+      aria-label={t.share.inviteLabel}
       onfocus={(e) => e.currentTarget.select()}
     />
-    <button class="primary" onclick={copy}>Copy link</button>
+    <button class="primary" onclick={copy}>{t.share.copyLink}</button>
   </div>
 
   <details class="reader-section">
-    <summary>Share a view-only link</summary>
+    <summary>{t.share.viewOnly}</summary>
     <div class="reader-body">
       <div class="share-row">
         <input
@@ -138,68 +142,59 @@
           type="text"
           readonly
           value={readerUrl}
-          aria-label="View-only invite link"
+          aria-label={t.share.viewOnlyLabel}
           onfocus={(e) => e.currentTarget.select()}
         />
-        <button onclick={copyReader}>Copy link</button>
+        <button onclick={copyReader}>{t.share.copyLink}</button>
       </div>
       <p class="reader-caveat">
-        The view-only role disables editing in the UI, but is not technically enforced —
-        a recipient could bypass it by removing <code>role=reader</code> from the URL.
-        Use this for trusted collaborators you'd like to signal shouldn't edit.
+        {t.share.viewOnlyCaveat} <code>role=reader</code> {t.share.viewOnlyCaveat2}
       </p>
     </div>
   </details>
 
   <section class="share-security">
     <h3>
-      Room privacy
-      {#if encrypted}<span class="lock" title="End-to-end encrypted">🔒 Encrypted</span>{/if}
+      {t.share.privacy}
+      {#if encrypted}<span class="lock" title={t.share.encryptedTitle}>{t.share.encrypted}</span>{/if}
     </h3>
 
     {#if envOnly}
-      <p class="sec-note">This deployment encrypts every room with a shared key.</p>
+      <p class="sec-note">{t.share.envOnlyNote}</p>
     {/if}
 
     {#if linkKey}
       <p class="sec-note">
-        <strong>Secure link.</strong> The key lives in the link's <code>#</code> fragment —
-        it's never sent to the signaling server. Anyone with the link can read.
+        <strong>{t.share.secureNote}</strong> {t.share.secureNote2} <code>#</code> {t.share.secureNote3}
       </p>
       <div class="sec-actions">
-        <button onclick={removeEncryption}>Remove encryption</button>
+        <button onclick={removeEncryption}>{t.share.removeEncryption}</button>
       </div>
     {:else}
-      <p class="sec-note">
-        Encrypt this room end-to-end. Either bake a key into the link, or set a password
-        to share separately. (WebRTC transport only — the hub relay can't be E2E.)
-      </p>
+      <p class="sec-note">{t.share.encryptNote}</p>
       <div class="sec-actions">
-        <button class="primary" onclick={makeSecureLink}>Generate secure link</button>
+        <button class="primary" onclick={makeSecureLink}>{t.share.generateSecureLink}</button>
       </div>
       <div class="sec-pw">
         <input
           type="text"
-          placeholder="…or a room password"
+          placeholder={t.share.orRoomPassword}
           value={pwInput}
           oninput={(e) => (pwInput = e.currentTarget.value)}
           onkeydown={(e) => e.key === 'Enter' && applyPassword()}
-          aria-label="Room password"
+          aria-label={t.share.roomPasswordLabel}
         />
         <button onclick={applyPassword} disabled={pwInput.trim() === (storedPw ?? '')}>
-          {storedPw ? 'Update' : 'Set'}
+          {storedPw ? t.share.update : t.share.set}
         </button>
-        {#if storedPw}<button onclick={removeEncryption}>Remove</button>{/if}
+        {#if storedPw}<button onclick={removeEncryption}>{t.share.remove}</button>{/if}
       </div>
-      <small class="sec-help">
-        Password-protected? Collaborators must enter the same password here to read.
-        Not seeing edits? Double-check the password — a wrong one looks like an empty room.
-      </small>
+      <small class="sec-help">{t.share.passwordHelp}</small>
     {/if}
   </section>
 
   <p class="share-room">
-    Document: <code>{room}</code>
+    {t.share.roomId} <code>{room}</code>
   </p>
 </Dialog>
 

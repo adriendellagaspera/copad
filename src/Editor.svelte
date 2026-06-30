@@ -33,6 +33,7 @@
   import type { RoomName } from './collaboration/types.js';
   import { parsePeerAwarenessState, parseRoomName } from './collaboration/parse.js';
   import { bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
+  import { useI18n } from './i18n/index.svelte.js';
 
   type Props = {
     storage: Storage | null;
@@ -49,6 +50,9 @@
 
   let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, onstoragestatus }: Props =
     $props();
+
+  const i18n = useI18n();
+  const t = $derived(i18n.t);
 
   const SAVE_DEBOUNCE = 3_000;
 
@@ -175,7 +179,7 @@
       })
       .catch((e: unknown) => {
         console.warn('Copad: load failed, starting with current state', e);
-        toasts.error(`Couldn't load from ${label}: ${(e as Error).message}`);
+        toasts.error(t.editor.loadError(label, (e as Error).message));
       });
   });
 
@@ -215,7 +219,7 @@
       .catch((e: Error) => {
         saveStatus = SaveStatus.Error;
         console.warn('Copad: autosave failed', e);
-        toasts.error(`Couldn't save to ${label}: ${e.message}`);
+        toasts.error(t.editor.saveError(label, e.message));
       });
   };
 
@@ -243,7 +247,7 @@
         yCursorPlugin(collab.awareness),
         yUndoPlugin(),
         slashMenuPlugin(),
-        placeholderPlugin('Write something, or press “/” for commands…'),
+        placeholderPlugin(t.editor.placeholder),
         ...buildPlugins(schema),
       ],
     });
@@ -298,12 +302,12 @@
       onclick={storage !== null ? undefined : onstoragestatus}
     />
     <PresenceBar {users} />
-    <span class="peer-count">{peers} {peers === 1 ? 'peer' : 'peers'}</span>
+    <span class="peer-count">{t.editor.peers(peers)}</span>
     <button
       class="diag-btn"
       onclick={() => (diagOpen = true)}
-      title="Connection details"
-      aria-label="Connection details"
+      title={t.editor.connectionDetails}
+      aria-label={t.editor.connectionDetails}
     >
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M2 20h.01M7 20v-4M12 20v-8M17 20V8M22 4v16" />

@@ -8,6 +8,7 @@
   import { FallbackTurnPolicy } from './collaboration/types.js';
   import { parseTurnUrl, parseTurnUsername, parseTurnCredential } from './collaboration/parse.js';
   import type { TurnUrl } from './collaboration/types.js';
+  import { useI18n } from './i18n/index.svelte.js';
 
   let {
     backends,
@@ -43,10 +44,14 @@
     ondisconnect?: (b: StorageBackend) => void;
   } = $props();
 
+  const i18n = useI18n();
+  const t = $derived(i18n.t);
+
   // Language — 'auto' means browser language, anything else is a BCP-47 tag.
   // If the stored value isn't one of the preset options, show the custom input.
-  const LANGUAGE_PRESETS = [
-    { value: 'auto', label: 'Auto (browser language)' },
+  // Only the 'auto' label is translated; the language names stay in their native form.
+  const LANGUAGE_PRESETS = $derived([
+    { value: 'auto', label: t.settings.editor.langAuto },
     { value: 'en', label: 'English' },
     { value: 'fr', label: 'Français' },
     { value: 'es', label: 'Español' },
@@ -60,8 +65,10 @@
     { value: 'zh', label: '中文' },
     { value: 'ja', label: '日本語' },
     { value: 'ko', label: '한국어' },
-  ];
+  ]);
 
+  // Values are static; only labels change (for 'auto'). Reading a $derived outside a reactive
+  // context is fine in Svelte 5 — it just computes lazily on first access.
   const isPreset = (v: string) => LANGUAGE_PRESETS.some(p => p.value === v);
 
   // Track the select value separately from the raw custom text input.
@@ -183,27 +190,21 @@
 
 {#if open}
   <div class="settings-backdrop" onclick={close} role="presentation"></div>
-  <div class="settings" role="dialog" aria-modal="true" aria-label="Settings">
+  <div class="settings" role="dialog" aria-modal="true" aria-label={t.settings.title}>
     <header class="settings-head">
-      <h2>Settings</h2>
-      <button class="icon-btn" onclick={close} aria-label="Close settings">✕</button>
+      <h2>{t.settings.title}</h2>
+      <button class="icon-btn" onclick={close} aria-label={t.settings.closeLabel}>✕</button>
     </header>
 
-    <p class="settings-lead">
-      Configure your storage backends. App keys are saved in this browser and
-      reused across sessions — you only set them once.
-    </p>
+    <p class="settings-lead">{t.settings.lead}</p>
 
     <section class="backend">
       <div class="backend-head">
-        <span class="backend-name">Editor</span>
+        <span class="backend-name">{t.settings.editor.title}</span>
       </div>
-      <p class="backend-blurb">
-        Language and spellchecking settings. The language tells the browser which
-        dictionary to use for spellcheck.
-      </p>
+      <p class="backend-blurb">{t.settings.editor.blurb}</p>
       <label class="field">
-        <span class="field-label">Language</span>
+        <span class="field-label">{t.settings.editor.language}</span>
         <select
           value={selectValue}
           onchange={e => onSelectLanguage(e.currentTarget.value)}
@@ -211,20 +212,17 @@
           {#each LANGUAGE_PRESETS as p (p.value)}
             <option value={p.value}>{p.label}</option>
           {/each}
-          <option value="custom">Other (BCP-47 tag)…</option>
+          <option value="custom">{t.settings.editor.langCustom}</option>
         </select>
         {#if selectValue === 'custom'}
           <input
             class="custom-lang"
-            placeholder="e.g. en-GB, zh-TW, pt-BR"
+            placeholder={t.settings.editor.langCustomPlaceholder}
             value={customValue}
             oninput={e => onCustomLanguage(e.currentTarget.value)}
           />
         {/if}
-        <small class="field-help">
-          Used by the browser's native spellchecker and screen readers.
-          "Auto" follows your browser's language setting ({navigator.language}).
-        </small>
+        <small class="field-help">{t.settings.editor.langHelp(navigator.language)}</small>
       </label>
       <label class="toggle">
         <input
@@ -232,38 +230,31 @@
           checked={spellcheck}
           onchange={e => onSpellcheckChange?.(e.currentTarget.checked)}
         />
-        <span>Enable spellcheck</span>
+        <span>{t.settings.editor.spellcheck}</span>
       </label>
-      <small class="field-help">
-        Uses your browser's built-in spell checker. Works best with a matching language above.
-      </small>
+      <small class="field-help">{t.settings.editor.spellcheckHelp}</small>
     </section>
 
     <section class="backend">
       <div class="backend-head">
-        <span class="backend-name">Local copy</span>
-        <span class="badge {localCache ? 'ok' : ''}">{localCache ? 'On' : 'Off'}</span>
+        <span class="backend-name">{t.settings.cache.title}</span>
+        <span class="badge {localCache ? 'ok' : ''}">{localCache ? t.settings.cache.on : t.settings.cache.off}</span>
       </div>
-      <p class="backend-blurb">
-        Keep a copy of your documents in this browser so they survive a reload and
-        work offline — even with no storage backend connected.
-      </p>
+      <p class="backend-blurb">{t.settings.cache.blurb}</p>
       <label class="toggle">
         <input
           type="checkbox"
           checked={localCache}
           onchange={e => onCacheChange?.(e.currentTarget.checked)}
         />
-        <span>Keep a local copy of documents</span>
+        <span>{t.settings.cache.toggle}</span>
       </label>
       <small class="field-help">
-        Stored <strong>unencrypted</strong> in this browser, regardless of any room
-        password (that only encrypts the connection). Turn this off for a shared or
-        untrusted device.
+        {t.settings.cache.helpPrefix} <strong>{t.settings.cache.helpUnencrypted}</strong> {t.settings.cache.helpSuffix}
       </small>
       <div class="backend-actions">
         <button onclick={clearCache} disabled={clearing}>
-          {clearing ? 'Clearing…' : 'Clear local copies'}
+          {clearing ? t.settings.cache.clearing : t.settings.cache.clear}
         </button>
       </div>
     </section>
@@ -271,36 +262,32 @@
     {#if onTurnChange}
       <section class="backend">
         <div class="backend-head">
-          <span class="backend-name">Connection (WebRTC)</span>
+          <span class="backend-name">{t.settings.turn.title}</span>
         </div>
-        <p class="backend-blurb">
-          Peer-to-peer needs a TURN relay to connect across mobile carrier networks
-          (CGNAT / symmetric NAT). A free public relay is used by default; add your
-          own for reliability. Changes apply on the next reconnect.
-        </p>
+        <p class="backend-blurb">{t.settings.turn.blurb}</p>
         <label class="toggle">
           <input
             type="checkbox"
             checked={turnFallback === FallbackTurnPolicy.OpenRelay}
             onchange={e => (turnFallback = e.currentTarget.checked ? FallbackTurnPolicy.OpenRelay : FallbackTurnPolicy.None)}
           />
-          <span>Use a public TURN relay when none is configured</span>
+          <span>{t.settings.turn.fallbackToggle}</span>
         </label>
         <label class="field">
-          <span class="field-label">TURN URL(s)</span>
+          <span class="field-label">{t.settings.turn.urlLabel}</span>
           <input
-            placeholder="turns:your-turn.example:5349"
+            placeholder={t.settings.turn.urlPlaceholder}
             value={rawUrl}
             oninput={e => (rawUrl = e.currentTarget.value)}
           />
-          <small class="field-help">Comma-separated. Overrides both the default and any deployment TURN.</small>
+          <small class="field-help">{t.settings.turn.urlHelp}</small>
         </label>
         <label class="field">
-          <span class="field-label">TURN username</span>
+          <span class="field-label">{t.settings.turn.usernameLabel}</span>
           <input value={rawUsername} oninput={e => (rawUsername = e.currentTarget.value)} />
         </label>
         <label class="field">
-          <span class="field-label">TURN credential</span>
+          <span class="field-label">{t.settings.turn.credentialLabel}</span>
           <input
             type="password"
             value={rawCredential}
@@ -308,7 +295,7 @@
           />
         </label>
         <div class="backend-actions">
-          <button class="primary" onclick={applyTurn}>Apply &amp; reconnect</button>
+          <button class="primary" onclick={applyTurn}>{t.settings.turn.apply}</button>
         </div>
       </section>
     {/if}
@@ -316,17 +303,13 @@
     {#snippet filenameField(b: StorageBackend)}
       {#if b.storage.setFilename}
         <label class="field">
-          <span class="field-label">File name</span>
+          <span class="field-label">{t.settings.filename.label}</span>
           <input
             value={filenameOf(b)}
-            placeholder="document.yjs"
+            placeholder={t.settings.filename.placeholder}
             oninput={e => setFilename(b, e.currentTarget.value)}
           />
-          <small class="field-help">
-            The extension picks the format — .yjs (native), .md, .html, .json (PM), or any
-            source/text extension (.txt, .py, .js, .ts, .rs, .go, .yml, …).
-            Takes effect on connect.
-          </small>
+          <small class="field-help">{t.settings.filename.help}</small>
         </label>
       {/if}
     {/snippet}
@@ -338,9 +321,9 @@
         <div class="backend-head">
           <span class="backend-name">{b.storage.label}</span>
           {#if authed}
-            <span class="badge ok">Connected</span>
+            <span class="badge ok">{t.settings.backends.connected}</span>
           {:else}
-            <span class="badge">{ready ? 'Ready' : 'Needs setup'}</span>
+            <span class="badge">{ready ? t.settings.backends.ready : t.settings.backends.needsSetup}</span>
           {/if}
         </div>
         {#if b.storage.blurb}<p class="backend-blurb">{b.storage.blurb}</p>{/if}
@@ -350,7 +333,7 @@
           <label class="field">
             <span class="field-label">
               {f.label}
-              {#if locked}<span class="lock" title="Set by this deployment">🔒 managed</span>{/if}
+              {#if locked}<span class="lock" title={t.settings.backends.managedTitle}>{t.settings.backends.managed}</span>{/if}
             </span>
             <input
               type={f.type ?? InputType.Text}
@@ -367,14 +350,14 @@
 
         <div class="backend-actions">
           {#if authed}
-            <button onclick={() => disconnect(b)}>Disconnect</button>
+            <button onclick={() => disconnect(b)}>{t.settings.backends.disconnect}</button>
           {:else}
             <button
               class="primary"
               onclick={() => connect(b)}
               disabled={!ready || busy[b.storage.id]}
             >
-              {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
+              {busy[b.storage.id] ? t.settings.backends.connecting : t.settings.backends.connect(b.storage.label)}
             </button>
           {/if}
           {#if errors[b.storage.id]}<p class="error">{errors[b.storage.id]}</p>{/if}
@@ -383,7 +366,7 @@
     {/each}
 
     {#if configurable.length === 0}
-      <p class="settings-empty">No storage backends require configuration.</p>
+      <p class="settings-empty">{t.settings.backends.noConfigurable}</p>
     {/if}
 
     {#each connectable as b (b.storage.id)}
@@ -392,11 +375,11 @@
         <div class="backend-head">
           <span class="backend-name">{b.storage.label}</span>
           {#if authed}
-            <span class="badge ok">Connected</span>
+            <span class="badge ok">{t.settings.backends.connected}</span>
           {:else if !b.storage.availability.ok}
-            <span class="badge unavailable">Unavailable</span>
+            <span class="badge unavailable">{t.settings.backends.unavailable}</span>
           {:else}
-            <span class="badge">Ready</span>
+            <span class="badge">{t.settings.backends.ready}</span>
           {/if}
         </div>
         {#if b.storage.blurb}<p class="backend-blurb">{b.storage.blurb}</p>{/if}
@@ -407,7 +390,7 @@
           <p class="unavailable-reason">{b.storage.availability.reason}</p>
         {:else if authed}
           <div class="backend-actions">
-            <button onclick={() => disconnect(b)}>Disconnect</button>
+            <button onclick={() => disconnect(b)}>{t.settings.backends.disconnect}</button>
           </div>
         {:else}
           {#if b.auth.credentialFields}
@@ -425,23 +408,23 @@
               {/each}
               <div class="backend-actions">
                 <button class="primary" type="submit" disabled={busy[b.storage.id]}>
-                  {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
+                  {busy[b.storage.id] ? t.settings.backends.connecting : t.settings.backends.connect(b.storage.label)}
                 </button>
               </div>
             </form>
           {:else if b.storage.id === 'local'}
             <div class="backend-actions">
               <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
-                {busy[b.storage.id] ? 'Opening…' : 'Open file'}
+                {busy[b.storage.id] ? t.settings.backends.opening : t.settings.backends.openFile}
               </button>
               <button onclick={() => connect(b, { kind: LoginKind.Open, mode: OpenMode.New })} disabled={busy[b.storage.id]}>
-                New file
+                {t.settings.backends.newFile}
               </button>
             </div>
           {:else}
             <div class="backend-actions">
               <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
-                {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
+                {busy[b.storage.id] ? t.settings.backends.connecting : t.settings.backends.connect(b.storage.label)}
               </button>
             </div>
           {/if}
