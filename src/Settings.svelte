@@ -18,6 +18,10 @@
     onCacheClear,
     turnPrefs,
     onTurnChange,
+    languageChoice = 'auto',
+    spellcheck = true,
+    onLanguageChange,
+    onSpellcheckChange,
     onchange,
     onconnect,
     ondisconnect,
@@ -30,10 +34,60 @@
     onCacheClear?: () => void | Promise<void>;
     turnPrefs?: TurnPrefs;
     onTurnChange?: (p: TurnPrefs) => void;
+    languageChoice?: string;
+    spellcheck?: boolean;
+    onLanguageChange?: (lang: string) => void;
+    onSpellcheckChange?: (on: boolean) => void;
     onchange?: () => void;
     onconnect?: (b: StorageBackend) => void;
     ondisconnect?: (b: StorageBackend) => void;
   } = $props();
+
+  // Language — 'auto' means browser language, anything else is a BCP-47 tag.
+  // If the stored value isn't one of the preset options, show the custom input.
+  const LANGUAGE_PRESETS = [
+    { value: 'auto', label: 'Auto (browser language)' },
+    { value: 'en', label: 'English' },
+    { value: 'fr', label: 'Français' },
+    { value: 'es', label: 'Español' },
+    { value: 'de', label: 'Deutsch' },
+    { value: 'it', label: 'Italiano' },
+    { value: 'pt', label: 'Português' },
+    { value: 'nl', label: 'Nederlands' },
+    { value: 'pl', label: 'Polski' },
+    { value: 'ru', label: 'Русский' },
+    { value: 'ar', label: 'العربية' },
+    { value: 'zh', label: '中文' },
+    { value: 'ja', label: '日本語' },
+    { value: 'ko', label: '한국어' },
+  ];
+
+  const isPreset = (v: string) => LANGUAGE_PRESETS.some(p => p.value === v);
+
+  // Track the select value separately from the raw custom text input.
+  let selectValue = $state(isPreset(languageChoice) ? languageChoice : 'custom');
+  let customValue = $state(isPreset(languageChoice) ? '' : languageChoice);
+
+  // Re-sync when the prop changes (drawer re-opens with fresh data).
+  $effect(() => {
+    if (open) {
+      selectValue = isPreset(languageChoice) ? languageChoice : 'custom';
+      customValue = isPreset(languageChoice) ? '' : languageChoice;
+    }
+  });
+
+  function onSelectLanguage(value: string) {
+    selectValue = value;
+    if (value !== 'custom') {
+      customValue = '';
+      onLanguageChange?.(value);
+    }
+  }
+
+  function onCustomLanguage(value: string) {
+    customValue = value;
+    if (value.trim()) onLanguageChange?.(value.trim());
+  }
 
   let clearing = $state(false);
   async function clearCache() {
@@ -139,6 +193,51 @@
       Configure your storage backends. App keys are saved in this browser and
       reused across sessions — you only set them once.
     </p>
+
+    <section class="backend">
+      <div class="backend-head">
+        <span class="backend-name">Editor</span>
+      </div>
+      <p class="backend-blurb">
+        Language and spellchecking settings. The language tells the browser which
+        dictionary to use for spellcheck.
+      </p>
+      <label class="field">
+        <span class="field-label">Language</span>
+        <select
+          value={selectValue}
+          onchange={e => onSelectLanguage(e.currentTarget.value)}
+        >
+          {#each LANGUAGE_PRESETS as p (p.value)}
+            <option value={p.value}>{p.label}</option>
+          {/each}
+          <option value="custom">Other (BCP-47 tag)…</option>
+        </select>
+        {#if selectValue === 'custom'}
+          <input
+            class="custom-lang"
+            placeholder="e.g. en-GB, zh-TW, pt-BR"
+            value={customValue}
+            oninput={e => onCustomLanguage(e.currentTarget.value)}
+          />
+        {/if}
+        <small class="field-help">
+          Used by the browser's native spellchecker and screen readers.
+          "Auto" follows your browser's language setting ({navigator.language}).
+        </small>
+      </label>
+      <label class="toggle">
+        <input
+          type="checkbox"
+          checked={spellcheck}
+          onchange={e => onSpellcheckChange?.(e.currentTarget.checked)}
+        />
+        <span>Enable spellcheck</span>
+      </label>
+      <small class="field-help">
+        Uses your browser's built-in spell checker. Works best with a matching language above.
+      </small>
+    </section>
 
     <section class="backend">
       <div class="backend-head">
