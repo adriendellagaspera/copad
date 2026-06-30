@@ -27,6 +27,12 @@ export interface RecentRoom {
  *  `resolveSignaling()` validation — peers use it only to discover each other. */
 export type SignalingUrl = string & { readonly _brand: 'SignalingUrl' };
 
+/** The HTTP(S) URL of a signaling server, derived from a {@link SignalingUrl}
+ *  by swapping `ws→http` / `wss→https`. Used only for keep-alive GETs that stop
+ *  a spin-down-on-idle host (e.g. Render free tier) from sleeping; never carries
+ *  signaling traffic itself. */
+export type SignalingPingUrl = string & { readonly _brand: 'SignalingPingUrl' };
+
 /** A y-websocket hub URL (`ws://`/`wss://`) that has passed `resolveWebsocket()`
  *  validation — the central relay that carries edits on the hub transport. */
 export type WebsocketUrl = string & { readonly _brand: 'WebsocketUrl' };

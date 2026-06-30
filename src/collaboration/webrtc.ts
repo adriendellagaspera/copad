@@ -6,6 +6,7 @@ import type { RoomCipher } from './roomCipher.js';
 import type { LocalCacheEnabled } from './cache.js';
 import { createCollabCore } from './core.js';
 import { defaultIceStatsReader, type IceStatsReader, type PeerConnectionLike } from './iceStats.js';
+import { startSignalingKeepalive } from './signalingKeepalive.js';
 
 // Local types for y-webrtc's private room internals — an IO boundary between
 // this adapter and the library. Localising them here means a y-webrtc API
@@ -74,6 +75,8 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
       peerCount,
     });
 
+    const stopKeepalive = startSignalingKeepalive(opts.signaling);
+
     webrtc.on('status', core.emitStatus);
     webrtc.on('peers', core.emitStatus);
     webrtc.on('synced', (e: { synced: boolean }) => core.setSynced(e.synced));
@@ -108,6 +111,7 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
         };
       },
       destroy() {
+        stopKeepalive();
         // core detaches the cache first, then we drop the provider and doc.
         core.destroy();
         webrtc.destroy();
