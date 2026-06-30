@@ -5,8 +5,23 @@ import type { Awareness } from 'y-protocols/awareness';
 export const SessionRole = { Writer: 'writer', Reader: 'reader' } as const;
 export type SessionRole = (typeof SessionRole)[keyof typeof SessionRole];
 
-/** A collaboration room identifier, derived from the URL or generated randomly. */
+/** A collaboration room identifier, derived from the URL or generated randomly.
+ *  This is the room's immutable identity — it is never changed by a rename. */
 export type RoomId = string & { readonly _brand: 'RoomId' };
+
+/** A human-friendly, editable display name for a room. Collaborative metadata
+ *  stored in the shared Y.Doc; it can be changed freely and NEVER affects the
+ *  immutable {@link RoomId}, so renaming a room can't "lose" it. */
+export type RoomName = string & { readonly _brand: 'RoomName' };
+
+/** A room the user has visited, remembered locally so the room switcher can
+ *  offer it again — the anti-loss safety net. `name` is the last-known shared
+ *  name (may be null before it has loaded/been set); `visitedAt` is epoch ms. */
+export interface RecentRoom {
+  readonly id: RoomId;
+  readonly name: RoomName | null;
+  readonly visitedAt: number;
+}
 
 /** A WebRTC signaling server URL (`ws://`/`wss://`) that has passed
  *  `resolveSignaling()` validation — peers use it only to discover each other. */

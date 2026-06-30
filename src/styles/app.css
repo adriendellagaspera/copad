@@ -132,10 +132,6 @@ button.ghost:hover:not(:disabled) {
   background: var(--surface-3);
 }
 
-.room-label input {
-  font-family: var(--font-mono);
-  width: 9rem;
-}
 .btn-new {
   padding: 0.35rem 0.6rem;
 }
@@ -388,8 +384,8 @@ button.status-link {
     flex: 1;
     width: auto;
   }
-  .room-label input {
-    width: auto;
+  .room-switcher {
+    flex: 1 1 100%;
   }
 }
 

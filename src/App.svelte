@@ -13,7 +13,10 @@
     type PageProtocol,
     type PageHostname,
   } from './collaboration/config.js';
-  import { parseRoomId } from './collaboration/parse.js';
+  import { parseRoomId, parseRoomName } from './collaboration/parse.js';
+  import { roomName, renameRoom } from './collaboration/roomName.svelte.js';
+  import { recordRoomVisit, updateRecentRoomName } from './collaboration/recentRooms.js';
+  import RoomSwitcher from './ui/RoomSwitcher.svelte';
   import {
     localCacheEnabled,
     setLocalCacheEnabled,
@@ -212,8 +215,24 @@
   let room = $state<RoomId>(roomFromUrl());
   const sessionRole: SessionRole = roleFromUrl();
 
-  function goToRoom(id: string) {
-    const r = parseRoomId(id) ?? DEFAULT_ROOM;
+  // Accept a bare id, a "?room=x" fragment, or a full shared URL — so pasting a
+  // collaborator's link into the switcher's "open a room" field just works.
+  function roomIdFrom(input: string): string {
+    const t = input.trim();
+    if (!t) return t;
+    try {
+      const fromUrl = new URL(t).searchParams.get('room');
+      if (fromUrl) return fromUrl;
+    } catch {
+      /* not a full URL — fall through */
+    }
+    const m = t.match(/[?&]room=([^&]+)/);
+    return m ? decodeURIComponent(m[1]) : t;
+  }
+
+  function goToRoom(idOrUrl: string) {
+    const r = parseRoomId(roomIdFrom(idOrUrl)) ?? DEFAULT_ROOM;
+    if (r === room) return;
     const qs = r === DEFAULT_ROOM ? '' : `?room=${encodeURIComponent(r)}`;
     history.pushState({}, '', location.pathname + qs);
     room = r;
@@ -222,6 +241,21 @@
   function newRoom() {
     goToRoom(Math.random().toString(36).slice(2, 10));
   }
+
+  // Rename the current room — edits the shared name (synced to every peer via
+  // the Y.Doc); the immutable room id is never touched, so a room can't be lost.
+  function renameCurrentRoom(raw: string): void {
+    renameRoom(parseRoomName(raw));
+  }
+
+  // Remember every room we open so the switcher can always offer it again.
+  $effect(() => {
+    recordRoomVisit(room, null);
+  });
+  // Keep the remembered name in step with the shared name as it loads / changes.
+  $effect(() => {
+    updateRecentRoomName(room, roomName.value);
+  });
 </script>
 
 <div class="app">
@@ -235,14 +269,7 @@
         Name
         <input value={name} oninput={e => { name = e.currentTarget.value as DisplayName; }} />
       </label>
-      <label class="room-label">
-        Doc
-        <input
-          value={room}
-          onchange={e => goToRoom(e.currentTarget.value)}
-          onkeydown={e => e.key === 'Enter' && e.currentTarget.blur()}
-        />
-      </label>
+      <RoomSwitcher {room} name={roomName.value} onRename={renameCurrentRoom} onOpen={goToRoom} />
       <button class="btn-new" onclick={newRoom} title="New document">New</button>
       <button class="share-btn" onclick={() => (shareOpen = true)} title="Share / invite collaborators">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
