@@ -4,13 +4,10 @@
   // physical keyboard, so the footer there keeps just the document meta.
   //
   // The shortcuts mirror the keymap in src/editor/plugins.ts; keep them in sync.
+  import { modKeyLabel } from '../../ui/platform.js';
 
-  // Mac shows ⌘; everything else shows Ctrl. navigator.platform is deprecated but
-  // still the most reliable quick signal, with a userAgent fallback.
-  const isMac =
-    typeof navigator !== 'undefined' &&
-    /mac|iphone|ipad|ipod/i.test(navigator.platform || navigator.userAgent || '');
-  const mod = isMac ? '⌘' : 'Ctrl';
+  // OS-aware modifier glyph: ⌘ on macOS/iOS, Ctrl on Windows/Linux.
+  const mod = modKeyLabel();
 
   type Hint = { keys: string[]; label: string };
   const hints: Hint[] = [
