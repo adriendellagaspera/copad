@@ -14,6 +14,7 @@
   import LinkPopover from './editor/ui/LinkPopover.svelte';
   import WordCount from './editor/ui/WordCount.svelte';
   import Outline from './editor/ui/Outline.svelte';
+  import ShortcutBar from './editor/ui/ShortcutBar.svelte';
   import type { PeerUser } from './ui/types.js';
   import { SaveStatus } from './ui/types.js';
   import type { Toasts } from './ui/toasts.svelte.js';
@@ -306,6 +307,7 @@
   <Toolbar {view} {editorState} {toasts} />
   <div class="content" bind:this={editorEl}></div>
   <div class="status">
+    <ShortcutBar />
     <span class="spacer"></span>
     <WordCount {editorState} />
     <Outline {view} {editorState} />
