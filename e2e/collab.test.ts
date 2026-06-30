@@ -27,11 +27,13 @@ test('two instances sync text via WebRTC', async ({ browser }) => {
   // Wait for both editors to mount.
   await Promise.all([editor1.waitFor(), editor2.waitFor()]);
 
-  // Wait until each peer sees the other in the awareness channel.
-  const status1 = page1.locator('.status');
-  const status2 = page2.locator('.status');
-  await expect(status1).toContainText('2 peer', { timeout: 20_000 });
-  await expect(status2).toContainText('2 peer', { timeout: 5_000 });
+  // Wait until each peer sees the other in the awareness channel. Presence now
+  // lives in the app header: each page shows exactly one *other* peer's avatar
+  // (self is the separate identity menu) once the awareness channel has synced.
+  const others1 = page1.locator('.session .presence .avatar');
+  const others2 = page2.locator('.session .presence .avatar');
+  await expect(others1).toHaveCount(1, { timeout: 20_000 });
+  await expect(others2).toHaveCount(1, { timeout: 5_000 });
 
   // Give ProseMirror a moment to finish all initial syncing before typing.
   await page1.waitForTimeout(300);
