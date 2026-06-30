@@ -10,6 +10,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
+  /* Fill the viewport so the editor can grow to full height. dvh tracks the
+     dynamic viewport (mobile browser chrome) where supported; vh is the floor. */
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* ── Header ── */
