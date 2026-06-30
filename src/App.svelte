@@ -281,7 +281,11 @@
     </div>
     <div class="controls">
       <RoomSwitcher {room} name={roomName.value} onRename={renameCurrentRoom} onOpen={goToRoom} />
-      <button class="btn-new" onclick={newRoom} title="New document">New</button>
+      <button class="btn-new icon-btn" onclick={newRoom} title="New document" aria-label="New document">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      </button>
 
       <div class="session">
         <StatusPill
