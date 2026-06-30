@@ -3,23 +3,10 @@
   // (gated by a pointer:fine media query in editor.css) — touch devices have no
   // physical keyboard, so the footer there keeps just the document meta.
   //
-  // The shortcuts mirror the keymap in src/editor/plugins.ts; keep them in sync.
-  import { modKey, keyCap, type KeyCap } from '../../ui/platform.js';
+  // Presentation only: the shortcut data (OS-resolved) lives in shortcuts.ts.
+  import { editorShortcuts } from './shortcuts.js';
 
-  // OS-resolved modifier cap: ⌘ on macOS/iOS, Ctrl on Windows/Linux.
-  const mod: KeyCap = modKey();
-
-  interface Shortcut {
-    readonly keys: readonly KeyCap[];
-    readonly label: string;
-  }
-  const shortcuts: Shortcut[] = [
-    { keys: [mod, keyCap('B')], label: 'Bold' },
-    { keys: [mod, keyCap('I')], label: 'Italic' },
-    { keys: [mod, keyCap('K')], label: 'Link' },
-    { keys: [keyCap('/')], label: 'Commands' },
-    { keys: [mod, keyCap('Z')], label: 'Undo' },
-  ];
+  const shortcuts = editorShortcuts();
 </script>
 
 <div class="shortcut-bar" aria-hidden="true">
