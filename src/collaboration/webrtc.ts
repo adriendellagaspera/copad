@@ -43,6 +43,13 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
     // RoomId extends string — cast back to string at the y-webrtc IO boundary.
     // cipher.password() returns null for no encryption; y-webrtc expects undefined.
     const password = opts.cipher?.password(room) ?? undefined;
+
+    // Fire the wake-up ping before constructing the provider: y-webrtc's
+    // constructor opens its signaling WebSocket synchronously, so starting
+    // the keepalive after that point lets a cold server fail the first
+    // connection attempt before the ping ever reaches it.
+    const stopKeepalive = startSignalingKeepalive(opts.signaling);
+
     const webrtc = new WebrtcProvider(room as string, doc, {
       signaling: opts.signaling,
       password,
@@ -74,8 +81,6 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
       isAttached: () => webrtc.connected,
       peerCount,
     });
-
-    const stopKeepalive = startSignalingKeepalive(opts.signaling);
 
     webrtc.on('status', core.emitStatus);
     webrtc.on('peers', core.emitStatus);
