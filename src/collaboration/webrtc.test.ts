@@ -2,11 +2,29 @@ import { describe, it, expect, vi } from 'vitest';
 
 // Replace the real y-webrtc provider with a tiny event emitter we can drive.
 vi.mock('y-webrtc', () => {
+  // A stand-in for y-webrtc's SignalingConn (a lib0 WebsocketClient): a live
+  // `connected` flag plus connect/disconnect events the adapter binds to.
+  class FakeSignalingConn {
+    connected = true;
+    handlers: Record<string, (() => void)[]> = {};
+    on(ev: string, fn: () => void) {
+      (this.handlers[ev] ||= []).push(fn);
+    }
+    off(ev: string, fn: () => void) {
+      this.handlers[ev] = (this.handlers[ev] || []).filter((f) => f !== fn);
+    }
+    emit(ev: string) {
+      (this.handlers[ev] || []).forEach((fn) => fn());
+    }
+  }
   class WebrtcProvider {
     awareness = { on() {}, getStates: () => new Map(), clientID: 1 };
     handlers: Record<string, ((...a: unknown[]) => void)[]> = {};
     connected = true;
     synced = false;
+    // Signaling sockets — attachment is read from these `connected` flags now,
+    // not from `provider.connected` (which is true from construction).
+    signalingConns = [new FakeSignalingConn()];
     // Mirror the real provider's room: peer presence is read from these.
     room = { webrtcConns: new Map<string, unknown>(), bcConns: new Set<string>() };
     opts: Record<string, unknown>;
@@ -76,12 +94,45 @@ describe('webrtcCollab status mapping', () => {
     provider().emit('peers', {});
     expect(seen.at(-1)).toBe('connected');
 
-    // Signaling drops → 'connecting'.
-    provider().connected = false;
-    provider().emit('status', { connected: false });
+    // Peer leaves AND signaling drops → 'connecting'. (A live peer keeps the
+    // session 'connected' through a signaling hiccup — discovery is down, but
+    // the p2p link isn't — so both must be gone to fall back to 'connecting'.)
+    provider().room.webrtcConns.clear();
+    provider().signalingConns[0].connected = false;
+    provider().signalingConns[0].emit('disconnect');
     expect(seen.at(-1)).toBe('connecting');
 
     collab.destroy();
+  });
+
+  it('stays "connecting" while every signaling handshake is failing, then flips to "waiting" once a socket connects', () => {
+    // Regression: `provider.connected` is true from construction, so the pill used
+    // to show "waiting/no peers" against a cold signaling server that hadn't
+    // actually accepted a connection yet. Attachment must track the real socket.
+    const collab = webrtcCollab({ signaling: SIGNALING })(ROOM);
+    provider().signalingConns[0].connected = false; // cold server: handshake failing
+    const seen: string[] = [];
+    collab.onStatus((s) => seen.push(s));
+
+    // No signaling socket up and no peers → honestly "connecting", not "waiting".
+    expect(seen[0]).toBe('connecting');
+
+    // The server wakes and the socket connects → the adapter bridges the event
+    // into the status machine, flipping to "waiting" with no peer/room change.
+    provider().signalingConns[0].connected = true;
+    provider().signalingConns[0].emit('connect');
+    expect(seen.at(-1)).toBe('waiting');
+
+    collab.destroy();
+  });
+
+  it('unbinds signaling listeners on destroy (shared conns outlive the collab)', () => {
+    const collab = webrtcCollab({ signaling: SIGNALING })(ROOM);
+    const conn = provider().signalingConns[0];
+    collab.destroy();
+    // After destroy, a socket flap must not reach the (torn-down) status machine.
+    expect(conn.handlers['connect']).toEqual([]);
+    expect(conn.handlers['disconnect']).toEqual([]);
   });
 
   it('counts same-browser (BroadcastChannel) peers as connected', () => {

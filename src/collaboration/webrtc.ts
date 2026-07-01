@@ -18,6 +18,17 @@ interface WebrtcRoom {
   readonly webrtcConns: Map<string, WebrtcRoomConn>;
   readonly bcConns: Map<string, unknown>;
 }
+// A y-webrtc SignalingConn (extends lib0's WebsocketClient): `connected` reflects
+// the live socket state and it emits 'connect'/'disconnect' as the socket flaps.
+// This is the honest "am I attached to a signaling server?" signal — unlike
+// `provider.connected`, which is just `shouldConnect && room !== null` and so is
+// true from construction even while every handshake is still failing.
+type SignalingEvent = 'connect' | 'disconnect';
+interface SignalingConnLike {
+  readonly connected: boolean;
+  on(event: SignalingEvent, cb: () => void): void;
+  off(event: SignalingEvent, cb: () => void): void;
+}
 
 export interface WebrtcCollabOptions {
   /** Validated signaling servers peers use to discover each other. */
@@ -73,14 +84,48 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
       return (r.webrtcConns?.size ?? 0) + (r.bcConns?.size ?? 0);
     };
 
-    // `webrtc.connected` means "attached to a signaling server", not "peered".
+    // The provider's signaling sockets (shared module singletons keyed by URL),
+    // read at the library IO boundary. `webrtc.signalingConns` is populated
+    // synchronously by the constructor's connect(), so it's ready here.
+    const signalingConns = (): SignalingConnLike[] =>
+      (webrtc.signalingConns as unknown as SignalingConnLike[] | undefined) ?? [];
+
+    // Attached = a signaling socket is genuinely up, OR a peer is already present
+    // (two same-browser tabs sync over BroadcastChannel without any signaling).
+    // This is what stops the pill from showing "waiting/no peers" while every
+    // signaling handshake is still failing against a cold server — it now
+    // correctly reads "connecting…" until a socket actually comes up.
+    const isAttached = (): boolean =>
+      signalingConns().some((c) => c.connected) || peerCount() > 0;
+
     const core = createCollabCore({
       doc,
       room,
       cache: opts.cache,
-      isAttached: () => webrtc.connected,
+      isAttached,
       peerCount,
     });
+
+    // y-webrtc emits `status`/`peers` on room + peer changes, but NOT when a
+    // signaling socket connects while we're alone — so a cold server coming up
+    // would leave the pill stuck on "connecting…". Bridge each signaling
+    // socket's connect/disconnect into the status machine. Conns are shared
+    // singletons that can be recreated on reconnect(), so track what we wired
+    // and re-bind after a reconnect.
+    const onSignalingFlap = (): void => core.emitStatus();
+    let wiredConns: SignalingConnLike[] = [];
+    const rewireSignaling = (): void => {
+      for (const c of wiredConns) {
+        c.off('connect', onSignalingFlap);
+        c.off('disconnect', onSignalingFlap);
+      }
+      wiredConns = signalingConns();
+      for (const c of wiredConns) {
+        c.on('connect', onSignalingFlap);
+        c.on('disconnect', onSignalingFlap);
+      }
+    };
+    rewireSignaling();
 
     webrtc.on('status', core.emitStatus);
     webrtc.on('peers', core.emitStatus);
@@ -94,9 +139,12 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
       onSynced: core.onSynced,
       reconnect() {
         // Drop and re-attach to the signaling server; peers re-announce and the
-        // WebRTC connections are rebuilt from scratch.
+        // WebRTC connections are rebuilt from scratch. connect() may recreate the
+        // signaling conns, so re-bind our listeners and re-emit the fresh status.
         webrtc.disconnect();
         webrtc.connect();
+        rewireSignaling();
+        core.emitStatus();
       },
       async getDiagnostics(): Promise<Diagnostics> {
         const r = room_();
@@ -110,13 +158,21 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
         );
         return {
           transport: Transport.P2P,
-          signaling: !!webrtc.connected,
+          // Real signaling-socket state, not `webrtc.connected` (which is just
+          // shouldConnect && room !== null and true from construction).
+          signaling: signalingConns().some((c) => c.connected),
           peers: (r?.webrtcConns.size ?? 0) + (r?.bcConns.size ?? 0),
           connections,
         };
       },
       destroy() {
         stopKeepalive();
+        // Unbind signaling listeners (conns are shared singletons that outlive us).
+        for (const c of wiredConns) {
+          c.off('connect', onSignalingFlap);
+          c.off('disconnect', onSignalingFlap);
+        }
+        wiredConns = [];
         // core detaches the cache first, then we drop the provider and doc.
         core.destroy();
         webrtc.destroy();
