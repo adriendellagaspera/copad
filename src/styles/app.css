@@ -136,8 +136,9 @@ button.ghost:hover:not(:disabled) {
   background: var(--surface-3);
 }
 
-.btn-new {
-  padding: 0.35rem 0.6rem;
+/* New-document button — a compact icon (+) sharing .icon-btn sizing. */
+.btn-new svg {
+  display: block;
 }
 
 .share-btn {
