@@ -228,6 +228,14 @@
   height: 0;
   float: left;
 }
+/* When the placeholder is the room name, show it title-style (Notion-like) — a
+   faint H1 hint, still distinct from any H1 the user actually types. */
+.ProseMirror .is-empty-title::before {
+  font-family: var(--font-ui);
+  font-size: var(--fs-700);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
 
 /* ── Responsive ── */
 

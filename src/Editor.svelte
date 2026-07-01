@@ -30,7 +30,7 @@
   import { ConnStatus, SessionRole } from './collaboration/types.js';
   import type { RoomName } from './collaboration/types.js';
   import { parsePeerAwarenessState, parseRoomName } from './collaboration/parse.js';
-  import { bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
+  import { roomName, bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
   import {
     setSessionConn,
     setSessionSave,
@@ -251,6 +251,14 @@
     view.setProps({ attributes: { lang, spellcheck: spellcheck ? 'true' : 'false' } });
   });
 
+  // The room name lives in a Y.Map (outside the PM doc), so naming/renaming the
+  // room fires no editor transaction. Nudge the view with an empty transaction
+  // when it changes so the empty-doc title placeholder refreshes.
+  $effect(() => {
+    void roomName.value;
+    view?.dispatch(view.state.tr);
+  });
+
   onMount(() => {
     const state = EditorState.create({
       schema,
@@ -259,7 +267,7 @@
         yCursorPlugin(collab.awareness),
         yUndoPlugin(),
         slashMenuPlugin(),
-        placeholderPlugin('Write something, or press “/” for commands…'),
+        placeholderPlugin(() => roomName.value, 'Write something, or press “/” for commands…'),
         ...buildPlugins(schema),
       ],
     });
