@@ -49,6 +49,7 @@ export type KeyPurpose =
   | 'conf'
   | 'validated'
   | 'filename'
+  | 'rooms'
   | ConfigFieldName;
 
 /** localStorage key for one of a backend's persisted values: `storage.<id>.<purpose>`. */

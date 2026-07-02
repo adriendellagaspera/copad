@@ -7,6 +7,7 @@
     saveStatus,
     hasStorage,
     storageLabel,
+    warning,
     transport,
     onclick,
   }: {
@@ -14,6 +15,9 @@
     saveStatus: SaveStatus;
     hasStorage: boolean;
     storageLabel?: string;
+    /** A file-collision warning (another room saves to the same file). Shown with
+     *  top precedence over save status while connected. */
+    warning?: string;
     transport: Transport;
     onclick?: () => void;
   } = $props();
@@ -44,6 +48,10 @@
             ? 'Connecting to the signaling server'
             : 'Connecting to the collaboration server',
         };
+      // A file-collision warning outranks save status: the room is saving, but to
+      // a file another room also writes — the user needs to see it.
+      if (warning)
+        return { label: 'File conflict', tone: 'danger', icon: 'cloud', title: warning };
       // connected or waiting — save status is orthogonal and takes precedence while active.
       if (hasStorage) {
         const where = storageLabel ?? 'storage';

@@ -1,7 +1,10 @@
 <script lang="ts">
-  import { tick as nextTick } from 'svelte';
+  import { tick as nextTick, untrack } from 'svelte';
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { StorageBackend } from './storage/index.js';
+  import { ownershipStore } from './storage/ownership.js';
+  import { setActiveRoom, setDefaultRoom, filenameForRoom, firstFileCollision } from './storage/filename.js';
+  import type { Filename } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
   import { websocketCollab } from './collaboration/websocket.js';
   import {
@@ -22,6 +25,7 @@
   import { sessionState } from './collaboration/sessionState.svelte.js';
   import RoomSwitcher from './ui/RoomSwitcher.svelte';
   import IdentityMenu from './ui/IdentityMenu.svelte';
+  import PersistenceBadge from './ui/PersistenceBadge.svelte';
   import StatusPill from './ui/StatusPill.svelte';
   import PresenceBar from './ui/PresenceBar.svelte';
   import ConnectionDialog from './ui/ConnectionDialog.svelte';
@@ -266,10 +270,17 @@
 
   function afterConnect(b: StorageBackend) {
     storage = b;
+    // Connecting a backend makes the room you're in *yours*: add it to this
+    // backend's owned set (each owned room keeps its own file). In every room it
+    // doesn't own, you remain a guest.
+    ownershipStore(b.storage.id).claim(room);
     bump();
   }
 
   function afterDisconnect(_b: StorageBackend) {
+    // Keep the persisted-room set: logging out already makes every room live-only
+    // (savedHere checks isAuthenticated), and retaining it means re-logging in
+    // restores your saved rooms instead of silently orphaning them.
     bump();
   }
 
@@ -293,6 +304,64 @@
   let room = $state<RoomId>(roomFromUrl());
   const sessionRole: SessionRole = roleFromUrl();
 
+  // Tell the storage layer which room every backend targets. The home/default
+  // room keeps the legacy default filename (back-compat); every other room a
+  // backend owns gets its own file, so rooms never share one document. Set before
+  // the Editor first mounts and reads `filename()`.
+  setDefaultRoom(DEFAULT_ROOM);
+  setActiveRoom(untrack(() => room)); // one-time read at init (not reactive)
+
+  // Returning-user default: if a backend is already authenticated but bound to no
+  // room yet (authed before this feature existed, or a fresh session), treat the
+  // room you land in as the one it owns — but only when you arrived at your own
+  // default room, never via a shared `?room=` link (which means you're a guest).
+  // This keeps an existing user's document attached to their home room instead of
+  // silently demoting them to a guest, without ever claiming someone else's room.
+  if (!new URLSearchParams(location.search).has('room')) {
+    // untrack: a one-time read at init (not a reactive dependency).
+    const s = untrack(() => storage);
+    if (s && s.auth.isAuthenticated() && ownershipStore(s.storage.id).rooms().length === 0) {
+      ownershipStore(s.storage.id).claim(untrack(() => room));
+    }
+  }
+
+  // Whether the current room is saved to *your own* storage: a connected backend
+  // of yours is bound to it (you persist it). Otherwise the room is live-only for
+  // you — the Editor gets no Storage (below), so it keeps its own document rather
+  // than inheriting this backend's file. This is a per-user persistence fact, not
+  // a room-level "owner": with per-target autosave, several peers can each save
+  // their own copy. `tick` re-reads the (non-reactive) binding after
+  // connect/disconnect; `room` re-reads it on every room switch.
+  const savedHere = $derived.by(() => {
+    void tick;
+    void room;
+    const s = storage;
+    return !!s && s.auth.isAuthenticated() && ownershipStore(s.storage.id).owns(room);
+  });
+
+  // Another room this backend owns that resolves to the *same* file as the current
+  // one — they'd silently overwrite each other. Detectable only within this
+  // browser (a same-account collision on another machine can't be seen without a
+  // coordination point the serverless model deliberately lacks). null when clear.
+  const fileConflict = $derived.by((): RoomId | null => {
+    void tick;
+    void room;
+    const s = storage;
+    if (!s || !savedHere) return null;
+    const id = s.storage.id;
+    const fallback = s.storage.defaultFilename?.();
+    const files = new Map<RoomId, Filename>();
+    for (const r of ownershipStore(id).rooms()) files.set(r, filenameForRoom(id, r, fallback));
+    return firstFileCollision(room, files);
+  });
+  const conflictWarning = $derived.by((): string | undefined => {
+    const other = fileConflict;
+    const s = storage;
+    if (!other || !s) return undefined;
+    const file = filenameForRoom(s.storage.id, room, s.storage.defaultFilename?.());
+    return `Room “${other}” also saves to ${file} on your ${s.storage.label} — they’ll overwrite each other. Rename this room’s file in Settings.`;
+  });
+
   // Accept a bare id, a "?room=x" fragment, or a full shared URL — so pasting a
   // collaborator's link into the switcher's "open a room" field just works.
   function roomIdFrom(input: string): string {
@@ -313,6 +382,9 @@
     if (r === room) return;
     const qs = r === DEFAULT_ROOM ? '' : `?room=${encodeURIComponent(r)}`;
     history.pushState({}, '', location.pathname + qs);
+    // Point the storage layer at the new room *before* the {#key room} remount, so
+    // the fresh Editor loads/saves this room's own file.
+    setActiveRoom(r);
     room = r;
   }
 
@@ -345,15 +417,22 @@
     <div class="controls">
       <RoomSwitcher {room} name={roomName.value} onRename={renameCurrentRoom} onOpen={goToRoom} />
       <button class="btn-new" onclick={newRoom} title="New document">New</button>
+      <PersistenceBadge
+        saved={savedHere}
+        label={storage?.storage.label}
+        warning={conflictWarning}
+        onclick={savedHere && !conflictWarning ? undefined : () => openSettings()}
+      />
 
       <div class="session">
         <StatusPill
           conn={sessionState.conn}
           saveStatus={sessionState.saveStatus}
-          hasStorage={connected}
-          storageLabel={storage?.storage.label}
+          hasStorage={savedHere}
+          storageLabel={savedHere ? storage?.storage.label : undefined}
+          warning={conflictWarning}
           transport={sessionState.diagnostics.transport}
-          onclick={connected ? undefined : () => openSettings()}
+          onclick={savedHere && !conflictWarning ? undefined : () => openSettings()}
         />
         {#if otherPeers.length > 0}
           <PresenceBar users={otherPeers} />
@@ -416,7 +495,7 @@
         role={sessionRole}
         {connect}
         {toasts}
-        storage={connected ? storage!.storage : null}
+        storage={savedHere ? storage!.storage : null}
         lang={language.resolved}
         spellcheck={language.spellcheck}
       />
@@ -456,6 +535,8 @@
   {room}
   {toasts}
   envPassword={import.meta.env.VITE_ROOM_PASSWORD}
+  saved={savedHere}
+  storageLabel={savedHere ? storage?.storage.label : undefined}
   {onSecurityChange}
 />
 <Toast {toasts} />

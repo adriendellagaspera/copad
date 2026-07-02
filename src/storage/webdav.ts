@@ -5,7 +5,7 @@ import type { Fetch } from '../network/types.js';
 import { filenameStore } from './filename.js';
 import { type WebDavConf, parseWebDavConf } from './parse.js';
 import { localStore } from '../persistence/local.js';
-import { STORAGE_ID, WEBDAV_KEY } from './constants.js';
+import { STORAGE_ID, WEBDAV_KEY, DEFAULT_FILENAME } from './constants.js';
 
 const fileName = filenameStore(STORAGE_ID.webdav);
 const confStore = localStore<WebDavConf | null>(
@@ -67,6 +67,7 @@ export function webdavStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
 
     filename: () => fileName.get(),
     setFilename: fileName.set,
+    defaultFilename: () => DEFAULT_FILENAME,
 
     contentFormat: DocFormat.Binary,
 
