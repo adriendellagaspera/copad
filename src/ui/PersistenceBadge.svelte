@@ -8,30 +8,41 @@
   let {
     saved,
     label,
+    warning,
     onclick,
   }: {
     saved: boolean;
     label?: string;
+    /** A file-collision warning (another room saves to the same file). When set,
+     *  the badge shows a conflict state regardless of `saved`. */
+    warning?: string;
     onclick?: () => void;
   } = $props();
 
   const title = $derived(
-    saved
-      ? `This room autosaves to your ${label ?? 'storage'}. Collaborators edit live but can’t write to your storage.`
-      : 'Live-only for you — real-time collaboration + local cache, but nothing of yours saves this room. Connect a storage backend to save it to your own storage.',
+    warning
+      ? warning
+      : saved
+        ? `This room autosaves to your ${label ?? 'storage'}. Collaborators edit live but can’t write to your storage.`
+        : 'Live-only for you — real-time collaboration + local cache, but nothing of yours saves this room. Connect a storage backend to save it to your own storage.',
   );
 </script>
 
 <svelte:element
   this={onclick ? 'button' : 'span'}
-  class="badge {saved ? 'saved' : 'live'}"
+  class="badge {warning ? 'conflict' : saved ? 'saved' : 'live'}"
   class:clickable={!!onclick}
   type={onclick ? 'button' : undefined}
   role={onclick ? undefined : 'status'}
   {title}
   {onclick}
 >
-  {#if saved}
+  {#if warning}
+    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" />
+    </svg>
+    <span class="badge-label">Conflict</span>
+  {:else if saved}
     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><path d="M17 21v-8H7v8M7 3v5h8" />
     </svg>
@@ -63,6 +74,10 @@
   .badge.live {
     color: var(--text-muted);
     background: var(--surface-3);
+  }
+  .badge.conflict {
+    color: var(--danger);
+    background: var(--danger-soft);
   }
   .badge.clickable {
     border: none;

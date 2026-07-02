@@ -34,6 +34,11 @@ export function setDefaultRoom(room: RoomId): void {
   defaultRoom = room;
 }
 
+/** localStorage key for a backend's target filename in one room. */
+function perRoomFilenameKey(backendId: StorageId, room: RoomId) {
+  return storageKey(`storage.${backendId}.filename.${room}`);
+}
+
 /** A filesystem-safe stem cut from a room id (drop anything but `[A-Za-z0-9._-]`). */
 function roomStem(room: RoomId): string {
   return room.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'document';
@@ -78,7 +83,7 @@ export function filenameStore(backendId: StorageId, fallback: Filename = DEFAULT
 
   const perRoom = (room: RoomId) =>
     localStore<Filename>(
-      storageKey(`storage.${backendId}.filename.${room}`),
+      perRoomFilenameKey(backendId, room),
       (raw) => parseFilename(raw, roomDefaultFilename(room, fallback)),
       (name) => name.trim() || null,
     );
@@ -104,4 +109,36 @@ export function filenameStore(backendId: StorageId, fallback: Filename = DEFAULT
       perRoom(currentRoom()).write(name.trim() as Filename);
     },
   };
+}
+
+/** The target filename a backend uses for a *specific* room (without switching
+ *  the active room). Used to detect when two rooms resolve to the same file. */
+export function filenameForRoom(
+  backendId: StorageId,
+  room: RoomId,
+  fallback: Filename = DEFAULT_FILENAME,
+): Filename {
+  return localStore<Filename>(
+    perRoomFilenameKey(backendId, room),
+    (raw) => parseFilename(raw, roomDefaultFilename(room, fallback)),
+    (name) => name.trim() || null,
+  ).read();
+}
+
+/**
+ * The first room in `files` (other than `current`) that resolves to the *same*
+ * filename as `current` — i.e. a room that would write to the same physical file
+ * on this backend, silently overwriting the other. `null` when there's no clash.
+ * Pure, so it's unit-testable; the caller supplies each owned room's filename.
+ */
+export function firstFileCollision(
+  current: RoomId,
+  files: ReadonlyMap<RoomId, Filename>,
+): RoomId | null {
+  const mine = files.get(current);
+  if (!mine) return null;
+  for (const [room, name] of files) {
+    if (room !== current && name === mine) return room;
+  }
+  return null;
 }

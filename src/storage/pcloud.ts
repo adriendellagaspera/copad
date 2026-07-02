@@ -10,6 +10,7 @@ import { localStore } from '../persistence/local.js';
 import {
   STORAGE_ID,
   CLOUD_FOLDER,
+  DEFAULT_FILENAME,
   PCLOUD_SESSION_KEY,
   PCLOUD_API_HOST,
   PCLOUD_EU_API_HOST,
@@ -79,6 +80,7 @@ export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: St
 
     filename: () => fileName.get(),
     setFilename: fileName.set,
+    defaultFilename: () => DEFAULT_FILENAME,
 
     contentFormat: DocFormat.Binary,
 

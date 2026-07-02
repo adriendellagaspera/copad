@@ -166,6 +166,12 @@ room property. This is worth understanding so nothing surprises you:
 - **Local backend caveat**: the Local-file backend holds a single picked file, so it
   effectively serves one room's document at a time — switching rooms no longer carries
   content, but re-importing a file in another room repoints that one file.
+- **Two rooms, one file → warning**: filenames are user-settable, so you *can* point two
+  rooms on one backend at the same file (they'd overwrite each other). The header shows a
+  **Conflict** badge / **File conflict** status when it detects this, linking to Settings to
+  rename. It's a **same-browser** check: if the same file is claimed by another room on a
+  **different machine** (same cloud account), there's no serverless way to notice it — so
+  give each room a distinct file name. See *Known limitations*.
 
 ## Cost breakdown
 
@@ -226,6 +232,7 @@ Copy the resulting `wss://` URL into `VITE_WEBSOCKET_URL` (or `VITE_SIGNALING_UR
 - **OAuth token in the browser**: acceptable for a small app; the proxy can keep secrets server-side for a harder security posture.
 - **Single authority**: if you want zero CORS/leader issues, replace y-webrtc with a small Yjs server ([Hocuspocus](https://tiptap.dev/docs/hocuspocus/introduction) / Cloudflare Durable Object) that persists via the same `StorageAdapter`.
 - **Two people, one genuinely shared file**: leader election dedupes writers per *target* (a hash of browser + backend + filename), which correctly lets different accounts each save their own copy. The flip side: if two different people point at the *same* shared file (e.g. the same GitHub repo/branch/path), they're treated as distinct targets and may both write — harmless for last-writer-wins backends, or a self-healing conflict (409) on GitHub's sha-based updates. The intended model is one saved copy per person.
+- **Same file claimed by two rooms across machines**: the header warns when two of *your* rooms (in this browser) resolve to the same file, but a same-account collision from **another machine** is invisible — there's no server to coordinate room→file ownership, by design. Give each room a distinct file name to be safe.
 
 ## Project structure
 

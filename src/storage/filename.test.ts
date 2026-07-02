@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { filenameStore, setActiveRoom, setDefaultRoom } from './filename.js';
+import { filenameStore, filenameForRoom, firstFileCollision, setActiveRoom, setDefaultRoom } from './filename.js';
 import { STORAGE_ID } from './constants.js';
 import type { Filename } from './types.js';
 import type { RoomId } from '../collaboration/types.js';
@@ -74,5 +74,32 @@ describe('filenameStore — per-room targets', () => {
     setActiveRoom(HOME);
     expect(filenameStore(STORAGE_ID.dropbox).get()).toBe('document.yjs');
     expect(store['storage.dropbox.filename.copad-demo']).toBeUndefined();
+  });
+
+  it('filenameForRoom reads a specific room without switching the active room', () => {
+    setActiveRoom(HOME);
+    expect(filenameForRoom(STORAGE_ID.dropbox, OTHER)).toBe('my-notes.yjs'); // derived, not the active HOME
+    expect(filenameForRoom(STORAGE_ID.dropbox, HOME)).toBe('document.yjs');
+  });
+});
+
+describe('firstFileCollision', () => {
+  const A = 'a' as RoomId;
+  const B = 'b' as RoomId;
+  const C = 'c' as RoomId;
+  const f = (s: string) => s as unknown as import('./types.js').Filename;
+
+  it('returns null when the current room’s file is unique', () => {
+    const files = new Map([[A, f('a.yjs')], [B, f('b.yjs')]]);
+    expect(firstFileCollision(A, files)).toBeNull();
+  });
+
+  it('finds another room that resolves to the same file', () => {
+    const files = new Map([[A, f('notes.md')], [B, f('other.md')], [C, f('notes.md')]]);
+    expect(firstFileCollision(A, files)).toBe(C);
+  });
+
+  it('returns null when the current room is absent from the map', () => {
+    expect(firstFileCollision(A, new Map([[B, f('b.yjs')]]))).toBeNull();
   });
 });

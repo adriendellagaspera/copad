@@ -10,16 +10,16 @@
  */
 
 import type { StorageId, Filename } from '../storage/types.js';
-import type { InstallId } from './installId.js';
+import type { BrowserId } from './browserId.js';
 import type { PersistTarget, PeerAwarenessState } from './types.js';
 
 /**
  * The key two peers share **iff** they write the same physical file: same
- * browser install + same backend + same filename. A hash (djb2 → hex) of those,
- * so the actual account/path/name never travels in awareness.
+ * browser + same backend + same filename. A hash (djb2 → hex) of those, so the
+ * actual account/path/name never travels in awareness.
  */
-export function persistTargetKey(install: InstallId, storage: StorageId, filename: Filename): PersistTarget {
-  const s = `${install}:${storage}:${filename}`;
+export function persistTargetKey(browser: BrowserId, storage: StorageId, filename: Filename): PersistTarget {
+  const s = `${browser}:${storage}:${filename}`;
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
   return (h >>> 0).toString(16) as PersistTarget;

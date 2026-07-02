@@ -133,6 +133,9 @@ export interface Storage {
   filename?(): Filename;
   /** Change the target filename. Absent where the name is fixed by the backend. */
   setFilename?(name: string): void;
+  /** The backend's default filename (the fallback when a room has none set).
+   *  Exposed so callers can resolve *another* room's target for collision checks. */
+  defaultFilename?(): Filename;
 
   readonly contentFormat: DocFormat;
   load(): Promise<DocContent | null>;

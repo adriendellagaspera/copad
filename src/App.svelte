@@ -3,7 +3,8 @@
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { StorageBackend } from './storage/index.js';
   import { ownershipStore } from './storage/ownership.js';
-  import { setActiveRoom, setDefaultRoom } from './storage/filename.js';
+  import { setActiveRoom, setDefaultRoom, filenameForRoom, firstFileCollision } from './storage/filename.js';
+  import type { Filename } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
   import { websocketCollab } from './collaboration/websocket.js';
   import {
@@ -338,6 +339,29 @@
     return !!s && s.auth.isAuthenticated() && ownershipStore(s.storage.id).owns(room);
   });
 
+  // Another room this backend owns that resolves to the *same* file as the current
+  // one — they'd silently overwrite each other. Detectable only within this
+  // browser (a same-account collision on another machine can't be seen without a
+  // coordination point the serverless model deliberately lacks). null when clear.
+  const fileConflict = $derived.by((): RoomId | null => {
+    void tick;
+    void room;
+    const s = storage;
+    if (!s || !savedHere) return null;
+    const id = s.storage.id;
+    const fallback = s.storage.defaultFilename?.();
+    const files = new Map<RoomId, Filename>();
+    for (const r of ownershipStore(id).rooms()) files.set(r, filenameForRoom(id, r, fallback));
+    return firstFileCollision(room, files);
+  });
+  const conflictWarning = $derived.by((): string | undefined => {
+    const other = fileConflict;
+    const s = storage;
+    if (!other || !s) return undefined;
+    const file = filenameForRoom(s.storage.id, room, s.storage.defaultFilename?.());
+    return `Room “${other}” also saves to ${file} on your ${s.storage.label} — they’ll overwrite each other. Rename this room’s file in Settings.`;
+  });
+
   // Accept a bare id, a "?room=x" fragment, or a full shared URL — so pasting a
   // collaborator's link into the switcher's "open a room" field just works.
   function roomIdFrom(input: string): string {
@@ -396,7 +420,8 @@
       <PersistenceBadge
         saved={savedHere}
         label={storage?.storage.label}
-        onclick={savedHere ? undefined : () => openSettings()}
+        warning={conflictWarning}
+        onclick={savedHere && !conflictWarning ? undefined : () => openSettings()}
       />
 
       <div class="session">
@@ -405,8 +430,9 @@
           saveStatus={sessionState.saveStatus}
           hasStorage={savedHere}
           storageLabel={savedHere ? storage?.storage.label : undefined}
+          warning={conflictWarning}
           transport={sessionState.diagnostics.transport}
-          onclick={savedHere ? undefined : () => openSettings()}
+          onclick={savedHere && !conflictWarning ? undefined : () => openSettings()}
         />
         {#if otherPeers.length > 0}
           <PresenceBar users={otherPeers} />

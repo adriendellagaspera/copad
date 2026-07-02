@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { persistTargetKey, isPersistLeader } from './leader.js';
-import type { InstallId } from './installId.js';
+import type { BrowserId } from './browserId.js';
 import type { PersistTarget, PeerAwarenessState } from './types.js';
 import type { StorageId, Filename } from '../storage/types.js';
 import { SessionRole } from './types.js';
 
-const INSTALL_A = 'install-a' as InstallId;
-const INSTALL_B = 'install-b' as InstallId;
+const INSTALL_A = 'browser-a' as BrowserId;
+const INSTALL_B = 'browser-b' as BrowserId;
 const DROPBOX = 'dropbox' as StorageId;
 const GITHUB = 'github' as StorageId;
 const DOC = 'document.yjs' as Filename;
@@ -25,7 +25,7 @@ describe('persistTargetKey', () => {
     expect(persistTargetKey(INSTALL_A, DROPBOX, DOC)).toBe(persistTargetKey(INSTALL_A, DROPBOX, DOC));
   });
 
-  it('differs for different browser installs (two accounts → distinct files)', () => {
+  it('differs for different browsers (two accounts → distinct files)', () => {
     expect(persistTargetKey(INSTALL_A, DROPBOX, DOC)).not.toBe(persistTargetKey(INSTALL_B, DROPBOX, DOC));
   });
 

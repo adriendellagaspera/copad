@@ -30,7 +30,7 @@
   import { ConnStatus, SessionRole } from './collaboration/types.js';
   import type { RoomName, PersistTarget } from './collaboration/types.js';
   import { parsePeerAwarenessState, parseRoomName } from './collaboration/parse.js';
-  import { installId } from './collaboration/installId.js';
+  import { browserId } from './collaboration/browserId.js';
   import { persistTargetKey, isPersistLeader } from './collaboration/leader.js';
   import { bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
   import {
@@ -204,7 +204,7 @@
   const DEFAULT_TARGET_FILE = 'document.yjs' as Filename;
   const myPersistTarget = (): PersistTarget | undefined =>
     storage && canPersist
-      ? persistTargetKey(installId(), storage.id, storage.filename?.() ?? DEFAULT_TARGET_FILE)
+      ? persistTargetKey(browserId(), storage.id, storage.filename?.() ?? DEFAULT_TARGET_FILE)
       : undefined;
 
   // Leader = the lowest-clientID persister *writing the same file* (same target).
