@@ -100,12 +100,12 @@ jobs:
 
       # Run the real coturn binary against the (placeholder-substituted) config:
       # it should start and stay up. A fast non-124 exit means coturn rejected it.
-      # Non-gating (continue-on-error): this exercises a pulled image + host
-      # networking on the runner, which the deterministic checks above don't need —
-      # it surfaces coturn's log for inspection without blocking the PR on the
-      # runtime environment. Flip to gating once it's observed green in CI.
+      # Gating: this caught an invalid shipped config (trailing inline comments,
+      # which coturn parses as a directive's value) that the deterministic checks
+      # above can't see. It was previously continue-on-error, which let the
+      # rejection pass as a green run — the failure was silent. Keep it gating so
+      # a config coturn won't accept fails the PR instead of shipping broken.
       - name: Smoke-test that coturn accepts the config
-        continue-on-error: true
         run: |
           sed -e 's/YOUR_PUBLIC_IP/127.0.0.1/' \
               -e 's/YOUR_DOMAIN/test.local/' \
