@@ -80,12 +80,13 @@ a `Storage` and register it in [`src/storage/index.ts`](src/storage/index.ts).
 
 ## The optional shared proxy
 
-For backends without CORS support, [`src/network/cloudflare-proxy/`](src/network/cloudflare-proxy/) is a
+For backends without CORS support, [`deploy/proxy-worker/`](deploy/proxy-worker/) is a
 **generic forward proxy**: the app sends its request to `<proxy>/__proxy` with the
 real target URL in the `x-target-url` header, and the worker forwards it with CORS
-headers added. Enable it via `VITE_PROXY_URL`. Runs on Cloudflare's free tier (100k req/day).
+headers added. The client half — `proxiedFetch()` in [`src/network/proxy.ts`](src/network/proxy.ts) —
+is bundled into the app. Enable it via `VITE_PROXY_URL`. Runs on Cloudflare's free tier (100k req/day).
 
-> ⚠️ Restrict the proxy with `ALLOWED_HOSTS` in [`src/network/cloudflare-proxy/wrangler.toml`](src/network/cloudflare-proxy/wrangler.toml)
+> ⚠️ Restrict the proxy with `ALLOWED_HOSTS` in [`deploy/proxy-worker/wrangler.toml`](deploy/proxy-worker/wrangler.toml)
 > so it can't be used as an open relay. Credentials that transit it stay on **your** worker.
 
 ## Quick start (local)
@@ -115,7 +116,7 @@ saved in the browser, and an `.env` value locks the field as deployment-managed.
 
 ### Set up WebDAV / Nextcloud
 
-1. Deploy the proxy ([`src/network/cloudflare-proxy/`](src/network/cloudflare-proxy/)) and set `VITE_PROXY_URL` (add your domain to `ALLOWED_HOSTS`).
+1. Deploy the proxy ([`deploy/proxy-worker/`](deploy/proxy-worker/)) and set `VITE_PROXY_URL` (add your domain to `ALLOWED_HOSTS`).
 2. In the app, choose **WebDAV / Nextcloud**, enter the folder URL (`https://…/remote.php/dav/files/USER/Collab`), your username, and a **Nextcloud app password**.
 
 ### Set up pCloud
@@ -159,7 +160,7 @@ you only host a static frontend and a tiny signaling server.
    - **WebSocket hub** (`VITE_COLLAB_TRANSPORT=websocket`): a y-websocket hub; set `VITE_WEBSOCKET_URL` to its `wss://` URL. No WebRTC, so **no STUN/TURN** — works on any network.
 
    The URL **must** be `wss://` — browsers block insecure `ws://` from an `https://` page (mixed content). If the selected transport's server is unset, the app shows a warning banner and real-time collaboration stays disabled.
-3. **(Optional) Proxy**: `cd src/network/cloudflare-proxy && npx wrangler deploy`, then set `VITE_PROXY_URL`.
+3. **(Optional) Proxy**: `cd deploy/proxy-worker && npx wrangler deploy`, then set `VITE_PROXY_URL`.
 4. Set `VITE_ROOM_PASSWORD` to end-to-end encrypt the P2P channel (WebRTC transport only — the WebSocket hub sees plaintext updates).
 
 ### Deploying a collaboration server
@@ -212,7 +213,8 @@ src/
   network/
     types.ts                # Fetch type alias
     direct.ts               # pass-through fetch
-    cloudflare-proxy/       # generic CORS proxy (optional, Cloudflare Worker)
+    proxy.ts                # proxiedFetch client for the optional CORS proxy
+                            #   (the deployable Worker lives in deploy/proxy-worker/)
   collaboration/
     types.ts     # Collab + CollabConnect interfaces (the ports)
     webrtc.ts    # y-webrtc peer-to-peer adapter (default transport)
