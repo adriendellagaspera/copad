@@ -12,6 +12,8 @@
     room,
     toasts,
     envPassword,
+    owner = false,
+    storageLabel,
     onSecurityChange,
   }: {
     open: boolean;
@@ -19,6 +21,10 @@
     room: RoomId;
     toasts: Toasts;
     envPassword?: string;
+    /** Whether the local user owns this room (their backend persists it). */
+    owner?: boolean;
+    /** Label of the owning backend (only meaningful when `owner`). */
+    storageLabel?: string;
     /** Called after the room's encryption changes, so the Editor can reconnect. */
     onSecurityChange?: () => void;
   } = $props();
@@ -117,6 +123,16 @@
     {/if}
   </p>
 
+  <p class="persist-note" class:owned={owner}>
+    {#if owner}
+      💾 Saved to <strong>your {storageLabel ?? 'storage'}</strong>. Collaborators edit live but
+      can’t write to your storage — only you persist this document.
+    {:else}
+      ⚡ This room isn’t backed by any storage of yours — it lives in the live session and each
+      device’s local cache only. Connect a backend to save it to your own storage.
+    {/if}
+  </p>
+
   <div class="share-row">
     <input
       bind:this={inputEl}
@@ -209,6 +225,22 @@
     color: var(--text-muted);
     font-size: var(--fs-300);
     line-height: 1.5;
+  }
+  .persist-note {
+    margin: 0 0 var(--sp-4);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-2, 6px);
+    background: var(--surface-3);
+    color: var(--text-muted);
+    font-size: var(--fs-300);
+    line-height: 1.5;
+  }
+  .persist-note.owned {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .persist-note strong {
+    font-weight: 600;
   }
   .share-row {
     display: flex;

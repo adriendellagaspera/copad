@@ -507,6 +507,8 @@
   {room}
   {toasts}
   envPassword={import.meta.env.VITE_ROOM_PASSWORD}
+  owner={isOwner}
+  storageLabel={isOwner ? storage?.storage.label : undefined}
   {onSecurityChange}
 />
 <Toast {toasts} />
