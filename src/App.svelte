@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { tick as nextTick } from 'svelte';
+  import { tick as nextTick, untrack } from 'svelte';
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { StorageBackend } from './storage/index.js';
+  import { ownershipStore } from './storage/ownership.js';
+  import { setActiveRoom, setDefaultRoom } from './storage/filename.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
   import { websocketCollab } from './collaboration/websocket.js';
   import {
@@ -22,6 +24,7 @@
   import { sessionState } from './collaboration/sessionState.svelte.js';
   import RoomSwitcher from './ui/RoomSwitcher.svelte';
   import IdentityMenu from './ui/IdentityMenu.svelte';
+  import OwnershipBadge from './ui/OwnershipBadge.svelte';
   import StatusPill from './ui/StatusPill.svelte';
   import PresenceBar from './ui/PresenceBar.svelte';
   import ConnectionDialog from './ui/ConnectionDialog.svelte';
@@ -266,10 +269,17 @@
 
   function afterConnect(b: StorageBackend) {
     storage = b;
+    // Connecting a backend makes the room you're in *yours*: add it to this
+    // backend's owned set (each owned room keeps its own file). In every room it
+    // doesn't own, you remain a guest.
+    ownershipStore(b.storage.id).claim(room);
     bump();
   }
 
   function afterDisconnect(_b: StorageBackend) {
+    // Keep the owned-room set: logging out already makes you a guest everywhere
+    // (isOwner checks isAuthenticated), and retaining it means re-logging in
+    // restores ownership of your rooms instead of silently orphaning them.
     bump();
   }
 
@@ -293,6 +303,39 @@
   let room = $state<RoomId>(roomFromUrl());
   const sessionRole: SessionRole = roleFromUrl();
 
+  // Tell the storage layer which room every backend targets. The home/default
+  // room keeps the legacy default filename (back-compat); every other room a
+  // backend owns gets its own file, so rooms never share one document. Set before
+  // the Editor first mounts and reads `filename()`.
+  setDefaultRoom(DEFAULT_ROOM);
+  setActiveRoom(untrack(() => room)); // one-time read at init (not reactive)
+
+  // Returning-user default: if a backend is already authenticated but bound to no
+  // room yet (authed before this feature existed, or a fresh session), treat the
+  // room you land in as the one it owns — but only when you arrived at your own
+  // default room, never via a shared `?room=` link (which means you're a guest).
+  // This keeps an existing user's document attached to their home room instead of
+  // silently demoting them to a guest, without ever claiming someone else's room.
+  if (!new URLSearchParams(location.search).has('room')) {
+    // untrack: a one-time read at init (not a reactive dependency).
+    const s = untrack(() => storage);
+    if (s && s.auth.isAuthenticated() && ownershipStore(s.storage.id).rooms().length === 0) {
+      ownershipStore(s.storage.id).claim(untrack(() => room));
+    }
+  }
+
+  // Whether the current room is *yours*: a connected backend of yours is bound to
+  // it. In any other room you're a guest — the Editor gets no Storage (below), so
+  // that room keeps its own document rather than inheriting this backend's file.
+  // `tick` re-reads the (non-reactive) binding after connect/disconnect; `room`
+  // re-reads it on every room switch.
+  const isOwner = $derived.by(() => {
+    void tick;
+    void room;
+    const s = storage;
+    return !!s && s.auth.isAuthenticated() && ownershipStore(s.storage.id).owns(room);
+  });
+
   // Accept a bare id, a "?room=x" fragment, or a full shared URL — so pasting a
   // collaborator's link into the switcher's "open a room" field just works.
   function roomIdFrom(input: string): string {
@@ -313,6 +356,9 @@
     if (r === room) return;
     const qs = r === DEFAULT_ROOM ? '' : `?room=${encodeURIComponent(r)}`;
     history.pushState({}, '', location.pathname + qs);
+    // Point the storage layer at the new room *before* the {#key room} remount, so
+    // the fresh Editor loads/saves this room's own file.
+    setActiveRoom(r);
     room = r;
   }
 
@@ -345,15 +391,20 @@
     <div class="controls">
       <RoomSwitcher {room} name={roomName.value} onRename={renameCurrentRoom} onOpen={goToRoom} />
       <button class="btn-new" onclick={newRoom} title="New document">New</button>
+      <OwnershipBadge
+        owner={isOwner}
+        label={storage?.storage.label}
+        onclick={isOwner ? undefined : () => openSettings()}
+      />
 
       <div class="session">
         <StatusPill
           conn={sessionState.conn}
           saveStatus={sessionState.saveStatus}
-          hasStorage={connected}
-          storageLabel={storage?.storage.label}
+          hasStorage={isOwner}
+          storageLabel={isOwner ? storage?.storage.label : undefined}
           transport={sessionState.diagnostics.transport}
-          onclick={connected ? undefined : () => openSettings()}
+          onclick={isOwner ? undefined : () => openSettings()}
         />
         {#if otherPeers.length > 0}
           <PresenceBar users={otherPeers} />
@@ -416,7 +467,7 @@
         role={sessionRole}
         {connect}
         {toasts}
-        storage={connected ? storage!.storage : null}
+        storage={isOwner ? storage!.storage : null}
         lang={language.resolved}
         spellcheck={language.spellcheck}
       />

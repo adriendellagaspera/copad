@@ -316,13 +316,14 @@
     {#snippet filenameField(b: StorageBackend)}
       {#if b.storage.setFilename}
         <label class="field">
-          <span class="field-label">File name</span>
+          <span class="field-label">File name (this room)</span>
           <input
             value={filenameOf(b)}
             placeholder="document.yjs"
             oninput={e => setFilename(b, e.currentTarget.value)}
           />
           <small class="field-help">
+            The target file for the current room — each room you own keeps its own document.
             The extension picks the format — .yjs (native), .md, .html, .json (PM), or any
             source/text extension (.txt, .py, .js, .ts, .rs, .go, .yml, …).
             Takes effect on connect.
