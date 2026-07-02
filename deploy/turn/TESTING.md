@@ -6,7 +6,7 @@ Validation is manual and splits into three tiers by how much you stand up. Tiers
 
 The Tier 0 checks (compose validity, the `.gitignore` guard, and the presence of
 the hardening directives) also run automatically in CI — see the `turn` job in
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
 
 ## Tier 0 — no server (~2 min)
 
@@ -15,14 +15,14 @@ be committed.
 
 ```bash
 # Compose is valid and the image is pinned (not :latest)
-docker compose -f turn/docker-compose.yml config | grep image
+docker compose -f deploy/turn/docker-compose.yml config | grep image
 
 # The live config (with real secrets) is git-ignored
-cp turn/turnserver.conf.example turn/turnserver.conf
-printf '\nuser=copad:my-real-secret\n' >> turn/turnserver.conf
-git check-ignore turn/turnserver.conf    # prints the path → it's ignored
-git status --porcelain turn/             # turnserver.conf must NOT be listed
-rm -f turn/turnserver.conf
+cp deploy/turn/turnserver.conf.example deploy/turn/turnserver.conf
+printf '\nuser=copad:my-real-secret\n' >> deploy/turn/turnserver.conf
+git check-ignore deploy/turn/turnserver.conf    # prints the path → it's ignored
+git status --porcelain deploy/turn/             # turnserver.conf must NOT be listed
+rm -f deploy/turn/turnserver.conf
 ```
 
 ## Tier 1 — local Docker smoke test (~10 min, no VPS)
@@ -32,13 +32,13 @@ allocation. Validates the widened relay range and the quotas at the "coturn
 accepted them" level.
 
 ```bash
-cp turn/turnserver.conf.example turn/turnserver.conf
-# In turn/turnserver.conf set:
+cp deploy/turn/turnserver.conf.example deploy/turn/turnserver.conf
+# In deploy/turn/turnserver.conf set:
 #   external-ip=<your-LAN-IP>     e.g. 192.168.1.20  (the relay's own address,
 #                                  NOT a peer — unaffected by the deny list)
 #   realm=test.local
 #   user=copad:testsecret
-docker compose -f turn/docker-compose.yml up      # foreground, watch the logs
+docker compose -f deploy/turn/docker-compose.yml up      # foreground, watch the logs
 ```
 
 In the logs, confirm the hardening parsed (the real check that the directives are
@@ -66,7 +66,7 @@ page:
 NAT traversal and `turns://` TLS can't be exercised locally.
 
 ```bash
-# After deploying turn/ with a real turnserver.conf + Let's Encrypt certs
+# After deploying deploy/turn/ with a real turnserver.conf + Let's Encrypt certs
 # (uncomment cert/pkey), confirm the TLS listener is actually up:
 openssl s_client -connect your-domain:5349 </dev/null 2>/dev/null \
   | openssl x509 -noout -dates

@@ -51,8 +51,8 @@ jobs:
         env:
           CI: true
 
-  # Validate the self-hosted TURN relay (turn/). Infra, not app code, so these
-  # are structural guards, not a live relay test — see turn/TESTING.md for the
+  # Validate the self-hosted TURN relay (deploy/turn/). Infra, not app code, so these
+  # are structural guards, not a live relay test — see deploy/turn/TESTING.md for the
   # manual tiers that exercise NAT traversal and TLS on a real VPS.
   turn:
     runs-on: ubuntu-latest
@@ -62,24 +62,24 @@ jobs:
       # Compose is valid and the coturn image is pinned (never :latest).
       - name: Validate compose file and image pin
         run: |
-          rendered=$(docker compose -f turn/docker-compose.yml config)
+          rendered=$(docker compose -f deploy/turn/docker-compose.yml config)
           echo "$rendered" | grep -qE 'image: coturn/coturn:[0-9]' \
-            || { echo "::error file=turn/docker-compose.yml::coturn image must be pinned to a version, not :latest"; exit 1; }
+            || { echo "::error file=deploy/turn/docker-compose.yml::coturn image must be pinned to a version, not :latest"; exit 1; }
 
       # The live config (with real secrets) must be git-ignored so an operator's
       # edited copy can't be committed.
       - name: Assert turnserver.conf is git-ignored
         run: |
-          cp turn/turnserver.conf.example turn/turnserver.conf
-          git check-ignore -q turn/turnserver.conf \
-            || { echo "::error file=turn/.gitignore::turn/turnserver.conf is not git-ignored — real secrets could be committed"; exit 1; }
-          rm -f turn/turnserver.conf
+          cp deploy/turn/turnserver.conf.example deploy/turn/turnserver.conf
+          git check-ignore -q deploy/turn/turnserver.conf \
+            || { echo "::error file=deploy/turn/.gitignore::deploy/turn/turnserver.conf is not git-ignored — real secrets could be committed"; exit 1; }
+          rm -f deploy/turn/turnserver.conf
 
       # The security-critical directives must stay in the template (guards against
       # an accidental deletion silently weakening the relay).
       - name: Assert hardening directives are present
         run: |
-          conf=turn/turnserver.conf.example
+          conf=deploy/turn/turnserver.conf.example
           req=(
             'denied-peer-ip=127.0.0.0-127.255.255.255'
             'denied-peer-ip=169.254.0.0-169.254.255.255'
@@ -99,27 +99,36 @@ jobs:
           exit $status
 
       # Run the real coturn binary against the (placeholder-substituted) config:
-      # it should start and stay up. A fast non-124 exit means coturn rejected it.
+      # it should start and stay up. If coturn rejects the config it exits early,
+      # so the container is no longer running after a short grace period.
       # Gating: this caught an invalid shipped config (trailing inline comments,
       # which coturn parses as a directive's value) that the deterministic checks
       # above can't see. It was previously continue-on-error, which let the
       # rejection pass as a green run — the failure was silent. Keep it gating so
       # a config coturn won't accept fails the PR instead of shipping broken.
+      #
+      # Run DETACHED and inspect State.Running rather than `timeout docker run`:
+      # a valid config makes coturn a long-lived daemon that ignores the SIGTERM
+      # `timeout` forwards through the docker CLI, so `timeout` (no --kill-after)
+      # would wait forever and hang the job.
       - name: Smoke-test that coturn accepts the config
         run: |
           sed -e 's/YOUR_PUBLIC_IP/127.0.0.1/' \
               -e 's/YOUR_DOMAIN/test.local/' \
               -e 's/CHANGE_ME_STRONG_SECRET/ci-test-secret/' \
-              turn/turnserver.conf.example > /tmp/turnserver.conf
+              deploy/turn/turnserver.conf.example > /tmp/turnserver.conf
           set +e
-          timeout 6 docker run --rm --network host \
+          docker run -d --name coturn-smoke --network host \
             -v /tmp/turnserver.conf:/etc/coturn/turnserver.conf:ro \
-            coturn/coturn:4.6.2 -c /etc/coturn/turnserver.conf >/tmp/coturn.log 2>&1
-          code=$?
+            coturn/coturn:4.6.2 -c /etc/coturn/turnserver.conf
+          sleep 5
+          running=$(docker inspect -f '{{.State.Running}}' coturn-smoke 2>/dev/null)
+          docker logs coturn-smoke > /tmp/coturn.log 2>&1
+          docker rm -f coturn-smoke >/dev/null 2>&1
           set -e
           echo "----- coturn log -----"; cat /tmp/coturn.log; echo "----------------------"
-          if [ "$code" != "124" ]; then
-            echo "::error::coturn exited early (code $code) — it likely rejected the config"; exit 1
+          if [ "$running" != "true" ]; then
+            echo "::error::coturn exited early — it likely rejected the config"; exit 1
           fi
           if grep -iq 'cannot parse' /tmp/coturn.log; then
             echo "::error::coturn reported a config parse error"; exit 1

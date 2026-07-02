@@ -42,7 +42,7 @@ rate-limited; for reliability, run your own.
 
 ## Point Copad at it
 
-Either set build-time env vars (see [`.env.example`](../.env.example)):
+Either set build-time env vars (see [`.env.example`](../../.env.example)):
 
 ```
 VITE_TURN_URL=turns:your-domain:5349
