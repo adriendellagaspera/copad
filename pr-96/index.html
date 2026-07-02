@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Copad — collaborative writing</title>
+    <meta
+      name="description"
+      content="Copad is a real-time collaborative writing tool. Write together peer-to-peer, no server required, and save to your own cloud storage."
+    />
+    <link rel="icon" type="image/svg+xml" href="/copad/pr-96/favicon.svg" />
+    <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#16161a" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Resolve the theme before first paint to avoid a flash of the wrong theme. -->
+    <script>
+      (function () {
+        try {
+          var choice = localStorage.getItem('copad:theme') || 'system';
+          var dark =
+            choice === 'dark' ||
+            (choice === 'system' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/copad/pr-96/assets/main-BFXPQm4o.js"></script>
+    <link rel="modulepreload" crossorigin href="/copad/pr-96/assets/lib-D54bnSvk.js">
+    <link rel="stylesheet" crossorigin href="/copad/pr-96/assets/main-C_A5wAyO.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
