@@ -12,7 +12,7 @@
     room,
     toasts,
     envPassword,
-    owner = false,
+    saved = false,
     storageLabel,
     onSecurityChange,
   }: {
@@ -21,9 +21,9 @@
     room: RoomId;
     toasts: Toasts;
     envPassword?: string;
-    /** Whether the local user owns this room (their backend persists it). */
-    owner?: boolean;
-    /** Label of the owning backend (only meaningful when `owner`). */
+    /** Whether this room is saved to the local user's own storage backend. */
+    saved?: boolean;
+    /** Label of the backend saving it (only meaningful when `saved`). */
     storageLabel?: string;
     /** Called after the room's encryption changes, so the Editor can reconnect. */
     onSecurityChange?: () => void;
@@ -123,12 +123,12 @@
     {/if}
   </p>
 
-  <p class="persist-note" class:owned={owner}>
-    {#if owner}
+  <p class="persist-note" class:owned={saved}>
+    {#if saved}
       💾 Saved to <strong>your {storageLabel ?? 'storage'}</strong>. Collaborators edit live but
-      can’t write to your storage — only you persist this document.
+      can’t write to your storage; anyone who connects their own backend keeps their own saved copy.
     {:else}
-      ⚡ This room isn’t backed by any storage of yours — it lives in the live session and each
+      ⚡ This room isn’t saved to any storage of yours — it lives in the live session and each
       device’s local cache only. Connect a backend to save it to your own storage.
     {/if}
   </p>

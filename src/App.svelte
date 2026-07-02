@@ -24,7 +24,7 @@
   import { sessionState } from './collaboration/sessionState.svelte.js';
   import RoomSwitcher from './ui/RoomSwitcher.svelte';
   import IdentityMenu from './ui/IdentityMenu.svelte';
-  import OwnershipBadge from './ui/OwnershipBadge.svelte';
+  import PersistenceBadge from './ui/PersistenceBadge.svelte';
   import StatusPill from './ui/StatusPill.svelte';
   import PresenceBar from './ui/PresenceBar.svelte';
   import ConnectionDialog from './ui/ConnectionDialog.svelte';
@@ -277,9 +277,9 @@
   }
 
   function afterDisconnect(_b: StorageBackend) {
-    // Keep the owned-room set: logging out already makes you a guest everywhere
-    // (isOwner checks isAuthenticated), and retaining it means re-logging in
-    // restores ownership of your rooms instead of silently orphaning them.
+    // Keep the persisted-room set: logging out already makes every room live-only
+    // (savedHere checks isAuthenticated), and retaining it means re-logging in
+    // restores your saved rooms instead of silently orphaning them.
     bump();
   }
 
@@ -324,12 +324,14 @@
     }
   }
 
-  // Whether the current room is *yours*: a connected backend of yours is bound to
-  // it. In any other room you're a guest — the Editor gets no Storage (below), so
-  // that room keeps its own document rather than inheriting this backend's file.
-  // `tick` re-reads the (non-reactive) binding after connect/disconnect; `room`
-  // re-reads it on every room switch.
-  const isOwner = $derived.by(() => {
+  // Whether the current room is saved to *your own* storage: a connected backend
+  // of yours is bound to it (you persist it). Otherwise the room is live-only for
+  // you — the Editor gets no Storage (below), so it keeps its own document rather
+  // than inheriting this backend's file. This is a per-user persistence fact, not
+  // a room-level "owner": with per-target autosave, several peers can each save
+  // their own copy. `tick` re-reads the (non-reactive) binding after
+  // connect/disconnect; `room` re-reads it on every room switch.
+  const savedHere = $derived.by(() => {
     void tick;
     void room;
     const s = storage;
@@ -391,20 +393,20 @@
     <div class="controls">
       <RoomSwitcher {room} name={roomName.value} onRename={renameCurrentRoom} onOpen={goToRoom} />
       <button class="btn-new" onclick={newRoom} title="New document">New</button>
-      <OwnershipBadge
-        owner={isOwner}
+      <PersistenceBadge
+        saved={savedHere}
         label={storage?.storage.label}
-        onclick={isOwner ? undefined : () => openSettings()}
+        onclick={savedHere ? undefined : () => openSettings()}
       />
 
       <div class="session">
         <StatusPill
           conn={sessionState.conn}
           saveStatus={sessionState.saveStatus}
-          hasStorage={isOwner}
-          storageLabel={isOwner ? storage?.storage.label : undefined}
+          hasStorage={savedHere}
+          storageLabel={savedHere ? storage?.storage.label : undefined}
           transport={sessionState.diagnostics.transport}
-          onclick={isOwner ? undefined : () => openSettings()}
+          onclick={savedHere ? undefined : () => openSettings()}
         />
         {#if otherPeers.length > 0}
           <PresenceBar users={otherPeers} />
@@ -467,7 +469,7 @@
         role={sessionRole}
         {connect}
         {toasts}
-        storage={isOwner ? storage!.storage : null}
+        storage={savedHere ? storage!.storage : null}
         lang={language.resolved}
         spellcheck={language.spellcheck}
       />
@@ -507,8 +509,8 @@
   {room}
   {toasts}
   envPassword={import.meta.env.VITE_ROOM_PASSWORD}
-  owner={isOwner}
-  storageLabel={isOwner ? storage?.storage.label : undefined}
+  saved={savedHere}
+  storageLabel={savedHere ? storage?.storage.label : undefined}
   {onSecurityChange}
 />
 <Toast {toasts} />

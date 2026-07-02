@@ -1,45 +1,46 @@
 <script lang="ts">
-  // Tells the user whether the current room is *theirs* (a storage backend of
-  // theirs is bound to it and autosaves it) or one they've merely joined as a
-  // guest (live collaboration only — nothing of theirs persists it). When a
-  // guest, the badge is a button that opens Settings so they can connect a
-  // backend and claim the room.
+  // Tells the user whether the current room is saved to *their own* storage
+  // backend, or is live-only for them (real-time collaboration + local cache,
+  // but nothing of theirs persists it durably). There is no single room "owner":
+  // with per-target autosave, anyone who connects a backend keeps their own saved
+  // copy — so this is a per-user statement about *your* persistence, not a role.
+  // When live-only, the badge is a button that opens Settings to connect a backend.
   let {
-    owner,
+    saved,
     label,
     onclick,
   }: {
-    owner: boolean;
+    saved: boolean;
     label?: string;
     onclick?: () => void;
   } = $props();
 
   const title = $derived(
-    owner
-      ? `This room is yours — it autosaves to your ${label ?? 'storage'}.`
-      : 'You’re a guest here — live collaboration only, nothing of yours saves this room. Connect a storage backend to make it yours.',
+    saved
+      ? `This room autosaves to your ${label ?? 'storage'}. Collaborators edit live but can’t write to your storage.`
+      : 'Live-only for you — real-time collaboration + local cache, but nothing of yours saves this room. Connect a storage backend to save it to your own storage.',
   );
 </script>
 
 <svelte:element
   this={onclick ? 'button' : 'span'}
-  class="badge {owner ? 'owner' : 'guest'}"
+  class="badge {saved ? 'saved' : 'live'}"
   class:clickable={!!onclick}
   type={onclick ? 'button' : undefined}
   role={onclick ? undefined : 'status'}
   {title}
   {onclick}
 >
-  {#if owner}
+  {#if saved}
     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <circle cx="8" cy="8" r="4" /><path d="M11 11l6 6M15 15l2-2 3 3-2 2z" />
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><path d="M17 21v-8H7v8M7 3v5h8" />
     </svg>
-    <span class="badge-label">Owner</span>
+    <span class="badge-label">Saved</span>
   {:else}
     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" />
+      <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" />
     </svg>
-    <span class="badge-label">Guest</span>
+    <span class="badge-label">Live-only</span>
   {/if}
 </svelte:element>
 
@@ -55,11 +56,11 @@
     line-height: 1.4;
     white-space: nowrap;
   }
-  .badge.owner {
+  .badge.saved {
     color: var(--accent);
     background: var(--accent-soft);
   }
-  .badge.guest {
+  .badge.live {
     color: var(--text-muted);
     background: var(--surface-3);
   }

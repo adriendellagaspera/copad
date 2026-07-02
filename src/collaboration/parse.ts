@@ -1,5 +1,5 @@
 import type {
-  DisplayName, CursorColor, PeerAwarenessState, RoomId, RoomName, RecentRoom,
+  DisplayName, CursorColor, PeerAwarenessState, PersistTarget, RoomId, RoomName, RecentRoom,
   SignalingUrl, WebsocketUrl,
   StunUrl, TurnUrl, TurnUsername, TurnCredential, IceServer, IceServersUrl,
 } from './types.js';
@@ -114,7 +114,10 @@ export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
     : FALLBACK_COLOR;
   const role: SessionRole = obj['role'] === SessionRole.Reader ? SessionRole.Reader : SessionRole.Writer;
   const canPersist = obj['canPersist'] === true;
-  return { user: { name, color }, role, canPersist };
+  const targetRaw = obj['persistTarget'];
+  const persistTarget: PersistTarget | undefined =
+    typeof targetRaw === 'string' && targetRaw ? (targetRaw as PersistTarget) : undefined;
+  return { user: { name, color }, role, canPersist, ...(persistTarget ? { persistTarget } : {}) };
 }
 
 /** Parse a raw string from storage as a RoomId — the single cast site for RoomId from localStorage/URL. */

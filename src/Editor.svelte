@@ -18,7 +18,7 @@
   import type { PeerUser } from './ui/types.js';
   import { SaveStatus } from './ui/types.js';
   import type { Toasts } from './ui/toasts.svelte.js';
-  import type { Storage, DocContent } from './storage/types.js';
+  import type { Storage, DocContent, Filename } from './storage/types.js';
   import { StorageAccess, DocFormat } from './storage/types.js';
   import type {
     CollabConnect,
@@ -28,8 +28,10 @@
     PeerAwarenessState,
   } from './collaboration/types.js';
   import { ConnStatus, SessionRole } from './collaboration/types.js';
-  import type { RoomName } from './collaboration/types.js';
+  import type { RoomName, PersistTarget } from './collaboration/types.js';
   import { parsePeerAwarenessState, parseRoomName } from './collaboration/parse.js';
+  import { installId } from './collaboration/installId.js';
+  import { persistTargetKey, isPersistLeader } from './collaboration/leader.js';
   import { bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
   import {
     setSessionConn,
@@ -164,10 +166,12 @@
 
   // Broadcast full typed awareness state whenever any field changes.
   $effect(() => {
+    const target = myPersistTarget();
     const state: PeerAwarenessState = {
       user: { name, color },
       role,
       canPersist,
+      ...(target ? { persistTarget: target } : {}),
     };
     collab.awareness.setLocalState(state);
   });
@@ -195,18 +199,21 @@
       });
   });
 
-  // Leader = the persister with the lowest clientID. This prevents write races
-  // when multiple peers have storage access to the same backend, while still
-  // allowing a peer without storage access (e.g. a SharePoint guest) to have
-  // their edits relayed and persisted by an authenticated leader.
-  const isLeader = (): boolean => {
-    const states = parsedStates();
-    const persisterIds = [...states.entries()]
-      .filter(([, s]) => s.canPersist)
-      .map(([id]) => id);
-    if (persisterIds.length === 0) return false;
-    return collab.doc.clientID === Math.min(...persisterIds);
-  };
+  // The file this peer would persist to, as a target key (hashed backend +
+  // filename + browser install id). Absent when this peer isn't persisting.
+  const DEFAULT_TARGET_FILE = 'document.yjs' as Filename;
+  const myPersistTarget = (): PersistTarget | undefined =>
+    storage && canPersist
+      ? persistTargetKey(installId(), storage.id, storage.filename?.() ?? DEFAULT_TARGET_FILE)
+      : undefined;
+
+  // Leader = the lowest-clientID persister *writing the same file* (same target).
+  // Scoping by target lets two owners on different backends (or different accounts
+  // of one backend) each persist their own copy, while still electing a single
+  // writer among peers sharing one file — and a peer without storage access (e.g.
+  // a SharePoint guest) still has their edits relayed and persisted by an owner.
+  const isLeader = (): boolean =>
+    isPersistLeader(collab.doc.clientID, myPersistTarget(), parsedStates());
 
   const flush = (): void => {
     const s = storage;
