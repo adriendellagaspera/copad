@@ -43,6 +43,8 @@ jobs:
           VITE_TURN_URL:          ${{ vars.VITE_TURN_URL }}
           VITE_TURN_USERNAME:     ${{ vars.VITE_TURN_USERNAME }}
           VITE_TURN_PASSWORD:     ${{ vars.VITE_TURN_PASSWORD }}
+          VITE_ICE_SERVERS_URL:   ${{ vars.VITE_ICE_SERVERS_URL }}
+          VITE_ICE_FETCH_TIMEOUT_MS: ${{ vars.VITE_ICE_FETCH_TIMEOUT_MS }}
 
       - name: Deploy to gh-pages/pr-${{ github.event.pull_request.number }}
         uses: peaceiris/actions-gh-pages@v4
