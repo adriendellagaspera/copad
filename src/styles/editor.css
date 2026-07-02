@@ -128,7 +128,7 @@
   margin: 0 auto;
   font-family: var(--font-read);
   font-size: var(--fs-500);
-  line-height: var(--lh-body);
+  line-height: var(--lh-read);
   color: var(--text);
 }
 
