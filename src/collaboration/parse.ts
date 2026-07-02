@@ -1,7 +1,7 @@
 import type {
   DisplayName, CursorColor, PeerAwarenessState, RoomId, RoomName, RecentRoom,
   SignalingUrl, WebsocketUrl,
-  StunUrl, TurnUrl, TurnUsername, TurnCredential,
+  StunUrl, TurnUrl, TurnUsername, TurnCredential, IceServer, IceServersUrl,
 } from './types.js';
 import { SessionRole, FallbackTurnPolicy } from './types.js';
 import type { RoomCredential } from './roomAccess.js';
@@ -44,6 +44,54 @@ export function parseTurnUsername(raw: string): TurnUsername {
 /** Cast site for TurnCredential from user form input. */
 export function parseTurnCredential(raw: string): TurnCredential {
   return raw as TurnCredential;
+}
+
+/** http(s):// endpoint that mints ICE servers. Single cast site for IceServersUrl. */
+const HTTP_URL = /^https?:\/\/\S+$/i;
+export function parseIceServersUrl(raw: string): IceServersUrl | null {
+  return HTTP_URL.test(raw) ? (raw as IceServersUrl) : null;
+}
+
+/** Classify one ICE URL string by scheme, routing it through the matching cast
+ *  site so a mixed `urls` array becomes properly branded `(StunUrl | TurnUrl)`. */
+function parseIceUrl(raw: string): StunUrl | TurnUrl | null {
+  return /^stun:/i.test(raw.trim()) ? parseStunUrl(raw.trim()) : parseTurnUrl(raw.trim());
+}
+
+/**
+ * Parse an ICE-servers HTTP response (`{ iceServers: [{ urls, username?, credential? }] }`,
+ * the shape returned by Cloudflare's TURN credentials API and most managed relays)
+ * into branded {@link IceServer}s. Every field access is guarded and malformed
+ * entries/urls are dropped, so a bad or partial response yields `[]` rather than
+ * throwing. The single IO-boundary parse site for fetched ICE config. `urls` may
+ * be a string or an array of strings per the RTCIceServer shape.
+ */
+export function parseIceServersResponse(raw: unknown): IceServer[] {
+  if (typeof raw !== 'object' || raw === null) return [];
+  const entries = (raw as Record<string, unknown>)['iceServers'];
+  if (!Array.isArray(entries)) return [];
+
+  const servers: IceServer[] = [];
+  for (const entry of entries) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const o = entry as Record<string, unknown>;
+    const rawUrls = Array.isArray(o['urls'])
+      ? o['urls']
+      : typeof o['urls'] === 'string'
+        ? [o['urls']]
+        : [];
+    const urls = rawUrls
+      .filter((u): u is string => typeof u === 'string')
+      .map(parseIceUrl)
+      .filter((u): u is StunUrl | TurnUrl => u !== null);
+    if (urls.length === 0) continue;
+    servers.push({
+      urls,
+      ...(typeof o['username'] === 'string' ? { username: parseTurnUsername(o['username']) } : {}),
+      ...(typeof o['credential'] === 'string' ? { credential: parseTurnCredential(o['credential']) } : {}),
+    });
+  }
+  return servers;
 }
 
 /**

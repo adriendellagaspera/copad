@@ -1,0 +1,20 @@
+# Cloudflare Worker that mints short-lived TURN credentials for Copad.
+# Deploy with:  wrangler deploy   (from this directory)
+#
+# Set the SECRET separately (never commit it):
+#   wrangler secret put TURN_API_TOKEN
+#
+# The public/semi-public values below are safe to commit — edit them to yours.
+
+name = "copad-turn-credentials"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+# TURN key/token ID — the id in your generate-ice-servers API path. Not secret.
+TURN_KEY_ID = "REPLACE_WITH_YOUR_TURN_KEY_ID"
+# Credential lifetime in seconds. Keep it short; the frontend refetches on reload.
+TURN_TTL = "86400"
+# Restrict CORS to your deployed origin (recommended). "*" allows any site to
+# mint credentials against your quota — fine for a quick test, tighten for real.
+ALLOWED_ORIGIN = "*"

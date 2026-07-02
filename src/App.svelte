@@ -6,6 +6,7 @@
   import {
     resolveSignaling,
     resolveIceServers,
+    resolveIceServersUrl,
     resolveWebsocket,
     resolveTransport,
     resolveRoomStrategy,
@@ -13,6 +14,7 @@
     type PageProtocol,
     type PageHostname,
   } from './collaboration/config.js';
+  import { fetchIceServers } from './collaboration/iceServers.js';
   import { parseRoomId, parseRoomName } from './collaboration/parse.js';
   import { roomName, renameRoom } from './collaboration/roomName.svelte.js';
   import { recordRoomVisit, updateRecentRoomName } from './collaboration/recentRooms.js';
@@ -32,7 +34,7 @@
   import { currentSecretKey } from './collaboration/secretLink.js';
   import type { RoomCipher } from './collaboration/roomCipher.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
-  import type { DisplayName, CursorColor, RoomId, CollabConnect } from './collaboration/types.js';
+  import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
   import { SessionRole } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
@@ -65,6 +67,29 @@
     hostname: location.hostname as PageHostname,
   };
 
+  // ICE servers fetched at startup from VITE_ICE_SERVERS_URL (a credentials
+  // endpoint that mints short-lived TURN creds server-side). Empty until the
+  // fetch resolves; `buildIce()` prefers these over static env TURN when present.
+  // Only the WebRTC transport uses ICE, so skip the whole dance on WebSocket.
+  let fetchedIce = $state<IceServer[]>([]);
+  const usesIce = resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) !== 'websocket';
+  const iceServersUrl = usesIce ? resolveIceServersUrl(import.meta.env.VITE_ICE_SERVERS_URL) : undefined;
+  // Gate the first Editor mount on the ICE fetch when an endpoint is configured,
+  // so the initial connection already carries the fetched TURN relay. We resolve
+  // ICE *before* the first build rather than reconnecting after: a post-mount
+  // rebuild would remount the Editor via {#key}, and a same-room remount races
+  // y-webrtc's global room registry (openRoom throws "already exists" if the old
+  // provider's async teardown hasn't deregistered the room yet, leaving the new
+  // provider unsubscribed). fetchIceServers self-bounds via ICE_FETCH_TIMEOUT_MS,
+  // so this gate always opens — with creds if they arrived, with env/default if not.
+  let iceReady = $state(!iceServersUrl);
+  if (iceServersUrl) {
+    void fetchIceServers(iceServersUrl).then((servers) => {
+      if (servers.length > 0) fetchedIce = servers;
+      iceReady = true;
+    });
+  }
+
   // Pick the collaboration transport — chosen explicitly via VITE_COLLAB_TRANSPORT
   // (default 'webrtc'). 'websocket' routes edits through a central hub server (no
   // WebRTC, so no STUN/TURN — works on mobile carrier NATs where P2P can't connect).
@@ -89,9 +114,13 @@
     const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, loc);
     // ICE is resolved per build (not once) so runtime TURN changes from Settings
     // apply on the next reconnect. Precedence: runtime TURN → env TURN → public default.
-    const buildIce = () => {
+    const buildIce = (): IceServer[] => {
       const turn = getTurnPrefs();
       const hasRuntimeTurn = turn.urls.length > 0;
+      // Precedence: runtime TURN (user's own, from Settings) → fetched ICE
+      // (short-lived creds from VITE_ICE_SERVERS_URL) → static env / public
+      // default. Runtime always wins; a configured endpoint beats static env.
+      if (!hasRuntimeTurn && fetchedIce.length > 0) return fetchedIce;
       return resolveIceServers(
         {
           VITE_STUN_URL: import.meta.env.VITE_STUN_URL,
@@ -339,19 +368,26 @@
     </InfoBanner>
   {/if}
 
-  {#key `${room}|${localCache}|${collabEpoch}`}
-    <Editor
-      {name}
-      {color}
-      {room}
-      role={sessionRole}
-      {connect}
-      {toasts}
-      storage={connected ? storage!.storage : null}
-      lang={language.resolved}
-      spellcheck={language.spellcheck}
-    />
-  {/key}
+  {#if iceReady}
+    {#key `${room}|${localCache}|${collabEpoch}`}
+      <Editor
+        {name}
+        {color}
+        {room}
+        role={sessionRole}
+        {connect}
+        {toasts}
+        storage={connected ? storage!.storage : null}
+        lang={language.resolved}
+        spellcheck={language.spellcheck}
+      />
+    {/key}
+  {:else}
+    <div class="ice-gate" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Setting up a secure connection…</span>
+    </div>
+  {/if}
 </div>
 
 <ConnectionDialog
@@ -389,3 +425,30 @@
   onSecurityChange={() => (collabEpoch += 1)}
 />
 <Toast {toasts} />
+
+<style>
+  /* Shown only while the startup ICE-credentials fetch is in flight (deployments
+     with VITE_ICE_SERVERS_URL). Bounded by ICE_FETCH_TIMEOUT_MS. */
+  .ice-gate {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-height: 40vh;
+    color: var(--text-muted);
+    font-size: var(--fs-400);
+  }
+  .ice-gate .spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: ice-gate-spin 0.7s linear infinite;
+  }
+  @keyframes ice-gate-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+</style>

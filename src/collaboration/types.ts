@@ -54,6 +54,12 @@ export interface IceServer {
   readonly credential?: TurnCredential;
 }
 
+/** An HTTPS endpoint that returns ICE servers as JSON (`{ iceServers: [...] }`),
+ *  e.g. a Cloudflare TURN credentials Worker that mints short-lived credentials.
+ *  Lets the provider's real API token stay server-side while the browser only
+ *  ever receives ephemeral creds. Validated/branded by `parseIceServersUrl()`. */
+export type IceServersUrl = string & { readonly _brand: 'IceServersUrl' };
+
 /** TURN long-term credential username, cast from user input at the Settings
  *  form boundary by `parseTurnUsername()` in `parse.ts`. */
 export type TurnUsername = string & { readonly _brand: 'TurnUsername' };

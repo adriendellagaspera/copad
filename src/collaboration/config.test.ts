@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   resolveSignaling,
   resolveIceServers,
+  resolveIceServersUrl,
   resolveWebsocket,
   resolveTransport,
   resolveRoomStrategy,
@@ -159,6 +160,28 @@ describe('resolveIceServers', () => {
 
   it('returns nothing when STUN is empty and fallback is none', () => {
     expect(resolveIceServers({ VITE_STUN_URL: '' }, { fallback: 'none' })).toEqual([]);
+  });
+});
+
+describe('resolveIceServersUrl', () => {
+  it('brands an https:// endpoint', () => {
+    expect(resolveIceServersUrl('https://ice.example/creds')).toBe('https://ice.example/creds');
+  });
+
+  it('accepts http:// too', () => {
+    expect(resolveIceServersUrl('http://localhost:8787')).toBe('http://localhost:8787');
+  });
+
+  it('is undefined for unset, empty, or non-http values', () => {
+    expect(resolveIceServersUrl(undefined)).toBeUndefined();
+    expect(resolveIceServersUrl('')).toBeUndefined();
+    expect(resolveIceServersUrl('  ')).toBeUndefined();
+    expect(resolveIceServersUrl('ftp://ice.example')).toBeUndefined();
+    expect(resolveIceServersUrl('ice.example')).toBeUndefined();
+  });
+
+  it('trims surrounding whitespace before parsing', () => {
+    expect(resolveIceServersUrl('  https://ice.example  ')).toBe('https://ice.example');
   });
 });
 

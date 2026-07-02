@@ -38,6 +38,19 @@ export const SIGNALING_KEEPALIVE_MS =
  *  hung request can't leak across the ping interval. */
 export const SIGNALING_KEEPALIVE_TIMEOUT_MS = 10_000;
 
+/**
+ * How long to wait for the ICE-servers endpoint (`VITE_ICE_SERVERS_URL`) before
+ * giving up and connecting with the env/public-default ICE instead. Doubles as
+ * the startup gate: when the endpoint is configured, the first connection waits
+ * up to this long for fresh TURN credentials so it comes up relay-capable
+ * without a reconnect. Kept short so a slow/broken endpoint can't block the
+ * editor for long. Override via `VITE_ICE_FETCH_TIMEOUT_MS`; an unset/invalid
+ * value keeps the default.
+ */
+const rawIceTimeout = Number(import.meta.env.VITE_ICE_FETCH_TIMEOUT_MS);
+export const ICE_FETCH_TIMEOUT_MS =
+  Number.isInteger(rawIceTimeout) && rawIceTimeout > 0 ? rawIceTimeout : 5_000;
+
 // ── Browser-local keys ────────────────────────────────────────────────────────
 
 /** Local-document-cache on/off preference. */
