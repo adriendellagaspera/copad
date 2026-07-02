@@ -17,6 +17,5 @@
     "skipLibCheck": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["src/**/*.ts", "vite.config.ts", "playwright.config.ts"],
-  "exclude": ["src/network/cloudflare-proxy"]
+  "include": ["src/**/*.ts", "vite.config.ts", "playwright.config.ts"]
 }

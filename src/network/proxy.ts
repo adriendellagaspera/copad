@@ -1,4 +1,4 @@
-import type { Fetch } from '../types.js';
+import type { Fetch } from './types.js';
 
 export function proxiedFetch(proxyUrl: string): Fetch {
   const base = proxyUrl.replace(/\/$/, '');

@@ -6,7 +6,7 @@ import { githubStorage } from './github.js';
 import type { Storage } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { directFetch } from '../network/direct.js';
-import { proxiedFetch } from '../network/cloudflare-proxy/index.js';
+import { proxiedFetch } from '../network/proxy.js';
 
 export type { Storage };
 export type { StorageAuth };
