@@ -41,16 +41,26 @@
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
   import ShareDialog from './ui/ShareDialog.svelte';
+  import IntroDialog from './ui/IntroDialog.svelte';
+  import SyncBanner from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
   import InfoBanner from './ui/InfoBanner.svelte';
   import { createTheme } from './ui/theme.svelte.js';
   import { createToasts } from './ui/toasts.svelte.js';
   import { createLanguage } from './ui/language.svelte.js';
+  import { hasSeenIntro, markIntroSeen } from './ui/intro.svelte.js';
 
   const theme = createTheme();
   const toasts = createToasts();
   const language = createLanguage();
   let shareOpen = $state(false);
+  // First-run heads-up about the peer-to-peer (no async sync) default. Shows once
+  // per browser; dismissing persists the flag so it never reappears.
+  let introOpen = $state(!hasSeenIntro());
+  function dismissIntro(): void {
+    markIntroSeen();
+    introOpen = false;
+  }
 
   // Effective per-room cipher (WebRTC end-to-end encryption). Resolved fresh on
   // each connect, in precedence order: secure-link key (#k= in the URL) → per-room
@@ -402,6 +412,12 @@
     </InfoBanner>
   {/if}
 
+  <SyncBanner
+    conn={sessionState.conn}
+    storageLabel={connected && storage ? storage.storage.label : null}
+    onShare={() => (shareOpen = true)}
+  />
+
   {#if !iceReady}
     <div class="ice-gate" role="status" aria-live="polite">
       <span class="spinner" aria-hidden="true"></span>
@@ -458,6 +474,7 @@
   envPassword={import.meta.env.VITE_ROOM_PASSWORD}
   {onSecurityChange}
 />
+<IntroDialog open={introOpen} onclose={dismissIntro} />
 <Toast {toasts} />
 
 <style>
