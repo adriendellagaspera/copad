@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePeerAwarenessState, parseRoomName, parseRecentRooms, parseIceServersResponse } from './parse.js';
+import { parsePeerAwarenessState, parseRoomName, parseRecentRooms, parseIceServersResponse, parseKeyFingerprint } from './parse.js';
 
 describe('parsePeerAwarenessState — fallback behaviour', () => {
   it('returns safe defaults for null', () => {
@@ -257,5 +257,21 @@ describe('parseIceServersResponse', () => {
   it('ignores non-string username/credential', () => {
     const raw = { iceServers: [{ urls: ['turn:r.example:3478'], username: 5, credential: {} }] };
     expect(parseIceServersResponse(raw)).toEqual([{ urls: ['turn:r.example:3478'] }]);
+  });
+});
+
+describe('parseKeyFingerprint', () => {
+  const hex64 = 'a'.repeat(64);
+
+  it('accepts a 64-char lowercase hex digest', () => {
+    expect(parseKeyFingerprint(hex64)).toBe(hex64);
+  });
+
+  it('rejects null, wrong length, and non-hex', () => {
+    expect(parseKeyFingerprint(null)).toBeNull();
+    expect(parseKeyFingerprint('')).toBeNull();
+    expect(parseKeyFingerprint('abc')).toBeNull();
+    expect(parseKeyFingerprint('g'.repeat(64))).toBeNull();
+    expect(parseKeyFingerprint('A'.repeat(64))).toBeNull(); // uppercase isn't our format
   });
 });

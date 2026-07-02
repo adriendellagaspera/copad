@@ -5,6 +5,7 @@ import type {
 } from './types.js';
 import { SessionRole, FallbackTurnPolicy } from './types.js';
 import type { RoomCredential } from './roomAccess.js';
+import type { KeyFingerprint } from './roomCrypto.js';
 import type { LocalCacheEnabled } from './cache.js';
 import type { TurnPrefs } from './turn.js';
 import { FALLBACK_NAME, FALLBACK_COLOR } from './peerDefaults.js';
@@ -162,6 +163,12 @@ export function parseRoomCredential(raw: string | null): RoomCredential | null {
 /** Parse the local-cache on/off flag — defaults to enabled (anything but '0'). */
 export function parseLocalCacheEnabled(raw: string | null): LocalCacheEnabled {
   return (raw !== '0') as LocalCacheEnabled;
+}
+
+/** Parse a stored room-encryption fingerprint — a SHA-256 hex digest, or null
+ *  when absent/malformed. Single cast site for {@link KeyFingerprint} from storage. */
+export function parseKeyFingerprint(raw: string | null): KeyFingerprint | null {
+  return raw && /^[0-9a-f]{64}$/.test(raw) ? (raw as KeyFingerprint) : null;
 }
 
 /** Parse a JSON-encoded room list from localStorage into typed RoomIds. */
