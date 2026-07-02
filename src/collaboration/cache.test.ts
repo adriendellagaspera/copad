@@ -4,6 +4,7 @@ import {
   localCacheEnabled,
   setLocalCacheEnabled,
   cacheDbName,
+  encCacheDbName,
   rememberCachedRoom,
   clearLocalCache,
 } from './cache.js';
@@ -29,6 +30,11 @@ describe('local cache preferences', () => {
 
   it('namespaces the IndexedDB name', () => {
     expect(cacheDbName('my-room' as RoomId)).toBe('copad:my-room');
+  });
+
+  it('namespaces the encrypted IndexedDB name distinctly', () => {
+    expect(encCacheDbName('my-room' as RoomId)).toBe('copad:enc:my-room');
+    expect(encCacheDbName('my-room' as RoomId)).not.toBe(cacheDbName('my-room' as RoomId));
   });
 
   it('remembers cached rooms without duplicates and clears them', async () => {

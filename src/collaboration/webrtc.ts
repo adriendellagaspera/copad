@@ -115,6 +115,9 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
       doc,
       room,
       cache: opts.cache,
+      // Same secret that encrypts the transport also encrypts the local cache at
+      // rest, so a cached doc can't be read back without the room key.
+      cacheKey: password,
       isAttached,
       peerCount,
     });

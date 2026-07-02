@@ -5,6 +5,8 @@
   import { roomPassword, setRoomPassword, clearRoomPassword, type RoomCredential } from '../collaboration/roomAccess.js';
   import { parseRoomCredential } from '../collaboration/parse.js';
   import { currentSecretKey, clearSecretKey, rotateSecretKey } from '../collaboration/secretLink.js';
+  import { rememberRoomEncryption, forgetRoomEncryption } from '../collaboration/roomLock.js';
+  import { migrateRoomCache } from '../collaboration/cache.js';
 
   let {
     open,
@@ -51,9 +53,21 @@
   const encrypted = $derived(!!linkKey || !!storedPw || !!envPassword);
   const envOnly = $derived(!linkKey && !storedPw && !!envPassword);
 
-  function makeSecureLink(): void {
+  // The room's currently-effective per-room key (secure link takes precedence over
+  // a stored password), before whatever change we're about to make.
+  const currentKey = (): RoomCredential | null => linkKey ?? storedPw ?? null;
+
+  // Changing encryption does three things, in order: record the new key's
+  // fingerprint (so a later keyless visit is gated), migrate the local cache from
+  // the old key to the new one (content survives; no copy is left readable under
+  // the old key), then reconnect. All awaited *before* onSecurityChange so the
+  // editor remounts against an already-migrated cache and correct registry.
+  async function makeSecureLink(): Promise<void> {
+    const before = currentKey();
     const key = rotateSecretKey();
     clearRoomPassword(room); // link and password are mutually exclusive
+    await rememberRoomEncryption(room, key);
+    await migrateRoomCache(room, before, key);
     linkKey = key;
     storedPw = null;
     pwInput = '';
@@ -61,19 +75,27 @@
     toasts.success('Secure link created — anyone with the link can read this room');
   }
 
-  function applyPassword(): void {
+  async function applyPassword(): Promise<void> {
+    const before = currentKey();
     const pw = pwInput.trim();
+    const cred = parseRoomCredential(pw); // accept user input into the domain via the canonical parser
     setRoomPassword(room, pw); // empty string clears the entry
     clearSecretKey();
+    if (cred) await rememberRoomEncryption(room, cred);
+    else forgetRoomEncryption(room);
+    await migrateRoomCache(room, before, cred);
     linkKey = undefined;
-    storedPw = parseRoomCredential(pw); // accept user input into the domain via the canonical parser
+    storedPw = cred;
     onSecurityChange?.();
     toasts.success(pw ? 'Room password applied' : 'Room password removed');
   }
 
-  function removeEncryption(): void {
+  async function removeEncryption(): Promise<void> {
+    const before = currentKey();
     clearSecretKey();
     clearRoomPassword(room);
+    forgetRoomEncryption(room);
+    await migrateRoomCache(room, before, null);
     linkKey = undefined;
     storedPw = null;
     pwInput = '';

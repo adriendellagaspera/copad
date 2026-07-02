@@ -66,6 +66,16 @@ export const RECENT_ROOMS_MAX = 12;
 /** IndexedDB database-name prefix — shares the app namespace (`copad:`). */
 export const CACHE_DB_PREFIX = NS_PREFIX;
 
+/** IndexedDB database-name prefix for the *encrypted* cache (`copad:enc:`). A
+ *  distinct namespace so an encrypted store is never confused with a plaintext
+ *  one, and both are found and cleared per room. */
+export const ENC_CACHE_DB_PREFIX = `${NS_PREFIX}enc:`;
+
 /** Per-room password key for the room-password access strategy. */
 export const roomPasswordKey = (room: RoomId): StorageKey =>
   storageKey(`collab.room-password.${room}`);
+
+/** Key under which a room's encryption fingerprint is remembered, so a later
+ *  visit knows the room is encrypted and gates access when the key is missing. */
+export const roomEncryptedKey = (room: RoomId): StorageKey =>
+  storageKey(`collab.room-encrypted.${room}`);
