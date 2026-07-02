@@ -113,6 +113,9 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Keep the scroll inside the writing surface: at the top/bottom edge the
+     touch-scroll must not chain out to the frame and drag the page on mobile. */
+  overscroll-behavior: contain;
   outline: none;
 }
 

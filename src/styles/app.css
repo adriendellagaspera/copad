@@ -10,8 +10,12 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-  /* Fill the viewport so the editor can grow to full height. dvh tracks the
-     dynamic viewport (mobile browser chrome) where supported; vh is the floor. */
+  /* Lock to the viewport so the frame is fixed (not draggable on mobile) and the
+     editor scrolls internally instead of pushing the whole page past the fold.
+     dvh tracks the dynamic viewport (mobile browser chrome) where supported; vh
+     is the floor. min-height keeps the column filled if the content is short. */
+  height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
   min-height: 100dvh;
 }
@@ -258,7 +262,9 @@ button.status-link {
   z-index: calc(var(--z-dialog) + 1);
   width: min(440px, 100vw);
   height: 100vh;
+  height: 100dvh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--surface);
   border-left: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
