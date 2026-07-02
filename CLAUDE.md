@@ -235,7 +235,7 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_TURN_URL` | no | TURN relay url(s), comma-separated. Needed for restrictive/mobile NATs (CGNAT / symmetric NAT). When unset, a public default relay (`DEFAULT_TURN` in `config.ts`) is used unless disabled. Runtime Settings TURN (`turn.ts`) overrides this. |
 | `VITE_TURN_USERNAME` | no | TURN username. |
 | `VITE_TURN_PASSWORD` | no | TURN password. |
-| `VITE_ICE_SERVERS_URL` | no | HTTP(S) endpoint returning `{ iceServers: [...] }` (e.g. the Cloudflare TURN Worker in `ice/cloudflare-worker/`). When set, the frontend fetches ICE at startup instead of using static `VITE_TURN_*` — for providers that mint short-lived credentials from a secret API token. Resolved by `resolveIceServersUrl()`; fetched via `fetchIceServers()`. Runtime Settings TURN still overrides it. WebRTC transport only. |
+| `VITE_ICE_SERVERS_URL` | no | HTTP(S) endpoint returning `{ iceServers: [...] }` (e.g. the Cloudflare TURN Worker in `deploy/ice-worker/`). When set, the frontend fetches ICE at startup instead of using static `VITE_TURN_*` — for providers that mint short-lived credentials from a secret API token. Resolved by `resolveIceServersUrl()`; fetched via `fetchIceServers()`. Runtime Settings TURN still overrides it. WebRTC transport only. |
 | `VITE_ICE_FETCH_TIMEOUT_MS` | no | How long (ms) to wait for `VITE_ICE_SERVERS_URL` before falling back to env/default ICE (default: `10000`). In `src/collaboration/constants.ts`. |
 
 ## Collaboration servers
@@ -252,14 +252,16 @@ To deploy either, point a host (Render/Fly/any VPS) at a 3-line `package.json` t
 the upstream package with `"start"` calling its bin — `npm install` puts it in `node_modules`
 on the host. See README "Deploying a collaboration server".
 
-**`turn/`** is the one server-ish thing we ship — a self-hosted [coturn](https://github.com/coturn/coturn)
+Deployment-side artifacts — ops templates and self-hosted endpoints, **not** app source — live under **`deploy/`** (kept out of `src/` so the app/infra boundary is obvious):
+
+**`deploy/turn/`** is the one server-ish thing we ship — a self-hosted [coturn](https://github.com/coturn/coturn)
 TURN relay (`turnserver.conf.example` + `docker-compose.yml` + guide) for WebRTC NAT traversal, because
 coturn has no equivalent drop-in. TURN needs a UDP port range, so it wants a VPS, not a PaaS. The shipped
 config is a template: the live `turnserver.conf` is git-ignored (it holds the shared secret + public IP),
 the credential is treated as public (it's inlined into the client bundle), and the config caps abuse with
 TURN quotas + SSRF deny ranges. Optional — a free public default relay (`DEFAULT_TURN`) works out of the box.
 
-**`ice/cloudflare-worker/`** — for providers that mint *short-lived* TURN credentials from a **secret** API
+**`deploy/ice-worker/`** — for providers that mint *short-lived* TURN credentials from a **secret** API
 token (Cloudflare TURN), a static `VITE_TURN_*` won't do: the token can't ship in the client bundle. This
 Worker holds the token server-side and returns fresh `{ iceServers: [...] }` JSON. Set `VITE_ICE_SERVERS_URL`
 to its URL and the frontend fetches ICE at startup (`fetchIceServers()` in `src/collaboration/iceServers.ts`,
