@@ -1,1 +1,0 @@
-import{s as e,t}from"./lib-D54bnSvk.js";var n=e(t(),1),r=new URLSearchParams(location.search),i=r.get(`code`);i?(window.opener?.postMessage({type:`oauth-code`,code:i,state:r.get(`state`)},location.origin),window.close()):n.default.oauth.popup();
