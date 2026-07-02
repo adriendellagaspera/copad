@@ -414,8 +414,7 @@
 
   <SyncBanner
     conn={sessionState.conn}
-    hasStorage={connected}
-    storageLabel={storage?.storage.label}
+    storageLabel={connected && storage ? storage.storage.label : null}
     onShare={() => (shareOpen = true)}
   />
 

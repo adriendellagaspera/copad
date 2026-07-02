@@ -4,13 +4,13 @@
 
   let {
     conn,
-    hasStorage,
     storageLabel,
     onShare,
   }: {
     conn: ConnStatus;
-    hasStorage: boolean;
-    storageLabel?: string;
+    /** The connected shared-storage backend's label, or null when there's none.
+     *  Non-null ⟺ edits persist and will sync later; null ⟺ device-local only. */
+    storageLabel: string | null;
     /** Open the Share dialog so the user can invite a collaborator. */
     onShare: () => void;
   } = $props();
@@ -24,16 +24,16 @@
 {#if alone}
   <div
     class="sync-banner"
-    class:soft={hasStorage}
+    class:soft={storageLabel !== null}
     role="status"
     aria-live="polite"
     transition:slide={{ duration: 150 }}
   >
     <span class="dot" aria-hidden="true"></span>
-    {#if hasStorage}
+    {#if storageLabel !== null}
       <span class="msg">
         <strong>Not syncing live — you're the only one here.</strong>
-        Your edits are being saved to {storageLabel ?? 'storage'} and will sync when someone joins.
+        Your edits are being saved to {storageLabel} and will sync when someone joins.
       </span>
     {:else}
       <span class="msg">
