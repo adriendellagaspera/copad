@@ -54,6 +54,7 @@
 
   --lh-tight: 1.25;
   --lh-body: 1.6;
+  --lh-read: 1.5;       /* writing surface — a touch tighter than UI body */
   --measure: 90ch;      /* reading width — wide enough to fill the editor card so the writing surface isn't hemmed in by large side margins */
 
   /* ── Spacing (4px base) ── */
