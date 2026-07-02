@@ -43,11 +43,11 @@ From this directory:
    ```bash
    wrangler deploy
    ```
-   Wrangler prints the Worker URL, e.g. `https://copad-turn-credentials.<you>.workers.dev`.
+   Wrangler prints the Worker URL, e.g. `https://turn.<your-subdomain>.workers.dev`.
 
 4. Verify it returns credentials:
    ```bash
-   curl https://copad-turn-credentials.<you>.workers.dev
+   curl https://turn.<your-subdomain>.workers.dev
    # → {"iceServers":[{"urls":[...],"username":"...","credential":"..."}]}
    ```
 
@@ -56,7 +56,7 @@ From this directory:
 Set the build-time env var (see [`../../.env.example`](../../.env.example)):
 
 ```
-VITE_ICE_SERVERS_URL=https://copad-turn-credentials.<you>.workers.dev
+VITE_ICE_SERVERS_URL=https://turn.<your-subdomain>.workers.dev
 ```
 
 On startup Copad fetches this URL, then reconnects with the returned TURN relay —

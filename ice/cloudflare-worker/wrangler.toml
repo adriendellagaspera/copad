@@ -6,7 +6,10 @@
 #
 # The public/semi-public values below are safe to commit — edit them to yours.
 
-name = "copad"
+# The Worker name is the first label of its workers.dev URL:
+#   <name>.<your-subdomain>.workers.dev  (e.g. turn.copad.workers.dev)
+name = "turn"
+
 main = "worker.js"
 compatibility_date = "2024-11-01"
 
