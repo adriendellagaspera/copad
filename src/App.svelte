@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick as nextTick } from 'svelte';
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { StorageBackend } from './storage/index.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
@@ -156,18 +157,43 @@
   // below remounts the Editor so the change takes effect immediately.
   let localCache = $state(localCacheEnabled());
 
-  // Bumped when a TURN settings change needs the Editor to reconnect. Read in
-  // `connect` so the factory rebuilds with fresh ICE, and in the keyed block
-  // below to remount.
+  // Bumped when a TURN/security settings change needs a fresh factory. Read in
+  // `connect` so the derived rebuilds with the new ICE/cipher; the actual remount
+  // is driven by `rebuildCollab()` (a same-room {#key} swap would race y-webrtc).
   let collabEpoch = $state(0);
   const connect = $derived.by(() => {
     void collabEpoch;
     return collabPlan.build(localCache);
   });
 
+  // The Editor is unmounted only while `editorMounted` is false; the `{#key room}`
+  // block below still handles room switches (different y-webrtc room → no clash).
+  let editorMounted = $state(true);
+  let rebuilding = false;
+  /**
+   * Reconnect for a *same-room* config change (TURN/cache/security). Cycle the
+   * Editor off, wait for the old provider to fully tear down — including
+   * y-webrtc's async room deregistration — then remount. A direct {#key} swap can
+   * construct the new provider before the old one deregisters, and y-webrtc's
+   * `openRoom()` throws "already exists" for the same room name, leaving the new
+   * provider unsubscribed (silently no peers). The two-phase mount avoids that.
+   */
+  async function rebuildCollab(): Promise<void> {
+    if (rebuilding) return;
+    rebuilding = true;
+    editorMounted = false;
+    await nextTick(); // apply the unmount → Editor.onDestroy → collab.destroy()
+    // Drain microtasks so the provider's async room deregistration completes
+    // before the replacement mounts (setTimeout yields past the microtask queue).
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    editorMounted = true;
+    rebuilding = false;
+  }
+
   function setLocalCache(on: boolean): void {
     setLocalCacheEnabled(on);
     localCache = localCacheEnabled();
+    void rebuildCollab(); // rebuild `connect` (reads localCache) + safely remount
     if (!on) void clearLocalCache().then(() => toasts.info('Local copies cleared'));
   }
 
@@ -181,8 +207,16 @@
   function saveTurnPrefs(p: TurnPrefs): void {
     turnPrefs = p;
     setTurnPrefs(p);
-    collabEpoch += 1; // rebuild ICE + remount so the change takes effect
+    collabEpoch += 1;      // rebuild the factory with fresh ICE…
+    void rebuildCollab();  // …and safely remount so it takes effect
     toasts.info('Connection settings applied');
+  }
+
+  // Security change from the Share dialog (secure link / room password): rebuild
+  // the factory with the new cipher and safely remount.
+  function onSecurityChange(): void {
+    collabEpoch += 1;
+    void rebuildCollab();
   }
 
   const COLORS: CursorColor[] = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'] as CursorColor[];
@@ -368,8 +402,13 @@
     </InfoBanner>
   {/if}
 
-  {#if iceReady}
-    {#key `${room}|${localCache}|${collabEpoch}`}
+  {#if !iceReady}
+    <div class="ice-gate" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Setting up a secure connection…</span>
+    </div>
+  {:else if editorMounted}
+    {#key room}
       <Editor
         {name}
         {color}
@@ -382,11 +421,6 @@
         spellcheck={language.spellcheck}
       />
     {/key}
-  {:else}
-    <div class="ice-gate" role="status" aria-live="polite">
-      <span class="spinner" aria-hidden="true"></span>
-      <span>Setting up a secure connection…</span>
-    </div>
   {/if}
 </div>
 
@@ -422,7 +456,7 @@
   {room}
   {toasts}
   envPassword={import.meta.env.VITE_ROOM_PASSWORD}
-  onSecurityChange={() => (collabEpoch += 1)}
+  {onSecurityChange}
 />
 <Toast {toasts} />
 
