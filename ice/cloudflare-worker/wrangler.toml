@@ -9,14 +9,15 @@
 # The Worker name is the first label of its workers.dev URL:
 #   <name>.<your-subdomain>.workers.dev  (e.g. turn.copad.workers.dev)
 name = "turn"
+
 main = "worker.js"
 compatibility_date = "2024-11-01"
 
 [vars]
 # TURN key/token ID — the id in your generate-ice-servers API path. Not secret.
-TURN_KEY_ID = "REPLACE_WITH_YOUR_TURN_KEY_ID"
+TURN_KEY_ID = "da240faf1f64c3fb762a06568a4f1038"
 # Credential lifetime in seconds. Keep it short; the frontend refetches on reload.
 TURN_TTL = "86400"
 # Restrict CORS to your deployed origin (recommended). "*" allows any site to
 # mint credentials against your quota — fine for a quick test, tighten for real.
-ALLOWED_ORIGIN = "*"
+ALLOWED_ORIGIN = "https://adriendellagaspera.github.io"
