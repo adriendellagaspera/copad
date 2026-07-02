@@ -13,6 +13,11 @@ import { startSignalingKeepalive } from './signalingKeepalive.js';
 // change only touches this interface, not the whole adapter.
 interface WebrtcRoomConn {
   readonly peer?: { readonly _pc?: PeerConnectionLike };
+  // y-webrtc creates a WebrtcConn optimistically on 'announce' (discovery) and
+  // only flips `connected` true when its data channel actually opens. Document
+  // sync and awareness flow only over an open channel, so this is the honest
+  // "can we exchange data with this peer?" flag.
+  readonly connected?: boolean;
 }
 interface WebrtcRoom {
   readonly webrtcConns: Map<string, WebrtcRoomConn>;
@@ -78,10 +83,18 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
     const room_ = (): WebrtcRoom | undefined => webrtc.room as unknown as WebrtcRoom | undefined;
 
     // Peer carriage is read from the y-webrtc room (WebRTC + same-browser BroadcastChannel).
+    // Count only WebRTC conns whose data channel is actually open: a conn is
+    // created on discovery (`announce`) before its channel connects, and until it
+    // does, nothing syncs. Counting those unconnected conns made the status pill
+    // claim "connected/synced" while a peer was present but unreachable (e.g. NAT
+    // traversal failing with no working TURN). BroadcastChannel conns are always
+    // live once present, so they count as-is.
     const peerCount = (): number => {
       const r = room_();
       if (!r) return 0;
-      return (r.webrtcConns?.size ?? 0) + (r.bcConns?.size ?? 0);
+      let connected = 0;
+      r.webrtcConns?.forEach((c) => { if (c.connected) connected += 1; });
+      return connected + (r.bcConns?.size ?? 0);
     };
 
     // The provider's signaling sockets (shared module singletons keyed by URL),

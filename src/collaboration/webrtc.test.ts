@@ -89,8 +89,8 @@ describe('webrtcCollab status mapping', () => {
     // Attached to signaling (connected=true) but no peers → 'waiting', not 'connected'.
     expect(seen[0]).toBe('waiting');
 
-    // A peer joins → 'connected'.
-    provider().room.webrtcConns.set('peer-1', {});
+    // A peer joins with an OPEN data channel → 'connected'.
+    provider().room.webrtcConns.set('peer-1', { connected: true });
     provider().emit('peers', {});
     expect(seen.at(-1)).toBe('connected');
 
@@ -101,6 +101,29 @@ describe('webrtcCollab status mapping', () => {
     provider().signalingConns[0].connected = false;
     provider().signalingConns[0].emit('disconnect');
     expect(seen.at(-1)).toBe('connecting');
+
+    collab.destroy();
+  });
+
+  it('does not count a discovered-but-unconnected WebRTC peer (open data channel required)', () => {
+    // Regression: y-webrtc adds a WebrtcConn on 'announce' before its data channel
+    // opens. Counting it made the pill show "connected/synced" while nothing could
+    // sync (e.g. NAT traversal failing with no working TURN) — the exact "peers=1
+    // but I can't see the doc" symptom.
+    const collab = webrtcCollab({ signaling: SIGNALING })(ROOM);
+    let status = '';
+    collab.onStatus((s) => (status = s));
+    expect(status).toBe('waiting');
+
+    // Discovered but channel not open yet → still 'waiting', not 'connected'.
+    provider().room.webrtcConns.set('peer-x', { connected: false });
+    provider().emit('peers', {});
+    expect(status).toBe('waiting');
+
+    // Channel opens → now 'connected'.
+    provider().room.webrtcConns.set('peer-x', { connected: true });
+    provider().emit('peers', {});
+    expect(status).toBe('connected');
 
     collab.destroy();
   });

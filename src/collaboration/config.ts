@@ -7,14 +7,14 @@
 // 2. An insecure ws:// server on an https:// page — browsers block this as
 //    mixed content, so the signaling socket never opens.
 
-import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, RoomId, IceServer } from './types.js';
+import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, RoomId, IceServer, IceServersUrl } from './types.js';
 import { FallbackTurnPolicy } from './types.js';
 import type { RoomAccess } from './roomAccess.js';
 import type { RoomCipher } from './roomCipher.js';
 import { publicAccess, sitePassword, roomPassword, RoomAccessMode } from './roomAccess.js';
 import { plaintext } from './roomCipher.js';
 import { secretLink, type SecretLinkPort } from './secretLink.js';
-import { parseRoomId, parseSignalingUrl, parseWebsocketUrl, parseStunUrl, parseTurnUrl, parseTurnUsername, parseTurnCredential } from './parse.js';
+import { parseRoomId, parseSignalingUrl, parseWebsocketUrl, parseStunUrl, parseTurnUrl, parseTurnUsername, parseTurnCredential, parseIceServersUrl } from './parse.js';
 import { LOCAL_HOSTS, DEFAULT_DEV_SIGNALING, DEFAULT_STUN, DEFAULT_ROOM_NAME } from './constants.js';
 
 const list = (raw: string | undefined): string[] =>
@@ -205,6 +205,16 @@ export function resolveRoomStrategy(raw: string | undefined): RoomStrategy {
 /** Parse the default room from `VITE_DEFAULT_ROOM` — the single cast site for the default RoomId. */
 export function resolveDefaultRoom(raw: string | undefined): RoomId {
   return parseRoomId(raw ?? '') ?? DEFAULT_ROOM_NAME;
+}
+
+/**
+ * Parse `VITE_ICE_SERVERS_URL` into a branded {@link IceServersUrl}, or
+ * `undefined` when unset/not an http(s) URL. When set, `App.svelte` fetches ICE
+ * servers from it (short-lived TURN credentials minted server-side) in place of
+ * the static `VITE_TURN_*` config. The single env cast site for this URL.
+ */
+export function resolveIceServersUrl(raw: string | undefined): IceServersUrl | undefined {
+  return parseIceServersUrl((raw ?? '').trim()) ?? undefined;
 }
 
 /** ICE server environment variables read at startup for WebRTC NAT traversal. */

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick as nextTick } from 'svelte';
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { StorageBackend } from './storage/index.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
@@ -6,6 +7,7 @@
   import {
     resolveSignaling,
     resolveIceServers,
+    resolveIceServersUrl,
     resolveWebsocket,
     resolveTransport,
     resolveRoomStrategy,
@@ -13,6 +15,7 @@
     type PageProtocol,
     type PageHostname,
   } from './collaboration/config.js';
+  import { fetchIceServers } from './collaboration/iceServers.js';
   import { parseRoomId, parseRoomName } from './collaboration/parse.js';
   import { roomName, renameRoom } from './collaboration/roomName.svelte.js';
   import { recordRoomVisit, updateRecentRoomName } from './collaboration/recentRooms.js';
@@ -32,7 +35,7 @@
   import { currentSecretKey } from './collaboration/secretLink.js';
   import type { RoomCipher } from './collaboration/roomCipher.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
-  import type { DisplayName, CursorColor, RoomId, CollabConnect } from './collaboration/types.js';
+  import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
   import { SessionRole } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
@@ -65,6 +68,29 @@
     hostname: location.hostname as PageHostname,
   };
 
+  // ICE servers fetched at startup from VITE_ICE_SERVERS_URL (a credentials
+  // endpoint that mints short-lived TURN creds server-side). Empty until the
+  // fetch resolves; `buildIce()` prefers these over static env TURN when present.
+  // Only the WebRTC transport uses ICE, so skip the whole dance on WebSocket.
+  let fetchedIce = $state<IceServer[]>([]);
+  const usesIce = resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) !== 'websocket';
+  const iceServersUrl = usesIce ? resolveIceServersUrl(import.meta.env.VITE_ICE_SERVERS_URL) : undefined;
+  // Gate the first Editor mount on the ICE fetch when an endpoint is configured,
+  // so the initial connection already carries the fetched TURN relay. We resolve
+  // ICE *before* the first build rather than reconnecting after: a post-mount
+  // rebuild would remount the Editor via {#key}, and a same-room remount races
+  // y-webrtc's global room registry (openRoom throws "already exists" if the old
+  // provider's async teardown hasn't deregistered the room yet, leaving the new
+  // provider unsubscribed). fetchIceServers self-bounds via ICE_FETCH_TIMEOUT_MS,
+  // so this gate always opens — with creds if they arrived, with env/default if not.
+  let iceReady = $state(!iceServersUrl);
+  if (iceServersUrl) {
+    void fetchIceServers(iceServersUrl).then((servers) => {
+      if (servers.length > 0) fetchedIce = servers;
+      iceReady = true;
+    });
+  }
+
   // Pick the collaboration transport — chosen explicitly via VITE_COLLAB_TRANSPORT
   // (default 'webrtc'). 'websocket' routes edits through a central hub server (no
   // WebRTC, so no STUN/TURN — works on mobile carrier NATs where P2P can't connect).
@@ -89,9 +115,13 @@
     const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, loc);
     // ICE is resolved per build (not once) so runtime TURN changes from Settings
     // apply on the next reconnect. Precedence: runtime TURN → env TURN → public default.
-    const buildIce = () => {
+    const buildIce = (): IceServer[] => {
       const turn = getTurnPrefs();
       const hasRuntimeTurn = turn.urls.length > 0;
+      // Precedence: runtime TURN (user's own, from Settings) → fetched ICE
+      // (short-lived creds from VITE_ICE_SERVERS_URL) → static env / public
+      // default. Runtime always wins; a configured endpoint beats static env.
+      if (!hasRuntimeTurn && fetchedIce.length > 0) return fetchedIce;
       return resolveIceServers(
         {
           VITE_STUN_URL: import.meta.env.VITE_STUN_URL,
@@ -127,18 +157,43 @@
   // below remounts the Editor so the change takes effect immediately.
   let localCache = $state(localCacheEnabled());
 
-  // Bumped when a TURN settings change needs the Editor to reconnect. Read in
-  // `connect` so the factory rebuilds with fresh ICE, and in the keyed block
-  // below to remount.
+  // Bumped when a TURN/security settings change needs a fresh factory. Read in
+  // `connect` so the derived rebuilds with the new ICE/cipher; the actual remount
+  // is driven by `rebuildCollab()` (a same-room {#key} swap would race y-webrtc).
   let collabEpoch = $state(0);
   const connect = $derived.by(() => {
     void collabEpoch;
     return collabPlan.build(localCache);
   });
 
+  // The Editor is unmounted only while `editorMounted` is false; the `{#key room}`
+  // block below still handles room switches (different y-webrtc room → no clash).
+  let editorMounted = $state(true);
+  let rebuilding = false;
+  /**
+   * Reconnect for a *same-room* config change (TURN/cache/security). Cycle the
+   * Editor off, wait for the old provider to fully tear down — including
+   * y-webrtc's async room deregistration — then remount. A direct {#key} swap can
+   * construct the new provider before the old one deregisters, and y-webrtc's
+   * `openRoom()` throws "already exists" for the same room name, leaving the new
+   * provider unsubscribed (silently no peers). The two-phase mount avoids that.
+   */
+  async function rebuildCollab(): Promise<void> {
+    if (rebuilding) return;
+    rebuilding = true;
+    editorMounted = false;
+    await nextTick(); // apply the unmount → Editor.onDestroy → collab.destroy()
+    // Drain microtasks so the provider's async room deregistration completes
+    // before the replacement mounts (setTimeout yields past the microtask queue).
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    editorMounted = true;
+    rebuilding = false;
+  }
+
   function setLocalCache(on: boolean): void {
     setLocalCacheEnabled(on);
     localCache = localCacheEnabled();
+    void rebuildCollab(); // rebuild `connect` (reads localCache) + safely remount
     if (!on) void clearLocalCache().then(() => toasts.info('Local copies cleared'));
   }
 
@@ -152,8 +207,16 @@
   function saveTurnPrefs(p: TurnPrefs): void {
     turnPrefs = p;
     setTurnPrefs(p);
-    collabEpoch += 1; // rebuild ICE + remount so the change takes effect
+    collabEpoch += 1;      // rebuild the factory with fresh ICE…
+    void rebuildCollab();  // …and safely remount so it takes effect
     toasts.info('Connection settings applied');
+  }
+
+  // Security change from the Share dialog (secure link / room password): rebuild
+  // the factory with the new cipher and safely remount.
+  function onSecurityChange(): void {
+    collabEpoch += 1;
+    void rebuildCollab();
   }
 
   const COLORS: CursorColor[] = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'] as CursorColor[];
@@ -339,19 +402,26 @@
     </InfoBanner>
   {/if}
 
-  {#key `${room}|${localCache}|${collabEpoch}`}
-    <Editor
-      {name}
-      {color}
-      {room}
-      role={sessionRole}
-      {connect}
-      {toasts}
-      storage={connected ? storage!.storage : null}
-      lang={language.resolved}
-      spellcheck={language.spellcheck}
-    />
-  {/key}
+  {#if !iceReady}
+    <div class="ice-gate" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Setting up a secure connection…</span>
+    </div>
+  {:else if editorMounted}
+    {#key room}
+      <Editor
+        {name}
+        {color}
+        {room}
+        role={sessionRole}
+        {connect}
+        {toasts}
+        storage={connected ? storage!.storage : null}
+        lang={language.resolved}
+        spellcheck={language.spellcheck}
+      />
+    {/key}
+  {/if}
 </div>
 
 <ConnectionDialog
@@ -386,6 +456,33 @@
   {room}
   {toasts}
   envPassword={import.meta.env.VITE_ROOM_PASSWORD}
-  onSecurityChange={() => (collabEpoch += 1)}
+  {onSecurityChange}
 />
 <Toast {toasts} />
+
+<style>
+  /* Shown only while the startup ICE-credentials fetch is in flight (deployments
+     with VITE_ICE_SERVERS_URL). Bounded by ICE_FETCH_TIMEOUT_MS. */
+  .ice-gate {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-height: 40vh;
+    color: var(--text-muted);
+    font-size: var(--fs-400);
+  }
+  .ice-gate .spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: ice-gate-spin 0.7s linear infinite;
+  }
+  @keyframes ice-gate-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+</style>

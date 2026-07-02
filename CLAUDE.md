@@ -190,10 +190,10 @@ This codebase uses **functional naming** — no OO suffixes.
 ## Key technical notes
 
 - **Svelte 5 runes** — use `$state.raw()` for ProseMirror objects (avoid deep Proxy wrapping).
-- **`{#key room}`** — forces a full `Editor` remount when the room changes, giving a clean Y.Doc and WebrtcProvider without manual teardown logic in Editor.
+- **`{#key room}` + two-phase remount** — `{#key room}` forces a full `Editor` remount on a room *change* (a different y-webrtc room name, so no clash), giving a clean Y.Doc and WebrtcProvider without manual teardown logic in Editor. A *same-room* reconnect (TURN/cache/security change) instead goes through `rebuildCollab()` in `App.svelte`, which toggles `editorMounted` off → `await tick()` + a macrotask → on: the old provider must fully deregister its room before the new one mounts, because y-webrtc's `openRoom()` throws "already exists" for the same name and would leave the new provider silently unsubscribed. Don't put same-room-changing keys back into the `{#key}` — route them through `rebuildCollab()`.
 - **`untrack()`** — used when a prop is intentionally read once at component init (not reactive).
 - **Leader election** — only the peer with the lowest `clientID` writes to storage, preventing concurrent-write races.
-- **Local cache** — `src/collaboration/cache.ts` owns local caching end to end (prefs + DB naming + clear + `attachLocalCache(room, doc): LocalCache`, the single place importing `y-indexeddb`). Both adapters just call `attachLocalCache` when their `cache` opt is true (DB name `copad:<room>`), so a reload survives without a backend. On by default; the Settings toggle flips a localStorage pref that `App.svelte` reads, rebuilds `connect`, and remounts the Editor via `{#key room|localCache}`. Stores **plaintext** at rest (independent of the room password) — the toggle + "Clear local copies" are the privacy control. `clearLocalCache()` uses a remembered-rooms index (not `indexedDB.databases()`, which Firefox lacks).
+- **Local cache** — `src/collaboration/cache.ts` owns local caching end to end (prefs + DB naming + clear + `attachLocalCache(room, doc): LocalCache`, the single place importing `y-indexeddb`). Both adapters just call `attachLocalCache` when their `cache` opt is true (DB name `copad:<room>`), so a reload survives without a backend. On by default; the Settings toggle flips a localStorage pref that `App.svelte` reads, rebuilds `connect`, and remounts the Editor via `rebuildCollab()` (the two-phase same-room remount). Stores **plaintext** at rest (independent of the room password) — the toggle + "Clear local copies" are the privacy control. `clearLocalCache()` uses a remembered-rooms index (not `indexedDB.databases()`, which Firefox lacks).
 - **Per-room encryption** — `src/collaboration/roomKey.ts`: `webrtcCollab`'s `password` is a `(room) => string | undefined` resolver. `resolveRoomPassword()` precedence: URL hash `#k=` (a "secure link" — the hash is never sent to the signaling server) → per-room password remembered in localStorage → `VITE_ROOM_PASSWORD`. The `ShareDialog` sets either mode; changing it bumps `collabEpoch` in `App.svelte` so `{#key …|collabEpoch}` remounts the Editor and reconnects with the new key. Cooperative only — a wrong/missing key just fails to sync (no hard error). WebRTC only; the hub relay sees plaintext.
 - **TURN / connectivity** — `config.ts:DEFAULT_TURN` (public OpenRelay) is the out-of-the-box fallback so desktop↔mobile connects without setup; `resolveIceServers(env, { defaultTurn })` precedence runtime (`turn.ts`, edited in Settings) → env → default. `App.svelte` resolves ICE *inside* `build()` so a TURN change (bump `collabEpoch`) reconnects with fresh servers. The `Collab` port has optional `reconnect()` + `getDiagnostics()`; the webrtc adapter reads selected ICE candidate type via `peer._pc.getStats()` (best-effort, guarded) to report Direct vs Relayed in `ConnectionDialog.svelte` (opened from the status bar).
 - **WebDAV** — hidden from the UI unless `VITE_PROXY_URL` is set; most WebDAV servers don't send CORS headers.
@@ -235,6 +235,8 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_TURN_URL` | no | TURN relay url(s), comma-separated. Needed for restrictive/mobile NATs (CGNAT / symmetric NAT). When unset, a public default relay (`DEFAULT_TURN` in `config.ts`) is used unless disabled. Runtime Settings TURN (`turn.ts`) overrides this. |
 | `VITE_TURN_USERNAME` | no | TURN username. |
 | `VITE_TURN_PASSWORD` | no | TURN password. |
+| `VITE_ICE_SERVERS_URL` | no | HTTP(S) endpoint returning `{ iceServers: [...] }` (e.g. the Cloudflare TURN Worker in `ice/cloudflare-worker/`). When set, the frontend fetches ICE at startup instead of using static `VITE_TURN_*` — for providers that mint short-lived credentials from a secret API token. Resolved by `resolveIceServersUrl()`; fetched via `fetchIceServers()`. Runtime Settings TURN still overrides it. WebRTC transport only. |
+| `VITE_ICE_FETCH_TIMEOUT_MS` | no | How long (ms) to wait for `VITE_ICE_SERVERS_URL` before falling back to env/default ICE (default: `10000`). In `src/collaboration/constants.ts`. |
 
 ## Collaboration servers
 
@@ -256,3 +258,10 @@ coturn has no equivalent drop-in. TURN needs a UDP port range, so it wants a VPS
 config is a template: the live `turnserver.conf` is git-ignored (it holds the shared secret + public IP),
 the credential is treated as public (it's inlined into the client bundle), and the config caps abuse with
 TURN quotas + SSRF deny ranges. Optional — a free public default relay (`DEFAULT_TURN`) works out of the box.
+
+**`ice/cloudflare-worker/`** — for providers that mint *short-lived* TURN credentials from a **secret** API
+token (Cloudflare TURN), a static `VITE_TURN_*` won't do: the token can't ship in the client bundle. This
+Worker holds the token server-side and returns fresh `{ iceServers: [...] }` JSON. Set `VITE_ICE_SERVERS_URL`
+to its URL and the frontend fetches ICE at startup (`fetchIceServers()` in `src/collaboration/iceServers.ts`,
+parsed by `parseIceServersResponse()`), reconnecting once creds arrive via the existing `collabEpoch` path.
+Precedence in `App.svelte`'s `buildIce()`: runtime TURN (Settings) → fetched ICE → static env / `DEFAULT_TURN`.

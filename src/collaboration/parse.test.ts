@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePeerAwarenessState, parseRoomName, parseRecentRooms } from './parse.js';
+import { parsePeerAwarenessState, parseRoomName, parseRecentRooms, parseIceServersResponse } from './parse.js';
 
 describe('parsePeerAwarenessState — fallback behaviour', () => {
   it('returns safe defaults for null', () => {
@@ -196,5 +196,66 @@ describe('parseRecentRooms', () => {
   it('defaults a malformed name to null and a missing visitedAt to 0', () => {
     const raw = JSON.stringify([{ id: 'a', name: 42 }]);
     expect(parseRecentRooms(raw)).toEqual([{ id: 'a', name: null, visitedAt: 0 }]);
+  });
+});
+
+describe('parseIceServersResponse', () => {
+  it('parses the Cloudflare shape (mixed stun/turn urls + creds)', () => {
+    const raw = {
+      iceServers: [
+        {
+          urls: [
+            'stun:stun.cloudflare.com:3478',
+            'turn:turn.cloudflare.com:3478?transport=udp',
+            'turns:turn.cloudflare.com:5349?transport=tcp',
+          ],
+          username: 'abc',
+          credential: 'xyz',
+        },
+      ],
+    };
+    expect(parseIceServersResponse(raw)).toEqual([
+      {
+        urls: [
+          'stun:stun.cloudflare.com:3478',
+          'turn:turn.cloudflare.com:3478?transport=udp',
+          'turns:turn.cloudflare.com:5349?transport=tcp',
+        ],
+        username: 'abc',
+        credential: 'xyz',
+      },
+    ]);
+  });
+
+  it('accepts a single url string and omits absent creds', () => {
+    expect(parseIceServersResponse({ iceServers: [{ urls: 'stun:s.example:3478' }] })).toEqual([
+      { urls: ['stun:s.example:3478'] },
+    ]);
+  });
+
+  it('drops invalid urls and entries with no valid url', () => {
+    const raw = {
+      iceServers: [
+        { urls: ['not-a-url', 'turn:relay.example:3478'] },
+        { urls: ['http://nope.example'] },
+        { urls: [] },
+        { username: 'x' },
+      ],
+    };
+    expect(parseIceServersResponse(raw)).toEqual([{ urls: ['turn:relay.example:3478'] }]);
+  });
+
+  it('returns [] for malformed / missing shapes', () => {
+    expect(parseIceServersResponse(null)).toEqual([]);
+    expect(parseIceServersResponse(undefined)).toEqual([]);
+    expect(parseIceServersResponse('nope')).toEqual([]);
+    expect(parseIceServersResponse({})).toEqual([]);
+    expect(parseIceServersResponse({ iceServers: 'x' })).toEqual([]);
+    expect(parseIceServersResponse({ iceServers: [null, 42, 'str'] })).toEqual([]);
+  });
+
+  it('ignores non-string username/credential', () => {
+    const raw = { iceServers: [{ urls: ['turn:r.example:3478'], username: 5, credential: {} }] };
+    expect(parseIceServersResponse(raw)).toEqual([{ urls: ['turn:r.example:3478'] }]);
   });
 });
