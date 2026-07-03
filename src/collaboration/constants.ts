@@ -79,3 +79,8 @@ export const roomPasswordKey = (room: RoomId): StorageKey =>
  *  visit knows the room is encrypted and gates access when the key is missing. */
 export const roomEncryptedKey = (room: RoomId): StorageKey =>
   storageKey(`collab.room-encrypted.${room}`);
+
+/** Key recording that the user chose to open a room *without* a password in
+ *  `room-password` mode, so the first-visit gate isn't shown again for it. */
+export const roomOpenKey = (room: RoomId): StorageKey =>
+  storageKey(`collab.room-open.${room}`);

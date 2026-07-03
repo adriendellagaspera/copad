@@ -1,7 +1,7 @@
 import type { RoomId } from './types.js';
 import { parseRoomCredential } from './parse.js';
 import { localStore } from '../persistence/local.js';
-import { roomPasswordKey } from './constants.js';
+import { roomPasswordKey, roomOpenKey } from './constants.js';
 
 /** The four room-access strategies, parsed from `VITE_ROOM_AUTH` at the env
  *  boundary. The union carries the invariant: once you hold a `RoomAccess`,
@@ -72,4 +72,23 @@ export function setRoomPassword(room: RoomId, password: string): void {
 /** Remove the stored password for a room. */
 export function clearRoomPassword(room: RoomId): void {
   roomPasswordStore(room).clear();
+}
+
+// Whether the user chose to open a room without a password in `room-password`
+// mode — a per-room acknowledgement so the first-visit gate isn't shown again.
+const roomOpenStore = (room: RoomId) =>
+  localStore<boolean>(
+    roomOpenKey(room),
+    (raw) => raw === '1',
+    (open) => (open ? '1' : null),
+  );
+
+/** Whether the user opted to open this room without a password. */
+export function roomOpenedWithoutPassword(room: RoomId): boolean {
+  return roomOpenStore(room).read();
+}
+
+/** Record that the user chose to open this room without a password. */
+export function setRoomOpenedWithoutPassword(room: RoomId): void {
+  roomOpenStore(room).write(true);
 }

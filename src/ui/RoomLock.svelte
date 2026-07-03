@@ -6,12 +6,19 @@
     room,
     reason,
     onUnlock,
+    allowSkip = false,
+    onSkip,
   }: {
     room: RoomId;
     /** Why the room is locked: no key supplied, or the wrong one. */
     reason?: LockReason;
     /** Try a key; resolves true when it unlocks the room, false when it's wrong. */
     onUnlock: (key: string) => Promise<boolean>;
+    /** Whether to offer opening the room without a password (deployment-gated
+     *  first visit only — never for a room known to be encrypted). */
+    allowSkip?: boolean;
+    /** Open the room unencrypted, without a password. */
+    onSkip?: () => void;
   } = $props();
 
   let value = $state('');
@@ -75,6 +82,12 @@
       <p class="lock-hint">
         Don't have it? Ask whoever shared this document for the password or the full secure link.
       </p>
+    {/if}
+
+    {#if allowSkip && onSkip}
+      <button class="lock-skip" type="button" onclick={onSkip} disabled={busy}>
+        Continue without a password
+      </button>
     {/if}
   </div>
 </div>
@@ -151,5 +164,20 @@
     color: var(--text-faint);
     font-size: var(--fs-300);
     line-height: 1.5;
+  }
+  .lock-skip {
+    margin-top: var(--sp-1);
+    background: none;
+    border: none;
+    padding: var(--sp-1) var(--sp-2);
+    color: var(--text-muted);
+    font-size: var(--fs-300);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .lock-skip:hover:not(:disabled) {
+    color: var(--text);
+    background: none;
   }
 </style>
