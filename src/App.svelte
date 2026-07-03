@@ -35,7 +35,13 @@
     clearLocalCache,
     type LocalCacheEnabled,
   } from './collaboration/cache.js';
-  import { roomPassword, setRoomPassword, RoomAccessMode } from './collaboration/roomAccess.js';
+  import {
+    roomPassword,
+    setRoomPassword,
+    RoomAccessMode,
+    roomOpenedWithoutPassword,
+    setRoomOpenedWithoutPassword,
+  } from './collaboration/roomAccess.js';
   import { currentSecretKey } from './collaboration/secretLink.js';
   import type { RoomCipher } from './collaboration/roomCipher.js';
   import {
@@ -393,6 +399,10 @@
   const encryptedTransport = usesIce; // WebRTC — the only transport that encrypts
   let lock = $state<RoomLockState>({ locked: false });
   let lockChecked = $state(!encryptedTransport);
+  // Whether the current lock offers a "continue without a password" escape. Only
+  // the deterministic first-visit `room-password` gate does — never a room known
+  // to be encrypted (skipping that would just show an empty, unsynced room).
+  let lockAllowSkip = $state(false);
 
   $effect(() => {
     const r = room;
@@ -405,17 +415,20 @@
     const cred = roomCipher.password(r);
     const stored = roomEncryptionFingerprint(r);
     if (!stored) {
+      lockAllowSkip = false;
       if (cred) {
         // First time we see this room *with* a key: remember it's encrypted so a
         // later keyless visit is gated. Fire-and-forget; we're not locked.
         void rememberRoomEncryption(r, cred);
         lock = { locked: false };
-      } else if (passwordRequiredMode) {
+      } else if (passwordRequiredMode && !roomOpenedWithoutPassword(r)) {
         // No key, none remembered, but the deployment requires one → prompt for it
         // on this first visit (deterministic, not based on a stored fingerprint).
+        // Offer an escape: the user may deliberately open the room unencrypted.
         lock = { locked: true, reason: 'missing' };
+        lockAllowSkip = true;
       } else {
-        // Not known to be encrypted and none required → open (the common case).
+        // Not known to be encrypted and none required (or the user opted out) → open.
         lock = { locked: false };
       }
       lockChecked = true;
@@ -423,7 +436,8 @@
     }
     // Known-encrypted → verify the current key against the remembered fingerprint.
     // Never overwrite the stored fingerprint here — that's what lets a wrong key be
-    // detected (locked) instead of silently adopted.
+    // detected (locked) instead of silently adopted. No skip offered here.
+    lockAllowSkip = false;
     lockChecked = false;
     let cancelled = false;
     void (async () => {
@@ -437,6 +451,13 @@
       cancelled = true;
     };
   });
+
+  // "Continue without a password" from the first-visit gate: remember the choice
+  // for this room and re-run the gate (which now opens it, unencrypted).
+  function continueWithoutPassword(): void {
+    setRoomOpenedWithoutPassword(room);
+    collabEpoch += 1;
+  }
 
   // Unlock the gate by supplying the room key. It's verified against the
   // remembered fingerprint before we persist anything (a wrong key is rejected,
@@ -588,7 +609,13 @@
       <span>Checking room access…</span>
     </div>
   {:else if lock.locked}
-    <RoomLock {room} reason={lock.reason} onUnlock={tryUnlock} />
+    <RoomLock
+      {room}
+      reason={lock.reason}
+      onUnlock={tryUnlock}
+      allowSkip={lockAllowSkip}
+      onSkip={continueWithoutPassword}
+    />
   {:else if editorMounted}
     {#key room}
       <Editor
