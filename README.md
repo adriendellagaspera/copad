@@ -146,8 +146,7 @@ room property. This is worth understanding so nothing surprises you:
 - **Each room is its own document.** A room's target file is scoped to that room,
   so switching rooms does **not** carry content across — importing a document in one
   room won't follow you into another. One backend can hold several rooms, each a
-  distinct file (the home/default room keeps the plain default name for back-compat;
-  other rooms derive their own).
+  distinct file derived from the room id (e.g. `copad-demo.yjs`).
 - **"Saved" vs "Live-only" (the header badge).** It's a statement about **you**:
   **Saved** means this room autosaves to *your* connected backend; **Live-only** means
   it isn't saved to any storage of yours — it lives in the real-time session and your

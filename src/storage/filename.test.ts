@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { filenameStore, filenameForRoom, firstFileCollision, setActiveRoom, setDefaultRoom } from './filename.js';
+import { filenameStore, filenameForRoom, firstFileCollision, setActiveRoom } from './filename.js';
 import { STORAGE_ID } from './constants.js';
 import type { Filename } from './types.js';
 import type { RoomId } from '../collaboration/types.js';
@@ -16,17 +16,13 @@ vi.stubGlobal('localStorage', {
 
 beforeEach(() => {
   Object.keys(store).forEach((k) => delete store[k]);
-  setDefaultRoom(HOME);
   setActiveRoom(HOME);
 });
 
 describe('filenameStore — per-room targets', () => {
-  it('the home room keeps the plain default filename (back-compat)', () => {
+  it('every room derives its own file from the room id, keeping the extension', () => {
     setActiveRoom(HOME);
-    expect(filenameStore(STORAGE_ID.dropbox).get()).toBe('document.yjs');
-  });
-
-  it('a non-home room derives its own file from the room id, keeping the extension', () => {
+    expect(filenameStore(STORAGE_ID.dropbox).get()).toBe('copad-demo.yjs');
     setActiveRoom(OTHER);
     expect(filenameStore(STORAGE_ID.dropbox).get()).toBe('my-notes.yjs');
   });
@@ -52,7 +48,7 @@ describe('filenameStore — per-room targets', () => {
     fn.set('report.md');
     expect(fn.get()).toBe('report.md');
     setActiveRoom(HOME);
-    expect(fn.get()).toBe('document.yjs'); // unchanged
+    expect(fn.get()).toBe('copad-demo.yjs'); // unchanged (its own derived default)
     setActiveRoom(OTHER);
     expect(fn.get()).toBe('report.md');
   });
@@ -62,16 +58,17 @@ describe('filenameStore — per-room targets', () => {
     expect(filenameStore(STORAGE_ID.dropbox).get()).toBe('a-b-c-d.yjs');
   });
 
-  it('an unset home room resolves to the plain default', () => {
-    setActiveRoom(HOME);
+  it('falls back to the backend’s plain default when no room is active', () => {
+    // Non-App / adapter contexts never call setActiveRoom → get() yields the plain default.
+    setActiveRoom(undefined as unknown as RoomId);
     expect(filenameStore(STORAGE_ID.dropbox).get()).toBe('document.yjs');
-    expect(store['storage.dropbox.filename.copad-demo']).toBeUndefined();
+    expect(filenameStore(STORAGE_ID.github, 'notes.md' as Filename).get()).toBe('notes.md');
   });
 
   it('filenameForRoom reads a specific room without switching the active room', () => {
     setActiveRoom(HOME);
     expect(filenameForRoom(STORAGE_ID.dropbox, OTHER)).toBe('my-notes.yjs'); // derived, not the active HOME
-    expect(filenameForRoom(STORAGE_ID.dropbox, HOME)).toBe('document.yjs');
+    expect(filenameForRoom(STORAGE_ID.dropbox, HOME)).toBe('copad-demo.yjs');
   });
 });
 

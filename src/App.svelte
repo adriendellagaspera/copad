@@ -3,7 +3,7 @@
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { StorageBackend } from './storage/index.js';
   import { savedRoomsStore } from './storage/savedRooms.js';
-  import { setActiveRoom, setDefaultRoom, filenameForRoom, firstFileCollision } from './storage/filename.js';
+  import { setActiveRoom, filenameForRoom, firstFileCollision } from './storage/filename.js';
   import type { Filename } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
   import { websocketCollab } from './collaboration/websocket.js';
@@ -304,11 +304,9 @@
   let room = $state<RoomId>(roomFromUrl());
   const sessionRole: SessionRole = roleFromUrl();
 
-  // Tell the storage layer which room every backend targets. The home/default
-  // room keeps the plain default filename (back-compat); every other room a
-  // backend saves gets its own file, so rooms never share one document. Set before
+  // Tell the storage layer which room every backend targets. Every room derives
+  // its own file from the room id, so rooms never share one document. Set before
   // the Editor first mounts and reads `filename()`.
-  setDefaultRoom(DEFAULT_ROOM);
   setActiveRoom(untrack(() => room)); // one-time read at init (not reactive)
 
   // Returning-user default: if a backend is already authenticated but saves no room

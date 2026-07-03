@@ -12,26 +12,18 @@ export interface FilenameStore {
 }
 
 // ── Active room (app-global) ─────────────────────────────────────────────────
-// A backend targets exactly one file at a time, but that file now depends on the
-// room you're in, so one backend can hold a *distinct* document per room instead
-// of every room sharing a single file. Exactly one room is active at a time, so
-// the active room (and the home/default room, which keeps the plain default
-// filename for backward compatibility) live here as app-global state that every
-// filenameStore reads. `App.svelte` sets both on startup and on each room switch,
-// synchronously — before the Editor remounts and reads `filename()`.
+// A backend targets exactly one file at a time, but that file depends on the room
+// you're in, so one backend can hold a *distinct* document per room instead of
+// every room sharing a single file. Exactly one room is active at a time, so the
+// active room lives here as app-global state that every filenameStore reads.
+// `App.svelte` sets it on startup and on each room switch, synchronously — before
+// the Editor remounts and reads `filename()`.
 
 let activeRoom: RoomId | null = null;
-let defaultRoom: RoomId | null = null;
 
 /** Set the room whose document every backend currently targets. */
 export function setActiveRoom(room: RoomId): void {
   activeRoom = room;
-}
-
-/** Set the home/default room — the one that keeps the plain default filename
- *  (e.g. `document.yjs`) so existing single-document setups keep working. */
-export function setDefaultRoom(room: RoomId): void {
-  defaultRoom = room;
 }
 
 /** localStorage key for a backend's target filename in one room. */
@@ -45,15 +37,11 @@ function roomStem(room: RoomId): string {
 }
 
 /**
- * The default target filename for a room: the home room keeps the backend's plain
- * default (back-compat), every other room derives a distinct file from its id
- * while preserving the default's *extension* (which selects the codec/format), so
- * two rooms on one backend never collide on the same path.
+ * The default target filename for a room: a distinct file derived from the room
+ * id, keeping the backend default's *extension* (which selects the codec/format),
+ * so two rooms on one backend never collide on the same path.
  */
 function roomDefaultFilename(room: RoomId, fallback: Filename): Filename {
-  // Home room — or rooms not configured yet (non-App contexts) — keep the plain
-  // default; every other room derives a distinct file.
-  if (!defaultRoom || room === defaultRoom) return fallback;
   return `${roomStem(room)}${extensionOf(fallback)}` as Filename;
 }
 
@@ -67,14 +55,19 @@ function roomDefaultFilename(room: RoomId, fallback: Filename): Filename {
  * and parsing stay behind the store — this module only reads/writes typed Filenames.
  */
 export function filenameStore(backendId: StorageId, fallback: Filename = DEFAULT_FILENAME): FilenameStore {
+  // Stand-in room for non-App / adapter contexts that never set an active room:
+  // there the backend behaves like a single global filename defaulting to the
+  // plain fallback (not a per-room derived name).
+  const NO_ROOM = 'document' as RoomId;
+  const defaultFor = (room: RoomId): Filename =>
+    room === NO_ROOM ? fallback : roomDefaultFilename(room, fallback);
   const perRoom = (room: RoomId) =>
     localStore<Filename>(
       perRoomFilenameKey(backendId, room),
-      (raw) => parseFilename(raw, roomDefaultFilename(room, fallback)),
+      (raw) => parseFilename(raw, defaultFor(room)),
       (name) => name.trim() || null,
     );
-
-  const currentRoom = (): RoomId => activeRoom ?? defaultRoom ?? ('document' as RoomId);
+  const currentRoom = (): RoomId => activeRoom ?? NO_ROOM;
 
   return {
     get: () => perRoom(currentRoom()).read(),
