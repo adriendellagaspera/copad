@@ -31,7 +31,7 @@
     clearLocalCache,
     type LocalCacheEnabled,
   } from './collaboration/cache.js';
-  import { roomPassword, setRoomPassword } from './collaboration/roomAccess.js';
+  import { roomPassword, setRoomPassword, RoomAccessMode } from './collaboration/roomAccess.js';
   import { currentSecretKey } from './collaboration/secretLink.js';
   import type { RoomCipher } from './collaboration/roomCipher.js';
   import {
@@ -65,8 +65,14 @@
   // password (set in the Share dialog) → the deployment's configured VITE_ROOM_AUTH
   // strategy. The Editor remounts on a security change (collabEpoch), so a link or
   // password set in Share takes effect on the next connection.
-  const { cipher: envCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
+  const { access: envAccess, cipher: envCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
   const perRoomPassword = roomPassword();
+  // In `room-password` mode the deployment mandates a per-room password for every
+  // room, so a first-time visitor with none stored should be prompted for it —
+  // deterministically, without needing a prior keyed visit's fingerprint. The
+  // other modes don't need this: `public` isn't gated, `site-password` supplies
+  // the key from env, and `secret-link` mints a fresh key when the URL has none.
+  const passwordRequiredMode = envAccess.mode === RoomAccessMode.RoomPassword;
   const roomCipher: RoomCipher = {
     password: (r) => currentSecretKey() ?? perRoomPassword.credential(r) ?? envCipher.password(r),
   };
@@ -323,11 +329,19 @@
     const cred = roomCipher.password(r);
     const stored = roomEncryptionFingerprint(r);
     if (!stored) {
-      // Not known to be encrypted → never gated (the common case; no async flash).
-      // First time we see this room *with* a key, remember it's encrypted so a
-      // later keyless visit is gated. Fire-and-forget: we're not locked either way.
-      if (cred) void rememberRoomEncryption(r, cred);
-      lock = { locked: false };
+      if (cred) {
+        // First time we see this room *with* a key: remember it's encrypted so a
+        // later keyless visit is gated. Fire-and-forget; we're not locked.
+        void rememberRoomEncryption(r, cred);
+        lock = { locked: false };
+      } else if (passwordRequiredMode) {
+        // No key, none remembered, but the deployment requires one → prompt for it
+        // on this first visit (deterministic, not based on a stored fingerprint).
+        lock = { locked: true, reason: 'missing' };
+      } else {
+        // Not known to be encrypted and none required → open (the common case).
+        lock = { locked: false };
+      }
       lockChecked = true;
       return;
     }
