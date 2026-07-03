@@ -62,15 +62,7 @@ describe('filenameStore — per-room targets', () => {
     expect(filenameStore(STORAGE_ID.dropbox).get()).toBe('a-b-c-d.yjs');
   });
 
-  it('migrates a legacy global filename onto the home room, then drops it', () => {
-    store['storage.dropbox.filename'] = 'legacy.md'; // pre-per-room custom name
-    setActiveRoom(HOME);
-    expect(filenameStore(STORAGE_ID.dropbox).get()).toBe('legacy.md');
-    expect(store['storage.dropbox.filename']).toBeUndefined();       // legacy key cleared
-    expect(store['storage.dropbox.filename.copad-demo']).toBe('legacy.md'); // moved per-room
-  });
-
-  it('does not migrate when no legacy filename was ever set', () => {
+  it('an unset home room resolves to the plain default', () => {
     setActiveRoom(HOME);
     expect(filenameStore(STORAGE_ID.dropbox).get()).toBe('document.yjs');
     expect(store['storage.dropbox.filename.copad-demo']).toBeUndefined();

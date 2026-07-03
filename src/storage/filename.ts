@@ -3,7 +3,7 @@ import type { RoomId } from '../collaboration/types.js';
 import { parseFilename } from './parse.js';
 import { extensionOf } from '../format/types.js';
 import { localStore, storageKey } from '../persistence/local.js';
-import { DEFAULT_FILENAME, backendKey } from './constants.js';
+import { DEFAULT_FILENAME } from './constants.js';
 
 /** Read/write access to the persisted target filename for one storage backend. */
 export interface FilenameStore {
@@ -15,7 +15,7 @@ export interface FilenameStore {
 // A backend targets exactly one file at a time, but that file now depends on the
 // room you're in, so one backend can hold a *distinct* document per room instead
 // of every room sharing a single file. Exactly one room is active at a time, so
-// the active room (and the home/default room, which keeps the legacy default
+// the active room (and the home/default room, which keeps the plain default
 // filename for backward compatibility) live here as app-global state that every
 // filenameStore reads. `App.svelte` sets both on startup and on each room switch,
 // synchronously — before the Editor remounts and reads `filename()`.
@@ -63,24 +63,10 @@ function roomDefaultFilename(room: RoomId, fallback: Filename): Filename {
  * this is how a user picks a format — `notes.md`, `document.html`, … — for the
  * room they're in.
  *
- * Stored per backend *and room* under `storage.<id>.filename.<room>`. A pre-
- * existing global `storage.<id>.filename` (the old room-agnostic key) is migrated
- * once onto the home room, so a customised filename isn't lost on upgrade.
- * localStorage and parsing stay behind the store — this module only reads/writes
- * typed Filenames.
+ * Stored per backend *and room* under `storage.<id>.filename.<room>`. localStorage
+ * and parsing stay behind the store — this module only reads/writes typed Filenames.
  */
 export function filenameStore(backendId: StorageId, fallback: Filename = DEFAULT_FILENAME): FilenameStore {
-  // The old room-agnostic key. Read as Filename | null so a genuinely-set custom
-  // filename can be told apart from "never set" (which the parser would default).
-  const legacy = localStore<Filename | null>(
-    backendKey(backendId, 'filename'),
-    (raw) => {
-      const t = (raw ?? '').trim();
-      return t ? (t as Filename) : null;
-    },
-    (name) => name,
-  );
-
   const perRoom = (room: RoomId) =>
     localStore<Filename>(
       perRoomFilenameKey(backendId, room),
@@ -90,24 +76,9 @@ export function filenameStore(backendId: StorageId, fallback: Filename = DEFAULT
 
   const currentRoom = (): RoomId => activeRoom ?? defaultRoom ?? ('document' as RoomId);
 
-  // One-time upgrade: fold a customised global filename onto the home room, then
-  // drop the legacy key so this runs at most once per backend.
-  const migrateLegacy = (): void => {
-    if (!defaultRoom) return;
-    const custom = legacy.read();
-    if (custom === null) return;
-    perRoom(defaultRoom).write(custom);
-    legacy.clear();
-  };
-
   return {
-    get() {
-      migrateLegacy();
-      return perRoom(currentRoom()).read();
-    },
-    set(name) {
-      perRoom(currentRoom()).write(name.trim() as Filename);
-    },
+    get: () => perRoom(currentRoom()).read(),
+    set: (name) => perRoom(currentRoom()).write(name.trim() as Filename),
   };
 }
 

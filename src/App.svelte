@@ -305,7 +305,7 @@
   const sessionRole: SessionRole = roleFromUrl();
 
   // Tell the storage layer which room every backend targets. The home/default
-  // room keeps the legacy default filename (back-compat); every other room a
+  // room keeps the plain default filename (back-compat); every other room a
   // backend saves gets its own file, so rooms never share one document. Set before
   // the Editor first mounts and reads `filename()`.
   setDefaultRoom(DEFAULT_ROOM);

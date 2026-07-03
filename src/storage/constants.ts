@@ -48,7 +48,6 @@ export type KeyPurpose =
   | 'session'
   | 'conf'
   | 'validated'
-  | 'filename'
   | 'rooms'
   | ConfigFieldName;
 
