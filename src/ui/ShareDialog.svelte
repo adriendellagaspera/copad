@@ -123,7 +123,7 @@
     {/if}
   </p>
 
-  <p class="persist-note" class:owned={saved}>
+  <p class="persist-note" class:is-saved={saved}>
     {#if saved}
       💾 Saved to <strong>your {storageLabel ?? 'storage'}</strong>. Collaborators edit live but
       can’t write to your storage; anyone who connects their own backend keeps their own saved copy.
@@ -235,7 +235,7 @@
     font-size: var(--fs-300);
     line-height: 1.5;
   }
-  .persist-note.owned {
+  .persist-note.is-saved {
     background: var(--accent-soft);
     color: var(--accent);
   }

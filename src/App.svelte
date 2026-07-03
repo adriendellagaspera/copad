@@ -2,7 +2,7 @@
   import { tick as nextTick, untrack } from 'svelte';
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { StorageBackend } from './storage/index.js';
-  import { ownershipStore } from './storage/ownership.js';
+  import { savedRoomsStore } from './storage/savedRooms.js';
   import { setActiveRoom, setDefaultRoom, filenameForRoom, firstFileCollision } from './storage/filename.js';
   import type { Filename } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
@@ -270,15 +270,15 @@
 
   function afterConnect(b: StorageBackend) {
     storage = b;
-    // Connecting a backend makes the room you're in *yours*: add it to this
-    // backend's owned set (each owned room keeps its own file). In every room it
-    // doesn't own, you remain a guest.
-    ownershipStore(b.storage.id).claim(room);
+    // Connecting a backend saves the room you're in to it: add it to this backend's
+    // saved set (each saved room keeps its own file). Every room it doesn't save
+    // stays live-only for you.
+    savedRoomsStore(b.storage.id).add(room);
     bump();
   }
 
   function afterDisconnect(_b: StorageBackend) {
-    // Keep the persisted-room set: logging out already makes every room live-only
+    // Keep the saved-room set: logging out already makes every room live-only
     // (savedHere checks isAuthenticated), and retaining it means re-logging in
     // restores your saved rooms instead of silently orphaning them.
     bump();
@@ -306,43 +306,42 @@
 
   // Tell the storage layer which room every backend targets. The home/default
   // room keeps the legacy default filename (back-compat); every other room a
-  // backend owns gets its own file, so rooms never share one document. Set before
+  // backend saves gets its own file, so rooms never share one document. Set before
   // the Editor first mounts and reads `filename()`.
   setDefaultRoom(DEFAULT_ROOM);
   setActiveRoom(untrack(() => room)); // one-time read at init (not reactive)
 
-  // Returning-user default: if a backend is already authenticated but bound to no
-  // room yet (authed before this feature existed, or a fresh session), treat the
-  // room you land in as the one it owns — but only when you arrived at your own
-  // default room, never via a shared `?room=` link (which means you're a guest).
-  // This keeps an existing user's document attached to their home room instead of
-  // silently demoting them to a guest, without ever claiming someone else's room.
+  // Returning-user default: if a backend is already authenticated but saves no room
+  // yet (authed before this feature existed, or a fresh session), treat the room you
+  // land in as one it saves — but only when you arrived at your own default room,
+  // never via a shared `?room=` link (which means you're just a visitor). This keeps
+  // an existing user's document attached to their home room instead of silently
+  // demoting it to live-only, without ever claiming someone else's room.
   if (!new URLSearchParams(location.search).has('room')) {
     // untrack: a one-time read at init (not a reactive dependency).
     const s = untrack(() => storage);
-    if (s && s.auth.isAuthenticated() && ownershipStore(s.storage.id).rooms().length === 0) {
-      ownershipStore(s.storage.id).claim(untrack(() => room));
+    if (s && s.auth.isAuthenticated() && savedRoomsStore(s.storage.id).all().length === 0) {
+      savedRoomsStore(s.storage.id).add(untrack(() => room));
     }
   }
 
-  // Whether the current room is saved to *your own* storage: a connected backend
-  // of yours is bound to it (you persist it). Otherwise the room is live-only for
-  // you — the Editor gets no Storage (below), so it keeps its own document rather
-  // than inheriting this backend's file. This is a per-user persistence fact, not
-  // a room-level "owner": with per-target autosave, several peers can each save
-  // their own copy. `tick` re-reads the (non-reactive) binding after
-  // connect/disconnect; `room` re-reads it on every room switch.
+  // Whether the current room is saved to *your own* storage: a connected backend of
+  // yours saves it. Otherwise the room is live-only for you — the Editor gets no
+  // Storage (below), so it keeps its own document rather than inheriting this
+  // backend's file. This is a per-user persistence fact, not a room-level role: with
+  // per-target autosave, several people can each save their own copy. `tick` re-reads
+  // the (non-reactive) set after connect/disconnect; `room` re-reads it on switch.
   const savedHere = $derived.by(() => {
     void tick;
     void room;
     const s = storage;
-    return !!s && s.auth.isAuthenticated() && ownershipStore(s.storage.id).owns(room);
+    return !!s && s.auth.isAuthenticated() && savedRoomsStore(s.storage.id).saves(room);
   });
 
-  // Another room this backend owns that resolves to the *same* file as the current
-  // one — they'd silently overwrite each other. Detectable only within this
-  // browser (a same-account collision on another machine can't be seen without a
-  // coordination point the serverless model deliberately lacks). null when clear.
+  // Another room this backend saves that resolves to the *same* file as the current
+  // one — they'd silently overwrite each other. Detectable only within this browser
+  // (a same-account collision on another machine can't be seen without a coordination
+  // point the serverless model deliberately lacks). null when clear.
   const fileConflict = $derived.by((): RoomId | null => {
     void tick;
     void room;
@@ -351,7 +350,7 @@
     const id = s.storage.id;
     const fallback = s.storage.defaultFilename?.();
     const files = new Map<RoomId, Filename>();
-    for (const r of ownershipStore(id).rooms()) files.set(r, filenameForRoom(id, r, fallback));
+    for (const r of savedRoomsStore(id).all()) files.set(r, filenameForRoom(id, r, fallback));
     return firstFileCollision(room, files);
   });
   const conflictWarning = $derived.by((): string | undefined => {

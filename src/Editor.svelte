@@ -211,7 +211,7 @@
   // Scoping by target lets two owners on different backends (or different accounts
   // of one backend) each persist their own copy, while still electing a single
   // writer among peers sharing one file — and a peer without storage access (e.g.
-  // a SharePoint guest) still has their edits relayed and persisted by an owner.
+  // a SharePoint guest) still has their edits relayed and persisted by a saver.
   const isLeader = (): boolean =>
     isPersistLeader(collab.doc.clientID, myPersistTarget(), parsedStates());
 

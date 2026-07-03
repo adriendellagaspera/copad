@@ -1,9 +1,9 @@
 <script lang="ts">
   // Tells the user whether the current room is saved to *their own* storage
   // backend, or is live-only for them (real-time collaboration + local cache,
-  // but nothing of theirs persists it durably). There is no single room "owner":
-  // with per-target autosave, anyone who connects a backend keeps their own saved
-  // copy — so this is a per-user statement about *your* persistence, not a role.
+  // but nothing of theirs persists it durably). No one "owns" a room: with
+  // per-target autosave, anyone who connects a backend keeps their own saved copy —
+  // so this is a per-user statement about *your* persistence, not a role.
   // When live-only, the badge is a button that opens Settings to connect a backend.
   let {
     saved,

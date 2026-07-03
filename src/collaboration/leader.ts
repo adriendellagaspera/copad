@@ -4,7 +4,7 @@
  * The leader is the single peer that writes the shared document to storage,
  * elected as the lowest clientID — but only *among peers writing the same file*.
  * Peers with distinct targets (different backends, or different accounts of one
- * backend) each persist their own copy independently, so no owner's autosave is
+ * backend) each persist their own copy independently, so no one's autosave is
  * starved by another's; peers writing the *same* file still elect one writer, so
  * a shared file (or the same user in two tabs) doesn't race itself.
  */
