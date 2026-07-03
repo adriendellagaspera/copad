@@ -85,3 +85,21 @@ test('an encrypted room without its key is gated and its cache is unreadable', a
   await page.getByRole('button', { name: 'Unlock' }).click();
   await expect(page.locator('.ProseMirror')).toContainText(SECRET, { timeout: 15_000 });
 });
+
+test('text typed the instant an encrypted room opens is still cached', async ({ page }) => {
+  // A URL `#k=` key encrypts the room (and its cache) from the first mount, giving
+  // a brand-new encrypted cache. Typing immediately races that cache's async init;
+  // the edits must still be captured (regression: a fresh cache dropped them).
+  const room = 'enc-immediate';
+  await page.goto(`/?room=${room}#k=instant-key-abc123`);
+  const ed = page.locator('.ProseMirror');
+  await ed.waitFor();
+  await ed.click();
+  await page.keyboard.type('typed the instant it opened'); // no wait — beat the cache init
+  await page.waitForTimeout(1200);
+
+  await page.reload(); // reload keeps the #k= key in the URL
+  await expect(page.locator('.ProseMirror')).toContainText('typed the instant it opened', {
+    timeout: 15_000,
+  });
+});

@@ -74,16 +74,6 @@ function replaceAll(db: IDBDatabase, rec: EncryptedRecord): Promise<void> {
   });
 }
 
-/** Empty the log — used to drop records left by a *different* key (a key change). */
-function clearStore(db: IDBDatabase): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).clear();
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
 /**
  * Mirror a doc into an encrypted IndexedDB store, keyed by the room credential.
  * Returns immediately with a handle; loading + key derivation happen async (like
@@ -94,7 +84,12 @@ export function attachEncryptedCache(room: RoomId, doc: Y.Doc, cred: RoomCredent
   let db: IDBDatabase | undefined;
   let key: CryptoKey | undefined;
   let destroyed = false;
+  let ready = false;
   let sinceCompact = 0;
+  // Edits that arrive while the async init below is still running — before the DB
+  // and key are ready. Buffered rather than dropped, then flushed once ready, so
+  // text typed the instant a room unlocks is never lost from the cache.
+  const pending: Uint8Array[] = [];
 
   const persist = async (update: Uint8Array): Promise<void> => {
     if (!db || !key) return;
@@ -110,11 +105,18 @@ export function attachEncryptedCache(room: RoomId, doc: Y.Doc, cred: RoomCredent
   };
 
   // Yjs hands the update handler a (update, origin) pair; ignore our own load
-  // writes so restoring the cache doesn't echo straight back into it.
+  // writes so restoring the cache doesn't echo straight back into it. Subscribed
+  // synchronously (below) so no edit is missed; until init finishes, updates are
+  // buffered rather than written.
   const onUpdate = (update: Uint8Array, origin: unknown): void => {
     if (origin === LOAD_ORIGIN) return;
+    if (!ready) {
+      pending.push(update);
+      return;
+    }
     void persist(update);
   };
+  doc.on('update', onUpdate);
 
   void (async () => {
     try {
@@ -132,25 +134,28 @@ export function attachEncryptedCache(room: RoomId, doc: Y.Doc, cred: RoomCredent
         const plain = await decryptUpdate(key, rec);
         if (plain) updates.push(plain);
       }
-      if (updates.length && !destroyed) {
-        // Apply all restored updates in one transaction, tagged so onUpdate skips them.
-        Y.transact(doc, () => {
-          for (const u of updates) Y.applyUpdate(doc, u, LOAD_ORIGIN);
-        }, LOAD_ORIGIN);
-        // Fold the restored log into a single snapshot to bound on-disk growth.
-        await replaceAll(db, await encryptUpdate(key, Y.encodeStateAsUpdate(doc)));
-      } else if (records.length && !destroyed) {
-        // Records exist but none decrypted — they were written under a different
-        // key (the room's key changed). Drop them so we start clean under this key
-        // and old content can't resurface if the previous key comes back.
-        await clearStore(db);
-      }
-
       if (destroyed) {
         db.close();
         return;
       }
-      doc.on('update', onUpdate);
+      if (updates.length) {
+        // Apply all restored updates in one transaction, tagged so onUpdate skips them.
+        Y.transact(doc, () => {
+          for (const u of updates) Y.applyUpdate(doc, u, LOAD_ORIGIN);
+        }, LOAD_ORIGIN);
+      }
+      // Always compact to a single snapshot of the current full state. This bounds
+      // on-disk growth, drops any records written under a different key (a key
+      // change), AND — for a brand-new cache — captures edits already applied to
+      // the doc while this init ran (they'd otherwise never reach the store).
+      await replaceAll(db, await encryptUpdate(key, Y.encodeStateAsUpdate(doc)));
+
+      // Flush edits buffered during init that landed after the snapshot's encode.
+      // (Those already folded into the snapshot re-apply as harmless idempotent
+      // updates — Yjs updates are commutative — until the next compaction.)
+      ready = true;
+      const buffered = pending.splice(0);
+      for (const update of buffered) await persist(update);
     } catch {
       /* private mode / blocked IndexedDB — the cache simply stays inactive */
     }
