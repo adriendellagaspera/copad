@@ -9,6 +9,7 @@ import { localStore } from '../persistence/local.js';
 import {
   STORAGE_ID,
   CLOUD_FOLDER,
+  DEFAULT_FILENAME,
   DROPBOX_AUTH_URL,
   DROPBOX_TOKEN_URL,
   DROPBOX_UPLOAD_URL,
@@ -97,6 +98,7 @@ export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
 
     filename: () => fileName.get(),
     setFilename: fileName.set,
+    defaultFilename: () => DEFAULT_FILENAME,
 
     contentFormat: DocFormat.Binary,
 
