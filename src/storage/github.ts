@@ -212,6 +212,7 @@ export function githubStorage(): { auth: StorageAuth; storage: Storage } {
 
     filename: () => fileName.get(),
     setFilename: fileName.set,
+    defaultFilename: () => GITHUB_DEFAULT_FILENAME,
 
     get contentFormat(): DocFormat {
       return extensionOf(fileName.get()) === '.yjs' ? DocFormat.Binary : DocFormat.Text;

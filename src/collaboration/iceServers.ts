@@ -3,7 +3,7 @@
 // Some TURN providers (notably Cloudflare) don't hand out a static username /
 // password: you mint short-lived credentials from a *secret* API token, which
 // must never reach the browser. The pattern is a tiny server-side endpoint (a
-// Cloudflare Worker, see `ice/cloudflare-worker/`) that holds the API token and
+// Cloudflare Worker, see `deploy/ice-worker/`) that holds the API token and
 // returns freshly-minted `{ iceServers: [...] }` JSON. This module fetches from
 // that endpoint; `App.svelte` uses the result in place of the static VITE_TURN_*
 // config when `VITE_ICE_SERVERS_URL` is set.

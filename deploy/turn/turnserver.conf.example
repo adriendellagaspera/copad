@@ -57,9 +57,15 @@ max-port=65535
 # pkey=/etc/coturn/certs/privkey.pem
 
 # ── Hardening ────────────────────────────────────────────────────────────────
-fingerprint          # required by WebRTC
-no-cli               # disable the telnet admin interface
-no-tcp-relay         # WebRTC only needs UDP relay
+# NOTE: coturn does not support trailing inline comments — a comment after a
+# directive is parsed as part of its value and rejects the whole config. Keep
+# every comment on its own line.
+# required by WebRTC
+fingerprint
+# disable the telnet admin interface
+no-cli
+# WebRTC only needs UDP relay
+no-tcp-relay
 stale-nonce=600
 no-multicast-peers
 

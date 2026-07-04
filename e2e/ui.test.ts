@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 /** UI/UX regression tests for the redesigned chrome and editor features. */
 

@@ -63,7 +63,7 @@ jobs:
           VITE_TURN_USERNAME:     ${{ vars.VITE_TURN_USERNAME }}
           VITE_TURN_PASSWORD:     ${{ vars.VITE_TURN_PASSWORD }}
           # HTTP(S) endpoint returning { iceServers: [...] } (e.g. the Cloudflare
-          # TURN Worker in ice/cloudflare-worker/) — mints short-lived TURN creds
+          # TURN Worker in deploy/ice-worker/) — mints short-lived TURN creds
           # server-side. Takes precedence over the static VITE_TURN_* above.
           VITE_ICE_SERVERS_URL:   ${{ vars.VITE_ICE_SERVERS_URL }}
           VITE_ICE_FETCH_TIMEOUT_MS: ${{ vars.VITE_ICE_FETCH_TIMEOUT_MS }}

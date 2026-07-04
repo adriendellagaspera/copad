@@ -14,6 +14,8 @@
     room,
     toasts,
     envPassword,
+    saved = false,
+    storageLabel,
     onSecurityChange,
   }: {
     open: boolean;
@@ -21,6 +23,10 @@
     room: RoomId;
     toasts: Toasts;
     envPassword?: string;
+    /** Whether this room is saved to the local user's own storage backend. */
+    saved?: boolean;
+    /** Label of the backend saving it (only meaningful when `saved`). */
+    storageLabel?: string;
     /** Called after the room's encryption changes, so the Editor can reconnect. */
     onSecurityChange?: () => void;
   } = $props();
@@ -139,6 +145,16 @@
     {/if}
   </p>
 
+  <p class="persist-note" class:is-saved={saved}>
+    {#if saved}
+      💾 Saved to <strong>your {storageLabel ?? 'storage'}</strong>. Collaborators edit live but
+      can’t write to your storage; anyone who connects their own backend keeps their own saved copy.
+    {:else}
+      ⚡ This room isn’t saved to any storage of yours — it lives in the live session and each
+      device’s local cache only. Connect a backend to save it to your own storage.
+    {/if}
+  </p>
+
   <div class="share-row">
     <input
       bind:this={inputEl}
@@ -231,6 +247,22 @@
     color: var(--text-muted);
     font-size: var(--fs-300);
     line-height: 1.5;
+  }
+  .persist-note {
+    margin: 0 0 var(--sp-4);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-2, 6px);
+    background: var(--surface-3);
+    color: var(--text-muted);
+    font-size: var(--fs-300);
+    line-height: 1.5;
+  }
+  .persist-note.is-saved {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .persist-note strong {
+    font-weight: 600;
   }
   .share-row {
     display: flex;

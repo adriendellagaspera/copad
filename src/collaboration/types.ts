@@ -92,6 +92,17 @@ export interface PeerUser {
 }
 
 /**
+ * Opaque key identifying the physical file a peer persists to. Used to scope
+ * leader election: peers sharing a target elect a single writer (avoiding write
+ * races on one file), while peers with distinct targets each persist their own
+ * copy independently — so two owners on different backends (or different accounts
+ * of one backend) never starve each other's autosave. It's a hash of (browser
+ * install id + backend id + filename), so the actual location never travels in
+ * awareness. Built by `persistTargetKey()` in `src/collaboration/leader.ts`.
+ */
+export type PersistTarget = string & { readonly _brand: 'PersistTarget' };
+
+/**
  * The full awareness state broadcast by each peer.
  *
  * - `user`       — display identity (name + cursor colour).
@@ -99,11 +110,15 @@ export interface PeerUser {
  * - `canPersist` — whether this peer has authenticated storage access with at
  *                  least write permission. Only `canPersist` peers participate
  *                  in leader election for autosave relay.
+ * - `persistTarget` — the file this peer would write to (when `canPersist`).
+ *                  Leader election is scoped to it, so peers writing distinct
+ *                  files each persist their own copy. Absent when not persisting.
  */
 export interface PeerAwarenessState {
   readonly user: PeerUser;
   readonly role: SessionRole;
   readonly canPersist: boolean;
+  readonly persistTarget?: PersistTarget;
 }
 
 /**

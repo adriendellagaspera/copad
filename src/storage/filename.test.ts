@@ -1,0 +1,94 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { filenameStore, filenameForRoom, firstFileCollision, setActiveRoom } from './filename.js';
+import { STORAGE_ID } from './constants.js';
+import type { Filename } from './types.js';
+import type { RoomId } from '../collaboration/types.js';
+
+const HOME = 'copad-demo' as RoomId;
+const OTHER = 'my-notes' as RoomId;
+
+const store: Record<string, string> = {};
+vi.stubGlobal('localStorage', {
+  getItem: (k: string) => store[k] ?? null,
+  setItem: (k: string, v: string) => { store[k] = v; },
+  removeItem: (k: string) => { delete store[k]; },
+});
+
+beforeEach(() => {
+  Object.keys(store).forEach((k) => delete store[k]);
+  setActiveRoom(HOME);
+});
+
+describe('filenameStore — per-room targets', () => {
+  it('every room derives its own file from the room id, keeping the extension', () => {
+    setActiveRoom(HOME);
+    expect(filenameStore(STORAGE_ID.dropbox).get()).toBe('copad-demo.yjs');
+    setActiveRoom(OTHER);
+    expect(filenameStore(STORAGE_ID.dropbox).get()).toBe('my-notes.yjs');
+  });
+
+  it('preserves a text backend’s default extension for derived names', () => {
+    setActiveRoom(OTHER);
+    // GitHub defaults to notes.md → derived name keeps .md
+    expect(filenameStore(STORAGE_ID.github, 'notes.md' as Filename).get()).toBe('my-notes.md');
+  });
+
+  it('two rooms on one backend never share a file by default', () => {
+    const fn = filenameStore(STORAGE_ID.dropbox);
+    setActiveRoom(HOME);
+    const home = fn.get();
+    setActiveRoom(OTHER);
+    const other = fn.get();
+    expect(home).not.toBe(other);
+  });
+
+  it('set() writes the current room’s file; rooms stay independent', () => {
+    const fn = filenameStore(STORAGE_ID.dropbox);
+    setActiveRoom(OTHER);
+    fn.set('report.md');
+    expect(fn.get()).toBe('report.md');
+    setActiveRoom(HOME);
+    expect(fn.get()).toBe('copad-demo.yjs'); // unchanged (its own derived default)
+    setActiveRoom(OTHER);
+    expect(fn.get()).toBe('report.md');
+  });
+
+  it('sanitises unsafe characters in a room id when deriving a filename', () => {
+    setActiveRoom('a/b c?d' as RoomId);
+    expect(filenameStore(STORAGE_ID.dropbox).get()).toBe('a-b-c-d.yjs');
+  });
+
+  it('falls back to the backend’s plain default when no room is active', () => {
+    // Non-App / adapter contexts never call setActiveRoom → get() yields the plain default.
+    setActiveRoom(undefined as unknown as RoomId);
+    expect(filenameStore(STORAGE_ID.dropbox).get()).toBe('document.yjs');
+    expect(filenameStore(STORAGE_ID.github, 'notes.md' as Filename).get()).toBe('notes.md');
+  });
+
+  it('filenameForRoom reads a specific room without switching the active room', () => {
+    setActiveRoom(HOME);
+    expect(filenameForRoom(STORAGE_ID.dropbox, OTHER)).toBe('my-notes.yjs'); // derived, not the active HOME
+    expect(filenameForRoom(STORAGE_ID.dropbox, HOME)).toBe('copad-demo.yjs');
+  });
+});
+
+describe('firstFileCollision', () => {
+  const A = 'a' as RoomId;
+  const B = 'b' as RoomId;
+  const C = 'c' as RoomId;
+  const f = (s: string) => s as unknown as import('./types.js').Filename;
+
+  it('returns null when the current room’s file is unique', () => {
+    const files = new Map([[A, f('a.yjs')], [B, f('b.yjs')]]);
+    expect(firstFileCollision(A, files)).toBeNull();
+  });
+
+  it('finds another room that resolves to the same file', () => {
+    const files = new Map([[A, f('notes.md')], [B, f('other.md')], [C, f('notes.md')]]);
+    expect(firstFileCollision(A, files)).toBe(C);
+  });
+
+  it('returns null when the current room is absent from the map', () => {
+    expect(firstFileCollision(A, new Map([[B, f('b.yjs')]]))).toBeNull();
+  });
+});

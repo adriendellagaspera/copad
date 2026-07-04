@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, skipIntro } from './fixtures';
 
 /**
  * End-to-end test: two browser instances share a Yjs document via y-webrtc.
@@ -16,6 +16,7 @@ test('two instances sync text via WebRTC', async ({ browser }) => {
   // Pages in the same context share BroadcastChannel (same browsing context group,
   // same origin) which y-webrtc uses for local peer sync.
   const ctx = await browser.newContext();
+  await skipIntro(ctx); // first-run popup would overlay the editor before we can type
   const page1 = await ctx.newPage();
   const page2 = await ctx.newPage();
 
