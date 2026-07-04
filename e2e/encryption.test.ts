@@ -33,32 +33,51 @@ test('an encrypted room without its key is gated and its cache is unreadable', a
 
   // The editor remounts under the new key; content survives the cache migration.
   await expect(page.locator('.ProseMirror')).toContainText(SECRET, { timeout: 15_000 });
-  await page.waitForTimeout(1200); // let the encrypted cache settle
 
-  // The cache is encrypted at rest: the plaintext DB is gone, the encrypted one
-  // exists, and the secret text is not recoverable from its raw bytes.
-  const atRest = await page.evaluate(async (room) => {
-    const names = (await indexedDB.databases()).map((d) => d.name);
-    const encName = `copad:enc:${room}`;
-    const db: IDBDatabase = await new Promise((res, rej) => {
-      const q = indexedDB.open(encName);
-      q.onsuccess = () => res(q.result);
-      q.onerror = () => rej(q.error);
-    });
-    const recs: Array<{ ct: ArrayBuffer }> = await new Promise((res, rej) => {
-      const q = db.transaction('updates', 'readonly').objectStore('updates').getAll();
-      q.onsuccess = () => res(q.result);
-      q.onerror = () => rej(q.error);
-    });
-    db.close();
-    const bytes = recs.map((r) => new TextDecoder().decode(new Uint8Array(r.ct))).join('');
-    return {
-      hasPlaintextDb: names.includes(`copad:${room}`),
-      hasEncryptedDb: names.includes(encName),
-      recordCount: recs.length,
-      leaks: bytes.includes('top-secret'),
-    };
-  }, ROOM);
+  // Read the cache at rest: the plaintext DB should be gone, the encrypted one
+  // populated, and the secret text unrecoverable from its raw bytes. PBKDF2 key
+  // derivation + the migration's IndexedDB write can lag under load, so this polls
+  // rather than assuming a fixed delay is enough (that flaked on slower CI
+  // runners). Crucially, it only opens the encrypted DB with a bare
+  // `indexedDB.open(name)` (no version) once `databases()` confirms it already
+  // exists — opening it any earlier would race the app's own create-with-upgrade
+  // call, and whichever open wins first locks in the schema, permanently
+  // stranding the app without its object store if we won that race with an
+  // upgrade-less open of our own.
+  let atRest!: { hasPlaintextDb: boolean; hasEncryptedDb: boolean; recordCount: number; leaks: boolean };
+  await expect
+    .poll(
+      async () => {
+        atRest = await page.evaluate(async (room) => {
+          const names = (await indexedDB.databases()).map((d) => d.name);
+          const encName = `copad:enc:${room}`;
+          if (!names.includes(encName)) {
+            return { hasPlaintextDb: names.includes(`copad:${room}`), hasEncryptedDb: false, recordCount: 0, leaks: false };
+          }
+          const db: IDBDatabase = await new Promise((res, rej) => {
+            const q = indexedDB.open(encName);
+            q.onsuccess = () => res(q.result);
+            q.onerror = () => rej(q.error);
+          });
+          const recs: Array<{ ct: ArrayBuffer }> = await new Promise((res, rej) => {
+            const q = db.transaction('updates', 'readonly').objectStore('updates').getAll();
+            q.onsuccess = () => res(q.result);
+            q.onerror = () => rej(q.error);
+          });
+          db.close();
+          const bytes = recs.map((r) => new TextDecoder().decode(new Uint8Array(r.ct))).join('');
+          return {
+            hasPlaintextDb: names.includes(`copad:${room}`),
+            hasEncryptedDb: true,
+            recordCount: recs.length,
+            leaks: bytes.includes('top-secret'),
+          };
+        }, ROOM);
+        return atRest.hasEncryptedDb && !atRest.hasPlaintextDb && atRest.recordCount > 0;
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
   expect(atRest.hasEncryptedDb).toBe(true);
   expect(atRest.hasPlaintextDb).toBe(false);
   expect(atRest.recordCount).toBeGreaterThan(0);
