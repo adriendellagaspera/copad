@@ -422,6 +422,15 @@ button.status-link {
   .room-switcher {
     flex: 1 1 100%;
   }
+  /* Persistence (Saved / Live-only) is the north-star signal — give it its own
+     full-width, centered row on mobile so the durability of your work reads at a
+     glance rather than getting lost among the header controls. Only the
+     PersistenceBadge carries `.persistence-badge` (the status pill is `.pill`),
+     so this doesn't touch the connection indicator. */
+  .controls > .persistence-badge {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
 }
 
 /* Comfortable hit targets on touch devices. */
