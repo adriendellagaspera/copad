@@ -22,14 +22,17 @@ test('first visit shows the intro popup, then remembers it was dismissed', async
   await expect(page.getByRole('dialog')).toBeHidden();
 });
 
-test('a solo room shows the "not syncing" banner', async ({ page }) => {
+test('a solo room shows the presence-first banner with an Invite CTA', async ({ page }) => {
   await page.goto('/?room=intro-solo');
 
   // Dismiss the intro so it doesn't cover the banner.
   await page.getByRole('button', { name: 'Got it' }).click();
 
-  // Attached to signaling but with no peers → the banner makes it explicit.
+  // Attached to signaling but with no peers → the banner makes solitude explicit.
+  // With no backend connected the room is live-only, so the copy is honest that
+  // the notes stay on this device only, and offers Invite as the primary action.
   const banner = page.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 20_000 });
-  await expect(banner).toContainText('Not syncing');
+  await expect(banner).toContainText("You're the only one here");
+  await expect(banner.getByRole('button', { name: 'Invite' })).toBeVisible();
 });
