@@ -11,6 +11,7 @@
 import type * as Y from 'yjs';
 import type { RoomId } from './types.js';
 import { ConnStatus } from './types.js';
+import type { RoomCredential } from './roomAccess.js';
 import { attachLocalCache, type LocalCache, type LocalCacheEnabled } from './cache.js';
 
 export interface CollabCoreOptions {
@@ -18,6 +19,9 @@ export interface CollabCoreOptions {
   room: RoomId;
   /** Mirror the doc into IndexedDB so it survives a reload without a backend. */
   cache?: LocalCacheEnabled;
+  /** Room credential — when present, the local cache is encrypted at rest with a
+   *  key derived from it, matching the transport encryption. */
+  cacheKey?: RoomCredential;
   /** True once attached to the signaling / relay server — not necessarily peered. */
   isAttached: () => boolean;
   /** Number of *other* peers currently present (0 = alone in the room). */
@@ -44,8 +48,9 @@ export function createCollabCore(opts: CollabCoreOptions): CollabCore {
   let synced = false;
 
   // Local cache: keeps the doc across reloads even with no storage backend.
+  // Encrypted at rest when a room credential is present (see attachLocalCache).
   const cache: LocalCache | undefined = opts.cache
-    ? attachLocalCache(opts.room, opts.doc)
+    ? attachLocalCache(opts.room, opts.doc, opts.cacheKey)
     : undefined;
 
   // Being attached to the server does NOT imply a peer is present, so we report

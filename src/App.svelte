@@ -19,7 +19,7 @@
     type PageHostname,
   } from './collaboration/config.js';
   import { fetchIceServers } from './collaboration/iceServers.js';
-  import { parseRoomId, parseRoomName } from './collaboration/parse.js';
+  import { parseRoomId, parseRoomName, parseRoomCredential } from './collaboration/parse.js';
   import { roomName, renameRoom } from './collaboration/roomName.svelte.js';
   import { recordRoomVisit, updateRecentRoomName } from './collaboration/recentRooms.js';
   import { sessionState } from './collaboration/sessionState.svelte.js';
@@ -35,9 +35,17 @@
     clearLocalCache,
     type LocalCacheEnabled,
   } from './collaboration/cache.js';
-  import { roomPassword } from './collaboration/roomAccess.js';
+  import { roomPassword, setRoomPassword, RoomAccessMode } from './collaboration/roomAccess.js';
   import { currentSecretKey } from './collaboration/secretLink.js';
   import type { RoomCipher } from './collaboration/roomCipher.js';
+  import {
+    roomLockState,
+    roomEncryptionFingerprint,
+    rememberRoomEncryption,
+    type RoomLockState,
+  } from './collaboration/roomLock.js';
+  import { keyFingerprint } from './collaboration/roomCrypto.js';
+  import RoomLock from './ui/RoomLock.svelte';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
   import { SessionRole } from './collaboration/types.js';
@@ -71,8 +79,14 @@
   // password (set in the Share dialog) → the deployment's configured VITE_ROOM_AUTH
   // strategy. The Editor remounts on a security change (collabEpoch), so a link or
   // password set in Share takes effect on the next connection.
-  const { cipher: envCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
+  const { access: envAccess, cipher: envCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
   const perRoomPassword = roomPassword();
+  // In `room-password` mode the deployment mandates a per-room password for every
+  // room, so a first-time visitor with none stored should be prompted for it —
+  // deterministically, without needing a prior keyed visit's fingerprint. The
+  // other modes don't need this: `public` isn't gated, `site-password` supplies
+  // the key from env, and `secret-link` mints a fresh key when the URL has none.
+  const passwordRequiredMode = envAccess.mode === RoomAccessMode.RoomPassword;
   const roomCipher: RoomCipher = {
     password: (r) => currentSecretKey() ?? perRoomPassword.credential(r) ?? envCipher.password(r),
   };
@@ -369,6 +383,75 @@
     return `Room “${other}” also saves to ${file} on your ${s.storage.label} — they’ll overwrite each other. Rename this room’s file in Settings.`;
   });
 
+  // ── Encrypted-room access gate ───────────────────────────────────────────────
+  // A room is gated when it's known-encrypted (a key fingerprint was remembered
+  // on a prior visit) but the current key is missing or wrong. Encryption is
+  // WebRTC-only, so the gate only applies there. Until the async check resolves
+  // we hold the editor back (lockChecked) so encrypted content never flashes
+  // before the gate — and, crucially, so a locked room never mounts the Editor
+  // (which would connect + write a plaintext cache without the key).
+  const encryptedTransport = usesIce; // WebRTC — the only transport that encrypts
+  let lock = $state<RoomLockState>({ locked: false });
+  let lockChecked = $state(!encryptedTransport);
+
+  $effect(() => {
+    const r = room;
+    void collabEpoch; // re-check after a security change (Share dialog / unlock)
+    if (!encryptedTransport) {
+      lock = { locked: false };
+      lockChecked = true;
+      return;
+    }
+    const cred = roomCipher.password(r);
+    const stored = roomEncryptionFingerprint(r);
+    if (!stored) {
+      if (cred) {
+        // First time we see this room *with* a key: remember it's encrypted so a
+        // later keyless visit is gated. Fire-and-forget; we're not locked.
+        void rememberRoomEncryption(r, cred);
+        lock = { locked: false };
+      } else if (passwordRequiredMode) {
+        // No key, none remembered, but the deployment requires one → prompt for it
+        // on this first visit (deterministic, not based on a stored fingerprint).
+        lock = { locked: true, reason: 'missing' };
+      } else {
+        // Not known to be encrypted and none required → open (the common case).
+        lock = { locked: false };
+      }
+      lockChecked = true;
+      return;
+    }
+    // Known-encrypted → verify the current key against the remembered fingerprint.
+    // Never overwrite the stored fingerprint here — that's what lets a wrong key be
+    // detected (locked) instead of silently adopted.
+    lockChecked = false;
+    let cancelled = false;
+    void (async () => {
+      const state = await roomLockState(r, cred);
+      if (!cancelled) {
+        lock = state;
+        lockChecked = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  // Unlock the gate by supplying the room key. It's verified against the
+  // remembered fingerprint before we persist anything (a wrong key is rejected,
+  // never stored), then kept as this room's password so the effective cipher
+  // decrypts on reconnect and the encrypted cache can be read back.
+  async function tryUnlock(raw: string): Promise<boolean> {
+    const cred = parseRoomCredential(raw);
+    if (!cred) return false;
+    const stored = roomEncryptionFingerprint(room);
+    if (stored && (await keyFingerprint(cred)) !== stored) return false;
+    setRoomPassword(room, cred);
+    onSecurityChange();
+    return true;
+  }
+
   // Accept a bare id, a "?room=x" fragment, or a full shared URL — so pasting a
   // collaborator's link into the switcher's "open a room" field just works.
   function roomIdFrom(input: string): string {
@@ -499,6 +582,13 @@
       <span class="spinner" aria-hidden="true"></span>
       <span>Setting up a secure connection…</span>
     </div>
+  {:else if !lockChecked}
+    <div class="ice-gate" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Checking room access…</span>
+    </div>
+  {:else if lock.locked}
+    <RoomLock {room} reason={lock.reason} onUnlock={tryUnlock} />
   {:else if editorMounted}
     {#key room}
       <Editor
