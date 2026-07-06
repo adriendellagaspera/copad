@@ -8,6 +8,7 @@
     storageLabel,
     gated = false,
     gateEligible = false,
+    collabUnavailable = false,
     onShare,
     onConnectStorage,
   }: {
@@ -33,6 +34,13 @@
      *  and the gate hasn't armed. Distinguishes "grace pending" from "opted solo",
      *  which otherwise look identical (both: alone, editable). */
     gateEligible?: boolean;
+    /** True when this deployment can't do real-time collaboration at all (no
+     *  signaling server, or mixed-content ws:// on https://) — a permanent
+     *  environment fact, not a transient "no peer yet" state. Its own tier: never
+     *  blocks (the write-gate already excludes it via `gateEligible`), never
+     *  offers Invite (there's no one it could ever reach), and stays neutral in
+     *  tone — a fact you can't act on right now isn't an urgent warning. */
+    collabUnavailable?: boolean;
     /** Open the Share dialog so the user can invite a collaborator. */
     onShare: () => void;
     /** Open Settings so the user can connect a backend to keep their own copy. */
@@ -48,18 +56,23 @@
   const isP2P = $derived(transport === Transport.P2P);
   // Strong (warning) tone for the truly-into-the-void case: peer-to-peer and
   // live-only. That covers the gated tier (always P2P + live-only) and the standing
-  // solo reminder once you've opted to write there.
-  const strong = $derived(isP2P && !saved);
-  // One top strip, two intensities: the gate (read-only, yielding on write) when
-  // `gated`; else the standing solo reminder when alone AND no longer gate-pending
-  // (you've opted to write solo, or the room is saved / on a hub and was never
-  // gateable). Nothing during the grace window. Same slot either way.
-  const show = $derived(gated || (alone && !gateEligible));
+  // solo reminder once you've opted to write there. `collabUnavailable` is excluded
+  // even though it can coincide with P2P + !saved — it's a permanent fact you can't
+  // resolve right now, not an urgent, actionable warning, so it stays neutral.
+  const strong = $derived(!collabUnavailable && isP2P && !saved);
+  // One top strip, an escalation ladder: the gate (blocks, transient — someone
+  // could still join) → collab-unavailable (never blocks, permanent environment
+  // fact, its own tier) → the standing solo reminder (never blocks, transient —
+  // you opted to write solo, or the room is saved / on a hub and was never
+  // gateable). Nothing during the gate's grace window. Same slot throughout.
+  const show = $derived(gated || collabUnavailable || (alone && !gateEligible));
 </script>
 
 <!-- Presence-first solo state, one strip that escalates (north-star: voice + paper;
-     the interface recedes in front of the text — never a scrim over it). Two tiers:
+     the interface recedes in front of the text — never a scrim over it). Tiers:
        • gated → the write-gate: editor read-only, "start writing to write solo".
+       • collabUnavailable → this deployment can't sync across devices at all;
+         connecting storage is the only durability story here.
        • alone → a standing reminder, calibrated to where edits go (P2P live-only /
          P2P saved / hub), once you've opted to write on your own.
      It never implies an absent peer will see live edits before they join. -->
@@ -94,6 +107,22 @@
         <button class="invite-cta" onclick={onShare}>Invite</button>
         <button class="link" onclick={onConnectStorage}>Connect storage</button>
       </span>
+    {:else if collabUnavailable}
+      <span class="msg">
+        {#if saved}
+          <strong>Real-time sync isn't available on this site.</strong>
+          Kept for you in {storageLabel} — collaborators won't see live edits, but your
+          own copy is safe.
+        {:else}
+          <strong>Real-time sync isn't available on this site.</strong>
+          Your notes stay on this device only.
+        {/if}
+      </span>
+      {#if !saved}
+        <span class="actions">
+          <button class="link" onclick={onConnectStorage}>Connect storage</button>
+        </span>
+      {/if}
     {:else if !isP2P}
       <span class="msg">
         <strong>You're the only one here.</strong>

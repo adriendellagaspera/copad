@@ -60,7 +60,6 @@
   import ShareDialog from './ui/ShareDialog.svelte';
   import SyncBanner from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
-  import InfoBanner from './ui/InfoBanner.svelte';
   import { createTheme } from './ui/theme.svelte.js';
   import { createToasts } from './ui/toasts.svelte.js';
   import { createLanguage } from './ui/language.svelte.js';
@@ -181,6 +180,13 @@
     console.warn(`Copad: ${collabPlan.technicalWarning ?? collabPlan.warning}`);
   }
   const collabWarning = collabPlan.warning;
+  // Real-time collaboration is compromised on this deployment (no signaling server,
+  // or mixed-content ws:// on an https:// page — peers can't connect). It's static
+  // per session: deployment config doesn't change at runtime. When true, "invite
+  // someone to write together" is a dead end, so it flips the whole presence layer
+  // from "you're alone (invite someone)" to "this site can't sync (keep your own
+  // copy)" — see the write-gate and the banner block below.
+  const collabUnavailable = collabWarning !== undefined;
 
   // Local document cache (IndexedDB). On by default; the Settings toggle flips it.
   // `connect` is derived so flipping it rebuilds the factory, and the keyed block
@@ -274,9 +280,6 @@
   // Bumped when localStorage state changes (config saved, auth token stored).
   let tick = $state(0);
   const bump = () => { tick += 1; };
-
-  // Derived so bump() after connect/disconnect recomputes automatically.
-  let connected = $derived(tick >= 0 && !!storage && storage.auth.isAuthenticated());
 
   // ── Session presence / connection (header) ──────────────────────────────────
   // The Editor pushes these into the sessionState bridge; the header renders them.
@@ -424,12 +427,19 @@
   // Everything except the grace timing: are we, right now, a writer alone in a
   // P2P live-only room who hasn't opted to write solo? (No peer ⟺ not Connected —
   // Connecting, Waiting and Offline all qualify.)
+  //
+  // `!collabUnavailable` is the crucial guard: the gate exists to stop you writing
+  // into the void *while someone could still join*. If this deployment can't sync
+  // across devices at all, no one can ever join — holding writing back and telling
+  // you to "invite someone" would be a misleading dead end. So we don't gate; solo
+  // writing is simply the only mode, and durability is the storage story (below).
   const gateEligible = $derived(
     sessionRole === SessionRole.Writer &&
       sessionState.diagnostics.transport === Transport.P2P &&
       !savedHere &&
       sessionState.conn !== ConnStatus.Connected &&
-      !soloRooms.includes(room),
+      !soloRooms.includes(room) &&
+      !collabUnavailable,
   );
 
   // Rising-edge debounce: arm the gate only after eligibility has held for the
@@ -640,23 +650,29 @@
 
 
 
-  {#if collabWarning}
-    <InfoBanner>
-      Collaboration between devices is unavailable on this site. {collabWarning}
-    </InfoBanner>
-  {:else if !connected}
-    <InfoBanner autoDismissMs={7000}>
-      Set up a storage backend in <button class="link" onclick={() => openSettings()}>Settings ⚙</button>
-      to <strong>save &amp; restore</strong> your document across sessions.
-    </InfoBanner>
-  {/if}
-
+  <!-- Presence / durability layer — one strip, one surface, never contradictory.
+       Decision 2: the old always-on "Set up a storage backend…" InfoBanner is gone.
+       It duplicated the persistent, clickable status chip ("Not saved" → opens the
+       sheet with the connect action, #105/#124) and stacked on top of SyncBanner's
+       own solo tiers, which already nudge storage. The chip is the single durability
+       actuator; the banners stay contextual and non-duplicative.
+       Decision 3 (revised): collaboration-unavailable is folded into SyncBanner as
+       its own tier instead of a separate InfoBanner. Reasoning: it must NOT block
+       (unlike the write-gate) because it's a *permanent environment fact* the user
+       can't act on right now — you block only for a *transient, user-resolvable*
+       state (someone might still join). But "which component renders it" is a
+       presentation choice, independent of blocking — and two components for one
+       presence/durability concern was the real inconsistency. So it's one strip
+       with an escalation ladder: gated (blocks, transient) → collab-unavailable
+       (never blocks, permanent, its own tier) → solo reminder (never blocks,
+       transient). See SyncBanner's `collabUnavailable` tier for the copy. -->
   <SyncBanner
     conn={sessionState.conn}
     transport={sessionState.diagnostics.transport}
     storageLabel={savedHere && storage ? storage.storage.label : null}
     gated={writeLocked}
     {gateEligible}
+    {collabUnavailable}
     onShare={() => (shareOpen = true)}
     onConnectStorage={() => openSettings()}
   />
