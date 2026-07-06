@@ -6,9 +6,9 @@
   // this explains why, with Invite as the obvious next step.
   //
   // It is *not* a wall: `onWriteSolo` lets a determined user (or someone just
-  // exploring) write on their own anyway, remembered per room. The gate also lifts
-  // on its own the moment a peer joins, or once you connect storage (then the room
-  // is Saved, not live-only, and this never shows).
+  // exploring) write on their own anyway — for this session only, so a reload
+  // re-asserts the gate. It also lifts on its own the moment a peer joins, or once
+  // you connect storage (then the room is Saved, not live-only, and this never shows).
   let {
     onShare,
     onConnectStorage,
@@ -18,7 +18,7 @@
     onShare: () => void;
     /** Open Settings to connect a backend (makes the room Saved → gate lifts). */
     onConnectStorage: () => void;
-    /** Write solo in this room anyway; remembered so the gate isn't shown again. */
+    /** Write solo in this room anyway, for this session (a reload re-asserts the gate). */
     onWriteSolo: () => void;
   } = $props();
 </script>

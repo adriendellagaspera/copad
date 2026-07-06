@@ -1,7 +1,7 @@
 import type { RoomId } from './types.js';
 import { parseRoomCredential } from './parse.js';
 import { localStore } from '../persistence/local.js';
-import { roomPasswordKey, roomOpenKey, roomSoloOkKey } from './constants.js';
+import { roomPasswordKey, roomOpenKey } from './constants.js';
 
 /** The four room-access strategies, parsed from `VITE_ROOM_AUTH` at the env
  *  boundary. The union carries the invariant: once you hold a `RoomAccess`,
@@ -91,23 +91,4 @@ export function roomOpenedWithoutPassword(room: RoomId): boolean {
 /** Record that the user chose to open this room without a password. */
 export function setRoomOpenedWithoutPassword(room: RoomId): void {
   roomOpenStore(room).write(true);
-}
-
-// Whether the user chose to write solo in a peer-to-peer, live-only room — a
-// per-room acknowledgement that lifts the write-gate so it isn't shown again.
-const roomSoloStore = (room: RoomId) =>
-  localStore<boolean>(
-    roomSoloOkKey(room),
-    (raw) => raw === '1',
-    (allowed) => (allowed ? '1' : null),
-  );
-
-/** Whether the user opted to write solo in this (P2P, live-only) room. */
-export function roomWriteSoloAllowed(room: RoomId): boolean {
-  return roomSoloStore(room).read();
-}
-
-/** Record that the user chose to write solo in this room. */
-export function setRoomWriteSoloAllowed(room: RoomId): void {
-  roomSoloStore(room).write(true);
 }

@@ -41,8 +41,6 @@
     RoomAccessMode,
     roomOpenedWithoutPassword,
     setRoomOpenedWithoutPassword,
-    roomWriteSoloAllowed,
-    setRoomWriteSoloAllowed,
   } from './collaboration/roomAccess.js';
   import { currentSecretKey } from './collaboration/secretLink.js';
   import type { RoomCipher } from './collaboration/roomCipher.js';
@@ -406,22 +404,23 @@
   // signaling with no peers. Connecting (peer state unknown) and Offline (a
   // transient network fault) are deliberately excluded so the app never looks
   // broken. A read-only session (shared view link) is never gated.
-  let soloOverrideTick = $state(0); // bump to re-read the per-room "write solo" flag
-  const writeLocked = $derived.by(() => {
-    void soloOverrideTick;
-    void room;
-    return (
-      sessionRole === SessionRole.Writer &&
+  //
+  // The "write on your own" escape is **session-scoped, in memory only** — not
+  // persisted. So any full reload re-asserts the gate (Copad re-nudges you to
+  // invite someone on each fresh visit); we don't try to single out a hard refresh
+  // (indistinguishable from a soft one in the browser). Kept per room so opting
+  // into one room doesn't unlock another during the same session.
+  let soloRooms = $state<RoomId[]>([]);
+  const writeLocked = $derived(
+    sessionRole === SessionRole.Writer &&
       sessionState.diagnostics.transport === Transport.P2P &&
       !savedHere &&
       sessionState.conn === ConnStatus.Waiting &&
-      !roomWriteSoloAllowed(room)
-    );
-  });
+      !soloRooms.includes(room),
+  );
 
   function allowWriteSolo(): void {
-    setRoomWriteSoloAllowed(room);
-    soloOverrideTick++;
+    if (!soloRooms.includes(room)) soloRooms = [...soloRooms, room];
   }
 
   // ── Encrypted-room access gate ───────────────────────────────────────────────

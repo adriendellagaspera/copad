@@ -5,8 +5,6 @@ import {
   roomPassword,
   setRoomPassword,
   clearRoomPassword,
-  roomWriteSoloAllowed,
-  setRoomWriteSoloAllowed,
 } from './roomAccess.js';
 import type { RoomId } from './types.js';
 
@@ -81,19 +79,5 @@ describe('roomPassword', () => {
     setRoomPassword(OTHER, 'pw-b');
     expect(roomPassword().credential(ROOM)).toBe('pw-a');
     expect(roomPassword().credential(OTHER)).toBe('pw-b');
-  });
-});
-
-describe('roomWriteSoloAllowed', () => {
-  it('defaults to false for a fresh room', () => {
-    expect(roomWriteSoloAllowed(ROOM)).toBe(false);
-  });
-  it('returns true after opting to write solo', () => {
-    setRoomWriteSoloAllowed(ROOM);
-    expect(roomWriteSoloAllowed(ROOM)).toBe(true);
-  });
-  it('is room-specific — opting in one room does not affect another', () => {
-    setRoomWriteSoloAllowed(ROOM);
-    expect(roomWriteSoloAllowed(OTHER)).toBe(false);
   });
 });
