@@ -561,8 +561,12 @@
     const t = input.trim();
     if (!t) return t;
     try {
-      const fromUrl = new URL(t).searchParams.get('room');
-      if (fromUrl) return fromUrl;
+      // A full URL always resolves through its `room` param — including its
+      // absence, which means "the default room". Never fall back to treating
+      // the whole URL as a room id (a default-room secret link has no
+      // `?room=`, only `#k=`, and would otherwise mint a garbage room named
+      // after the entire pasted URL).
+      return new URL(t).searchParams.get('room') ?? '';
     } catch {
       /* not a full URL — fall through */
     }
@@ -570,8 +574,29 @@
     return m ? decodeURIComponent(m[1]) : t;
   }
 
+  // Extract a secret-link key (`#k=…`) from a pasted invite URL/fragment, if
+  // present — so it can be preserved across the switch even though the new
+  // URL is rewritten to a plain `?room=` with no hash.
+  function keyFromInput(input: string): string | null {
+    const t = input.trim();
+    try {
+      return new URLSearchParams(new URL(t).hash.slice(1)).get('k');
+    } catch {
+      /* not a full URL — fall through */
+    }
+    const m = t.match(/[#&]k=([^&]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
   function goToRoom(idOrUrl: string) {
     const r = parseRoomId(roomIdFrom(idOrUrl)) ?? DEFAULT_ROOM;
+    // A pasted encrypted invite carries its key in the URL fragment, which
+    // gets dropped when the URL below is rewritten to `?room=` only — so
+    // persist it as this room's per-room password before switching. The
+    // existing lock effect (which re-runs on `room`) then remembers its
+    // fingerprint on this first keyed visit, same as any other keyed room.
+    const key = keyFromInput(idOrUrl);
+    if (key) setRoomPassword(r, key);
     if (r === room) return;
     const qs = r === DEFAULT_ROOM ? '' : `?room=${encodeURIComponent(r)}`;
     history.pushState({}, '', location.pathname + qs);
