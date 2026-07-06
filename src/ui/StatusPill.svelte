@@ -39,7 +39,11 @@
 
   type Tone = 'muted' | 'ok' | 'warn' | 'danger' | 'accent';
   type ConnIcon = 'offline' | 'spinner' | 'live';
-  type DurIcon = 'bolt' | 'disk' | 'spinner' | 'cloud' | 'warning';
+  // Durability on a single cloud/sync axis so the state reads even wordless (the
+  // form used on mobile): cloud-check = kept in storage, cloud-off = not kept
+  // (muted for live-only by design, danger for a failed save). Conflict keeps a
+  // distinct alert triangle — it's an error, not a point on the kept/not-kept axis.
+  type DurIcon = 'cloudCheck' | 'cloudOff' | 'spinner' | 'warning';
 
   const isP2P = $derived(transport === Transport.P2P);
   const transportTitle = $derived(
@@ -91,20 +95,20 @@
       if (hasStorage) {
         const where = storageLabel ?? 'your storage';
         if (saveStatus === SaveStatus.Error)
-          return { label: 'Save failed', tone: 'danger', icon: 'cloud', title: `Could not save to ${where}` };
+          return { label: 'Save failed', tone: 'danger', icon: 'cloudOff', title: `Could not save to ${where}` };
         if (saveStatus === SaveStatus.Saving)
           return { label: 'Saving…', tone: 'muted', icon: 'spinner', title: `Saving to ${where}` };
         return {
           label: 'Saved',
           tone: 'accent',
-          icon: 'disk',
+          icon: 'cloudCheck',
           title: `Kept for you in ${where}. Collaborators edit live but can’t write to your storage.`,
         };
       }
       return {
         label: 'Live-only',
         tone: 'muted',
-        icon: 'bolt',
+        icon: 'cloudOff',
         title:
           'Live-only for you — real-time collaboration + local cache, but nothing of yours saves this room. Connect a storage backend to keep your own copy.',
       };
@@ -140,14 +144,15 @@
   <span class="seg dur {d.tone}">
     {#if d.icon === 'spinner'}
       <span class="spinner" aria-hidden="true"></span>
-    {:else if d.icon === 'disk'}
-      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><path d="M17 21v-8H7v8M7 3v5h8" /></svg>
-    {:else if d.icon === 'cloud'}
-      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1.5A3.5 3.5 0 0 1 18 18Z" /></svg>
-    {:else if d.icon === 'warning'}
-      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" /></svg>
+    {:else if d.icon === 'cloudCheck'}
+      <!-- Cloud + check = kept in your storage. -->
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 0 1 1.5 8.7" /><path d="M9 14.5l2 2 4-4" /></svg>
+    {:else if d.icon === 'cloudOff'}
+      <!-- Cloud with a slash = not kept in storage (the universal "not stored"). -->
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19H9a7 7 0 0 1-1.4-13.8" /><path d="M11 5.1A7 7 0 0 1 15.7 10h1.8a4.5 4.5 0 0 1 2.3 8.3" /><path d="M3 3l18 18" /></svg>
     {:else}
-      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" /></svg>
+      <!-- Conflict — a distinct alert, off the kept/not-kept axis. -->
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" /></svg>
     {/if}
     <span class="seg-label">{d.label}</span>
   </span>
@@ -243,13 +248,22 @@
       animation: none;
     }
   }
-  /* On a touch/narrow header the connection half recedes to its dot — the mockup's
-     "puce colorée qu'on lit sans la lire" — while durability keeps its word, since
-     "is my work kept?" is the signal the mobile epic elevates. Full connection
-     detail is one tap away in the dialog. */
+  /* On a touch/narrow header the chip collapses to two glyphs — a connection dot and
+     the cloud/sync durability icon (the mockup's "puce colorée qu'on lit sans la
+     lire"). The cloud-off / cloud-check pair reads wordless, and #115's IntroDialog
+     has already taught the concept on entry; full detail is one tap away. Labels are
+     clipped (not display:none) so screen readers still announce them. */
   @media (max-width: 720px) {
-    .seg.conn .seg-label {
-      display: none;
+    .seg-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
     }
   }
 </style>
