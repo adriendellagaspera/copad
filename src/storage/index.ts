@@ -5,6 +5,7 @@ import { localFsStorage } from './local.js';
 import { githubStorage } from './github.js';
 import { gitlabStorage } from './gitlab.js';
 import { s3Storage } from './s3.js';
+import { sharepointStorage } from './sharepoint.js';
 import type { Storage } from './types.js';
 import type { StorageAuth } from './auth.js';
 import type { RoomId } from '../collaboration/types.js';
@@ -37,6 +38,7 @@ export function backends(room: RoomId): StorageBackend[] {
     githubStorage(room),
     gitlabStorage(room),
     s3Storage(room),
+    sharepointStorage(room),
     // Always offer local-file storage; it self-reports availability.ok=false when
     // the File System Access API is absent (e.g. Firefox, Safari, Brave Shields).
     localFsStorage(),

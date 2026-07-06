@@ -29,7 +29,7 @@ function storageIds<const Ids extends readonly string[]>(
 }
 
 /** The canonical id for each storage backend — the single source of truth. */
-export const STORAGE_ID = storageIds('dropbox', 'pcloud', 'webdav', 'github', 'gitlab', 's3', 'local');
+export const STORAGE_ID = storageIds('dropbox', 'pcloud', 'webdav', 'github', 'gitlab', 's3', 'sharepoint', 'local');
 
 /**
  * A config field's name, doubling as the storage sub-key for that field. Adapter-
@@ -154,6 +154,14 @@ export const GITLAB_VALIDATED_KEY: StorageKey = backendKey(STORAGE_ID.gitlab, 'v
 /** Object-key prefix (folder) the S3 backend reads/writes within. */
 export const S3_PREFIX = envStr(import.meta.env.VITE_S3_PREFIX, 'copad');
 export const S3_KEY: StorageKey = backendKey(STORAGE_ID.s3, 'conf');
+
+// ── SharePoint / OneDrive (Microsoft Graph) ─────────────────────────────────
+
+/** Microsoft Graph API base — override for a national cloud (e.g. GCC High, 21Vianet). */
+export const GRAPH_API_URL = envStr(import.meta.env.VITE_GRAPH_API_URL, 'https://graph.microsoft.com/v1.0');
+/** Drive folder (relative to the drive root) the backend reads/writes within. */
+export const SHAREPOINT_FOLDER = envStr(import.meta.env.VITE_SHAREPOINT_FOLDER, 'Documents');
+export const SHAREPOINT_KEY: StorageKey = backendKey(STORAGE_ID.sharepoint, 'conf');
 
 // ── OAuth redirect ────────────────────────────────────────────────────────────
 

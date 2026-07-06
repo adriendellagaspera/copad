@@ -49,6 +49,14 @@ export interface S3Conf {
   secretAccessKey: S3SecretAccessKey;
 }
 
+/** Persisted SharePoint / OneDrive session. `siteId` null ⇒ the user's OneDrive;
+ *  set ⇒ a specific SharePoint site's default drive. */
+export interface SharePointConf {
+  token: string;
+  siteId: string | null;
+  folder: string;
+}
+
 // ── localStorage + JSON.parse boundaries ─────────────────────────────────────
 
 export function parseWebDavConf(raw: string | null): WebDavConf | null {
@@ -101,6 +109,19 @@ export function parseS3Conf(raw: string | null): S3Conf | null {
       accessKeyId: accessKeyId as S3AccessKeyId,
       secretAccessKey: secretAccessKey as S3SecretAccessKey,
     };
+  } catch {
+    return null;
+  }
+}
+
+export function parseSharePointConf(raw: string | null): SharePointConf | null {
+  try {
+    if (!raw) return null;
+    const obj: unknown = JSON.parse(raw);
+    if (typeof obj !== 'object' || obj === null) return null;
+    const { token, siteId, folder } = obj as Record<string, unknown>;
+    if (typeof token !== 'string' || typeof folder !== 'string') return null;
+    return { token, siteId: typeof siteId === 'string' ? siteId : null, folder };
   } catch {
     return null;
   }
@@ -192,6 +213,28 @@ export function parseGitLabAccessLevel(raw: unknown): number {
     return typeof lvl === 'number' ? lvl : 0;
   };
   return Math.max(level(p['project_access']), level(p['group_access']));
+}
+
+// ── Microsoft Graph API JSON boundaries ───────────────────────────────────────
+
+/** The `id` field from a `/me` or `/sites/…` response. */
+export function parseGraphId(raw: unknown): string {
+  if (typeof raw !== 'object' || raw === null)
+    throw new Error('Unexpected Graph response');
+  const id = (raw as Record<string, unknown>)['id'];
+  if (typeof id !== 'string') throw new Error('Graph response missing id');
+  return id;
+}
+
+/** `createdBy.user.id` from a drive-item response, or null when unavailable. */
+export function parseGraphOwnerId(raw: unknown): string | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const createdBy = (raw as Record<string, unknown>)['createdBy'];
+  if (typeof createdBy !== 'object' || createdBy === null) return null;
+  const user = (createdBy as Record<string, unknown>)['user'];
+  if (typeof user !== 'object' || user === null) return null;
+  const id = (user as Record<string, unknown>)['id'];
+  return typeof id === 'string' ? id : null;
 }
 
 // ── postMessage boundary ──────────────────────────────────────────────────────
