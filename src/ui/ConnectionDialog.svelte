@@ -114,7 +114,11 @@
     },
   );
 
-  // ── Live session block (connection + liveness) — mirrors the chip's dot ───────
+  // ── Connection block (liveness + transport) — mirrors the chip's dot segment ──
+  // The chip's connection segment already fuses "am I live?" with "to whom?"
+  // (it reads "Direct" / "Relay"), so the sheet keeps them in one block too — one
+  // status concept per chip segment. `sub` is the dynamic liveness line; the
+  // transport ("to whom") is a stable second line, since it's deployment-fixed.
   const live = $derived.by(
     (): { tone: string; spinner: boolean; pulse: boolean; head: string; sub: string } => {
       if (conn === ConnStatus.Offline)
@@ -176,7 +180,7 @@
     </div>
   </div>
 
-  <!-- Live session: are my edits reaching anyone right now? -->
+  <!-- Connection: am I live, and to whom? (liveness headline + transport sub-line) -->
   <div class="block {live.tone}">
     <span class="block-icon" aria-hidden="true">
       {#if live.spinner}
@@ -188,33 +192,19 @@
     <div class="block-body">
       <p class="block-head">{live.head}</p>
       <p class="block-sub">{live.sub}</p>
+      <p class="block-sub block-note">
+        {#if isP2P}
+          Peer-to-peer — edits go straight between browsers; no server sees your content.
+        {:else}
+          Relayed through the server — it passes edits along (and can see them), so a peer
+          who joins later catches up through it.
+        {/if}
+      </p>
       {#if showPresence}
         <div class="presence-row">
           <PresenceBar users={peers} />
         </div>
       {/if}
-    </div>
-  </div>
-
-  <!-- How edits travel: who can see this? (transport — connected nodes / server) -->
-  <div class="block muted">
-    <span class="block-icon" aria-hidden="true">
-      {#if isP2P}
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></svg>
-      {:else}
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="1.5" /><rect x="3" y="13" width="18" height="7" rx="1.5" /><path d="M7 7.5h.01M7 16.5h.01" /></svg>
-      {/if}
-    </span>
-    <div class="block-body">
-      <p class="block-head">{isP2P ? 'Peer-to-peer' : 'Relayed through the server'}</p>
-      <p class="block-sub">
-        {#if isP2P}
-          Edits travel straight between browsers — no server sees your content.
-        {:else}
-          Edits pass through the collaboration server, which relays them (and can see them);
-          a peer who joins later catches up through it.
-        {/if}
-      </p>
     </div>
   </div>
 
@@ -335,6 +325,12 @@
     color: var(--text-muted);
     font-size: var(--fs-300);
     line-height: 1.5;
+  }
+  /* The transport "to whom" line — a stable secondary note under the dynamic
+     liveness headline, so the two facts stay one block without competing. */
+  .block-note {
+    color: var(--text-faint);
+    font-size: 0.75rem;
   }
   .block-cta {
     margin-top: var(--sp-3);
