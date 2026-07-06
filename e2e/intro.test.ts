@@ -1,35 +1,19 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * First-run onboarding: the intro popup explaining Copad's peer-to-peer model,
- * and the persistent "you're alone → not syncing" banner. These deliberately
- * use a fresh context (no `skipIntro`) so the first-run UX actually shows.
+ * First-run onboarding. Copad's peer-to-peer, live-only default is unusual — writing
+ * alone means nothing leaves this device until someone joins. Rather than explain
+ * that up front in a modal, the write-gate teaches it just-in-time: it holds the
+ * editor read-only the moment writing-into-the-void becomes true, with the actions
+ * that resolve it. These use a fresh context (no fixtures) so the gate actually shows.
  */
-
-test('first visit shows the intro popup, then remembers it was dismissed', async ({ page }) => {
-  await page.goto('/?room=intro-first');
-
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText('How Copad sharing works');
-
-  await page.getByRole('button', { name: 'Got it' }).click();
-  await expect(dialog).toBeHidden();
-
-  // Dismissal is persisted — a reload in the same browser doesn't bring it back.
-  await page.reload();
-  await page.locator('.ProseMirror').waitFor();
-  await expect(page.getByRole('dialog')).toBeHidden();
-});
 
 test('a solo peer-to-peer room gates writing until you invite someone or opt out', async ({ page }) => {
   await page.goto('/?room=intro-solo');
 
-  // Dismiss the intro so it doesn't cover the gate.
-  await page.getByRole('button', { name: 'Got it' }).click();
-
-  // Attached to signaling but with no peers, peer-to-peer and no backend → the
-  // write-gate holds the editor read-only: writing solo would go into the void.
+  // Peer-to-peer, no peers, no backend → the write-gate holds the editor read-only:
+  // writing solo would go into the void. It arms after a short grace window (a peer
+  // might have joined), and does not depend on having attached to signaling first.
   const gate = page.locator('.gate');
   await expect(gate).toBeVisible({ timeout: 20_000 });
   await expect(gate).toContainText('Copad is for writing together');

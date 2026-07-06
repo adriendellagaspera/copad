@@ -18,10 +18,14 @@
   import { slide } from 'svelte/transition';
 
   let {
+    offline = false,
     onShare,
     onConnectStorage,
     onWriteSolo,
   }: {
+    /** True when the browser is offline: edits aren't reaching anyone because the
+     *  network is down, not merely because you're alone. Adapts the copy. */
+    offline?: boolean;
     /** Open the Share dialog to invite a collaborator (primary action). */
     onShare: () => void;
     /** Open Settings to connect a backend (makes the room Saved → gate lifts). */
@@ -37,10 +41,17 @@
   aria-label="Waiting for someone to join"
   transition:slide={{ duration: 180 }}
 >
-  <p class="gate-text">
-    <strong>Copad is for writing together.</strong>
-    You're the only one here — nothing you write leaves this device until someone joins.
-  </p>
+  {#if offline}
+    <p class="gate-text">
+      <strong>You're offline.</strong>
+      Nothing you write leaves this device until you're back and someone joins.
+    </p>
+  {:else}
+    <p class="gate-text">
+      <strong>Copad is for writing together.</strong>
+      You're the only one here — nothing you write leaves this device until someone joins.
+    </p>
+  {/if}
 
   <div class="gate-actions">
     <button class="primary" type="button" onclick={onShare}>Invite someone</button>
