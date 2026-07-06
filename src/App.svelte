@@ -563,7 +563,7 @@
       <button class="btn-new" onclick={newRoom} title="New document">New</button>
 
       <div class="session">
-        <!-- One status chip: connection (Direct/Alone/…) + durability (Saved/Live-only).
+        <!-- One status chip: connection (Direct/Alone/…) + durability (Saved/Not saved).
              Tap opens the detail sheet (connection + where it's kept + connect action). -->
         <StatusPill
           conn={sessionState.conn}

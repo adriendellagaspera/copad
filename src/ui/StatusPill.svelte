@@ -6,9 +6,9 @@
   // "is what I write reaching anyone, and is it kept for me?".
   //
   //   ┌ connection ┄┄┄┄┄┄┄┄┄┄┄┐   ┌ durability ┄┄┄┄┄┄┄┄┄┐
-  //   ●  Direct / Alone / …        ⚡ Live-only / 💾 Saved
+  //   ●  Direct / Alone / …        ☁⃠ Not saved / ☁✓ Saved
   //
-  // These are independent axes (I can be Live+connected yet Live-only), so the
+  // These are independent axes (I can be connected live yet Not saved), so the
   // chip keeps them as two dots rather than one conflated word. The chip is
   // neutral; each segment carries its own tone via icon/text colour, Linear-style.
   //
@@ -106,11 +106,11 @@
         };
       }
       return {
-        label: 'Live-only',
+        label: 'Not saved',
         tone: 'muted',
         icon: 'cloudOff',
         title:
-          'Live-only for you — real-time collaboration + local cache, but nothing of yours saves this room. Connect a storage backend to keep your own copy.',
+          'Not saved — you edit live and a copy is cached on this device, but nothing of yours is kept for this room. Connect a storage backend to keep your own copy.',
       };
     },
   );

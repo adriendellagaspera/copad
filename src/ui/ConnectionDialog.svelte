@@ -73,10 +73,10 @@
         your storage, and peers who join later won't see it unless they're here now.
       </p>
     {:else}
-      <p class="store-head">Live-only</p>
+      <p class="store-head">Not saved</p>
       <p class="store-sub">
-        Real-time collaboration + a local cache on this device, but nothing of yours is
-        kept for this room. Connect a storage backend to keep your own copy.
+        You edit live and a copy is cached on this device, but nothing of yours is kept
+        for this room. Connect a storage backend to keep your own copy.
       </p>
       <button class="store-cta" type="button" onclick={() => { onConnectStorage(); onclose(); }}>
         Connect storage
