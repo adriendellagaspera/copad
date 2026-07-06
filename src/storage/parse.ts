@@ -30,6 +30,17 @@ export interface PCloudFileLinkResponse {
   path: string;
 }
 
+/** Persisted S3 connection. All fields feed AWS Signature V4; `prefix` is the
+ *  object-key folder the per-room filename is appended to. */
+export interface S3Conf {
+  endpoint: string;
+  bucket: string;
+  region: string;
+  prefix: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+}
+
 // ── localStorage + JSON.parse boundaries ─────────────────────────────────────
 
 export function parseWebDavConf(raw: string | null): WebDavConf | null {
@@ -55,6 +66,24 @@ export function parsePCloudSession(raw: string | null): PCloudSession | null {
     // Already validated once at the OAuth callback boundary — cast on this
     // round-trip read from JSON.
     return { token: token as PCloudToken, host: host as PCloudApiHost };
+  } catch {
+    return null;
+  }
+}
+
+export function parseS3Conf(raw: string | null): S3Conf | null {
+  try {
+    if (!raw) return null;
+    const obj: unknown = JSON.parse(raw);
+    if (typeof obj !== 'object' || obj === null) return null;
+    const { endpoint, bucket, region, prefix, accessKeyId, secretAccessKey } =
+      obj as Record<string, unknown>;
+    if (
+      typeof endpoint !== 'string' || typeof bucket !== 'string' ||
+      typeof region !== 'string' || typeof prefix !== 'string' ||
+      typeof accessKeyId !== 'string' || typeof secretAccessKey !== 'string'
+    ) return null;
+    return { endpoint, bucket, region, prefix, accessKeyId, secretAccessKey };
   } catch {
     return null;
   }
