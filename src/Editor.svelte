@@ -56,9 +56,18 @@
     /** When true the editor is read-only, regardless of role — the write-gate holds
      *  back solo writing in a peer-to-peer, live-only room until someone joins. */
     writeLocked?: boolean;
+    /** True while the room *could* be gated (P2P + live-only + no peer, not yet opted
+     *  solo) — a superset of `writeLocked` that's also true during the pre-arm grace
+     *  window. While it holds, the first writing gesture opts you into solo, so the
+     *  gate never arms mid-typing and a click/keystroke never gets stranded. */
+    writeGateEligible?: boolean;
+    /** Called when the user makes the writing gesture (clicks or types in the body)
+     *  while the gate could apply: that IS opting to write solo, so the gate yields
+     *  there and then — no trip to a button. No-op otherwise. */
+    onWriteSolo?: () => void;
   };
 
-  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, writeLocked = false }: Props =
+  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, writeLocked = false, writeGateEligible = false, onWriteSolo }: Props =
     $props();
 
   const SAVE_DEBOUNCE = 3_000;
@@ -269,6 +278,28 @@
   $effect(() => {
     const locked = writeLocked;
     if (view) view.setProps({ editable: () => role === SessionRole.Writer && !locked });
+  });
+
+  // Yield-on-write: the writing gesture itself — clicking or typing in the body —
+  // is what opts you into writing solo, so the gate lifts under your cursor instead
+  // of forcing a trip to a button. Listeners are attached whenever the gate is
+  // *eligible* (not only once armed), so writing during the pre-arm grace window
+  // opts you in too and the gate never arms mid-typing. When the gate is already
+  // armed (editor read-only) we also flip the view editable *synchronously* so the
+  // very click that lifted it still lands a caret; the $effect above reconciles.
+  $effect(() => {
+    const el = editorEl;
+    if (!writeGateEligible || !el || !onWriteSolo) return;
+    const yieldToWrite = (): void => {
+      onWriteSolo?.();
+      view?.setProps({ editable: () => role === SessionRole.Writer });
+    };
+    el.addEventListener('pointerdown', yieldToWrite, { capture: true });
+    el.addEventListener('keydown', yieldToWrite, { capture: true });
+    return () => {
+      el.removeEventListener('pointerdown', yieldToWrite, { capture: true });
+      el.removeEventListener('keydown', yieldToWrite, { capture: true });
+    };
   });
 
   onMount(() => {

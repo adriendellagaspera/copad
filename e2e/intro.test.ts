@@ -1,49 +1,31 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * First-run onboarding: the intro popup explaining Copad's peer-to-peer model,
- * and the persistent "you're alone → not syncing" banner. These deliberately
- * use a fresh context (no `skipIntro`) so the first-run UX actually shows.
+ * First-run onboarding. Copad's peer-to-peer, live-only default is unusual — writing
+ * alone means nothing leaves this device until someone joins. The write-gate teaches
+ * that just-in-time: it holds the editor read-only and, in the top banner, explains
+ * why. It's the strongest tier of the one presence strip (no separate overlay, no
+ * scrim over the text). It yields on the writing gesture — clicking or typing in the
+ * body lifts it — so there's never a trip to a button. Fresh context (no fixtures)
+ * so the gate actually arms.
  */
 
-test('first visit shows the intro popup, then remembers it was dismissed', async ({ page }) => {
-  await page.goto('/?room=intro-first');
-
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText('How Copad sharing works');
-
-  await page.getByRole('button', { name: 'Got it' }).click();
-  await expect(dialog).toBeHidden();
-
-  // Dismissal is persisted — a reload in the same browser doesn't bring it back.
-  await page.reload();
-  await page.locator('.ProseMirror').waitFor();
-  await expect(page.getByRole('dialog')).toBeHidden();
-});
-
-test('a solo peer-to-peer room gates writing until you invite someone or opt out', async ({ page }) => {
+test('a solo peer-to-peer room gates writing, then yields on the writing gesture', async ({ page }) => {
   await page.goto('/?room=intro-solo');
 
-  // Dismiss the intro so it doesn't cover the gate.
-  await page.getByRole('button', { name: 'Got it' }).click();
-
-  // Attached to signaling but with no peers, peer-to-peer and no backend → the
-  // write-gate holds the editor read-only: writing solo would go into the void.
-  const gate = page.locator('.gate');
-  await expect(gate).toBeVisible({ timeout: 20_000 });
-  await expect(gate).toContainText('Copad is for writing together');
-  await expect(gate.getByRole('button', { name: 'Invite someone' })).toBeVisible();
+  // Peer-to-peer, no peers, no backend → after a short grace window the gate arms:
+  // the editor goes read-only and the top strip explains why, with Invite / Connect.
+  const banner = page.locator('.sync-banner');
+  await expect(banner).toBeVisible({ timeout: 20_000 });
+  await expect(banner).toContainText('Start writing to write on your own');
+  await expect(banner.getByRole('button', { name: 'Invite' })).toBeVisible();
   await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
 
-  // The gate is not a wall — opting to write solo lifts it, makes the editor
-  // editable again, and leaves a standing banner that you're writing into the void.
-  await gate.getByRole('button', { name: 'Write on your own' }).click();
-  await expect(gate).toBeHidden();
+  // Yield-on-write: clicking into the body IS opting to write solo — the gate lifts
+  // under the cursor (no button trip), the editor becomes editable, and the strip
+  // stays as a standing "empty room" reminder.
+  await page.locator('.ProseMirror').click();
   await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'true');
-
-  const banner = page.locator('.sync-banner');
-  await expect(banner).toBeVisible();
   await expect(banner).toContainText("You're writing to an empty room");
   await expect(banner.getByRole('button', { name: 'Invite' })).toBeVisible();
 });

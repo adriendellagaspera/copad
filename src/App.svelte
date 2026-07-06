@@ -51,7 +51,6 @@
   } from './collaboration/roomLock.js';
   import { keyFingerprint } from './collaboration/roomCrypto.js';
   import RoomLock from './ui/RoomLock.svelte';
-  import WriteGate from './ui/WriteGate.svelte';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
   import { SessionRole, ConnStatus, Transport } from './collaboration/types.js';
@@ -59,26 +58,23 @@
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
   import ShareDialog from './ui/ShareDialog.svelte';
-  import IntroDialog from './ui/IntroDialog.svelte';
   import SyncBanner from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
   import InfoBanner from './ui/InfoBanner.svelte';
   import { createTheme } from './ui/theme.svelte.js';
   import { createToasts } from './ui/toasts.svelte.js';
   import { createLanguage } from './ui/language.svelte.js';
-  import { hasSeenIntro, markIntroSeen } from './ui/intro.svelte.js';
 
   const theme = createTheme();
   const toasts = createToasts();
   const language = createLanguage();
   let shareOpen = $state(false);
-  // First-run heads-up about the peer-to-peer (no async sync) default. Shows once
-  // per browser; dismissing persists the flag so it never reappears.
-  let introOpen = $state(!hasSeenIntro());
-  function dismissIntro(): void {
-    markIntroSeen();
-    introOpen = false;
-  }
+  // Copad's peer-to-peer (no async sync) default used to be explained up front by
+  // a one-time intro modal. That taught the same "solo writing is ephemeral" lesson
+  // as the write-gate below — a wall of text shown before you'd done anything, and
+  // dismissed once. We removed it: the write-gate now carries that lesson just-in-
+  // time, at the moment writing-into-the-void actually becomes true, with the
+  // actions that resolve it (Invite / Connect storage) right there.
 
   // Effective per-room cipher (WebRTC end-to-end encryption). Resolved fresh on
   // each connect, in precedence order: secure-link key (#k= in the URL) → per-room
@@ -393,30 +389,65 @@
   // In a peer-to-peer, live-only room where you're the only one present, nothing
   // you write leaves this device until someone joins — writing solo is talking to
   // an empty room, which isn't what Copad is for. So we hold the editor read-only
-  // and show WriteGate (Invite / Connect storage) instead. It's not a wall: the
-  // user can choose to write solo anyway (remembered per room), and the gate lifts
-  // on its own the instant a peer joins or the room becomes Saved.
+  // and surface it as the strongest tier of the top SyncBanner strip (Invite /
+  // Connect storage). It's not a wall: the writing gesture itself opts you into
+  // writing solo — Editor's yield-on-write lifts the gate under your cursor on the
+  // first click/keystroke (remembered per room) — and it also lifts on its own the
+  // instant a peer joins or the room becomes Saved. There's no separate overlay and
+  // no scrim over the text, in keeping with "the interface recedes in front of it".
   //
-  // Gated only on the three conditions together: P2P transport (a hub relays to
-  // later joiners, so solo isn't pointless there), live-only for you (a Saved room
-  // keeps your copy), and *confirmed* alone — ConnStatus.Waiting means attached to
-  // signaling with no peers. Connecting (peer state unknown) and Offline (a
-  // transient network fault) are deliberately excluded so the app never looks
-  // broken. A read-only session (shared view link) is never gated.
+  // What "into the void" really means: no peer is *receiving* my edits AND nothing
+  // durable is keeping them. That's P2P transport (a hub relays to later joiners,
+  // so solo isn't pointless there), live-only for you (a Saved room keeps your
+  // copy), and **not Connected** — no peer present. Crucially we key on "no peer",
+  // NOT on ConnStatus.Waiting: whether we've attached to the signaling socket yet
+  // is an implementation detail the writer doesn't care about. Connecting, Waiting
+  // and Offline are identical to them — in all three, zero peers have their bytes.
+  // Keying on Waiting alone made the gate invisible exactly when signaling is
+  // absent or cold (a fresh serverless deploy), i.e. when protection matters most.
+  //
+  // The flicker risk that narrow gating avoided (a brief Connecting on every load,
+  // before a peer is found) is handled by a **grace delay** instead of exclusion:
+  // we only arm the gate once the room has stayed peerless for GATE_GRACE_MS. If a
+  // peer joins (or the room becomes Saved) within that window, the gate never
+  // shows; it also lifts immediately the moment eligibility drops. A read-only
+  // session (shared view link) is never gated.
   //
   // The "write on your own" escape is **session-scoped, in memory only** — not
   // persisted. So any full reload re-asserts the gate (Copad re-nudges you to
   // invite someone on each fresh visit); we don't try to single out a hard refresh
   // (indistinguishable from a soft one in the browser). Kept per room so opting
   // into one room doesn't unlock another during the same session.
+  const GATE_GRACE_MS = 2_000;
   let soloRooms = $state<RoomId[]>([]);
-  const writeLocked = $derived(
+
+  // Everything except the grace timing: are we, right now, a writer alone in a
+  // P2P live-only room who hasn't opted to write solo? (No peer ⟺ not Connected —
+  // Connecting, Waiting and Offline all qualify.)
+  const gateEligible = $derived(
     sessionRole === SessionRole.Writer &&
       sessionState.diagnostics.transport === Transport.P2P &&
       !savedHere &&
-      sessionState.conn === ConnStatus.Waiting &&
+      sessionState.conn !== ConnStatus.Connected &&
       !soloRooms.includes(room),
   );
+
+  // Rising-edge debounce: arm the gate only after eligibility has held for the
+  // grace window. `gateEligible` recomputes to the same `true` across a
+  // Connecting→Waiting transition, so (by Svelte's === check on deriveds) this
+  // effect doesn't re-run and the timer survives; it's torn down the instant a
+  // peer joins / the room becomes Saved / the user opts solo.
+  let gateArmed = $state(false);
+  $effect(() => {
+    if (!gateEligible) {
+      gateArmed = false;
+      return;
+    }
+    const t = setTimeout(() => (gateArmed = true), GATE_GRACE_MS);
+    return () => clearTimeout(t);
+  });
+
+  const writeLocked = $derived(gateEligible && gateArmed);
 
   function allowWriteSolo(): void {
     if (!soloRooms.includes(room)) soloRooms = [...soloRooms, room];
@@ -625,6 +656,7 @@
     transport={sessionState.diagnostics.transport}
     storageLabel={savedHere && storage ? storage.storage.label : null}
     gated={writeLocked}
+    {gateEligible}
     onShare={() => (shareOpen = true)}
     onConnectStorage={() => openSettings()}
   />
@@ -649,27 +681,20 @@
     />
   {:else if editorMounted}
     {#key room}
-      <div class="editor-shell">
-        <Editor
-          {name}
-          {color}
-          {room}
-          role={sessionRole}
-          {connect}
-          {toasts}
-          storage={savedHere ? storage!.storage : null}
-          lang={language.resolved}
-          spellcheck={language.spellcheck}
-          {writeLocked}
-        />
-        {#if writeLocked}
-          <WriteGate
-            onShare={() => (shareOpen = true)}
-            onConnectStorage={() => openSettings()}
-            onWriteSolo={allowWriteSolo}
-          />
-        {/if}
-      </div>
+      <Editor
+        {name}
+        {color}
+        {room}
+        role={sessionRole}
+        {connect}
+        {toasts}
+        storage={savedHere ? storage!.storage : null}
+        lang={language.resolved}
+        spellcheck={language.spellcheck}
+        {writeLocked}
+        writeGateEligible={gateEligible}
+        onWriteSolo={allowWriteSolo}
+      />
     {/key}
   {/if}
 </div>
@@ -718,7 +743,6 @@
   storageLabel={savedHere ? storage?.storage.label : undefined}
   {onSecurityChange}
 />
-<IntroDialog open={introOpen} onclose={dismissIntro} />
 <Toast {toasts} />
 
 <style>

@@ -1,4 +1,4 @@
-import { test, expect, skipIntro } from './fixtures';
+import { test, expect } from './fixtures';
 
 /**
  * End-to-end test: two browser instances share a Yjs document via y-webrtc.
@@ -16,9 +16,10 @@ test('two instances sync text via WebRTC', async ({ browser }) => {
   // Pages in the same context share BroadcastChannel (same browsing context group,
   // same origin) which y-webrtc uses for local peer sync.
   const ctx = await browser.newContext();
-  await skipIntro(ctx); // first-run popup would overlay the editor before we can type
   const page1 = await ctx.newPage();
   const page2 = await ctx.newPage();
+  // The two pages discover each other over BroadcastChannel well within the gate's
+  // grace window, so they're never confirmed-alone and the gate stays dormant.
 
   await Promise.all([page1.goto('/'), page2.goto('/')]);
 
