@@ -25,7 +25,6 @@
   import { sessionState } from './collaboration/sessionState.svelte.js';
   import RoomSwitcher from './ui/RoomSwitcher.svelte';
   import IdentityMenu from './ui/IdentityMenu.svelte';
-  import PersistenceBadge from './ui/PersistenceBadge.svelte';
   import StatusPill from './ui/StatusPill.svelte';
   import PresenceBar from './ui/PresenceBar.svelte';
   import ConnectionDialog from './ui/ConnectionDialog.svelte';
@@ -562,14 +561,10 @@
     <div class="controls">
       <RoomSwitcher {room} name={roomName.value} onRename={renameCurrentRoom} onOpen={goToRoom} />
       <button class="btn-new" onclick={newRoom} title="New document">New</button>
-      <PersistenceBadge
-        saved={savedHere}
-        label={storage?.storage.label}
-        warning={conflictWarning}
-        onclick={savedHere && !conflictWarning ? undefined : () => openSettings()}
-      />
 
       <div class="session">
+        <!-- One status chip: connection (Direct/Alone/…) + durability (Saved/Not saved).
+             Tap opens the detail sheet (connection + where it's kept + connect action). -->
         <StatusPill
           conn={sessionState.conn}
           saveStatus={sessionState.saveStatus}
@@ -577,21 +572,11 @@
           storageLabel={savedHere ? storage?.storage.label : undefined}
           warning={conflictWarning}
           transport={sessionState.diagnostics.transport}
-          onclick={savedHere && !conflictWarning ? undefined : () => openSettings()}
+          onclick={() => (diagOpen = true)}
         />
         {#if otherPeers.length > 0}
           <PresenceBar users={otherPeers} />
         {/if}
-        <button
-          class="diag-btn"
-          onclick={() => (diagOpen = true)}
-          title="Connection details"
-          aria-label="Connection details"
-        >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M2 20h.01M7 20v-4M12 20v-8M17 20V8M22 4v16" />
-          </svg>
-        </button>
       </div>
 
       <IdentityMenu
@@ -684,8 +669,12 @@
   open={diagOpen}
   onclose={() => (diagOpen = false)}
   transport={sessionState.diagnostics.transport}
+  saved={savedHere}
+  storageLabel={savedHere ? storage?.storage.label : undefined}
+  warning={conflictWarning}
   getDiagnostics={sessionState.diagnostics.getDiagnostics}
   reconnect={sessionState.diagnostics.reconnect}
+  onConnectStorage={() => openSettings()}
 />
 
 <Settings

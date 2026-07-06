@@ -16,7 +16,7 @@
     transport: Transport;
     /** The label of the backend that saves *this room for you*, or null when the
      *  room is live-only for you. Non-null ⟺ a copy is kept in your own storage;
-     *  null ⟺ this device (and its local cache) only. Mirrors PersistenceBadge's
+     *  null ⟺ this device (and its local cache) only. Mirrors the status chip's
      *  Saved / Live-only distinction — driven by `savedHere`, not merely by having
      *  a backend connected, so the copy is honest in rooms your backend doesn't save. */
     storageLabel: string | null;

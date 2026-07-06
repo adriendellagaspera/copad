@@ -7,14 +7,26 @@
     open,
     onclose,
     transport,
+    saved,
+    storageLabel,
+    warning,
     getDiagnostics,
     reconnect,
+    onConnectStorage,
   }: {
     open: boolean;
     onclose: () => void;
     transport: Transport;
+    /** Whether this room is Saved to *your own* backend (vs live-only for you).
+     *  The durability half of the status chip that opens this dialog. */
+    saved: boolean;
+    storageLabel?: string;
+    /** A file-collision warning (another room saves to the same file). */
+    warning?: string;
     getDiagnostics?: () => Promise<Diagnostics>;
     reconnect?: () => void;
+    /** Open Settings to connect a backend (shown when the room is live-only). */
+    onConnectStorage: () => void;
   } = $props();
 
   let diag = $state<Diagnostics | undefined>(undefined);
@@ -47,7 +59,31 @@
   }
 </script>
 
-<Dialog {open} {onclose} title="Connection">
+<Dialog {open} {onclose} title="Connection & storage">
+  <!-- Durability first: the "is my work kept for me?" half of the chip, spelled out.
+       This is the detail the mobile status chip defers to on tap. -->
+  <div class="store {warning ? 'conflict' : saved ? 'saved' : 'live'}">
+    {#if warning}
+      <p class="store-head">File conflict</p>
+      <p class="store-sub">{warning}</p>
+    {:else if saved}
+      <p class="store-head">Saved to {storageLabel ?? 'your storage'}</p>
+      <p class="store-sub">
+        A copy of this room is kept for you. Collaborators edit live, but can't write to
+        your storage, and peers who join later won't see it unless they're here now.
+      </p>
+    {:else}
+      <p class="store-head">Not saved</p>
+      <p class="store-sub">
+        You edit live and a copy is cached on this device, but nothing of yours is kept
+        for this room. Connect a storage backend to keep your own copy.
+      </p>
+      <button class="store-cta" type="button" onclick={() => { onConnectStorage(); onclose(); }}>
+        Connect storage
+      </button>
+    {/if}
+  </div>
+
   <ul class="diag">
     <li>
       <span>Transport</span>
@@ -96,6 +132,54 @@
 </Dialog>
 
 <style>
+  /* Durability summary — tinted by state, mirroring the chip's durability segment. */
+  .store {
+    margin: 0 0 var(--sp-4);
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md, 8px);
+    background: var(--surface-2);
+  }
+  .store.saved {
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+    background: var(--accent-soft);
+  }
+  .store.conflict {
+    border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+    background: var(--danger-soft);
+  }
+  .store-head {
+    margin: 0;
+    font-size: var(--fs-400);
+    font-weight: 600;
+    color: var(--text);
+  }
+  .store.saved .store-head {
+    color: var(--accent);
+  }
+  .store.conflict .store-head {
+    color: var(--danger);
+  }
+  .store-sub {
+    margin: var(--sp-1) 0 0;
+    color: var(--text-muted);
+    font-size: var(--fs-300);
+    line-height: 1.5;
+  }
+  .store-cta {
+    margin-top: var(--sp-3);
+    padding: 0.35rem 0.9rem;
+    border: 1px solid var(--accent);
+    border-radius: var(--r-full);
+    background: var(--accent);
+    color: var(--on-accent, #fff);
+    font-size: var(--fs-300);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .store-cta:hover {
+    filter: brightness(1.05);
+  }
   .diag,
   .diag-peers {
     list-style: none;
