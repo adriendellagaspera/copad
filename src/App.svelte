@@ -624,6 +624,21 @@
   $effect(() => {
     updateRecentRoomName(room, roomName.value);
   });
+
+  // goToRoom() pushes a history entry on every switch, but nothing was ever
+  // listening for Back/Forward — the address bar would rewind while the
+  // keyed Editor kept showing the room it was already on. Re-read the URL on
+  // `popstate` and drive the same switch path so the two stay in sync.
+  $effect(() => {
+    function onPopState() {
+      const r = roomFromUrl();
+      if (r === room) return;
+      setActiveRoom(r);
+      room = r;
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  });
 </script>
 
 <div class="app">
