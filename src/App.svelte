@@ -639,7 +639,9 @@
   <header>
     <div class="brand">
       <img src="{import.meta.env.BASE_URL}favicon.svg" alt="" width="26" height="26" />
-      <h1>Copad</h1>
+      <!-- Not a heading: an <h1> here would compete with the document's own
+           level-1 heading, giving screen-reader heading nav two page titles. -->
+      <div class="wordmark">Copad</div>
     </div>
     <div class="controls">
       <RoomSwitcher {room} name={roomName.value} onRename={renameCurrentRoom} onOpen={openRoom} />

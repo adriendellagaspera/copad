@@ -41,7 +41,7 @@ header {
   border-radius: var(--r-sm);
   display: block;
 }
-header h1 {
+.wordmark {
   margin: 0;
   font-size: var(--fs-600);
   font-weight: 600;
@@ -256,6 +256,8 @@ button.status-link {
   flex-direction: column;
   gap: var(--sp-4);
   animation: settings-in var(--dur-mid) var(--ease);
+  /* tabindex="-1" fallback focus target when the panel has no focusable field */
+  outline: none;
 }
 @keyframes settings-in {
   from {
@@ -271,6 +273,16 @@ button.status-link {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+.settings-close {
+  /* >=44px hit area (WCAG 2.5.5) around a small glyph, overriding .icon-btn's
+     compact padding for this specific dismiss control. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
 }
 .settings-head h2 {
   margin: 0;
@@ -315,7 +327,7 @@ button.status-link {
   padding: 0.1rem 0.45rem;
   border-radius: var(--r-full);
   background: var(--warn-soft);
-  color: var(--warn);
+  color: var(--warn-text);
   border: 1px solid var(--warn-border);
 }
 .badge.ok {

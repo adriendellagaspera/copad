@@ -177,16 +177,61 @@
   function close() {
     open = false;
   }
+
+  let settingsEl = $state<HTMLDivElement | undefined>();
+
+  // Same Tab-trap as Dialog.svelte: this drawer predates that component and
+  // isn't built on it, so it needs its own copy of the focus containment.
+  function trapTab(e: KeyboardEvent): void {
+    if (e.key !== 'Tab' || !settingsEl) return;
+    const f = settingsEl.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    if (f.length === 0) return;
+    const first = f[0];
+    const last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
+  $effect(() => {
+    if (!open) return;
+    const restoreTo = document.activeElement as HTMLElement | null;
+    document.body.style.overflow = 'hidden';
+    queueMicrotask(() => {
+      const el = settingsEl?.querySelector<HTMLElement>(
+        '[autofocus], input, select, button:not(.settings-close), a[href]',
+      );
+      (el ?? settingsEl)?.focus();
+    });
+    return () => {
+      document.body.style.overflow = '';
+      restoreTo?.focus?.();
+    };
+  });
 </script>
 
 <svelte:window onkeydown={e => open && e.key === 'Escape' && close()} />
 
 {#if open}
   <div class="settings-backdrop" onclick={close} role="presentation"></div>
-  <div class="settings" role="dialog" aria-modal="true" aria-label="Settings">
+  <div
+    class="settings"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Settings"
+    bind:this={settingsEl}
+    tabindex="-1"
+    onkeydown={trapTab}
+  >
     <header class="settings-head">
       <h2>Settings</h2>
-      <button class="icon-btn" onclick={close} aria-label="Close settings">✕</button>
+      <button class="icon-btn settings-close" onclick={close} aria-label="Close settings">✕</button>
     </header>
 
     <p class="settings-lead">

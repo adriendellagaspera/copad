@@ -16,6 +16,7 @@
   let open = $state(false);
   let root = $state<HTMLDivElement | undefined>();
   let joinValue = $state('');
+  let switchBtn = $state<HTMLButtonElement | undefined>();
 
   // Recent rooms minus the one we're already in — most-recent first.
   // recentRooms() reads localStorage (not reactive), so depend on `open` and
@@ -47,10 +48,16 @@
   $effect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
+      // An outside click already moves focus wherever the user clicked — don't
+      // fight that by yanking focus back to the trigger.
       if (root && !root.contains(e.target as Node)) close();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
+      // Escape has no focus target of its own, so return focus to the trigger.
+      if (e.key === 'Escape') {
+        close();
+        switchBtn?.focus();
+      }
     };
     window.addEventListener('mousedown', onDown);
     window.addEventListener('keydown', onKey);
@@ -59,6 +66,22 @@
       window.removeEventListener('keydown', onKey);
     };
   });
+
+  // Roving Up/Down between the recent-room menuitems (ARIA menu convention).
+  function onMenuKeydown(e: KeyboardEvent): void {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const items = Array.from(
+      (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="menuitem"]'),
+    );
+    if (items.length === 0) return;
+    e.preventDefault();
+    const idx = items.indexOf(document.activeElement as HTMLElement);
+    const next =
+      e.key === 'ArrowDown'
+        ? items[(idx + 1) % items.length]
+        : items[(idx - 1 + items.length) % items.length];
+    next.focus();
+  }
 </script>
 
 <div class="room-switcher" bind:this={root}>
@@ -72,6 +95,7 @@
     title={'Room name — the room id ('+room+') never changes when you rename it'}
   />
   <button
+    bind:this={switchBtn}
     class="switch-btn"
     aria-haspopup="menu"
     aria-expanded={open}
@@ -85,7 +109,7 @@
   </button>
 
   {#if open}
-    <div class="switch-menu" role="menu">
+    <div class="switch-menu" role="menu" tabindex="-1" onkeydown={onMenuKeydown}>
       <div class="switch-section">
         <p class="switch-label">Recent rooms</p>
         {#if others.length === 0}
@@ -205,13 +229,13 @@
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--text-faint);
+    color: var(--text-muted);
   }
   .switch-empty {
     margin: 0;
     padding: 0.1rem 0.35rem 0.25rem;
     font-size: var(--fs-300);
-    color: var(--text-faint);
+    color: var(--text-muted);
   }
   .switch-item {
     display: flex;
@@ -240,7 +264,7 @@
   .switch-item-id {
     font-family: var(--font-mono);
     font-size: 0.7rem;
-    color: var(--text-faint);
+    color: var(--text-muted);
   }
   .switch-join {
     display: flex;
