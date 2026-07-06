@@ -29,7 +29,7 @@ function storageIds<const Ids extends readonly string[]>(
 }
 
 /** The canonical id for each storage backend — the single source of truth. */
-export const STORAGE_ID = storageIds('dropbox', 'pcloud', 'webdav', 'github', 'gitlab', 's3', 'sharepoint', 'local');
+export const STORAGE_ID = storageIds('dropbox', 'pcloud', 'webdav', 'github', 'gitlab', 's3', 'sharepoint', 'gdrive', 'local');
 
 /**
  * A config field's name, doubling as the storage sub-key for that field. Adapter-
@@ -107,6 +107,9 @@ export const BACKEND_ENABLED: Record<StorageId, boolean> = {
   // Not yet connected to a real Microsoft 365 account outside production —
   // stays hidden until that's done, then flips to `true` in its own PR.
   [STORAGE_ID.sharepoint]: envBool(import.meta.env.VITE_ENABLE_SHAREPOINT, false),
+  // Not yet connected to a real Google Drive account outside production —
+  // stays hidden until that's done, then flips to `true` in its own PR.
+  [STORAGE_ID.gdrive]: envBool(import.meta.env.VITE_ENABLE_GDRIVE, false),
 };
 
 // ── Cloud folder + default filenames ──────────────────────────────────────────
@@ -165,6 +168,16 @@ export const GRAPH_API_URL = envStr(import.meta.env.VITE_GRAPH_API_URL, 'https:/
 /** Drive folder (relative to the drive root) the backend reads/writes within. */
 export const SHAREPOINT_FOLDER = envStr(import.meta.env.VITE_SHAREPOINT_FOLDER, 'Documents');
 export const SHAREPOINT_KEY: StorageKey = backendKey(STORAGE_ID.sharepoint, 'conf');
+
+// ── Google Drive ────────────────────────────────────────────────────────────
+
+export const GDRIVE_AUTH_URL = envStr(import.meta.env.VITE_GDRIVE_AUTH_URL, 'https://accounts.google.com/o/oauth2/v2/auth');
+export const GDRIVE_TOKEN_URL = envStr(import.meta.env.VITE_GDRIVE_TOKEN_URL, 'https://oauth2.googleapis.com/token');
+export const GDRIVE_FILES_URL = envStr(import.meta.env.VITE_GDRIVE_FILES_URL, 'https://www.googleapis.com/drive/v3/files');
+export const GDRIVE_UPLOAD_URL = envStr(import.meta.env.VITE_GDRIVE_UPLOAD_URL, 'https://www.googleapis.com/upload/drive/v3/files');
+/** OAuth scope — `drive.file` limits access to files this app itself creates. */
+export const GDRIVE_SCOPE = envStr(import.meta.env.VITE_GDRIVE_SCOPE, 'https://www.googleapis.com/auth/drive.file');
+export const GDRIVE_TOKEN_KEY: StorageKey = backendKey(STORAGE_ID.gdrive, 'token');
 
 // ── OAuth redirect ────────────────────────────────────────────────────────────
 
