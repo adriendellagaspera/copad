@@ -1,15 +1,28 @@
 <script lang="ts">
   import Dialog from './Dialog.svelte';
+  import PresenceBar from './PresenceBar.svelte';
   import type { Diagnostics } from '../collaboration/types.js';
-  import { Transport, IceCandidateType } from '../collaboration/types.js';
+  import { ConnStatus, Transport, IceCandidateType } from '../collaboration/types.js';
+  import { SaveStatus } from './types.js';
+  import type { PeerUser } from './types.js';
 
+  // The detail sheet the status chip opens. It answers the same two questions the
+  // chip poses in shorthand — "is my work kept?" and "are my edits reaching anyone?"
+  // — but spelled out, and it re-uses the chip's exact glyphs + tones so the two
+  // read as one system. Three blocks, top-down: Storage (durability) → Live session
+  // (connection + presence) → How edits travel (transport). Raw diagnostics fold
+  // into a "Technical details" disclosure so the sheet is clear by default.
   let {
     open,
     onclose,
     transport,
+    conn,
     saved,
+    saveStatus = SaveStatus.Idle,
     storageLabel,
     warning,
+    encrypted = false,
+    peers = [],
     getDiagnostics,
     reconnect,
     onConnectStorage,
@@ -17,15 +30,22 @@
     open: boolean;
     onclose: () => void;
     transport: Transport;
-    /** Whether this room is Saved to *your own* backend (vs live-only for you).
-     *  The durability half of the status chip that opens this dialog. */
+    /** Connection state — mirrors the chip's connection segment. */
+    conn: ConnStatus;
+    /** Whether this room is Saved to *your own* backend (vs not saved for you). */
     saved: boolean;
+    /** Save lifecycle, so a failed save surfaces here too. */
+    saveStatus?: SaveStatus;
     storageLabel?: string;
     /** A file-collision warning (another room saves to the same file). */
     warning?: string;
+    /** This room is end-to-end encrypted — adds the shield "Encrypted" block. */
+    encrypted?: boolean;
+    /** Everyone present (including you); rendered as presence avatars. */
+    peers?: PeerUser[];
     getDiagnostics?: () => Promise<Diagnostics>;
     reconnect?: () => void;
-    /** Open Settings to connect a backend (shown when the room is live-only). */
+    /** Open Settings to connect a backend (shown when the room is not saved). */
     onConnectStorage: () => void;
   } = $props();
 
@@ -57,116 +77,262 @@
     reconnect?.();
     setTimeout(refresh, 600);
   }
+
+  const isP2P = $derived(transport === Transport.P2P);
+  const others = $derived(peers.filter((p) => !p.self));
+
+  // ── Storage block (durability) — same glyphs/tones as the chip ───────────────
+  type StoreIcon = 'cloudCheck' | 'cloudOff' | 'warning';
+  const store = $derived.by(
+    (): { tone: string; icon: StoreIcon; head: string; sub: string; cta: boolean } => {
+      if (warning)
+        return { tone: 'danger', icon: 'warning', head: 'File conflict', sub: warning, cta: false };
+      const where = storageLabel ?? 'your storage';
+      if (saved && saveStatus === SaveStatus.Error)
+        return {
+          tone: 'danger',
+          icon: 'cloudOff',
+          head: 'Save failed',
+          sub: `Couldn't save to ${where}. Your edits are still live and cached on this device; Copad keeps retrying.`,
+          cta: false,
+        };
+      if (saved)
+        return {
+          tone: 'accent',
+          icon: 'cloudCheck',
+          head: `Saved to ${where}`,
+          sub: "A copy of this room is kept for you. Collaborators edit live, but can't write to your storage, and peers who join later won't see it unless they're here now.",
+          cta: false,
+        };
+      return {
+        tone: 'muted',
+        icon: 'cloudOff',
+        head: 'Not saved',
+        sub: 'You edit live and a copy is cached on this device, but nothing of yours is kept for this room. Connect a storage backend to keep your own copy.',
+        cta: true,
+      };
+    },
+  );
+
+  // ── Connection block (liveness + transport) — mirrors the chip's dot segment ──
+  // The chip's connection segment already fuses "am I live?" with "to whom?"
+  // (it reads "Direct" / "Relay"), so the sheet keeps them in one block too — one
+  // status concept per chip segment. `sub` is the dynamic liveness line; the
+  // transport ("to whom") is a stable second line, since it's deployment-fixed.
+  const live = $derived.by(
+    (): { tone: string; spinner: boolean; pulse: boolean; head: string; sub: string } => {
+      if (conn === ConnStatus.Offline)
+        return { tone: 'warn', spinner: false, pulse: false, head: 'Offline', sub: 'No network connection — reconnecting when you’re back online.' };
+      if (conn === ConnStatus.Connecting)
+        return {
+          tone: 'muted',
+          spinner: true,
+          pulse: false,
+          head: 'Connecting…',
+          sub: isP2P ? 'Reaching the signaling server to find peers.' : 'Reaching the collaboration server.',
+        };
+      if (conn === ConnStatus.Waiting)
+        return {
+          tone: 'muted',
+          spinner: false,
+          pulse: false,
+          head: 'You’re the only one here',
+          sub: 'Share the link to invite someone — you’ll see their edits the moment they join.',
+        };
+      const n = others.length;
+      return {
+        tone: 'accent',
+        spinner: false,
+        pulse: true,
+        head: 'Editing live',
+        sub: n === 0
+          ? 'Connected and syncing in real time.'
+          : `${n} other ${n === 1 ? 'person is' : 'people are'} here now — you see each other’s edits instantly.`,
+      };
+    },
+  );
+
+  const showPresence = $derived(
+    (conn === ConnStatus.Connected || conn === ConnStatus.Waiting) && peers.length > 0,
+  );
 </script>
 
 <Dialog {open} {onclose} title="Connection & storage">
-  <!-- Durability first: the "is my work kept for me?" half of the chip, spelled out.
-       This is the detail the mobile status chip defers to on tap. -->
-  <div class="store {warning ? 'conflict' : saved ? 'saved' : 'live'}">
-    {#if warning}
-      <p class="store-head">File conflict</p>
-      <p class="store-sub">{warning}</p>
-    {:else if saved}
-      <p class="store-head">Saved to {storageLabel ?? 'your storage'}</p>
-      <p class="store-sub">
-        A copy of this room is kept for you. Collaborators edit live, but can't write to
-        your storage, and peers who join later won't see it unless they're here now.
-      </p>
-    {:else}
-      <p class="store-head">Not saved</p>
-      <p class="store-sub">
-        You edit live and a copy is cached on this device, but nothing of yours is kept
-        for this room. Connect a storage backend to keep your own copy.
-      </p>
-      <button class="store-cta" type="button" onclick={() => { onConnectStorage(); onclose(); }}>
-        Connect storage
-      </button>
-    {/if}
+  <!-- Storage: is my work kept for me? -->
+  <div class="block {store.tone}">
+    <span class="block-icon" aria-hidden="true">
+      {#if store.icon === 'cloudCheck'}
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 0 1 1.5 8.7" /><path d="M9 14.5l2 2 4-4" /></svg>
+      {:else if store.icon === 'cloudOff'}
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 0 1-1.4-13.8" /><path d="M11 5.1A7 7 0 0 1 15.7 10h1.8a4.5 4.5 0 0 1 2.3 8.3" /><path d="M3 3l18 18" /></svg>
+      {:else}
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" /></svg>
+      {/if}
+    </span>
+    <div class="block-body">
+      <p class="block-head">{store.head}</p>
+      <p class="block-sub">{store.sub}</p>
+      {#if store.cta}
+        <button class="block-cta" type="button" onclick={() => { onConnectStorage(); onclose(); }}>
+          Connect storage
+        </button>
+      {/if}
+    </div>
   </div>
 
-  <ul class="diag">
-    <li>
-      <span>Transport</span>
-      <strong>{transport === Transport.P2P ? 'Peer-to-peer (WebRTC)' : 'Relay (server)'}</strong>
-    </li>
-    <li>
-      <span>Signaling</span>
-      <strong>{diag?.signaling ? 'Connected' : 'Not connected'}</strong>
-    </li>
-    <li>
-      <span>Peers</span>
-      <strong>{diag?.peers ?? 0}</strong>
-    </li>
-  </ul>
+  <!-- Connection: am I live, and to whom? (liveness headline + transport sub-line) -->
+  <div class="block {live.tone}">
+    <span class="block-icon" aria-hidden="true">
+      {#if live.spinner}
+        <span class="spinner"></span>
+      {:else}
+        <span class="dot" class:pulse={live.pulse}></span>
+      {/if}
+    </span>
+    <div class="block-body">
+      <p class="block-head">{live.head}</p>
+      <p class="block-sub">{live.sub}</p>
+      <p class="block-sub block-note">
+        {#if isP2P}
+          Peer-to-peer — edits go straight between browsers; no server sees your content.
+        {:else}
+          Relayed through the server — it passes edits along (and can see them), so a peer
+          who joins later catches up through it.
+        {/if}
+      </p>
+      {#if showPresence}
+        <div class="presence-row">
+          <PresenceBar users={peers} />
+        </div>
+      {/if}
+    </div>
+  </div>
 
-  {#if transport === Transport.P2P}
-    {#if diag && diag.connections.length}
-      <h3>Peer connections</h3>
-      <ul class="diag-peers">
-        {#each diag.connections as c (c.id)}
-          <li>
-            <code>{c.id.slice(0, 8)}</code>
-            <span class="conn-type {c.type}">
-              {c.type === IceCandidateType.Relay
-                ? 'Relayed via TURN'
-                : c.type === IceCandidateType.Direct
-                  ? 'Direct'
-                  : 'Negotiating…'}
-            </span>
-          </li>
-        {/each}
-      </ul>
-    {:else}
-      <p class="diag-note">No peer connections yet — share the link to invite someone.</p>
-    {/if}
-    <p class="diag-help">
-      "Relayed via TURN" means your network blocked a direct path — common on mobile.
-      If peers can't connect at all, add a TURN relay in Settings.
-    </p>
+  <!-- Encryption: shown only when a per-room key is in effect. The shield here is
+       the same mark the status chip's third segment uses. -->
+  {#if encrypted}
+    <div class="block accent">
+      <span class="block-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></svg>
+      </span>
+      <div class="block-body">
+        <p class="block-head">End-to-end encrypted</p>
+        <p class="block-sub">
+          Your content is scrambled in your browser with this room's key. Relaying peers
+          and the signaling server only ever see ciphertext — the key never leaves your
+          device.
+        </p>
+      </div>
+    </div>
   {/if}
 
-  <div class="diag-actions">
-    <button onclick={doReconnect} disabled={!reconnect}>Reconnect</button>
-    {#if loading}<span class="diag-loading">refreshing…</span>{/if}
-  </div>
+  <details class="tech">
+    <summary>Technical details</summary>
+    <ul class="diag">
+      <li><span>Transport</span><strong>{isP2P ? 'Peer-to-peer (WebRTC)' : 'Relay (server)'}</strong></li>
+      <li><span>Signaling</span><strong>{diag?.signaling ? 'Connected' : 'Not connected'}</strong></li>
+      <li><span>Peers</span><strong>{diag?.peers ?? 0}</strong></li>
+    </ul>
+
+    {#if isP2P}
+      {#if diag && diag.connections.length}
+        <ul class="diag-peers">
+          {#each diag.connections as c (c.id)}
+            <li>
+              <code>{c.id.slice(0, 8)}</code>
+              <span class="conn-type {c.type}">
+                {c.type === IceCandidateType.Relay
+                  ? 'Relayed via TURN'
+                  : c.type === IceCandidateType.Direct
+                    ? 'Direct'
+                    : 'Negotiating…'}
+              </span>
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <p class="diag-note">No peer connections yet — share the link to invite someone.</p>
+      {/if}
+      <p class="diag-help">
+        "Relayed via TURN" means your network blocked a direct path — common on mobile.
+        If peers can't connect at all, add a TURN relay in Settings.
+      </p>
+    {/if}
+
+    <div class="diag-actions">
+      <button onclick={doReconnect} disabled={!reconnect}>Reconnect</button>
+      {#if loading}<span class="diag-loading">refreshing…</span>{/if}
+    </div>
+  </details>
 </Dialog>
 
 <style>
-  /* Durability summary — tinted by state, mirroring the chip's durability segment. */
-  .store {
-    margin: 0 0 var(--sp-4);
-    padding: var(--sp-3) var(--sp-4);
-    border: 1px solid var(--border);
-    border-radius: var(--r-md, 8px);
-    background: var(--surface-2);
+  /* Info block: a tone-tinted icon bubble + body. The icon and tone match the
+     status chip that opened this sheet, so the two read as one system. */
+  .block {
+    display: flex;
+    gap: var(--sp-3);
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--surface-3);
   }
-  .store.saved {
-    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  .block:last-of-type {
+    border-bottom: none;
+  }
+  .block-icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: var(--r-full);
+    background: var(--surface-3);
+    color: var(--text-muted);
+  }
+  .block.accent .block-icon {
     background: var(--accent-soft);
+    color: var(--accent);
   }
-  .store.conflict {
-    border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  .block.danger .block-icon {
     background: var(--danger-soft);
+    color: var(--danger);
   }
-  .store-head {
+  .block.warn .block-icon {
+    background: var(--warn-soft);
+    color: var(--warn);
+  }
+  .block-icon svg {
+    display: block;
+  }
+  .block-body {
+    min-width: 0;
+    flex: 1;
+  }
+  .block-head {
     margin: 0;
     font-size: var(--fs-400);
     font-weight: 600;
     color: var(--text);
   }
-  .store.saved .store-head {
+  .block.accent .block-head {
     color: var(--accent);
   }
-  .store.conflict .store-head {
+  .block.danger .block-head {
     color: var(--danger);
   }
-  .store-sub {
+  .block-sub {
     margin: var(--sp-1) 0 0;
     color: var(--text-muted);
     font-size: var(--fs-300);
     line-height: 1.5;
   }
-  .store-cta {
+  /* The transport "to whom" line — a stable secondary note under the dynamic
+     liveness headline, so the two facts stay one block without competing. */
+  .block-note {
+    color: var(--text-faint);
+    font-size: 0.75rem;
+  }
+  .block-cta {
     margin-top: var(--sp-3);
     padding: 0.35rem 0.9rem;
     border: 1px solid var(--accent);
@@ -177,13 +343,72 @@
     font-weight: 600;
     cursor: pointer;
   }
-  .store-cta:hover {
+  .block-cta:hover {
     filter: brightness(1.05);
+  }
+  .presence-row {
+    margin-top: var(--sp-2);
+  }
+  /* Connection glyphs — the same dot/spinner the chip uses. */
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .dot.pulse {
+    box-shadow: 0 0 0 0 currentColor;
+    animation: dlg-pulse 2s var(--ease) infinite;
+  }
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    animation: dlg-spin 0.7s linear infinite;
+  }
+  @keyframes dlg-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes dlg-pulse {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 50%, transparent);
+    }
+    70% {
+      box-shadow: 0 0 0 6px transparent;
+    }
+    100% {
+      box-shadow: 0 0 0 0 transparent;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dot.pulse {
+      animation: none;
+    }
+  }
+
+  /* Technical details — folded away by default. */
+  .tech {
+    margin-top: var(--sp-3);
+  }
+  .tech summary {
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: var(--fs-300);
+    font-weight: 500;
+    padding: var(--sp-2) 0;
+    user-select: none;
+  }
+  .tech summary:hover {
+    color: var(--text);
   }
   .diag,
   .diag-peers {
     list-style: none;
-    margin: 0 0 var(--sp-3);
+    margin: var(--sp-2) 0 var(--sp-3);
     padding: 0;
   }
   .diag li {
@@ -196,11 +421,6 @@
   }
   .diag li span {
     color: var(--text-muted);
-  }
-  h3 {
-    margin: var(--sp-3) 0 var(--sp-2);
-    font-size: var(--fs-400);
-    font-weight: 600;
   }
   .diag-peers li {
     display: flex;
