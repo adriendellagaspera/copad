@@ -28,6 +28,19 @@ export function isMarkActive(state: EditorState, type: MarkType): boolean {
   return state.doc.rangeHasMark(from, to, type);
 }
 
+/**
+ * The inline marks that would apply to text typed at the caret *right now* —
+ * the explicit stored marks after a `Mod-B`/`Mod-I` toggle, else the marks
+ * inherited from the caret position. Empty for a non-collapsed selection (the
+ * selection toolbar already reflects those). This is what tells the writer
+ * "you're armed to type in bold" before any character is typed.
+ */
+export function activeInputMarks(state: EditorState): MarkType[] {
+  const { empty, $from } = state.selection;
+  if (!empty) return [];
+  return (state.storedMarks ?? $from.marks()).map((mark) => mark.type);
+}
+
 export function isNodeActive(
   state: EditorState,
   type: NodeType,
