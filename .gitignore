@@ -9,3 +9,6 @@ dist
 /e2e/test-results/
 /test-results/
 /playwright-report/
+# Transient audit-agent scratch scripts (the committed audit harness .mjs stay tracked;
+# gitignore does not untrack already-committed files).
+/.audit/*.mjs
