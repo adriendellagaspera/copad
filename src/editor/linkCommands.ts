@@ -17,6 +17,39 @@ export function normalizeHref(input: string): string {
   return `https://${href}`;
 }
 
+/** True for a bare host normalizeHref would prepend https:// to — a real domain, localhost, or an IP. */
+function looksLikeHost(input: string): boolean {
+  const host = input.split(/[/?#]/)[0].split(':')[0];
+  return host === 'localhost' || /^(\d{1,3}\.){3}\d{1,3}$/.test(host) || host.includes('.');
+}
+
+/**
+ * True when `input` is a well-formed link, not just text that normalizeHref
+ * happened to be able to bolt a scheme onto. Rejects plain words like "todo"
+ * (normalizeHref would silently turn that into "https://todo") while still
+ * accepting bare domains/IPs, explicit schemes, relative paths, and emails.
+ * A raw space always means free text, not a URL: the WHATWG URL parser
+ * (unlike Node's) percent-encodes spaces in the host instead of rejecting
+ * them, so it can't be relied on alone for that case either.
+ */
+export function isValidHref(input: string): boolean {
+  const trimmed = input.trim();
+  if (!trimmed) return true; // empty is handled separately (removes the link)
+  if (/\s/.test(trimmed)) return false;
+  const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(trimmed);
+  const isRelative = trimmed.startsWith('/') || trimmed.startsWith('#');
+  const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+  if (!hasScheme && !isRelative && !isEmail && !looksLikeHost(trimmed)) return false;
+  try {
+    // A fixed base — only relative/anchor hrefs ever resolve against it, and
+    // they're not host-shaped text either way, so the actual origin is moot.
+    new URL(normalizeHref(trimmed), 'https://copad.invalid');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** The href of the link mark touching the current selection, or null. */
 export function currentLinkHref(state: EditorState): string | null {
   const { from, $from, to, empty } = state.selection;

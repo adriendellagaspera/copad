@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { EditorView } from 'prosemirror-view';
-  import { setLink, removeLink, currentLinkHref, normalizeHref } from '../linkCommands.js';
+  import { TextSelection } from 'prosemirror-state';
+  import { setLink, removeLink, currentLinkHref, normalizeHref, isValidHref } from '../linkCommands.js';
   import { runCommand } from '../commands.js';
 
   let { view }: { view: EditorView | null } = $props();
@@ -10,6 +11,7 @@
   let wasLinked = $state(false);
   let pos = $state<{ left: number; top: number } | null>(null);
   let inputEl = $state<HTMLInputElement | undefined>();
+  let invalid = $derived(href.trim() !== '' && !isValidHref(href));
 
   function openPopover(): void {
     if (!view) return;
@@ -32,6 +34,18 @@
     view?.focus();
   }
 
+  // Cancel path (Escape / click-away): collapse the selection so focus lands
+  // straight back in the text, instead of leaving the prior selection active
+  // — which would pop the SelectionToolbar bubble right back up and make it
+  // look like a second dismissal is needed to really get back to editing.
+  function dismiss(): void {
+    if (view) {
+      const { to } = view.state.selection;
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, to)));
+    }
+    close();
+  }
+
   function apply(): void {
     if (!view) return;
     const h = href.trim();
@@ -40,6 +54,7 @@
       close();
       return;
     }
+    if (!isValidHref(h)) return; // keep the popover open so the error stays visible
     const { empty, from } = view.state.selection;
     if (empty) {
       // No selection: insert the URL as linked text.
@@ -69,29 +84,52 @@
     dom.addEventListener('copad:link', handler as EventListener);
     return () => dom.removeEventListener('copad:link', handler as EventListener);
   });
+
+  // Window-level Escape (matches RoomSwitcher/IdentityMenu/Settings): the
+  // input's own onkeydown only fires once it holds focus, which a slow
+  // coordsAtPos or a delayed focus microtask can race — this guarantees
+  // Escape always dismisses the popover regardless of where focus landed.
+  // Capture phase so we see it before any other in-page listener (or a
+  // browser-extension content script on the input, e.g. a password manager)
+  // gets a chance to stopPropagation() or otherwise swallow the first press.
+  $effect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        dismiss();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  });
 </script>
 
 {#if open && pos}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="link-backdrop" onmousedown={close}></div>
+  <div class="link-backdrop" onmousedown={dismiss}></div>
   <div class="link-popover" style="left:{pos.left}px; top:{pos.top}px" role="dialog" aria-label="Edit link">
-    <input
-      bind:this={inputEl}
-      type="url"
-      placeholder="Paste or type a link"
-      bind:value={href}
-      onkeydown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          apply();
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          close();
-        }
-      }}
-    />
-    <button class="primary" onmousedown={(e) => { e.preventDefault(); apply(); }}>
+    <div class="link-field">
+      <input
+        bind:this={inputEl}
+        type="url"
+        placeholder="Paste or type a link"
+        class:invalid
+        aria-invalid={invalid}
+        bind:value={href}
+        onkeydown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            apply();
+          }
+        }}
+      />
+      {#if invalid}
+        <span class="link-error">That doesn't look like a valid link</span>
+      {/if}
+    </div>
+    <button class="primary" disabled={invalid} onmousedown={(e) => { e.preventDefault(); apply(); }}>
       {wasLinked ? 'Update' : 'Link'}
     </button>
     {#if wasLinked}
@@ -121,9 +159,24 @@
     box-shadow: var(--shadow-lg);
     animation: link-in var(--dur-fast) var(--ease);
   }
-  .link-popover input {
+  .link-field {
+    position: relative;
     width: 240px;
+  }
+  .link-popover input {
+    width: 100%;
     font-size: var(--fs-300);
+  }
+  .link-popover input.invalid {
+    border-color: var(--danger);
+  }
+  .link-error {
+    position: absolute;
+    top: calc(100% + var(--sp-1));
+    left: 0;
+    font-size: var(--fs-200);
+    color: var(--danger);
+    white-space: nowrap;
   }
   .link-popover button {
     flex-shrink: 0;
