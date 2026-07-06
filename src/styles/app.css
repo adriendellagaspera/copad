@@ -174,24 +174,6 @@ button.ghost:hover:not(:disabled) {
   align-items: center;
   gap: var(--sp-2);
 }
-.session .diag-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.3rem;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  color: var(--text-faint);
-  border-radius: var(--r-sm);
-}
-.session .diag-btn:hover:not(:disabled) {
-  color: var(--text-muted);
-  background: var(--surface-3);
-}
-.session .diag-btn svg {
-  display: block;
-}
 
 /* ── Connect panel ── */
 
