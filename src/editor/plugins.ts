@@ -25,6 +25,10 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-z': undo,
       'Mod-y': redo,
       'Mod-Shift-z': redo,
+      // Firefox blurs contenteditable elements on Escape by default; swallow it
+      // so the caret stays in the document (the slash menu handles its own
+      // Escape first, via slashMenuPlugin running earlier in the plugin list).
+      'Escape': () => true,
       'Enter': splitListItem(s.nodes.list_item),
       'Tab': sinkListItem(s.nodes.list_item),
       'Shift-Tab': liftListItem(s.nodes.list_item),
