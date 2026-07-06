@@ -1,0 +1,18 @@
+import { chromium } from 'playwright';
+const exe = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const SHOTS = '/tmp/claude-0/-home-user-copad/507fb634-b1a6-5326-ad13-2dcd60927e83/scratchpad/shots';
+const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const page = await ctx.newPage();
+const errors = [];
+page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
+await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
+await page.waitForTimeout(1200);
+await page.screenshot({ path: SHOTS + '/smoke-desktop.png', fullPage: false });
+const title = await page.title();
+const bodyText = (await page.locator('body').innerText()).slice(0, 400);
+console.log('TITLE:', title);
+console.log('BODYTEXT:', JSON.stringify(bodyText));
+console.log('CONSOLE ERRORS:', errors.length ? errors.slice(0,10) : 'none');
+await browser.close();
