@@ -7,6 +7,7 @@
     transport,
     storageLabel,
     gated = false,
+    gateEligible = false,
     onShare,
     onConnectStorage,
   }: {
@@ -21,9 +22,17 @@
      *  a backend connected, so the copy is honest in rooms your backend doesn't save. */
     storageLabel: string | null;
     /** True when the write-gate is holding the editor read-only (P2P + live-only +
-     *  alone). The gate owns that case, so the banner suppresses itself to avoid
-     *  saying the same thing twice; it reappears if the user opts to write solo. */
+     *  no peer, past the grace window). The gate has no separate surface anymore — it
+     *  lives *here*, as the strongest tier of this one top strip: same slot,
+     *  escalating intensity. When gated the editor is read-only and yields on the
+     *  first writing gesture; this strip tells you that, and offers Invite / Connect. */
     gated?: boolean;
+    /** True while the gate *could* still arm — the pre-arm grace window (P2P +
+     *  live-only + no peer, not yet opted solo). During it we show nothing: the
+     *  standing solo reminder would be premature (you haven't chosen to write solo),
+     *  and the gate hasn't armed. Distinguishes "grace pending" from "opted solo",
+     *  which otherwise look identical (both: alone, editable). */
+    gateEligible?: boolean;
     /** Open the Share dialog so the user can invite a collaborator. */
     onShare: () => void;
     /** Open Settings so the user can connect a backend to keep their own copy. */
@@ -32,23 +41,27 @@
 
   // `Waiting` = attached to signaling but no peers present — you're alone in the
   // room. Deliberately not shown for Connecting/Offline (those aren't "alone",
-  // they're "not attached yet"), so the banner only speaks to real solitude.
+  // they're "not attached yet"), so the standing banner only speaks to real solitude.
   const alone = $derived(conn === ConnStatus.Waiting);
+  const offline = $derived(conn === ConnStatus.Offline);
   const saved = $derived(storageLabel !== null);
   const isP2P = $derived(transport === Transport.P2P);
-  // Strong (warning) tone only for the truly-into-the-void case: peer-to-peer and
-  // live-only. That's the write-gate's territory — the banner only reaches it once
-  // the user has opted to write solo, so it stays as a standing reminder.
+  // Strong (warning) tone for the truly-into-the-void case: peer-to-peer and
+  // live-only. That covers the gated tier (always P2P + live-only) and the standing
+  // solo reminder once you've opted to write there.
   const strong = $derived(isP2P && !saved);
-  const show = $derived(alone && !gated);
+  // One top strip, two intensities: the gate (read-only, yielding on write) when
+  // `gated`; else the standing solo reminder when alone AND no longer gate-pending
+  // (you've opted to write solo, or the room is saved / on a hub and was never
+  // gateable). Nothing during the grace window. Same slot either way.
+  const show = $derived(gated || (alone && !gateEligible));
 </script>
 
-<!-- Presence-first solo state, calibrated to the collaboration mode (north-star:
-     voice + paper). Writing alone is never blocked here (the write-gate handles the
-     one case where it is), but the banner is honest about where edits go:
-       • P2P + live-only  → strong: nothing leaves this device until someone joins.
-       • P2P + saved      → medium: kept for you, but no one sees it live yet.
-       • Hub (centralized)→ neutral: the server relays, so a later joiner catches up.
+<!-- Presence-first solo state, one strip that escalates (north-star: voice + paper;
+     the interface recedes in front of the text — never a scrim over it). Two tiers:
+       • gated → the write-gate: editor read-only, "start writing to write solo".
+       • alone → a standing reminder, calibrated to where edits go (P2P live-only /
+         P2P saved / hub), once you've opted to write on your own.
      It never implies an absent peer will see live edits before they join. -->
 {#if show}
   <div
@@ -59,7 +72,23 @@
     transition:slide={{ duration: 150 }}
   >
     <span class="dot" aria-hidden="true"></span>
-    {#if !isP2P}
+    {#if gated}
+      <span class="msg">
+        {#if offline}
+          <strong>You're offline.</strong>
+          Start writing to write on your own — nothing leaves this device until you're
+          back and someone joins.
+        {:else}
+          <strong>You're the only one here.</strong>
+          Start writing to write on your own — but in peer-to-peer mode nothing leaves
+          this device until someone joins.
+        {/if}
+      </span>
+      <span class="actions">
+        <button class="invite-cta" onclick={onShare}>Invite</button>
+        <button class="link" onclick={onConnectStorage}>Connect storage</button>
+      </span>
+    {:else if !isP2P}
       <span class="msg">
         <strong>You're the only one here.</strong>
         Edits go through the server, so whoever joins later will catch up. Invite

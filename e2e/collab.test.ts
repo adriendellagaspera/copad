@@ -1,4 +1,4 @@
-import { test, expect, autoDismissWriteGate } from './fixtures';
+import { test, expect } from './fixtures';
 
 /**
  * End-to-end test: two browser instances share a Yjs document via y-webrtc.
@@ -18,10 +18,8 @@ test('two instances sync text via WebRTC', async ({ browser }) => {
   const ctx = await browser.newContext();
   const page1 = await ctx.newPage();
   const page2 = await ctx.newPage();
-  // Both pages run solo for a beat before they discover each other over
-  // BroadcastChannel; clear the write-gate if it arms in that window.
-  await autoDismissWriteGate(page1);
-  await autoDismissWriteGate(page2);
+  // The two pages discover each other over BroadcastChannel well within the gate's
+  // grace window, so they're never confirmed-alone and the gate stays dormant.
 
   await Promise.all([page1.goto('/'), page2.goto('/')]);
 
