@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { EditorView } from 'prosemirror-view';
+  import { TextSelection } from 'prosemirror-state';
   import { setLink, removeLink, currentLinkHref, normalizeHref, isValidHref } from '../linkCommands.js';
   import { runCommand } from '../commands.js';
 
@@ -31,6 +32,18 @@
   function close(): void {
     open = false;
     view?.focus();
+  }
+
+  // Cancel path (Escape / click-away): collapse the selection so focus lands
+  // straight back in the text, instead of leaving the prior selection active
+  // — which would pop the SelectionToolbar bubble right back up and make it
+  // look like a second dismissal is needed to really get back to editing.
+  function dismiss(): void {
+    if (view) {
+      const { to } = view.state.selection;
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, to)));
+    }
+    close();
   }
 
   function apply(): void {
@@ -81,7 +94,7 @@
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        close();
+        dismiss();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -92,7 +105,7 @@
 {#if open && pos}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="link-backdrop" onmousedown={close}></div>
+  <div class="link-backdrop" onmousedown={dismiss}></div>
   <div class="link-popover" style="left:{pos.left}px; top:{pos.top}px" role="dialog" aria-label="Edit link">
     <div class="link-field">
       <input

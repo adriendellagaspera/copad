@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { schema } from './schema.js';
-import { normalizeHref, setLink, currentLinkHref, removeLink } from './linkCommands.js';
+import { normalizeHref, isValidHref, setLink, currentLinkHref, removeLink } from './linkCommands.js';
 
 function stateWith(text: string): EditorState {
   const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text(text))]);
@@ -31,6 +31,32 @@ describe('normalizeHref', () => {
   });
   it('returns empty for blank input', () => {
     expect(normalizeHref('   ')).toBe('');
+  });
+});
+
+describe('isValidHref', () => {
+  it('accepts bare domains, IPs, and localhost', () => {
+    expect(isValidHref('example.com')).toBe(true);
+    expect(isValidHref('sub.example.co.uk/path')).toBe(true);
+    expect(isValidHref('192.168.1.1')).toBe(true);
+    expect(isValidHref('localhost:3000')).toBe(true);
+  });
+  it('accepts explicit schemes, relative paths, anchors, and emails', () => {
+    expect(isValidHref('http://x.io')).toBe(true);
+    expect(isValidHref('ftp://server')).toBe(true);
+    expect(isValidHref('/path')).toBe(true);
+    expect(isValidHref('#section')).toBe(true);
+    expect(isValidHref('a@b.com')).toBe(true);
+  });
+  it('rejects plain words that normalizeHref would silently prefix with https://', () => {
+    expect(isValidHref('todo')).toBe(false);
+    expect(isValidHref('not a link')).toBe(false);
+  });
+  it('rejects input containing whitespace', () => {
+    expect(isValidHref('exa mple.com')).toBe(false);
+  });
+  it('treats blank input as valid (handled separately as link removal)', () => {
+    expect(isValidHref('   ')).toBe(true);
   });
 });
 
