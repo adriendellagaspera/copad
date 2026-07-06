@@ -52,9 +52,10 @@
   } from './collaboration/roomLock.js';
   import { keyFingerprint } from './collaboration/roomCrypto.js';
   import RoomLock from './ui/RoomLock.svelte';
+  import WriteGate from './ui/WriteGate.svelte';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
-  import { SessionRole } from './collaboration/types.js';
+  import { SessionRole, ConnStatus, Transport } from './collaboration/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
@@ -389,6 +390,39 @@
     return `Room “${other}” also saves to ${file} on your ${s.storage.label} — they’ll overwrite each other. Rename this room’s file in Settings.`;
   });
 
+  // ── Write-gate: don't let people write into the void ────────────────────────
+  // In a peer-to-peer, live-only room where you're the only one present, nothing
+  // you write leaves this device until someone joins — writing solo is talking to
+  // an empty room, which isn't what Copad is for. So we hold the editor read-only
+  // and show WriteGate (Invite / Connect storage) instead. It's not a wall: the
+  // user can choose to write solo anyway (remembered per room), and the gate lifts
+  // on its own the instant a peer joins or the room becomes Saved.
+  //
+  // Gated only on the three conditions together: P2P transport (a hub relays to
+  // later joiners, so solo isn't pointless there), live-only for you (a Saved room
+  // keeps your copy), and *confirmed* alone — ConnStatus.Waiting means attached to
+  // signaling with no peers. Connecting (peer state unknown) and Offline (a
+  // transient network fault) are deliberately excluded so the app never looks
+  // broken. A read-only session (shared view link) is never gated.
+  //
+  // The "write on your own" escape is **session-scoped, in memory only** — not
+  // persisted. So any full reload re-asserts the gate (Copad re-nudges you to
+  // invite someone on each fresh visit); we don't try to single out a hard refresh
+  // (indistinguishable from a soft one in the browser). Kept per room so opting
+  // into one room doesn't unlock another during the same session.
+  let soloRooms = $state<RoomId[]>([]);
+  const writeLocked = $derived(
+    sessionRole === SessionRole.Writer &&
+      sessionState.diagnostics.transport === Transport.P2P &&
+      !savedHere &&
+      sessionState.conn === ConnStatus.Waiting &&
+      !soloRooms.includes(room),
+  );
+
+  function allowWriteSolo(): void {
+    if (!soloRooms.includes(room)) soloRooms = [...soloRooms, room];
+  }
+
   // ── Encrypted-room access gate ───────────────────────────────────────────────
   // A room is gated when it's known-encrypted (a key fingerprint was remembered
   // on a prior visit) but the current key is missing or wrong. Encryption is
@@ -594,7 +628,9 @@
 
   <SyncBanner
     conn={sessionState.conn}
+    transport={sessionState.diagnostics.transport}
     storageLabel={savedHere && storage ? storage.storage.label : null}
+    gated={writeLocked}
     onShare={() => (shareOpen = true)}
     onConnectStorage={() => openSettings()}
   />
@@ -619,17 +655,27 @@
     />
   {:else if editorMounted}
     {#key room}
-      <Editor
-        {name}
-        {color}
-        {room}
-        role={sessionRole}
-        {connect}
-        {toasts}
-        storage={savedHere ? storage!.storage : null}
-        lang={language.resolved}
-        spellcheck={language.spellcheck}
-      />
+      <div class="editor-shell">
+        <Editor
+          {name}
+          {color}
+          {room}
+          role={sessionRole}
+          {connect}
+          {toasts}
+          storage={savedHere ? storage!.storage : null}
+          lang={language.resolved}
+          spellcheck={language.spellcheck}
+          {writeLocked}
+        />
+        {#if writeLocked}
+          <WriteGate
+            onShare={() => (shareOpen = true)}
+            onConnectStorage={() => openSettings()}
+            onWriteSolo={allowWriteSolo}
+          />
+        {/if}
+      </div>
     {/key}
   {/if}
 </div>

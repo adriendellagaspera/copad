@@ -53,9 +53,12 @@
     toasts: Toasts;
     lang?: string;
     spellcheck?: boolean;
+    /** When true the editor is read-only, regardless of role — the write-gate holds
+     *  back solo writing in a peer-to-peer, live-only room until someone joins. */
+    writeLocked?: boolean;
   };
 
-  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true }: Props =
+  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, writeLocked = false }: Props =
     $props();
 
   const SAVE_DEBOUNCE = 3_000;
@@ -260,6 +263,14 @@
     view.setProps({ attributes: { lang, spellcheck: spellcheck ? 'true' : 'false' } });
   });
 
+  // Toggle editability when the write-gate opens/closes. ProseMirror re-reads the
+  // `editable` prop on each state update, so re-setting it (setProps triggers one)
+  // is what actually flips contentEditable — the gate lifts the moment a peer joins.
+  $effect(() => {
+    const locked = writeLocked;
+    if (view) view.setProps({ editable: () => role === SessionRole.Writer && !locked });
+  });
+
   onMount(() => {
     const state = EditorState.create({
       schema,
@@ -282,8 +293,9 @@
         spellcheck: untrack(() => spellcheck) ? 'true' : 'false',
       },
       // role is URL-derived and fixed for the session; untrack avoids a
-      // reactive dependency inside ProseMirror's render cycle.
-      editable: () => untrack(() => role) === SessionRole.Writer,
+      // reactive dependency inside ProseMirror's render cycle. The write-gate's
+      // reactive updates go through the $effect above; this is just the seed value.
+      editable: () => untrack(() => role) === SessionRole.Writer && !untrack(() => writeLocked),
       // ProseMirror calls dispatchTransaction with the EditorView as `this`,
       // so we use `this` here instead of closing over the outer `view` variable.
       // Closing over `view` would fail on the first call because ProseMirror

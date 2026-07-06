@@ -20,6 +20,17 @@
   min-height: 100dvh;
 }
 
+/* Wraps the Editor so the write-gate overlay can cover it (position: relative).
+   Takes the Editor's place as the growing flex child of .app — the inner .editor
+   is flex:1 within it, and WriteGate is absolutely positioned over the whole area. */
+.editor-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 /* ── Header ── */
 
 header {

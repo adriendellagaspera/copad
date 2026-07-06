@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { publicAccess, sitePassword, roomPassword, setRoomPassword, clearRoomPassword } from './roomAccess.js';
+import {
+  publicAccess,
+  sitePassword,
+  roomPassword,
+  setRoomPassword,
+  clearRoomPassword,
+} from './roomAccess.js';
 import type { RoomId } from './types.js';
 
 const ROOM = 'my-room' as RoomId;
