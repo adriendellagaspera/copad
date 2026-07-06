@@ -669,9 +669,12 @@
   open={diagOpen}
   onclose={() => (diagOpen = false)}
   transport={sessionState.diagnostics.transport}
+  conn={sessionState.conn}
   saved={savedHere}
+  saveStatus={sessionState.saveStatus}
   storageLabel={savedHere ? storage?.storage.label : undefined}
   warning={conflictWarning}
+  peers={sessionState.users}
   getDiagnostics={sessionState.diagnostics.getDiagnostics}
   reconnect={sessionState.diagnostics.reconnect}
   onConnectStorage={() => openSettings()}
