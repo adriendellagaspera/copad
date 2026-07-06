@@ -84,3 +84,8 @@ export const roomEncryptedKey = (room: RoomId): StorageKey =>
  *  `room-password` mode, so the first-visit gate isn't shown again for it. */
 export const roomOpenKey = (room: RoomId): StorageKey =>
   storageKey(`collab.room-open.${room}`);
+
+/** Key recording that the user chose to write solo in a peer-to-peer, live-only
+ *  room — so the write-gate (Copad is for writing together) isn't shown again for it. */
+export const roomSoloOkKey = (room: RoomId): StorageKey =>
+  storageKey(`collab.room-solo-ok.${room}`);
