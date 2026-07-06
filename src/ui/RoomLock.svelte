@@ -27,6 +27,13 @@
   // conflating it with the initial `reason === 'wrong'` (a key already in the URL).
   let rejected = $state(false);
 
+  // `allowSkip` is only true for the deployment-mandated first-visit gate, where
+  // no key is on record yet and any password is accepted unverified (cooperative
+  // encryption, no peer to check against) — so the heading must not claim the
+  // document is actually encrypted. Every other case reaches here with a
+  // fingerprint already on record, i.e. verified encryption.
+  const heading = $derived(allowSkip ? 'This deployment requires a password' : 'This document is encrypted');
+
   async function submit(): Promise<void> {
     const key = value.trim();
     if (!key || busy) return;
@@ -48,10 +55,11 @@
       </svg>
     </div>
 
-    <h2>This document is encrypted</h2>
+    <h2>{heading}</h2>
     <p class="lock-sub">
-      <code>{room}</code> is protected with a room key. Enter the room password, or paste
-      the key from its secure link, to unlock and decrypt it.
+      <code>{room}</code> {allowSkip
+        ? 'requires a password to open.'
+        : "is protected with a document key. Enter the document's password, or paste the key from its secure link, to unlock and decrypt it."}
     </p>
 
     <form
@@ -63,8 +71,8 @@
     >
       <input
         type="password"
-        placeholder="Room key or password"
-        aria-label="Room key or password"
+        placeholder="Document key or password"
+        aria-label="Document key or password"
         autocomplete="off"
         bind:value
         disabled={busy}
@@ -76,7 +84,7 @@
 
     {#if rejected || reason === 'wrong'}
       <p class="lock-error" role="alert">
-        That key doesn't match this room. Double-check the password or use the exact secure link.
+        That key doesn't match this document. Double-check the password or use the exact secure link.
       </p>
     {:else}
       <p class="lock-hint">

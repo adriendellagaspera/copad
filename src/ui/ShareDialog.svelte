@@ -47,6 +47,8 @@
       linkKey = currentSecretKey() ?? undefined;
       storedPw = roomPassword().credential(room);
       pwInput = storedPw ?? '';
+      confirmingRemove = false;
+      copiedButton = null;
     }
   });
 
@@ -78,7 +80,7 @@
     storedPw = null;
     pwInput = '';
     onSecurityChange?.();
-    toasts.success('Secure link created — anyone with the link can read this room');
+    toasts.success('Secure link created — anyone with the link can read this document');
   }
 
   async function applyPassword(): Promise<void> {
@@ -93,7 +95,7 @@
     linkKey = undefined;
     storedPw = cred;
     onSecurityChange?.();
-    toasts.success(pw ? 'Room password applied' : 'Room password removed');
+    toasts.success(pw ? 'Document password applied' : 'Document password removed');
   }
 
   async function removeEncryption(): Promise<void> {
@@ -105,15 +107,47 @@
     linkKey = undefined;
     storedPw = null;
     pwInput = '';
+    confirmingRemove = false;
     onSecurityChange?.();
-    toasts.info('Encryption removed from this room');
+    toasts.info('Encryption removed from this document');
   }
 
-  async function copyTo(text: string, el: HTMLInputElement | undefined, label: string): Promise<void> {
+  // Removing encryption breaks collaborators' current link/password, so the
+  // button requires a second click within a short window instead of acting
+  // immediately. Shared by both "Remove encryption" entry points below.
+  let confirmingRemove = $state(false);
+  let confirmRemoveTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function requestRemoveEncryption(): void {
+    if (confirmingRemove) {
+      clearTimeout(confirmRemoveTimer);
+      void removeEncryption();
+      return;
+    }
+    confirmingRemove = true;
+    confirmRemoveTimer = setTimeout(() => (confirmingRemove = false), 4000);
+  }
+
+  // Which link's "Copy link" button is showing its transient "Copied ✓" state.
+  let copiedButton = $state<'invite' | 'reader' | null>(null);
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function flashCopied(which: 'invite' | 'reader'): void {
+    clearTimeout(copiedTimer);
+    copiedButton = which;
+    copiedTimer = setTimeout(() => (copiedButton = null), 2000);
+  }
+
+  async function copyTo(
+    text: string,
+    el: HTMLInputElement | undefined,
+    label: string,
+    which: 'invite' | 'reader',
+  ): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
       toasts.success(label);
-      onclose();
+      flashCopied(which);
       return;
     } catch {
       /* fall through to the manual fallback */
@@ -127,21 +161,21 @@
     }
     if (ok) {
       toasts.success(label);
-      onclose();
+      flashCopied(which);
     } else {
       toasts.info('Press ⌘/Ctrl+C to copy the selected link');
     }
   }
 
-  const copy = () => copyTo(url, inputEl, 'Invite link copied to clipboard');
-  const copyReader = () => copyTo(readerUrl, readerInputEl, 'View-only link copied to clipboard');
+  const copy = () => copyTo(url, inputEl, 'Invite link copied to clipboard', 'invite');
+  const copyReader = () => copyTo(readerUrl, readerInputEl, 'View-only link copied to clipboard', 'reader');
 </script>
 
 <Dialog {open} {onclose} title="Share this document">
   <p class="share-hint">
     Anyone with this link joins and edits in real time — peer-to-peer, no account needed.
     {#if linkKey}
-      <strong>This link carries the room's encryption key</strong>, so keep it private.
+      <strong>This link carries the document's encryption key</strong>, so keep it private.
     {/if}
   </p>
 
@@ -150,12 +184,15 @@
       💾 Saved to <strong>your {storageLabel ?? 'storage'}</strong>. Collaborators edit live but
       can’t write to your storage; anyone who connects their own backend keeps their own saved copy.
     {:else}
-      ⚡ This room isn’t saved to any storage of yours — it lives in the live session and each
+      ⚡ This document isn’t saved to any storage of yours — it lives in the live session and each
       device’s local cache only. Connect a backend to save it to your own storage.
     {/if}
   </p>
 
   <div class="share-row">
+    {#if linkKey}
+      <span class="key-badge" title="This link includes the encryption key">🔑 Key included</span>
+    {/if}
     <input
       bind:this={inputEl}
       type="text"
@@ -164,13 +201,16 @@
       aria-label="Invite link"
       onfocus={(e) => e.currentTarget.select()}
     />
-    <button class="primary" onclick={copy}>Copy link</button>
+    <button class="primary" onclick={copy}>{copiedButton === 'invite' ? 'Copied ✓' : 'Copy link'}</button>
   </div>
 
   <details class="reader-section">
     <summary>Share a view-only link</summary>
     <div class="reader-body">
       <div class="share-row">
+        {#if linkKey}
+          <span class="key-badge" title="This link includes the encryption key">🔑 Key included</span>
+        {/if}
         <input
           bind:this={readerInputEl}
           type="text"
@@ -179,7 +219,7 @@
           aria-label="View-only invite link"
           onfocus={(e) => e.currentTarget.select()}
         />
-        <button onclick={copyReader}>Copy link</button>
+        <button onclick={copyReader}>{copiedButton === 'reader' ? 'Copied ✓' : 'Copy link'}</button>
       </div>
       <p class="reader-caveat">
         The view-only role disables editing in the UI, but is not technically enforced —
@@ -191,26 +231,41 @@
 
   <section class="share-security">
     <h3>
-      Room privacy
+      Document privacy
       {#if encrypted}<span class="lock" title="End-to-end encrypted">🔒 Encrypted</span>{/if}
     </h3>
 
     {#if envOnly}
-      <p class="sec-note">This deployment encrypts every room with a shared key.</p>
+      <p class="sec-note">This deployment encrypts every document with a shared key.</p>
     {/if}
 
     {#if linkKey}
       <p class="sec-note">
-        <strong>Secure link.</strong> The key lives in the link's <code>#</code> fragment —
-        it's never sent to the signaling server. Anyone with the link can read.
+        <strong>Secure link.</strong> Anyone with the full link can read this document — the key
+        travels inside the link itself, not through our servers.
+        <details class="sec-details">
+          <summary>How this works</summary>
+          The key lives in the link's <code>#</code> fragment, which browsers never send to the
+          signaling server.
+        </details>
       </p>
       <div class="sec-actions">
-        <button onclick={removeEncryption}>Remove encryption</button>
+        <button class:danger={confirmingRemove} onclick={requestRemoveEncryption}>
+          {confirmingRemove ? 'Click again to confirm' : 'Remove encryption'}
+        </button>
+        {#if confirmingRemove}
+          <span class="confirm-note">Collaborators' current link will stop working.</span>
+        {/if}
       </div>
     {:else}
       <p class="sec-note">
-        Encrypt this room end-to-end. Either bake a key into the link, or set a password
-        to share separately. (WebRTC transport only — the hub relay can't be E2E.)
+        Encrypt this document end-to-end — only people with the link or password can read it.
+        Either bake a key into the link, or set a password to share separately.
+        <details class="sec-details">
+          <summary>Limitations</summary>
+          End-to-end encryption only applies over the peer-to-peer (WebRTC) transport — a
+          WebSocket hub relay can't be end-to-end encrypted.
+        </details>
       </p>
       <div class="sec-actions">
         <button class="primary" onclick={makeSecureLink}>Generate secure link</button>
@@ -218,20 +273,27 @@
       <div class="sec-pw">
         <input
           type="text"
-          placeholder="…or a room password"
+          placeholder="…or a document password"
           value={pwInput}
           oninput={(e) => (pwInput = e.currentTarget.value)}
           onkeydown={(e) => e.key === 'Enter' && applyPassword()}
-          aria-label="Room password"
+          aria-label="Document password"
         />
         <button onclick={applyPassword} disabled={pwInput.trim() === (storedPw ?? '')}>
           {storedPw ? 'Update' : 'Set'}
         </button>
-        {#if storedPw}<button onclick={removeEncryption}>Remove</button>{/if}
+        {#if storedPw}
+          <button class:danger={confirmingRemove} onclick={requestRemoveEncryption}>
+            {confirmingRemove ? 'Confirm?' : 'Remove'}
+          </button>
+        {/if}
       </div>
+      {#if confirmingRemove}
+        <p class="confirm-note">Collaborators' current password will stop working.</p>
+      {/if}
       <small class="sec-help">
         Password-protected? Collaborators must enter the same password here to read.
-        Not seeing edits? Double-check the password — a wrong one looks like an empty room.
+        Not seeing edits? Double-check the password — a wrong one looks like an empty document.
       </small>
     {/if}
   </section>
@@ -266,6 +328,7 @@
   }
   .share-row {
     display: flex;
+    align-items: center;
     gap: var(--sp-2);
   }
   .share-row input {
@@ -275,6 +338,16 @@
   }
   .share-row button {
     flex-shrink: 0;
+  }
+  .key-badge {
+    flex-shrink: 0;
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--r-2, 6px);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: var(--fs-300);
+    font-weight: 500;
+    white-space: nowrap;
   }
   .reader-section {
     margin-top: var(--sp-4);
@@ -332,10 +405,38 @@
   .sec-note code {
     font-family: var(--font-mono);
   }
+  .sec-details {
+    margin-top: var(--sp-2);
+    color: var(--text-faint);
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+  .sec-details summary {
+    cursor: pointer;
+    color: var(--text-faint);
+    font-size: 0.75rem;
+    user-select: none;
+  }
+  .sec-details summary:hover {
+    color: var(--text-muted);
+  }
   .sec-actions {
     display: flex;
+    align-items: center;
     gap: var(--sp-2);
     margin-bottom: var(--sp-3);
+    flex-wrap: wrap;
+  }
+  .sec-actions button.danger,
+  .sec-pw button.danger {
+    color: var(--danger);
+    border-color: var(--danger);
+  }
+  .confirm-note {
+    margin: var(--sp-1) 0 var(--sp-3);
+    color: var(--danger);
+    font-size: 0.75rem;
+    line-height: 1.4;
   }
   .sec-pw {
     display: flex;
