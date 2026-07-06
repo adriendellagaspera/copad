@@ -71,7 +71,13 @@
     aria-live="polite"
     transition:slide={{ duration: 150 }}
   >
-    <span class="dot" aria-hidden="true"></span>
+    <span class="ic" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+    </span>
     {#if gated}
       <span class="msg">
         {#if offline}
@@ -121,23 +127,34 @@
 {/if}
 
 <style>
+  /* Restraint over a coloured-alert flood: the strip is a faintly amber-tinted
+     surface, not a saturated warning field. The tone is carried by one small cue —
+     the amber icon — rather than by dyeing the whole bar, so it reads as a calm
+     heads-up that recedes in front of the text (north-star), not a Bootstrap alert. */
   .sync-banner {
     display: flex;
     align-items: center;
     gap: var(--sp-3);
     flex-wrap: wrap;
     padding: var(--sp-2) var(--sp-4);
-    background: var(--warn-soft);
-    border-bottom: 1px solid var(--warn-border);
-    color: var(--warn);
+    background: color-mix(in srgb, var(--warn-soft) 55%, var(--surface-2));
+    border-bottom: 1px solid color-mix(in srgb, var(--warn-border) 55%, var(--border));
+    color: var(--text-muted);
     font-size: var(--fs-300);
     line-height: 1.4;
   }
-  /* Not into the void (saved, or a relaying hub) — soften to a neutral,
-     informational tone rather than the warning palette. */
+  /* Informational tiers (a saved copy, or a relaying hub) aren't "into the void" —
+     drop the amber tint entirely for a plain neutral surface and a neutral icon. */
   .sync-banner.soft {
     background: var(--surface-2);
     border-bottom-color: var(--border);
+  }
+  .ic {
+    flex-shrink: 0;
+    display: inline-flex;
+    color: var(--warn);
+  }
+  .sync-banner.soft .ic {
     color: var(--text-muted);
   }
   .msg {
@@ -145,29 +162,19 @@
     min-width: 12rem;
   }
   .msg strong {
+    color: var(--text);
     font-weight: 600;
-  }
-  .dot {
-    flex-shrink: 0;
-    width: 8px;
-    height: 8px;
-    border-radius: var(--r-full);
-    background: currentColor;
-    animation: pulse 2s ease-in-out infinite;
   }
   .actions {
     display: flex;
     align-items: center;
-    gap: var(--sp-3);
+    gap: var(--sp-2);
     flex-shrink: 0;
   }
-  /* The actions matter more than the copy, so they must not melt into the warn
-     field — the old currentColor chips were amber-on-amber. Both are now solid,
-     self-contained buttons that carry their own contrast regardless of the strip's
-     tone: a filled accent primary (Invite) that pops off the yellow, and a surface
-     secondary (Connect storage) that stays plainly legible beside it. */
+  /* Primary — a filled accent chip. It pops without clashing now the field is only
+     faintly tinted (the old saturated-yellow field made accent-blue collide). */
   .invite-cta {
-    padding: 0.3rem 0.85rem;
+    padding: 0.34rem 0.9rem;
     border: 1px solid transparent;
     border-radius: var(--r-full);
     background: var(--accent);
@@ -180,15 +187,15 @@
   .invite-cta:hover {
     background: var(--accent-hover);
   }
-  /* Secondary action — a solid surface chip (not a buried underline link), so
-     "Connect storage" reads as the alternative button it is. Overrides the global
-     inline `button.link` look within the banner only. */
+  /* Secondary — a real ghost button (transparent + border), so "Connect storage"
+     reads as the alternative button it is, not a floating underlined link. Overrides
+     the global inline `button.link` look within the banner only. */
   .sync-banner :global(button.link) {
     flex-shrink: 0;
-    padding: 0.3rem 0.85rem;
+    padding: 0.34rem 0.9rem;
     border: 1px solid var(--border-strong);
     border-radius: var(--r-full);
-    background: var(--surface);
+    background: transparent;
     color: var(--text);
     text-decoration: none;
     font-size: var(--fs-300);
@@ -197,21 +204,7 @@
     cursor: pointer;
   }
   .sync-banner :global(button.link:hover) {
-    background: var(--surface-3);
+    background: color-mix(in srgb, var(--text) 7%, transparent);
     border-color: var(--accent);
-  }
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.4;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .dot {
-      animation: none;
-    }
   }
 </style>
