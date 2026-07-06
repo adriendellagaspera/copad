@@ -60,7 +60,6 @@
   import ShareDialog from './ui/ShareDialog.svelte';
   import SyncBanner from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
-  import InfoBanner from './ui/InfoBanner.svelte';
   import { createTheme } from './ui/theme.svelte.js';
   import { createToasts } from './ui/toasts.svelte.js';
   import { createLanguage } from './ui/language.svelte.js';
@@ -651,42 +650,32 @@
 
 
 
-  <!-- Presence / durability layer — at most one strip at a time, never contradictory.
+  <!-- Presence / durability layer — one strip, one surface, never contradictory.
        Decision 2: the old always-on "Set up a storage backend…" InfoBanner is gone.
        It duplicated the persistent, clickable status chip ("Not saved" → opens the
        sheet with the connect action, #105/#124) and stacked on top of SyncBanner's
        own solo tiers, which already nudge storage. The chip is the single durability
        actuator; the banners stay contextual and non-duplicative.
-       Decision 3: when collaboration is unavailable, SyncBanner is suppressed — its
-       whole premise is reach ("invite someone"), which is moot when no one can join.
-       We show only the deployment notice instead, so the two never contradict. -->
-  {#if collabUnavailable}
-    <!-- Decision 4: honest about the consequence, and offers the *one* action that
-         still matters here. With no cross-device sync, connecting storage is the
-         only way your notes outlive this device — so we surface it (only when not
-         already saved). It no longer stacks with SyncBanner (suppressed above), so
-         this isn't the redundancy Decision 2 removed.
-         We deliberately don't concatenate the raw `collabWarning` string: this lead
-         is the complete user-facing message, and appending it duplicated the first
-         sentence and contradicted the tone ("connect storage to keep them" vs the
-         old "nothing you need to do"). The technical detail still reaches deployers
-         via console.warn above. -->
-    <InfoBanner>
-      Real-time sync isn’t available on this site{#if !savedHere}, so your notes stay on
-        this device — <button class="link" onclick={() => openSettings()}>connect storage</button>
-        to keep them{/if}.
-    </InfoBanner>
-  {:else}
-    <SyncBanner
-      conn={sessionState.conn}
-      transport={sessionState.diagnostics.transport}
-      storageLabel={savedHere && storage ? storage.storage.label : null}
-      gated={writeLocked}
-      {gateEligible}
-      onShare={() => (shareOpen = true)}
-      onConnectStorage={() => openSettings()}
-    />
-  {/if}
+       Decision 3 (revised): collaboration-unavailable is folded into SyncBanner as
+       its own tier instead of a separate InfoBanner. Reasoning: it must NOT block
+       (unlike the write-gate) because it's a *permanent environment fact* the user
+       can't act on right now — you block only for a *transient, user-resolvable*
+       state (someone might still join). But "which component renders it" is a
+       presentation choice, independent of blocking — and two components for one
+       presence/durability concern was the real inconsistency. So it's one strip
+       with an escalation ladder: gated (blocks, transient) → collab-unavailable
+       (never blocks, permanent, its own tier) → solo reminder (never blocks,
+       transient). See SyncBanner's `collabUnavailable` tier for the copy. -->
+  <SyncBanner
+    conn={sessionState.conn}
+    transport={sessionState.diagnostics.transport}
+    storageLabel={savedHere && storage ? storage.storage.label : null}
+    gated={writeLocked}
+    {gateEligible}
+    {collabUnavailable}
+    onShare={() => (shareOpen = true)}
+    onConnectStorage={() => openSettings()}
+  />
 
   {#if !iceReady}
     <div class="ice-gate" role="status" aria-live="polite">
