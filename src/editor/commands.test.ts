@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { schema } from './schema.js';
-import { commands, runCommand } from './commands.js';
+import { commands, runCommand, activeInputMarks } from './commands.js';
 
 function paragraphState(text = 'hi'): EditorState {
   const para = text ? schema.node('paragraph', null, schema.text(text)) : schema.node('paragraph');
@@ -55,5 +55,34 @@ describe('block commands', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     runCommand(view as any, commands.h1);
     expect(dispatched).toBe(true);
+  });
+});
+
+describe('activeInputMarks', () => {
+  const names = (state: EditorState) => activeInputMarks(state).map((t) => t.name).sort();
+
+  it('is empty for a plain collapsed caret', () => {
+    expect(activeInputMarks(paragraphState())).toEqual([]);
+  });
+
+  it('reports a mark armed by a toggle at the caret (stored marks)', () => {
+    const armed = apply(paragraphState(), commands.bold);
+    expect(names(armed)).toEqual(['strong']);
+  });
+
+  it('reports marks inherited from the caret position', () => {
+    // A paragraph whose text carries the strong mark; caret placed inside it.
+    const strong = schema.marks.strong.create();
+    const para = schema.node('paragraph', null, schema.text('hi', [strong]));
+    const doc = schema.node('doc', null, [para]);
+    let state = EditorState.create({ schema, doc });
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 2)));
+    expect(names(state)).toEqual(['strong']);
+  });
+
+  it('is empty for a non-collapsed selection (the selection toolbar covers that)', () => {
+    let state = paragraphState('hello');
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1, 4)));
+    expect(activeInputMarks(state)).toEqual([]);
   });
 });

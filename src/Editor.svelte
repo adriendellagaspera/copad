@@ -9,6 +9,8 @@
   import { slashMenuPlugin } from './editor/ui/slashMenu.js';
   import { placeholderPlugin } from './editor/ui/placeholder.js';
   import Toolbar from './Toolbar.svelte';
+  import SelectionToolbar from './editor/ui/SelectionToolbar.svelte';
+  import CaretFormatHint from './editor/ui/CaretFormatHint.svelte';
   import { codecForFilename } from './format/index.js';
   import SlashMenu from './editor/ui/SlashMenu.svelte';
   import LinkPopover from './editor/ui/LinkPopover.svelte';
@@ -323,7 +325,11 @@
 </script>
 
 <div class="editor">
-  <Toolbar {view} {editorState} {toasts} />
+  <!-- Fixed bar: kept on touch devices, hidden on desktop (see editor.css)
+       where the SelectionToolbar bubble takes over. -->
+  <div class="fixed-toolbar">
+    <Toolbar {view} {editorState} {toasts} />
+  </div>
   <div class="content" bind:this={editorEl}></div>
   <div class="status">
     <ShortcutBar />
@@ -331,6 +337,8 @@
     <WordCount {editorState} />
     <Outline {view} {editorState} />
   </div>
+  <SelectionToolbar {view} {editorState} {toasts} />
+  <CaretFormatHint {view} {editorState} />
   <SlashMenu {view} {editorState} />
   <LinkPopover {view} />
 </div>
