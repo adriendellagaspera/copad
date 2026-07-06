@@ -161,33 +161,44 @@
     gap: var(--sp-3);
     flex-shrink: 0;
   }
-  /* Primary CTA — a filled chip so "Invite" reads as the obvious next step, not a
-     buried text link. Uses currentColor so it inherits the warn/neutral tone. */
+  /* The actions matter more than the copy, so they must not melt into the warn
+     field — the old currentColor chips were amber-on-amber. Both are now solid,
+     self-contained buttons that carry their own contrast regardless of the strip's
+     tone: a filled accent primary (Invite) that pops off the yellow, and a surface
+     secondary (Connect storage) that stays plainly legible beside it. */
   .invite-cta {
-    padding: 0.25rem 0.75rem;
-    border: 1px solid currentColor;
+    padding: 0.3rem 0.85rem;
+    border: 1px solid transparent;
     border-radius: var(--r-full);
-    background: transparent;
-    color: inherit;
+    background: var(--accent);
+    color: var(--accent-contrast);
     font-size: var(--fs-300);
     font-weight: 600;
     line-height: 1.4;
     cursor: pointer;
   }
   .invite-cta:hover {
-    background: color-mix(in srgb, currentColor 12%, transparent);
+    background: var(--accent-hover);
   }
+  /* Secondary action — a solid surface chip (not a buried underline link), so
+     "Connect storage" reads as the alternative button it is. Overrides the global
+     inline `button.link` look within the banner only. */
   .sync-banner :global(button.link) {
     flex-shrink: 0;
-    padding: 0;
-    border: none;
-    background: none;
-    color: inherit;
-    text-decoration: underline;
-    text-underline-offset: 2px;
+    padding: 0.3rem 0.85rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-full);
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
     font-size: var(--fs-300);
     font-weight: 600;
+    line-height: 1.4;
     cursor: pointer;
+  }
+  .sync-banner :global(button.link:hover) {
+    background: var(--surface-3);
+    border-color: var(--accent);
   }
   @keyframes pulse {
     0%,
