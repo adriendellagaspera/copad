@@ -430,6 +430,14 @@
   // before the gate — and, crucially, so a locked room never mounts the Editor
   // (which would connect + write a plaintext cache without the key).
   const encryptedTransport = usesIce; // WebRTC — the only transport that encrypts
+  // Whether *this* room is end-to-end encrypted right now: a per-room key is in
+  // effect (secure link / room password / mandated strategy) on an encrypting
+  // transport. Drives the status chip's shield segment. Re-evaluated on a security
+  // change (Share dialog / unlock bumps collabEpoch).
+  const roomEncrypted = $derived.by((): boolean => {
+    void collabEpoch;
+    return encryptedTransport && roomCipher.password(room) !== null;
+  });
   let lock = $state<RoomLockState>({ locked: false });
   let lockChecked = $state(!encryptedTransport);
   // Whether the current lock offers a "continue without a password" escape. Only
@@ -572,6 +580,7 @@
           storageLabel={savedHere ? storage?.storage.label : undefined}
           warning={conflictWarning}
           transport={sessionState.diagnostics.transport}
+          encrypted={roomEncrypted}
           onclick={() => (diagOpen = true)}
         />
         {#if otherPeers.length > 0}
@@ -674,6 +683,7 @@
   saveStatus={sessionState.saveStatus}
   storageLabel={savedHere ? storage?.storage.label : undefined}
   warning={conflictWarning}
+  encrypted={roomEncrypted}
   peers={sessionState.users}
   getDiagnostics={sessionState.diagnostics.getDiagnostics}
   reconnect={sessionState.diagnostics.reconnect}

@@ -24,6 +24,7 @@
     storageLabel,
     warning,
     transport,
+    encrypted = false,
     onclick,
   }: {
     conn: ConnStatus;
@@ -34,6 +35,11 @@
      *  the durability state — the user needs to see it. */
     warning?: string;
     transport: Transport;
+    /** This room is end-to-end encrypted (a per-room key is in effect). When true a
+     *  third shield segment appears — a privacy fact that *varies per room*, unlike
+     *  the transport, which the connection segment already states as Direct/Relay.
+     *  Only shown when true, so public rooms keep the chip to two signals. */
+    encrypted?: boolean;
     onclick?: () => void;
   } = $props();
 
@@ -115,7 +121,11 @@
     },
   );
 
-  const title = $derived(`${c.title}\n${d.title}`);
+  const encryptedTitle =
+    'End-to-end encrypted — your content is scrambled in your browser with this room’s key; relays and the signaling server only ever see ciphertext.';
+  const title = $derived(
+    `${c.title}\n${d.title}${encrypted ? `\n${encryptedTitle}` : ''}`,
+  );
 </script>
 
 <svelte:element
@@ -156,6 +166,16 @@
     {/if}
     <span class="seg-label">{d.label}</span>
   </span>
+
+  {#if encrypted}
+    <!-- Third segment, shown only when the room is E2E-encrypted — a privacy fact
+         that varies per room. A shield reads even wordless on mobile. -->
+    <span class="divider" aria-hidden="true"></span>
+    <span class="seg secure accent">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></svg>
+      <span class="seg-label">Encrypted</span>
+    </span>
+  {/if}
 </svelte:element>
 
 <style>

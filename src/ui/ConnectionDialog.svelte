@@ -21,6 +21,7 @@
     saveStatus = SaveStatus.Idle,
     storageLabel,
     warning,
+    encrypted = false,
     peers = [],
     getDiagnostics,
     reconnect,
@@ -38,6 +39,8 @@
     storageLabel?: string;
     /** A file-collision warning (another room saves to the same file). */
     warning?: string;
+    /** This room is end-to-end encrypted — adds the shield "Encrypted" block. */
+    encrypted?: boolean;
     /** Everyone present (including you); rendered as presence avatars. */
     peers?: PeerUser[];
     getDiagnostics?: () => Promise<Diagnostics>;
@@ -193,11 +196,11 @@
     </div>
   </div>
 
-  <!-- How edits travel: who can see this? -->
+  <!-- How edits travel: who can see this? (transport — connected nodes / server) -->
   <div class="block muted">
     <span class="block-icon" aria-hidden="true">
       {#if isP2P}
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></svg>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></svg>
       {:else}
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="1.5" /><rect x="3" y="13" width="18" height="7" rx="1.5" /><path d="M7 7.5h.01M7 16.5h.01" /></svg>
       {/if}
@@ -214,6 +217,24 @@
       </p>
     </div>
   </div>
+
+  <!-- Encryption: shown only when a per-room key is in effect. The shield here is
+       the same mark the status chip's third segment uses. -->
+  {#if encrypted}
+    <div class="block accent">
+      <span class="block-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></svg>
+      </span>
+      <div class="block-body">
+        <p class="block-head">End-to-end encrypted</p>
+        <p class="block-sub">
+          Your content is scrambled in your browser with this room's key. Relaying peers
+          and the signaling server only ever see ciphertext — the key never leaves your
+          device.
+        </p>
+      </div>
+    </div>
+  {/if}
 
   <details class="tech">
     <summary>Technical details</summary>
