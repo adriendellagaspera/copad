@@ -89,6 +89,9 @@
   // input's own onkeydown only fires once it holds focus, which a slow
   // coordsAtPos or a delayed focus microtask can race — this guarantees
   // Escape always dismisses the popover regardless of where focus landed.
+  // Capture phase so we see it before any other in-page listener (or a
+  // browser-extension content script on the input, e.g. a password manager)
+  // gets a chance to stopPropagation() or otherwise swallow the first press.
   $effect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent): void => {
@@ -97,8 +100,8 @@
         dismiss();
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   });
 </script>
 
