@@ -240,7 +240,7 @@
     {/if}
 
     {#if linkKey}
-      <p class="sec-note">
+      <div class="sec-note">
         <strong>Secure link.</strong> Anyone with the full link can read this document — the key
         travels inside the link itself, not through our servers.
         <details class="sec-details">
@@ -248,7 +248,7 @@
           The key lives in the link's <code>#</code> fragment, which browsers never send to the
           signaling server.
         </details>
-      </p>
+      </div>
       <div class="sec-actions">
         <button class:danger={confirmingRemove} onclick={requestRemoveEncryption}>
           {confirmingRemove ? 'Click again to confirm' : 'Remove encryption'}
@@ -258,7 +258,7 @@
         {/if}
       </div>
     {:else}
-      <p class="sec-note">
+      <div class="sec-note">
         Encrypt this document end-to-end — only people with the link or password can read it.
         Either bake a key into the link, or set a password to share separately.
         <details class="sec-details">
@@ -266,7 +266,7 @@
           End-to-end encryption only applies over the peer-to-peer (WebRTC) transport — a
           WebSocket hub relay can't be end-to-end encrypted.
         </details>
-      </p>
+      </div>
       <div class="sec-actions">
         <button class="primary" onclick={makeSecureLink}>Generate secure link</button>
       </div>
