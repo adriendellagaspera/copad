@@ -97,6 +97,51 @@
   }
 }
 
+/* ── Armed-formatting caret hint (desktop) ── */
+
+/* A small, non-interactive pill floating over the collapsed caret that names
+   the marks a Mod-B/Mod-I toggle has armed — the desktop counterpart to the
+   fixed bar's pressed buttons, which are hidden here. Only revealed on the
+   fine-pointer profile and only when CaretFormatHint marks it .visible. */
+.caret-hint {
+  display: none;
+}
+
+@media (pointer: fine) {
+  .caret-hint.visible {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    position: fixed;
+    z-index: var(--z-menu);
+    /* top/left are set inline from the caret coords. */
+    padding: 2px var(--sp-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--accent-soft);
+    color: var(--accent-soft-text);
+    box-shadow: var(--shadow-md);
+    font-size: var(--fs-300);
+    line-height: 1;
+    /* Purely a status readout — never intercept clicks meant for the text. */
+    pointer-events: none;
+    user-select: none;
+  }
+}
+
+.caret-hint .ch-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.15rem;
+}
+.caret-hint .ch-code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
 /* ── Status bar ── */
 
 /* Footer bar at the bottom of the editor — document meta (word count, outline).
