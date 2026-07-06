@@ -17,6 +17,24 @@ export function normalizeHref(input: string): string {
   return `https://${href}`;
 }
 
+/**
+ * True when `normalizeHref(input)` is a well-formed URL — catches typos like
+ * "not a link" or "http//x". A raw space always means free text, not a URL:
+ * the WHATWG URL parser (unlike Node's) percent-encodes spaces in the host
+ * instead of rejecting them, so it can't be relied on alone for that case.
+ */
+export function isValidHref(input: string): boolean {
+  const trimmed = input.trim();
+  if (!trimmed) return true; // empty is handled separately (removes the link)
+  if (/\s/.test(trimmed)) return false;
+  try {
+    new URL(normalizeHref(trimmed), window.location.href);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** The href of the link mark touching the current selection, or null. */
 export function currentLinkHref(state: EditorState): string | null {
   const { from, $from, to, empty } = state.selection;

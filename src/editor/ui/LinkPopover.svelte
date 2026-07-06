@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { EditorView } from 'prosemirror-view';
-  import { setLink, removeLink, currentLinkHref, normalizeHref } from '../linkCommands.js';
+  import { setLink, removeLink, currentLinkHref, normalizeHref, isValidHref } from '../linkCommands.js';
   import { runCommand } from '../commands.js';
 
   let { view }: { view: EditorView | null } = $props();
@@ -10,6 +10,7 @@
   let wasLinked = $state(false);
   let pos = $state<{ left: number; top: number } | null>(null);
   let inputEl = $state<HTMLInputElement | undefined>();
+  let invalid = $derived(href.trim() !== '' && !isValidHref(href));
 
   function openPopover(): void {
     if (!view) return;
@@ -40,6 +41,7 @@
       close();
       return;
     }
+    if (!isValidHref(h)) return; // keep the popover open so the error stays visible
     const { empty, from } = view.state.selection;
     if (empty) {
       // No selection: insert the URL as linked text.
@@ -69,6 +71,22 @@
     dom.addEventListener('copad:link', handler as EventListener);
     return () => dom.removeEventListener('copad:link', handler as EventListener);
   });
+
+  // Window-level Escape (matches RoomSwitcher/IdentityMenu/Settings): the
+  // input's own onkeydown only fires once it holds focus, which a slow
+  // coordsAtPos or a delayed focus microtask can race — this guarantees
+  // Escape always dismisses the popover regardless of where focus landed.
+  $effect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        close();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 </script>
 
 {#if open && pos}
@@ -76,22 +94,26 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="link-backdrop" onmousedown={close}></div>
   <div class="link-popover" style="left:{pos.left}px; top:{pos.top}px" role="dialog" aria-label="Edit link">
-    <input
-      bind:this={inputEl}
-      type="url"
-      placeholder="Paste or type a link"
-      bind:value={href}
-      onkeydown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          apply();
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          close();
-        }
-      }}
-    />
-    <button class="primary" onmousedown={(e) => { e.preventDefault(); apply(); }}>
+    <div class="link-field">
+      <input
+        bind:this={inputEl}
+        type="url"
+        placeholder="Paste or type a link"
+        class:invalid
+        aria-invalid={invalid}
+        bind:value={href}
+        onkeydown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            apply();
+          }
+        }}
+      />
+      {#if invalid}
+        <span class="link-error">That doesn't look like a valid link</span>
+      {/if}
+    </div>
+    <button class="primary" disabled={invalid} onmousedown={(e) => { e.preventDefault(); apply(); }}>
       {wasLinked ? 'Update' : 'Link'}
     </button>
     {#if wasLinked}
@@ -121,9 +143,24 @@
     box-shadow: var(--shadow-lg);
     animation: link-in var(--dur-fast) var(--ease);
   }
-  .link-popover input {
+  .link-field {
+    position: relative;
     width: 240px;
+  }
+  .link-popover input {
+    width: 100%;
     font-size: var(--fs-300);
+  }
+  .link-popover input.invalid {
+    border-color: var(--danger);
+  }
+  .link-error {
+    position: absolute;
+    top: calc(100% + var(--sp-1));
+    left: 0;
+    font-size: var(--fs-200);
+    color: var(--danger);
+    white-space: nowrap;
   }
   .link-popover button {
     flex-shrink: 0;
