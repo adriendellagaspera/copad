@@ -31,7 +31,7 @@
 
   // Short suffix shown inline on mobile — states the meaning in plain, honest terms.
   const detail = $derived(
-    warning ? 'same file as another room' : saved ? `kept in ${where}` : 'not kept for you',
+    warning ? 'same file as another room' : saved ? `in ${where}` : 'not saved',
   );
 
   const title = $derived(
