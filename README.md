@@ -73,10 +73,17 @@ Adapters in [`src/storage/`](src/storage/):
 | **Dropbox** | OAuth2 **PKCE** (popup) | ✅ CORS OK (token + content) | No |
 | **pCloud** | OAuth token (popup) | ⚠️ upload OK, read CORS-iffy | For reads only |
 | **WebDAV / Nextcloud** | Basic (app password) | ❌ no CORS by default | Yes (unless server is CORS-enabled) |
+| **GitHub** | Personal Access Token | ✅ native CORS | No |
+| **GitLab** | Personal Access Token | ✅ native CORS (self-hosted too) | No |
+| **Google Drive** | OAuth2 **PKCE** (popup) | ✅ native CORS | No |
+| **SharePoint / OneDrive** | Microsoft Graph token | ✅ native CORS | No |
+| **S3-compatible** (AWS/R2/MinIO/B2) | Access keys (**SigV4**, no SDK) | ⚠️ bucket must allow CORS | No (signed direct) |
 | **Local file** | None (File System Access API) | ✅ Chrome/Edge only | No |
 
-**Adding a backend** (Google Drive, S3/R2, OneDrive…) = write a factory function returning
-a `Storage` and register it in [`src/storage/index.ts`](src/storage/index.ts).
+**Adding a backend** = write a factory function returning `{ auth, storage }` (a `StorageAuth`
+and a bytes-only `Storage`) and register it in [`src/storage/index.ts`](src/storage/index.ts).
+Pick the closest sibling to mirror: OAuth PKCE → `dropbox.ts`/`gdrive.ts`; PAT/config → `github.ts`/`gitlab.ts`;
+session credentials → `webdav.ts`/`sharepoint.ts`/`s3.ts`.
 
 ## The optional shared proxy
 
@@ -244,6 +251,11 @@ src/
     pcloud.ts    # pCloud adapter
     dropbox.ts   # Dropbox adapter (PKCE)
     webdav.ts    # WebDAV / Nextcloud adapter
+    github.ts    # GitHub adapter (PAT, commits to a repo)
+    gitlab.ts    # GitLab adapter (PAT, gitlab.com or self-hosted)
+    gdrive.ts    # Google Drive adapter (PKCE, drive.file scope)
+    sharepoint.ts# SharePoint / OneDrive adapter (Microsoft Graph)
+    s3.ts        # S3-compatible adapter (AWS SigV4 via crypto.subtle)
     local.ts     # Local file adapter (File System Access API, Chrome/Edge)
     index.ts     # registry of configured backends
   network/
@@ -264,7 +276,7 @@ src/
   Editor.svelte  # ProseMirror + Yjs binding + autosave / leader election
   Toolbar.svelte # rich-text toolbar (Svelte 5 $derived active states)
   App.svelte     # room management, storage picker, connect UI, collab transport wiring
-  redirect.ts    # OAuth popup landing page (pCloud + Dropbox)
+  redirect.ts    # OAuth popup landing page (pCloud + Dropbox + Google Drive)
 ```
 
 The collaboration servers are not vendored here — they're upstream packages run via their
