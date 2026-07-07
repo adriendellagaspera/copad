@@ -18,6 +18,7 @@ import type {
   S3AccessKeyId,
   S3SecretAccessKey,
 } from './s3.js';
+import type { GraphUserId, GraphSiteId } from './sharepoint.js';
 import { GITHUB_DEFAULT_BRANCH, GITLAB_DEFAULT_BRANCH, GITLAB_DEFAULT_HOST, S3_PREFIX } from './constants.js';
 
 // ── Stored-session shapes (owned here, imported by adapters) ──────────────────
@@ -53,7 +54,7 @@ export interface S3Conf {
  *  set ⇒ a specific SharePoint site's default drive. */
 export interface SharePointConf {
   token: string;
-  siteId: string | null;
+  siteId: GraphSiteId | null;
   folder: string;
 }
 
@@ -121,7 +122,7 @@ export function parseSharePointConf(raw: string | null): SharePointConf | null {
     if (typeof obj !== 'object' || obj === null) return null;
     const { token, siteId, folder } = obj as Record<string, unknown>;
     if (typeof token !== 'string' || typeof folder !== 'string') return null;
-    return { token, siteId: typeof siteId === 'string' ? siteId : null, folder };
+    return { token, siteId: typeof siteId === 'string' ? (siteId as GraphSiteId) : null, folder };
   } catch {
     return null;
   }
@@ -216,9 +217,13 @@ export function parseGitLabAccessLevel(raw: unknown): number {
 }
 
 // ── Microsoft Graph API JSON boundaries ───────────────────────────────────────
+// parseGraphUserId and parseGraphSiteId share a JSON shape (both are a bare
+// `{ id: string }`) but brand into two different domain concepts, so a user id
+// can never be silently compared against or substituted for a site id.
 
-/** The `id` field from a `/me` or `/sites/…` response. */
-export function parseGraphId(raw: unknown): string {
+/** The `id` field from a raw Graph response — shared narrowing for the two
+ *  Graph id kinds below, neither of which is exposed directly. */
+function rawGraphId(raw: unknown): string {
   if (typeof raw !== 'object' || raw === null)
     throw new Error('Unexpected Graph response');
   const id = (raw as Record<string, unknown>)['id'];
@@ -226,15 +231,25 @@ export function parseGraphId(raw: unknown): string {
   return id;
 }
 
+/** The `id` field from a `/me` response. */
+export function parseGraphUserId(raw: unknown): GraphUserId {
+  return rawGraphId(raw) as GraphUserId;
+}
+
+/** The `id` field from a `/sites/…` response. */
+export function parseGraphSiteId(raw: unknown): GraphSiteId {
+  return rawGraphId(raw) as GraphSiteId;
+}
+
 /** `createdBy.user.id` from a drive-item response, or null when unavailable. */
-export function parseGraphOwnerId(raw: unknown): string | null {
+export function parseGraphOwnerId(raw: unknown): GraphUserId | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const createdBy = (raw as Record<string, unknown>)['createdBy'];
   if (typeof createdBy !== 'object' || createdBy === null) return null;
   const user = (createdBy as Record<string, unknown>)['user'];
   if (typeof user !== 'object' || user === null) return null;
   const id = (user as Record<string, unknown>)['id'];
-  return typeof id === 'string' ? id : null;
+  return typeof id === 'string' ? (id as GraphUserId) : null;
 }
 
 // ── postMessage boundary ──────────────────────────────────────────────────────

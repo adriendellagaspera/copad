@@ -6,7 +6,8 @@ import { extensionOf } from '../format/types.js';
 import {
   type SharePointConf,
   parseSharePointConf,
-  parseGraphId,
+  parseGraphUserId,
+  parseGraphSiteId,
   parseGraphOwnerId,
 } from './parse.js';
 import { localStore } from '../persistence/local.js';
@@ -18,6 +19,18 @@ import { STORAGE_ID, DEFAULT_FILENAME, GRAPH_API_URL, SHAREPOINT_FOLDER, SHAREPO
 // scope, obtained from Graph Explorer or an IT admin. A pasted token is
 // short-lived (like a WebDAV app password); a full MSAL popup flow can be added
 // later behind configFields without changing this port.
+
+// ── Branded types ─────────────────────────────────────────────────────────────
+// Both are a bare Graph `{ id: string }`, but distinct domain concepts — a
+// GraphUserId can never be silently compared against or substituted for a
+// GraphSiteId (see access(), which compares two user ids from different
+// responses).
+
+/** A Microsoft Graph user id (from `/me` or a drive item's `createdBy.user.id`). */
+export type GraphUserId = string & { readonly _brand: 'GraphUserId' };
+
+/** A Microsoft Graph SharePoint site id (from `/sites/{host}:{path}`). */
+export type GraphSiteId = string & { readonly _brand: 'GraphSiteId' };
 
 const confStore = localStore<SharePointConf | null>(
   SHAREPOINT_KEY,
@@ -61,13 +74,13 @@ function driveContentUrl(c: SharePointConf, filename: Filename): string {
 }
 
 /** Resolve a SharePoint site URL to its Graph site id. */
-async function resolveSiteId(token: string, siteUrl: string): Promise<string> {
+async function resolveSiteId(token: string, siteUrl: string): Promise<GraphSiteId> {
   const url = new URL(siteUrl);
   const res = await fetch(`${GRAPH_API_URL}/sites/${url.hostname}:${url.pathname}`, {
     headers: authHeaders(token),
   });
   if (!res.ok) throw new Error(`SharePoint: cannot resolve site ${siteUrl} (${res.status})`);
-  return parseGraphId(await res.json());
+  return parseGraphSiteId(await res.json());
 }
 
 // ── Factory ───────────────────────────────────────────────────────────────────
@@ -163,7 +176,7 @@ export function sharepointStorage(room: RoomId): { auth: StorageAuth; storage: S
       ]);
       if (!meRes.ok || !itemRes.ok) return StorageAccess.Write;
 
-      const meId = parseGraphId(await meRes.json());
+      const meId = parseGraphUserId(await meRes.json());
       const ownerId = parseGraphOwnerId(await itemRes.json());
       return ownerId === meId ? StorageAccess.Owner : StorageAccess.Write;
     },
