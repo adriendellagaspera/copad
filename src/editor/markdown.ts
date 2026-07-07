@@ -1,9 +1,9 @@
 import type { Node as PMNode, Mark } from 'prosemirror-model';
 import { schema } from './schema.js';
-import { headingLevel, linkHref } from './parse.js';
+import { headingLevel, linkHref, taskItemChecked } from './parse.js';
 
 /** Serialize inline content (text + marks) of a textblock to Markdown. */
-function serializeInline(node: PMNode): string {
+export function serializeInline(node: PMNode): string {
   let out = '';
   node.forEach((child) => {
     if (!child.isText) {
@@ -58,6 +58,17 @@ function serializeBlock(node: PMNode, indent = ''): string {
         lines.push(indent + marker + first.trimStart());
         rest.forEach((l) => lines.push(l));
         i += 1;
+      });
+      return lines.join('\n');
+    }
+    case 'task_list': {
+      const lines: string[] = [];
+      node.forEach((item) => {
+        const marker = `- [${taskItemChecked(item) ? 'x' : ' '}] `;
+        const body = serializeChildren(item, indent + ' '.repeat(marker.length)).trimEnd();
+        const [first, ...rest] = body.split('\n');
+        lines.push(indent + marker + first.trimStart());
+        rest.forEach((l) => lines.push(l));
       });
       return lines.join('\n');
     }

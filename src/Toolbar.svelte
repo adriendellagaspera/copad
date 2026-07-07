@@ -26,6 +26,7 @@
   const h3        = $derived(editorState ? isNodeActive(editorState, schema.nodes.heading, { level: 3 }) : false);
   const bullet    = $derived(editorState ? isNodeActive(editorState, schema.nodes.bullet_list)  : false);
   const ordered   = $derived(editorState ? isNodeActive(editorState, schema.nodes.ordered_list) : false);
+  const checklist = $derived(editorState ? isNodeActive(editorState, schema.nodes.task_list)    : false);
   const quote     = $derived(editorState ? isNodeActive(editorState, schema.nodes.blockquote)   : false);
   const codeblock = $derived(editorState ? isNodeActive(editorState, schema.nodes.code_block)   : false);
 
@@ -66,6 +67,7 @@
     <span class="sep" role="separator"></span>
     <button data-active={bullet}    aria-pressed={bullet}    onclick={run(commands.bullet)}         title="Bullet list (Mod+Shift+8, or - + space)">• List</button>
     <button data-active={ordered}   aria-pressed={ordered}   onclick={run(commands.ordered)}        title="Ordered list (Mod+Shift+7, or 1. + space)">1. List</button>
+    <button data-active={checklist} aria-pressed={checklist} onclick={run(commands.taskList)}       title="Checklist (Mod+Shift+6, or [] + space)" aria-label="Checklist">☑</button>
     <button data-active={quote}     aria-pressed={quote}     onclick={run(commands.blockquote)}     title="Blockquote (Mod+Shift+9, or > + space)" aria-label="Blockquote">❝</button>
     <button data-active={codeblock} aria-pressed={codeblock} onclick={run(commands.codeBlock)}      title="Code block (Mod+Alt+C, or ``` )">Code</button>
     <button onclick={run(commands.horizontalRule)} title="Divider (type ---)" aria-label="Insert divider">―</button>

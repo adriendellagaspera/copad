@@ -28,6 +28,8 @@ Storage adapters return `{ auth: StorageAuth; storage: Storage }` — auth and b
 | `githubStorage()` | `src/storage/github.ts` | Commits to a GitHub repo via PAT; `contentFormat` is `'text'` for human-readable files, `'binary'` for `.yjs`. |
 | `gitlabStorage()` | `src/storage/gitlab.ts` | Commits to a GitLab project (gitlab.com or self-hosted) via PAT; mirrors `githubStorage()` (configFields + validated flag + POST/PUT create-or-update). |
 | `s3Storage()` | `src/storage/s3.ts` | Any S3-compatible bucket (AWS, R2, MinIO, B2, GCS…). AWS SigV4 signed with `crypto.subtle` (no SDK); binary `.yjs`; bucket must allow CORS. |
+| `sharepointStorage()` | `src/storage/sharepoint.ts` | SharePoint / OneDrive for Business via Microsoft Graph, delegated bearer token (credentialFields, like WebDAV); Graph has native CORS (no proxy). |
+| `gdriveStorage()` | `src/storage/gdrive.ts` | OAuth2 PKCE (like Dropbox); `drive.file` scope, file resolved by per-room filename; extension-driven `contentFormat`. |
 | `localFsStorage()` | `src/storage/local.ts` | File System Access API, Chrome/Edge only |
 | `webrtcCollab()` | `src/collaboration/webrtc.ts` | y-webrtc peer-to-peer transport (**default**). Needs STUN, plus TURN on mobile/symmetric NAT. |
 | `websocketCollab()` | `src/collaboration/websocket.ts` | y-websocket hub transport (opt-in via `VITE_COLLAB_TRANSPORT=websocket`). Central relay, **no WebRTC → no STUN/TURN**; server is in the data path (no E2E). |
@@ -67,7 +69,7 @@ A backend moves *bytes*; a **codec** (`src/format/`) turns those bytes into the 
 |-------|-----------|-------|
 | `yjsCodec` | `.yjs` | **Native default.** Full CRDT state (history + content) — the only format that round-trips collaborative merge. Fallback for unknown extensions. |
 | `textCodec` | `.txt` | Plain text; one paragraph per line. Formatting flattened. |
-| `markdownCodec` | `.md`, `.markdown` | CommonMark + GFM strikethrough (`~~`). No native underline syntax — that mark is flattened to plain text on export. |
+| `markdownCodec` | `.md`, `.markdown` | CommonMark + GFM strikethrough (`~~`) and checklists (`- [ ]`/`- [x]`). No native underline syntax — that mark is flattened to plain text on export. |
 | `htmlCodec` | `.html`, `.htm` | ProseMirror DOM parser/serializer; **needs a DOM** (browser only). |
 | `jsonCodec` | `.json` | ProseMirror document JSON; lossless for our schema. |
 
@@ -233,6 +235,10 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_GITLAB_API_PATH` | no | GitLab REST API path appended to the host (default: `/api/v4`). In `src/storage/constants.ts`. |
 | `VITE_GITLAB_DEFAULT_FILENAME` | no | Initial GitLab target file (default: `notes.md`). |
 | `VITE_S3_PREFIX` | no | Object-key prefix (folder) the S3 backend reads/writes within (default: `copad`). |
+| `VITE_GRAPH_API_URL` | no | Microsoft Graph API base (default: `https://graph.microsoft.com/v1.0`); set for a national cloud. |
+| `VITE_SHAREPOINT_FOLDER` | no | Drive folder SharePoint/OneDrive reads/writes within (default: `Documents`). |
+| `VITE_GDRIVE_CLIENT_ID` | no | Locks the Google Cloud OAuth Client ID; otherwise set at runtime in Settings. |
+| `VITE_GDRIVE_AUTH_URL` / `VITE_GDRIVE_TOKEN_URL` / `VITE_GDRIVE_FILES_URL` / `VITE_GDRIVE_UPLOAD_URL` / `VITE_GDRIVE_SCOPE` | no | Google Drive OAuth/Drive endpoint + scope overrides (defaults are the public Google endpoints; scope defaults to `drive.file`). |
 | `VITE_CLOUD_FOLDER` | no | Folder the cloud backends (Dropbox, pCloud) read/write within (default: `/copad`). In `src/storage/constants.ts`. |
 | `VITE_DEFAULT_FILENAME` | no | Initial target filename for cloud backends (default: `document.yjs`); the extension selects the codec. |
 | `VITE_GITHUB_DEFAULT_FILENAME` | no | Initial GitHub target file (default: `notes.md`). |

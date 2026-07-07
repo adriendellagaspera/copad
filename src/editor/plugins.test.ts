@@ -10,6 +10,7 @@ import {
   exitCodeBlockOnBlankLine,
   clearEmptyCodeBlockBackward,
   toggleBlockType,
+  checklistRuleHandler,
   BOLD_STAR_RULE,
   BOLD_UNDERSCORE_RULE,
   ITALIC_STAR_RULE,
@@ -17,6 +18,7 @@ import {
   STRIKE_RULE,
   CODE_RULE,
   LINK_RULE,
+  CHECKLIST_RULE,
 } from './plugins.js';
 
 /** A one-paragraph doc containing `text`, with the handler invoked as if the
@@ -25,7 +27,7 @@ import {
 function run(
   text: string,
   regexp: RegExp,
-  handler: ReturnType<typeof markRuleHandler> | ReturnType<typeof linkRuleHandler>
+  handler: ReturnType<typeof markRuleHandler> | ReturnType<typeof linkRuleHandler> | ReturnType<typeof checklistRuleHandler>
 ) {
   const para = schema.node('paragraph', null, schema.text(text));
   const doc = schema.node('doc', null, [para]);
@@ -535,5 +537,64 @@ describe('toggleBlockType', () => {
     const { next } = run(doc, 2, 5);
     expect(next!.doc.firstChild?.type.name).toBe('code_block');
     expect(next!.doc.lastChild?.type.name).toBe('code_block');
+  });
+});
+
+describe('checklist input rule', () => {
+  it('matches bare [] , [ ] and [x] triggers', () => {
+    expect(CHECKLIST_RULE.test('[] ')).toBe(true);
+    expect(CHECKLIST_RULE.test('[ ] ')).toBe(true);
+    expect(CHECKLIST_RULE.test('[x] ')).toBe(true);
+    expect(CHECKLIST_RULE.test('[X] ')).toBe(true);
+  });
+
+  it("doesn't match the GFM dash-prefixed form (the bullet rule owns '- ')", () => {
+    expect(CHECKLIST_RULE.test('- [ ] ')).toBe(false);
+  });
+
+  it('wraps a plain paragraph into a task_list/task_item', () => {
+    // The paragraph holds only the trigger text — matching real typing: the
+    // rule fires the instant "[x] " is complete, before any further text.
+    const next = run('[x] ', CHECKLIST_RULE, checklistRuleHandler(schema));
+    expect(next?.doc.firstChild?.type.name).toBe('task_list');
+    const item = next?.doc.firstChild?.firstChild;
+    expect(item?.type.name).toBe('task_item');
+    expect(item?.attrs.checked).toBe(true);
+    expect(item?.textContent).toBe('');
+  });
+
+  it('unchecked bracket wraps with checked: false', () => {
+    const next = run('[ ] ', CHECKLIST_RULE, checklistRuleHandler(schema));
+    expect(next?.doc.firstChild?.firstChild?.attrs.checked).toBe(false);
+  });
+
+  it("sets checked on an existing task_item's own line instead of nesting another wrap", () => {
+    // Two task_items already exist (e.g. from pressing Enter on the first);
+    // typing "[x] " on the second item's blank line should just flip *that*
+    // item's checked attr, not fail silently (the bug a plain
+    // wrappingInputRule has: findWrapping doesn't know "already wrapped").
+    const first = schema.node('task_item', { checked: false }, schema.node('paragraph', null, schema.text('one')));
+    const second = schema.node('task_item', { checked: false }, schema.node('paragraph', null, schema.text('[x] two')));
+    const list = schema.node('task_list', null, [first, second]);
+    const doc = schema.node('doc', null, [list]);
+    const state = EditorState.create({ schema, doc });
+
+    // Find where the second item's paragraph content starts.
+    let secondParaStart = -1;
+    state.doc.descendants((node, pos) => {
+      if (node.isTextblock && node.textContent.startsWith('[x] two')) secondParaStart = pos + 1;
+    });
+    expect(secondParaStart).toBeGreaterThan(-1);
+
+    const match = CHECKLIST_RULE.exec('[x] ') as RegExpMatchArray;
+    const tr = checklistRuleHandler(schema)(state, match, secondParaStart, secondParaStart + '[x] '.length);
+    expect(tr).not.toBeNull();
+    const next = state.apply(tr!);
+
+    expect(next.doc.firstChild?.type.name).toBe('task_list');
+    expect(next.doc.firstChild?.childCount).toBe(2); // no extra nesting/wrapping
+    expect(next.doc.firstChild?.child(0).attrs.checked).toBe(false);
+    expect(next.doc.firstChild?.child(1).attrs.checked).toBe(true);
+    expect(next.doc.firstChild?.child(1).textContent).toBe('two');
   });
 });
