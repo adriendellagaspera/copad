@@ -25,6 +25,12 @@ let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
 let users = $state<PeerUser[]>([]);
 let peers = $state(1);
 let diag = $state<SessionDiagnostics>({ transport: Transport.P2P });
+// True while the ProseMirror content has DOM focus — read by the mobile header
+// to swap its bottom dock between navigation actions and the formatting
+// toolbar (see Editor.svelte's focusin/focusout tracking and the M3 mobile
+// layout in App.svelte / editor.css). Irrelevant on desktop, where the
+// formatting toolbar lives in the floating selection bubble instead.
+let editing = $state(false);
 
 /** Reactive accessor read by the header. */
 export const sessionState = {
@@ -43,6 +49,9 @@ export const sessionState = {
   get diagnostics(): SessionDiagnostics {
     return diag;
   },
+  get editing(): boolean {
+    return editing;
+  },
 };
 
 export function setSessionConn(value: ConnStatus): void {
@@ -58,6 +67,9 @@ export function setSessionPresence(nextUsers: PeerUser[], nextPeers: number): vo
 export function setSessionDiagnostics(value: SessionDiagnostics): void {
   diag = value;
 }
+export function setSessionEditing(value: boolean): void {
+  editing = value;
+}
 
 /** Restore defaults when the Editor unmounts (room change / teardown). */
 export function resetSessionState(): void {
@@ -66,4 +78,5 @@ export function resetSessionState(): void {
   users = [];
   peers = 1;
   diag = { transport: Transport.P2P };
+  editing = false;
 }

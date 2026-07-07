@@ -43,7 +43,7 @@
     font-weight: 600;
     line-height: 1;
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
-    box-shadow: 0 0 0 2px var(--surface-2);
+    box-shadow: 0 0 0 2px var(--surface);
     user-select: none;
     flex-shrink: 0;
   }

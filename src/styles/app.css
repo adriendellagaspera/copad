@@ -27,50 +27,196 @@
   min-height: 100dvh;
 }
 
-/* ── Header ── */
+/* ── Header — floating command capsule ──
+   One pill, one size grammar: capsule height 52px, icon buttons 36×36,
+   Share 38px tall (the only solid-accent, primary-action treatment). Two gap
+   sizes carry meaning — 2px between buttons in the same functional cluster
+   (Settings/Theme), 8px at every group boundary (around the divider, around
+   Share, around the identity avatar) — replacing the old mix of ad hoc
+   paddings (0.35 / 0.4 / 0.4×0.75rem) and the stray ⚙ glyph. */
 
-header {
+header.capsule {
   display: flex;
   align-items: center;
-  gap: var(--sp-4);
-  flex-wrap: wrap;
+  height: 52px;
+  padding: 0 8px;
+  margin: 0 auto;
+  /* Hug its content instead of stretching to the column's full cross-axis
+     width (the parent's default align-items:stretch) — a floating command
+     capsule should never carry a dead gap in the middle just because
+     .cap-fill had leftover space to eat. align-self:flex-start pins it to
+     the left, at its natural (fit-content) width; max-width guards very
+     long content (many peers, a translated status label) from overflowing
+     the app column. The width transition — animated via interpolate-size
+     in tokens.css — is what makes a peer joining/leaving or the status
+     label changing length grow/shrink the pill instead of snapping. */
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  transition: width var(--dur-mid) var(--ease);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  box-shadow: var(--shadow-md);
+  /* .app spaces its children via margin-bottom on each piece, not flex gap
+     (see .app's comment above) — the SyncBanner's slide-out transition
+     reads its own margin-bottom alongside height, so it shrinks to 0 in
+     step instead of leaving a one-frame jump when gap would've vanished
+     instantly. The header carries the same convention for the gap before
+     whatever renders below it (SyncBanner or the editor directly). */
   margin-bottom: var(--sp-4);
 }
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-right: auto;
-}
-.brand img {
-  width: 26px;
-  height: 26px;
-  border-radius: var(--r-sm);
-  display: block;
-}
-.wordmark {
-  margin: 0;
+.cap-mark {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  margin-right: 10px;
   padding: 0;
   border: none;
-  background: none;
-  font-family: inherit;
-  font-size: var(--fs-600);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  color: var(--text);
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  display: grid;
+  place-items: center;
   cursor: pointer;
 }
-.wordmark:hover:not(:disabled) {
-  background: none;
-  color: var(--text-muted);
+.cap-mark svg {
+  display: block;
 }
 
-.controls {
-  display: flex;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
+/* A fixed gap, not a flex-grow filler — the capsule now hugs its content
+   (see header.capsule above), so there's no leftover space to eat. This is
+   just a wider breather than the 8px used at smaller group boundaries,
+   marking the seam between the "which document" cluster (mark/room/new) and
+   the "who's here, what can I do" cluster (status/presence/identity/share). */
+.cap-fill {
+  width: var(--sp-5);
+  flex: none;
+}
+
+.cap-divider {
+  width: 1px;
+  height: 22px;
+  flex: none;
+  margin: 0 8px;
+  background: var(--border);
+}
+
+.cap-btn {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.cap-btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.cap-btn svg {
+  display: block;
+}
+
+.cap-share {
+  display: inline-flex;
   align-items: center;
+  gap: 6px;
+  height: 38px;
+  flex: none;
+  margin: 0 8px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font: inherit;
+  font-size: var(--fs-300);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.cap-share:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.cap-share svg {
+  display: block;
+}
+
+.cap-identity {
+  flex: none;
+  margin: 0 8px;
+}
+
+/* Session cluster (status + presence) inside the capsule — the .session
+   class name is kept for e2e/collab.test.ts's `.session .presence .avatar`
+   selector. */
+.session {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+/* Mobile: the pill collapses to a flush, chromeless strip holding only the
+   room name — every action moves to the bottom dock (.mobile-dock /
+   .fixed-toolbar.editing, see app.css below and editor.css) so the header
+   never costs more than a single ~44px line at rest, and none at all once
+   the dock takes over near the keyboard.
+   Gated on pointer:coarse OR max-width:900px. pointer:coarse is the primary
+   signal (touch devices always get this layout regardless of width — an
+   iPad Pro landscape shouldn't try to cram the full capsule in). The
+   max-width fallback exists because the *open* capsule's content — mark +
+   room + new-doc + status (worst case "Connecting…" · "Save failed") +
+   divider + identity + Share + settings + theme — measures out to roughly
+   700–870px with a realistic status label and no peers (peer avatars are
+   capped by PresenceBar's own +N overflow badge, so they don't grow this
+   further). A resized *mouse-driven* desktop window under ~900px has
+   nowhere for that content to shrink to (every capsule child is
+   flex:none — deliberately, so nothing squishes into illegibility) and
+   would otherwise overflow past the viewport, pushing Share off-screen with
+   real horizontal page scroll. Below 900px it gets the same collapsed
+   layout already verified down to 320px, rather than silently breaking. */
+@media (pointer: coarse), (max-width: 900px) {
+  header.capsule {
+    height: 44px;
+    padding: 0 var(--sp-2);
+    /* Undo the desktop hugging: on mobile this is a flush title strip, not a
+       floating pill — it should span the row like any other header bar, and
+       never animate a width change (there's nothing to grow/shrink toward).
+       margin-bottom is kept (tightened to --sp-3, matching .app's own mobile
+       rhythm below) rather than zeroed — .app has no flex gap of its own
+       (see its comment), so zeroing this would collide the strip straight
+       into the SyncBanner/editor with no gap at all. */
+    margin: 0 0 var(--sp-3);
+    align-self: stretch;
+    width: auto;
+    max-width: none;
+    transition: none;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    background: var(--surface-2);
+    box-shadow: none;
+    justify-content: center;
+  }
+  header.capsule .cap-mark,
+  header.capsule .cap-btn,
+  header.capsule .cap-fill,
+  header.capsule .cap-divider,
+  header.capsule .cap-share,
+  header.capsule .cap-identity,
+  header.capsule .session,
+  header.capsule .cap-theme {
+    display: none;
+  }
 }
 
 label {
@@ -159,31 +305,6 @@ button.ghost {
 }
 button.ghost:hover:not(:disabled) {
   background: var(--surface-3);
-}
-
-/* New-document button — a compact icon (+) sharing .icon-btn sizing. */
-.btn-new svg {
-  display: block;
-}
-
-.share-btn {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-strong));
-  font-weight: 500;
-}
-.share-btn:hover:not(:disabled) {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-}
-.share-btn svg {
-  display: block;
-}
-
-/* ── Header session cluster (connection status + presence) ── */
-.session {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
 }
 
 /* ── Connect panel ── */
@@ -379,6 +500,11 @@ button.status-link {
   align-items: center;
   gap: var(--sp-2);
 }
+.appearance-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
 .field input {
   width: 100%;
 }
@@ -424,25 +550,101 @@ button.status-link {
     padding: var(--sp-4) var(--sp-3) var(--sp-6);
     gap: var(--sp-3);
   }
-  .controls {
-    width: 100%;
-  }
-  .controls > label {
-    flex: 1 1 140px;
-  }
-  .controls > label input,
-  .controls > label select {
-    flex: 1;
-    width: auto;
-  }
-  .room-switcher {
-    flex: 1 1 100%;
-  }
 }
 
 /* Comfortable hit targets on touch devices. */
 @media (pointer: coarse) {
   button {
     min-height: 40px;
+  }
+}
+
+/* ── Mobile bottom dock, "nav mode" (M3) ──
+   Mirrors editor.css's .fixed-toolbar "format mode" in the same fixed slot —
+   the two are mutually exclusive via sessionState.editing, so there is never
+   more than one 44px bar of chrome at the bottom, and none until the header
+   capsule collapses (see the combined pointer:coarse-or-narrow rule on
+   header.capsule above — kept in sync with this one). A wide desktop window
+   never sees this: it keeps every action in the capsule. */
+.mobile-dock {
+  display: none;
+}
+@media (pointer: coarse), (max-width: 900px) {
+  .mobile-dock {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 44px;
+    position: fixed;
+    left: var(--sp-2);
+    right: var(--sp-2);
+    bottom: max(var(--sp-2), env(safe-area-inset-bottom));
+    z-index: var(--z-menu);
+    padding: 0 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-full);
+    box-shadow: var(--shadow-md);
+  }
+  .mobile-dock.dock-hidden {
+    display: none;
+  }
+  /* IdentityMenu's "set your name" nudge (identity-hint, IdentityMenu.svelte)
+     is fine in the roomy desktop capsule, but on the narrowest phones
+     (~320px) it's wide enough to push the settings button half off the
+     dock's rounded edge. The avatar itself stays fully clickable, and the
+     same nudge is still visible in the desktop capsule — this only trims
+     the compact dock. */
+  .mobile-dock .identity-hint {
+    display: none;
+  }
+  .mobile-dock .dock-fill {
+    flex: 1;
+    min-width: 0;
+  }
+  .mobile-dock .dock-btn {
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+    flex: none;
+    padding: 0;
+    border: none;
+    border-radius: var(--r-full);
+    background: transparent;
+    color: var(--text-muted);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+  }
+  .mobile-dock .dock-btn:hover:not(:disabled) {
+    background: var(--surface-3);
+    color: var(--text);
+  }
+  .mobile-dock .dock-btn svg {
+    display: block;
+  }
+  .mobile-dock .dock-share {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 32px;
+    min-height: 32px;
+    flex: none;
+    margin: 0 4px;
+    padding: 0 10px;
+    border: none;
+    border-radius: var(--r-full);
+    background: var(--accent);
+    color: var(--accent-contrast);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .mobile-dock .dock-share:hover:not(:disabled) {
+    background: var(--accent-hover);
+  }
+  .mobile-dock .dock-share svg {
+    display: block;
   }
 }

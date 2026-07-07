@@ -39,10 +39,12 @@
   import { remoteCursorBuilder, remoteSelectionBuilder, refreshPresenceFade } from './editor/ui/remoteCursors.js';
   import { bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
   import {
+    sessionState,
     setSessionConn,
     setSessionSave,
     setSessionPresence,
     setSessionDiagnostics,
+    setSessionEditing,
     resetSessionState,
   } from './collaboration/sessionState.svelte.js';
 
@@ -188,6 +190,27 @@
   $effect(() => setSessionConn(conn));
   $effect(() => setSessionSave(saveStatus));
   $effect(() => setSessionPresence(users, peers));
+
+  // Mobile-only signal (see the M3 layout in App.svelte / editor.css): whether
+  // the document currently has focus, so the header can swap its bottom dock
+  // between navigation actions and the formatting toolbar. Desktop ignores
+  // this — its formatting toolbar is the floating selection bubble instead.
+  // Tapping a toolbar button would otherwise blur the content *before* the
+  // click lands (contentEditable loses focus on pointerdown), hiding the
+  // dock out from under the tap; Toolbar.svelte guards against that by
+  // preventing default on its own pointerdown.
+  $effect(() => {
+    const el = editorEl;
+    if (!el) return;
+    const onFocusIn = () => setSessionEditing(true);
+    const onFocusOut = () => setSessionEditing(false);
+    el.addEventListener('focusin', onFocusIn);
+    el.addEventListener('focusout', onFocusOut);
+    return () => {
+      el.removeEventListener('focusin', onFocusIn);
+      el.removeEventListener('focusout', onFocusOut);
+    };
+  });
 
   // Broadcast full typed awareness state whenever any field changes.
   $effect(() => {
@@ -387,9 +410,12 @@
 </script>
 
 <main class="editor" aria-label="Document">
-  <!-- Fixed bar: kept on touch devices, hidden on desktop (see editor.css)
-       where the SelectionToolbar bubble takes over. -->
-  <div class="fixed-toolbar">
+  <!-- Fixed bar: hidden on desktop (see editor.css), where the SelectionToolbar
+       bubble takes over. On mobile it's the "format mode" of the bottom dock —
+       occupying the same fixed slot as App.svelte's nav-mode dock, shown only
+       while the document has focus (see setSessionEditing above) so it never
+       costs vertical space at rest and always sits right above the keyboard. -->
+  <div class="fixed-toolbar" class:editing={sessionState.editing}>
     <Toolbar {view} {editorState} {toasts} />
   </div>
   <div class="content" bind:this={editorEl}></div>

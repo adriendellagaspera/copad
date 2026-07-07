@@ -2,7 +2,7 @@
   import Avatar from './Avatar.svelte';
   import type { PeerUser } from './types.js';
 
-  let { users, max = 5 }: { users: PeerUser[]; max?: number } = $props();
+  let { users, max = 5, size = 28 }: { users: PeerUser[]; max?: number; size?: number } = $props();
 
   const shown = $derived(users.slice(0, max));
   const overflow = $derived(Math.max(0, users.length - max));
@@ -13,17 +13,22 @@
       .join(', ')
   );
   const count = $derived(users.length);
+  // Overlap scales with avatar size so the stack reads consistently at any
+  // size — roughly a quarter of the diameter, matching the header capsule's
+  // 24px/-7px spec.
+  const overlap = $derived(-Math.round(size * 0.29));
 </script>
 
 <div
   class="presence"
+  style="--overlap:{overlap}px"
   aria-label="{count} {count === 1 ? 'person' : 'people'} editing"
 >
   {#each shown as u (u.id)}
-    <Avatar name={u.name} color={u.color} self={u.self} />
+    <Avatar name={u.name} color={u.color} {size} self={u.self} />
   {/each}
   {#if overflow > 0}
-    <span class="presence-more" title={overflowNames} aria-label="and {overflow} more: {overflowNames}">
+    <span class="presence-more" style="--s:{size}px" title={overflowNames} aria-label="and {overflow} more: {overflowNames}">
       +{overflow}
     </span>
   {/if}
@@ -36,16 +41,16 @@
   }
   .presence :global(.avatar:not(:first-child)),
   .presence-more {
-    margin-left: -8px;
+    margin-left: var(--overlap, -8px);
   }
   .presence-more {
-    height: 28px;
-    min-width: 28px;
+    height: var(--s, 28px);
+    min-width: var(--s, 28px);
     padding: 0 6px;
     border-radius: var(--r-full);
     background: var(--surface-3);
     color: var(--text-muted);
-    box-shadow: 0 0 0 2px var(--surface-2);
+    box-shadow: 0 0 0 2px var(--surface);
     display: inline-grid;
     place-items: center;
     font-size: 0.72rem;

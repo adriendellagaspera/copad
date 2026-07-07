@@ -8,11 +8,14 @@
   import { FallbackTurnPolicy } from './collaboration/types.js';
   import { parseTurnUrl, parseTurnUsername, parseTurnCredential } from './collaboration/parse.js';
   import type { TurnUrl } from './collaboration/types.js';
+  import type { Theme } from './ui/theme.svelte.js';
+  import ThemeToggle from './ui/ThemeToggle.svelte';
 
   let {
     backends,
     open = $bindable(false),
     focusId = '',
+    theme,
     localCache = true,
     onCacheChange,
     onCacheClear,
@@ -29,6 +32,7 @@
     backends: StorageBackend[];
     open?: boolean;
     focusId?: string;
+    theme: Theme;
     localCache?: boolean;
     onCacheChange?: (on: boolean) => void;
     onCacheClear?: () => void | Promise<void>;
@@ -251,6 +255,14 @@
       Configure your storage backends. App keys are saved in this browser and
       reused across sessions — you only set them once.
     </p>
+
+    <!-- The header's own theme toggle collapses away on mobile (see the M3
+         layout in app.css) along with the rest of the capsule, so this is
+         its one guaranteed home regardless of screen size. -->
+    <div class="field appearance-row">
+      <span class="field-label">Appearance</span>
+      <ThemeToggle {theme} />
+    </div>
 
     <section class="backend">
       <div class="backend-head">
