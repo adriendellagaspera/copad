@@ -158,6 +158,33 @@ export function slashMenuPlugin(): Plugin<SlashState> {
         return false;
       },
     },
+    view(editorView) {
+      // Firefox blurs a contenteditable on Escape as an internal default action
+      // that `preventDefault()` can't cancel — it fires *after* handleKeyDown
+      // above has already dismissed the menu and called `view.focus()`, undoing
+      // it. Rather than guess at how long that takes, react to the actual blur:
+      // note that this keydown was an active-menu Escape, then reclaim focus
+      // the instant a blur follows it.
+      let reclaim = false;
+      const onKeyDownCapture = (event: KeyboardEvent): void => {
+        if (event.key === 'Escape' && slashKey.getState(editorView.state)?.active) {
+          reclaim = true;
+        }
+      };
+      const onBlur = (): void => {
+        if (!reclaim) return;
+        reclaim = false;
+        editorView.focus();
+      };
+      editorView.dom.addEventListener('keydown', onKeyDownCapture, true);
+      editorView.dom.addEventListener('blur', onBlur);
+      return {
+        destroy() {
+          editorView.dom.removeEventListener('keydown', onKeyDownCapture, true);
+          editorView.dom.removeEventListener('blur', onBlur);
+        },
+      };
+    },
   });
 }
 
@@ -165,17 +192,10 @@ export function setSlashIndex(view: EditorView, index: number): void {
   view.dispatch(view.state.tr.setMeta(slashKey, { type: 'index', index }));
 }
 
-/**
- * Dismiss the menu and keep the caret in the document. Firefox blurs a
- * contenteditable on Escape regardless of `preventDefault()` (an internal
- * default action, not one the DOM event can cancel), so on top of the
- * synchronous refocus we also reclaim it on the next frame in case that
- * blur lands after this call returns.
- */
+/** Dismiss the menu and keep the caret in the document. */
 export function dismissSlash(view: EditorView): void {
   view.dispatch(view.state.tr.setMeta(slashKey, { type: 'dismiss' }));
   view.focus();
-  requestAnimationFrame(() => view.focus());
 }
 
 /** Delete the `/query` text, then run the chosen block command. */
