@@ -138,6 +138,11 @@
     copiedTimer = setTimeout(() => (copiedButton = null), 2000);
   }
 
+  // Shared toast slot for every copy in this dialog: copying the invite link
+  // then the view-only link (or vice versa) swaps the message in place
+  // instead of stacking two "…copied to clipboard" toasts.
+  const COPY_TOAST_GROUP = 'share-dialog-copy';
+
   async function copyTo(
     text: string,
     el: HTMLInputElement | undefined,
@@ -146,7 +151,7 @@
   ): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
-      toasts.success(label);
+      toasts.success(label, undefined, COPY_TOAST_GROUP);
       flashCopied(which);
       return;
     } catch {
@@ -160,10 +165,10 @@
       ok = false;
     }
     if (ok) {
-      toasts.success(label);
+      toasts.success(label, undefined, COPY_TOAST_GROUP);
       flashCopied(which);
     } else {
-      toasts.info('Press ⌘/Ctrl+C to copy the selected link');
+      toasts.info('Press ⌘/Ctrl+C to copy the selected link', undefined, COPY_TOAST_GROUP);
     }
   }
 

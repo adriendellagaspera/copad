@@ -53,4 +53,21 @@ describe('toast store', () => {
     t.info('a', 0);
     expect(t.items).toHaveLength(3);
   });
+
+  it('replaces a differently-worded toast sharing an explicit group', () => {
+    const t = createToasts();
+    const firstId = t.success('Invite link copied to clipboard', 0, 'share-copy');
+    expect(t.items).toHaveLength(1);
+    const secondId = t.success('View-only link copied to clipboard', 0, 'share-copy');
+    expect(secondId).toBe(firstId);
+    expect(t.items).toHaveLength(1);
+    expect(t.items[0].text).toBe('View-only link copied to clipboard');
+  });
+
+  it('does not group toasts with no group across different text', () => {
+    const t = createToasts();
+    t.success('Invite link copied to clipboard', 0);
+    t.success('View-only link copied to clipboard', 0);
+    expect(t.items).toHaveLength(2);
+  });
 });
