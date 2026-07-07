@@ -5,6 +5,7 @@ import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import { extensionOf } from '../format/types.js';
 import { localStore } from '../persistence/local.js';
+import type { RoomId } from '../collaboration/types.js';
 import {
   parseProject,
   parseGitLabHost,
@@ -45,8 +46,6 @@ export type GitLabHost = string & { readonly _brand: 'GitLabHost' };
 export type GitLabBranch = string & { readonly _brand: 'GitLabBranch' };
 
 // ── Config ────────────────────────────────────────────────────────────────────
-
-const fileName = filenameStore(STORAGE_ID.gitlab, GITLAB_DEFAULT_FILENAME);
 
 const cfg = configStore(STORAGE_ID.gitlab, [
   {
@@ -113,7 +112,8 @@ function base64ToBytes(b64: string): Uint8Array {
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
-export function gitlabStorage(): { auth: StorageAuth; storage: Storage } {
+export function gitlabStorage(room: RoomId): { auth: StorageAuth; storage: Storage } {
+  const fileName = filenameStore(STORAGE_ID.gitlab, room, GITLAB_DEFAULT_FILENAME);
   // Whether the target file already exists — decides POST (create) vs PUT (update).
   // null = unknown; seeded by load() or a one-off existence check in save().
   let fileExists: boolean | null = null;
