@@ -115,14 +115,22 @@ export interface PeerAwarenessState {
 /**
  * Transport-level connection status, surfaced to the UI status pill.
  *
- * - `connecting` — not yet attached to a signaling server.
- * - `waiting`    — attached to signaling but no peer is present yet (you're
- *                  alone in the room; share the link to collaborate).
- * - `connected`  — at least one peer is present, so edits flow in real time.
- * - `offline`    — the browser reports no network connection.
+ * - `connecting`   — not yet attached to a signaling server (just started, or
+ *                    still within the grace window — see `CONNECT_TIMEOUT_MS`).
+ * - `unreachable`  — still not attached after the grace window has elapsed:
+ *                    the server is down, misconfigured, or unreachable, as
+ *                    opposed to merely slow. Distinct from `connecting` so the
+ *                    UI can stop spinning and show an actionable state instead
+ *                    of looping forever. Cleared by a successful attach or a
+ *                    manual `reconnect()`.
+ * - `waiting`      — attached to signaling but no peer is present yet (you're
+ *                    alone in the room; share the link to collaborate).
+ * - `connected`    — at least one peer is present, so edits flow in real time.
+ * - `offline`      — the browser reports no network connection.
  */
 export const ConnStatus = {
   Connecting: 'connecting',
+  Unreachable: 'unreachable',
   Waiting: 'waiting',
   Connected: 'connected',
   Offline: 'offline',
