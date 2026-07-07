@@ -27,7 +27,7 @@ test('an encrypted room without its key is gated and its cache is unreadable', a
   await page.locator('.share-btn').click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
-  await dialog.locator('input[aria-label="Room password"]').fill(PASSWORD);
+  await dialog.locator('input[aria-label="Document password"]').fill(PASSWORD);
   await dialog.getByRole('button', { name: 'Set', exact: true }).click();
   await page.keyboard.press('Escape');
 
@@ -92,13 +92,13 @@ test('an encrypted room without its key is gated and its cache is unreadable', a
   await expect(page.locator('body')).not.toContainText(SECRET);
 
   // A wrong key is rejected and keeps the room locked.
-  await page.locator('input[aria-label="Room key or password"]').fill('not-the-password');
+  await page.locator('input[aria-label="Document key or password"]').fill('not-the-password');
   await page.getByRole('button', { name: 'Unlock' }).click();
   await expect(page.getByText(/doesn't match/i)).toBeVisible();
   await expect(page.locator('.ProseMirror')).toHaveCount(0);
 
   // The correct key unlocks the room and decrypts the cached content.
-  const keyInput = page.locator('input[aria-label="Room key or password"]');
+  const keyInput = page.locator('input[aria-label="Document key or password"]');
   await keyInput.fill('');
   await keyInput.fill(PASSWORD);
   await page.getByRole('button', { name: 'Unlock' }).click();
