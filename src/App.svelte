@@ -662,6 +662,17 @@
   function renameCurrentRoom(raw: string): void {
     renameRoom(parseRoomName(raw));
   }
+
+  // The wordmark's full reload is a deliberate, legitimate action from a mouse
+  // click — but it also sits in the header's normal tab order, so it can fire
+  // from a stray Enter/Space while tabbing through the page for an unrelated
+  // reason. Confirming preserves the intentional workflow while stopping a
+  // silent, undo-less reload from blind keyboard navigation.
+  function confirmReload(): void {
+    if (confirm('Reload Copad? Any unsaved local state will be lost.')) {
+      location.reload();
+    }
+  }
 </script>
 
 <div class="app">
@@ -670,7 +681,12 @@
       <img src="{import.meta.env.BASE_URL}favicon.svg" alt="" width="26" height="26" />
       <!-- Not a heading: an <h1> here would compete with the document's own
            level-1 heading, giving screen-reader heading nav two page titles. -->
-      <button class="wordmark" onclick={() => location.reload()} title="Reload">Copad</button>
+      <!-- Reload is destructive (drops focus/selection instantly) and sits in the
+           header's normal tab order, so a stray Enter/Space while tabbing through
+           the page (e.g. to reach the floating selection toolbar) can trigger it
+           with no warning. Confirming keeps the deliberate mouse-click workflow
+           intact while guarding against an accidental keyboard activation. -->
+      <button class="wordmark" onclick={confirmReload} title="Reload">Copad</button>
     </div>
     <div class="controls">
       <RoomNameField {room} name={roomName.value} onRename={renameCurrentRoom} />
