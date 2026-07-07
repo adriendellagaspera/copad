@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { EditorView } from 'prosemirror-view';
-  import type { EditorState } from 'prosemirror-state';
+  import { TextSelection, type EditorState } from 'prosemirror-state';
   import Toolbar from '../../Toolbar.svelte';
   import type { Toasts } from '../../ui/toasts.svelte.js';
 
@@ -123,7 +123,15 @@
     const onKeydown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        view?.focus();
+        const v = view;
+        if (v) {
+          // Collapse to a caret at the selection's end so the bubble's own
+          // reposition() (empty selection => hide) closes it, instead of
+          // leaving the range selected and the bubble stuck open.
+          const { to } = v.state.selection;
+          v.dispatch(v.state.tr.setSelection(TextSelection.create(v.state.doc, to)));
+          v.focus();
+        }
         return;
       }
       if (e.key !== 'Tab') return;
