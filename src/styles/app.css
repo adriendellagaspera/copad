@@ -155,10 +155,22 @@ header.capsule {
    room name — every action moves to the bottom dock (.mobile-dock /
    .fixed-toolbar.editing, see app.css below and editor.css) so the header
    never costs more than a single ~44px line at rest, and none at all once
-   the dock takes over near the keyboard. Gated on pointer:coarse — the same
-   axis Editor.svelte's toolbar-vs-bubble switch already uses — so this is a
-   touch-device layout, not merely "narrow browser window". */
-@media (pointer: coarse) {
+   the dock takes over near the keyboard.
+   Gated on pointer:coarse OR max-width:900px. pointer:coarse is the primary
+   signal (touch devices always get this layout regardless of width — an
+   iPad Pro landscape shouldn't try to cram the full capsule in). The
+   max-width fallback exists because the *open* capsule's content — mark +
+   room + new-doc + status (worst case "Connecting…" · "Save failed") +
+   divider + identity + Share + settings + theme — measures out to roughly
+   700–870px with a realistic status label and no peers (peer avatars are
+   capped by PresenceBar's own +N overflow badge, so they don't grow this
+   further). A resized *mouse-driven* desktop window under ~900px has
+   nowhere for that content to shrink to (every capsule child is
+   flex:none — deliberately, so nothing squishes into illegibility) and
+   would otherwise overflow past the viewport, pushing Share off-screen with
+   real horizontal page scroll. Below 900px it gets the same collapsed
+   layout already verified down to 320px, rather than silently breaking. */
+@media (pointer: coarse), (max-width: 900px) {
   header.capsule {
     height: 44px;
     padding: 0 var(--sp-2);
@@ -533,12 +545,13 @@ button.status-link {
    Mirrors editor.css's .fixed-toolbar "format mode" in the same fixed slot —
    the two are mutually exclusive via sessionState.editing, so there is never
    more than one 44px bar of chrome at the bottom, and none until the header
-   capsule collapses (see the pointer:coarse rule on header.capsule above).
-   Desktop never sees this: it keeps every action in the capsule. */
+   capsule collapses (see the combined pointer:coarse-or-narrow rule on
+   header.capsule above — kept in sync with this one). A wide desktop window
+   never sees this: it keeps every action in the capsule. */
 .mobile-dock {
   display: none;
 }
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 900px) {
   .mobile-dock {
     display: flex;
     align-items: center;
@@ -556,6 +569,15 @@ button.status-link {
     box-shadow: var(--shadow-md);
   }
   .mobile-dock.dock-hidden {
+    display: none;
+  }
+  /* IdentityMenu's "set your name" nudge (identity-hint, IdentityMenu.svelte)
+     is fine in the roomy desktop capsule, but on the narrowest phones
+     (~320px) it's wide enough to push the settings button half off the
+     dock's rounded edge. The avatar itself stays fully clickable, and the
+     same nudge is still visible in the desktop capsule — this only trims
+     the compact dock. */
+  .mobile-dock .identity-hint {
     display: none;
   }
   .mobile-dock .dock-fill {

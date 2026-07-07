@@ -102,8 +102,11 @@
    the same fixed slot as App.svelte's nav-mode dock (.mobile-dock in
    app.css). The two are mutually exclusive via the same sessionState.editing
    flag, so formatting controls never cost vertical space until they're
-   actually needed, and always sit right above the keyboard. */
-@media (pointer: coarse) {
+   actually needed, and always sit right above the keyboard.
+   Same combined pointer:coarse-or-narrow trigger as header.capsule's
+   collapse in app.css — keep the two in sync; this is the dock the capsule
+   collapses *into*. */
+@media (pointer: coarse), (max-width: 900px) {
   .fixed-toolbar {
     display: none;
     position: fixed;
@@ -388,10 +391,6 @@
 @media (max-width: 640px) {
   .content {
     padding: var(--sp-4);
-    /* Reserve room for the fixed bottom dock (nav or format mode, see
-       .mobile-dock in app.css and .fixed-toolbar above) so it never covers
-       the last lines of text. */
-    padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));
   }
   .ProseMirror {
     font-size: var(--fs-400);
@@ -402,12 +401,24 @@
   }
 }
 
+/* Reserve room for the fixed bottom dock (nav or format mode, see
+   .mobile-dock in app.css and .fixed-toolbar above) so it never covers the
+   last lines of text — same combined trigger as the dock itself, not just
+   the narrow-viewport breakpoint above (the dock can also be showing on a
+   resized pointer:fine desktop window wider than 640px). */
+@media (pointer: coarse), (max-width: 900px) {
+  .content {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));
+  }
+}
+
 /* The document-meta footer (shortcuts/words/outline) sits in normal flow at
    the bottom of the editor card, which now overlaps the fixed mobile dock
    (.mobile-dock / .fixed-toolbar, both anchored near the viewport's bottom
    edge). Word count and outline are desktop conveniences; hiding this strip
-   on touch avoids the collision rather than fighting it with more offsets. */
-@media (pointer: coarse) {
+   whenever the dock is showing avoids the collision rather than fighting it
+   with more offsets — same combined trigger as the dock itself. */
+@media (pointer: coarse), (max-width: 900px) {
   .status {
     display: none;
   }

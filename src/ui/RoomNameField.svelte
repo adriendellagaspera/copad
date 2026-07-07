@@ -79,10 +79,10 @@
   }
 
   /* Mobile (M3): the header capsule collapses to a flush strip holding only
-     this field (see header.capsule's pointer:coarse rule in app.css) — so it
-     drops its own chrome too, becoming plain centered text until tapped.
-     Same pointer:coarse axis as the capsule collapse it lives inside. */
-  @media (pointer: coarse) {
+     this field (see header.capsule's combined pointer:coarse-or-narrow rule
+     in app.css) — so it drops its own chrome too, becoming plain centered
+     text until tapped. Same trigger as the capsule collapse it lives inside. */
+  @media (pointer: coarse), (max-width: 900px) {
     .room-switcher {
       border: none;
       background: transparent;
