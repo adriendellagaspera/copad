@@ -340,6 +340,11 @@
 
 /* ── y-prosemirror remote cursors ── */
 
+/* Idle fade: `--presence-fade` (0 = active, 1 = fully idle) is set inline per
+   peer by remoteCursorBuilder/remoteSelectionBuilder (src/editor/ui/remoteCursors.ts)
+   and re-evaluated on a timer so a parked cursor dims over ~5 min instead of
+   cluttering the doc forever — capped short of 0 so idle never reads as gone;
+   only the peer actually leaving removes the decoration. */
 .ProseMirror-yjs-cursor {
   position: relative;
   margin-left: -1px;
@@ -348,6 +353,8 @@
   border-right: 1px solid transparent;
   word-break: normal;
   pointer-events: none;
+  opacity: calc(1 - (var(--presence-fade, 0) * 0.7));
+  transition: opacity 0.6s ease;
 }
 .ProseMirror-yjs-cursor > div {
   position: absolute;
@@ -367,4 +374,19 @@
   user-select: none;
   pointer-events: none;
   box-shadow: var(--shadow-sm);
+}
+
+.ProseMirror-yjs-selection {
+  border-radius: 2px;
+  opacity: calc(1 - (var(--presence-fade, 0) * 0.8));
+  transition: opacity 0.6s ease;
+}
+
+/* Touch: no hover to reveal a name on demand, so the label needs to be legible
+   at a glance — bump size/padding on coarse pointers (tablets/phones). */
+@media (pointer: coarse) {
+  .ProseMirror-yjs-cursor > div {
+    font-size: 0.8rem;
+    padding: 3px 8px;
+  }
 }
