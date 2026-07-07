@@ -52,7 +52,8 @@
   import { keyFingerprint } from './collaboration/roomCrypto.js';
   import RoomLock from './ui/RoomLock.svelte';
   import WriteGateIntro from './ui/WriteGateIntro.svelte';
-  import { KEY_WRITE_GATE_SEEN } from './collaboration/constants.js';
+  import CollabUnavailableIntro from './ui/CollabUnavailableIntro.svelte';
+  import { KEY_WRITE_GATE_SEEN, KEY_COLLAB_UNAVAILABLE_SEEN } from './collaboration/constants.js';
   import { localStore } from './persistence/local.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
@@ -519,6 +520,37 @@
     openSettings();
   }
 
+  // ── Collab-unavailable intro: a structurally local-only deployment ─────────
+  // `collabUnavailable` never blocks (see above) — it's an environment fact, not
+  // a transient state the user can resolve. But landing on what looks like a
+  // normal collaborative editor when it's actually permanently local-only is its
+  // own unintuitive surprise, same shape as the write-gate's: nothing signals it
+  // except a neutral SyncBanner tier, easy to miss entirely. So the same
+  // treatment applies — a one-time, deliberate acknowledgment, the first time
+  // this browser ever loads a deployment in this state. Never re-blocks writing;
+  // it's purely informational, dismissible like any other dialog.
+  const collabUnavailableSeenStore = localStore<boolean>(
+    KEY_COLLAB_UNAVAILABLE_SEEN,
+    (raw) => raw === 'true',
+    String,
+  );
+  let collabUnavailableSeen = $state(collabUnavailableSeenStore.read());
+  function markCollabUnavailableSeen(): void {
+    if (collabUnavailableSeen) return;
+    collabUnavailableSeen = true;
+    collabUnavailableSeenStore.write(true);
+  }
+  // Deferred while Share or Settings is open, for the same stacking-collision
+  // reason as `showWriteGateExplainer`.
+  const showCollabUnavailableIntro = $derived(
+    collabUnavailable && !collabUnavailableSeen && !shareOpen && !settingsOpen,
+  );
+
+  function connectStorageFromCollabIntro(): void {
+    markCollabUnavailableSeen();
+    openSettings();
+  }
+
   // ── Encrypted-room access gate ───────────────────────────────────────────────
   // A room is gated when it's known-encrypted (a key fingerprint was remembered
   // on a prior visit) but the current key is missing or wrong. Encryption is
@@ -763,7 +795,11 @@
        presence/durability concern was the real inconsistency. So it's one strip
        with an escalation ladder: gated (blocks, transient) → collab-unavailable
        (never blocks, permanent, its own tier) → solo reminder (never blocks,
-       transient). See SyncBanner's `collabUnavailable` tier for the copy. -->
+       transient). See SyncBanner's `collabUnavailable` tier for the copy.
+       The collab-unavailable tier also gets the same one-time-dialog treatment
+       as the write-gate (see `CollabUnavailableIntro` below): landing on what
+       looks like a normal collaborative editor that's structurally local-only
+       is its own unintuitive surprise, easy to miss in a banner alone. -->
   <SyncBanner
     conn={sessionState.conn}
     transport={sessionState.diagnostics.transport}
@@ -820,6 +856,15 @@
       onInvite={inviteFromExplainer}
       onConnectStorage={connectStorageFromExplainer}
       onDismiss={markWriteGateSeen}
+    />
+    <!-- Mutually exclusive with WriteGateIntro (gateEligible requires
+         !collabUnavailable), so at most one of the two is ever open. -->
+    <CollabUnavailableIntro
+      open={showCollabUnavailableIntro}
+      saved={savedHere}
+      storageLabel={savedHere && storage ? storage.storage.label : null}
+      onConnectStorage={connectStorageFromCollabIntro}
+      onDismiss={markCollabUnavailableSeen}
     />
   {/if}
 </div>
