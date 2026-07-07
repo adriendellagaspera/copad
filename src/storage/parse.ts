@@ -6,6 +6,7 @@
 
 import type { Filename } from './types.js';
 import type { GitHubRepo, GitHubBranch, GitHubFileSha } from './github.js';
+import type { DropboxToken, DropboxAppKey } from './dropbox.js';
 import { GITHUB_DEFAULT_BRANCH } from './constants.js';
 
 // ── Stored-session shapes (owned here, imported by adapters) ──────────────────
@@ -77,13 +78,13 @@ export function parsePCloudFileLinkResponse(raw: unknown): PCloudFileLinkRespons
   return { result, hosts: hosts.filter((h): h is string => typeof h === 'string'), path };
 }
 
-export function parseDropboxTokenResponse(raw: unknown): { access_token: string } {
+export function parseDropboxTokenResponse(raw: unknown): { access_token: DropboxToken } {
   if (typeof raw !== 'object' || raw === null)
     throw new Error('Unexpected Dropbox token response');
   const { access_token } = raw as Record<string, unknown>;
   if (typeof access_token !== 'string')
     throw new Error('Dropbox token response missing access_token');
-  return { access_token };
+  return { access_token: access_token as DropboxToken };
 }
 
 export function parseGitHubErrorBody(raw: unknown): Record<string, unknown> {
@@ -133,4 +134,12 @@ export function parseRepo(raw: string): GitHubRepo | null {
 /** Always succeeds — returns the default branch when the input is empty. */
 export function parseBranch(raw: string): GitHubBranch {
   return (raw.trim() || GITHUB_DEFAULT_BRANCH) as GitHubBranch;
+}
+
+// ── Dropbox config parsers ─────────────────────────────────────────────────────
+
+/** Trim a configured Dropbox app key — empty ⇒ not configured. */
+export function parseDropboxAppKey(raw: string): DropboxAppKey | null {
+  const s = raw.trim();
+  return s ? (s as DropboxAppKey) : null;
 }
