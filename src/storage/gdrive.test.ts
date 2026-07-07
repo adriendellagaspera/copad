@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { gdriveStorage } from './gdrive.js';
 import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
+import type { RoomId } from '../collaboration/types.js';
+
+// Room stem is 'document', matching the plain default filename ('document.yjs') asserted below.
+const TEST_ROOM = 'document' as RoomId;
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -23,30 +27,30 @@ const withToken = () => { localStorage.setItem('storage.gdrive.token', 'tok'); }
 
 describe('gdriveStorage auth', () => {
   it('is not authenticated before login', () => {
-    expect(gdriveStorage().auth.isAuthenticated()).toBe(false);
+    expect(gdriveStorage(TEST_ROOM).auth.isAuthenticated()).toBe(false);
   });
 
   it('reads persisted token from localStorage', () => {
     withToken();
-    expect(gdriveStorage().auth.isAuthenticated()).toBe(true);
+    expect(gdriveStorage(TEST_ROOM).auth.isAuthenticated()).toBe(true);
   });
 
   it('logout clears the token', () => {
     withToken();
-    const { auth } = gdriveStorage();
+    const { auth } = gdriveStorage(TEST_ROOM);
     auth.logout();
     expect(auth.isAuthenticated()).toBe(false);
   });
 
   it('exposes a clientId configField', () => {
-    const names = gdriveStorage().auth.configFields!.map(f => f.name);
+    const names = gdriveStorage(TEST_ROOM).auth.configFields!.map(f => f.name);
     expect(names).toContain('clientId');
   });
 });
 
 describe('gdriveStorage contentFormat', () => {
   it('is binary for the default document.yjs, text for .md', () => {
-    const { storage } = gdriveStorage();
+    const { storage } = gdriveStorage(TEST_ROOM);
     expect(storage.contentFormat).toBe('binary');
     storage.setFilename?.('notes.md');
     expect(storage.contentFormat).toBe('text');
@@ -56,11 +60,11 @@ describe('gdriveStorage contentFormat', () => {
 describe('gdriveStorage load', () => {
   let auth: StorageAuth;
   let storage: Storage;
-  beforeEach(() => { ({ auth, storage } = gdriveStorage()); withToken(); void auth; });
+  beforeEach(() => { ({ auth, storage } = gdriveStorage(TEST_ROOM)); withToken(); void auth; });
 
   it('throws when not connected', async () => {
     localStorage.clear();
-    await expect(gdriveStorage().storage.load()).rejects.toThrow('Google Drive: not connected');
+    await expect(gdriveStorage(TEST_ROOM).storage.load()).rejects.toThrow('Google Drive: not connected');
   });
 
   it('returns null when the file does not exist', async () => {
@@ -82,7 +86,7 @@ describe('gdriveStorage load', () => {
 
 describe('gdriveStorage save', () => {
   let storage: Storage;
-  beforeEach(() => { ({ storage } = gdriveStorage()); withToken(); });
+  beforeEach(() => { ({ storage } = gdriveStorage(TEST_ROOM)); withToken(); });
 
   it('creates the file (search empty → POST metadata → PATCH media)', async () => {
     mockFetch
@@ -108,14 +112,14 @@ describe('gdriveStorage save', () => {
 describe('gdriveStorage access', () => {
   it('returns write when no file exists yet', async () => {
     withToken();
-    const { storage } = gdriveStorage();
+    const { storage } = gdriveStorage(TEST_ROOM);
     mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ files: [] }) } as unknown as Response);
     expect(await storage.access!()).toBe('write');
   });
 
   it('reflects capabilities.canEdit for an existing file', async () => {
     withToken();
-    const { storage } = gdriveStorage();
+    const { storage } = gdriveStorage(TEST_ROOM);
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ files: [{ id: 'fid' }] }) } as unknown as Response)
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ capabilities: { canEdit: false } }) } as unknown as Response);

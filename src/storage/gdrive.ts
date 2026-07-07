@@ -12,6 +12,7 @@ import {
   parseGDriveCanEdit,
 } from './parse.js';
 import { localStore } from '../persistence/local.js';
+import type { RoomId } from '../collaboration/types.js';
 import {
   STORAGE_ID,
   DEFAULT_FILENAME,
@@ -31,7 +32,6 @@ export type GDriveFileId = string & { readonly _brand: 'GDriveFileId' };
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const fileName = filenameStore(STORAGE_ID.gdrive);
 const tokenStore = localStore<string | null>(GDRIVE_TOKEN_KEY, (raw) => raw, (v) => v);
 
 const cfg = configStore(STORAGE_ID.gdrive, [
@@ -62,7 +62,8 @@ async function findFile(token: string, name: string): Promise<GDriveFileId | nul
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
-export function gdriveStorage(): { auth: StorageAuth; storage: Storage } {
+export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Storage } {
+  const fileName = filenameStore(STORAGE_ID.gdrive, room);
   // Id of the Drive file for the current filename — resolved by name (drive.file
   // scope is name-based), cached in-memory, reset when the target filename changes.
   let fileId: GDriveFileId | null = null;
