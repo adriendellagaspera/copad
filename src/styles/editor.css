@@ -144,13 +144,14 @@
 
 /* ── Line block-context hint (desktop) ── */
 
-/* Names the block the caret's line is in (H1/H2/H3, list, quote, code) —
-   a per-line property, so unlike .caret-hint it never rides the caret's x
+/* Names the block the caret's line is in (H1/H2/H3, quote, code) — a
+   per-line property, so unlike .caret-hint it never rides the caret's x
    position. It floats in the left margin outside the centered text measure
-   (see .ProseMirror's max-width), vertically aligned with the line's top.
-   Hidden below pointer-fine or once the viewport is too narrow for a margin
-   to exist (see LineBlockHint's reposition — it hides rather than overlap
-   the text). */
+   (see .ProseMirror's max-width), vertically centered on the line via
+   transform (not a JS-measured height — see LineBlockHint's doc comment for
+   why that reads as clipping on short lines). Hidden below pointer-fine or
+   once the viewport is too narrow for a margin to exist (see
+   LineBlockHint's reposition — it hides rather than overlap the text). */
 .line-hint {
   display: none;
 }
@@ -161,7 +162,10 @@
     align-items: center;
     position: fixed;
     z-index: var(--z-menu);
-    /* top/left set inline from the line's start coords. */
+    /* top/right set inline from the line's coords; translateY centers on
+       the line using the label's own rendered height, computed by layout
+       rather than read back from JS (which would be one frame stale). */
+    transform: translateY(-50%);
     padding: 1px var(--sp-1);
     border: 1px solid var(--border);
     border-radius: var(--r-sm);

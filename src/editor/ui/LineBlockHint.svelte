@@ -10,18 +10,30 @@
 
   let { view, editorState }: Props = $props();
 
-  // Names the block the caret's *line* is in (H1/H2/H3, list, quote, code).
-  // Unlike CaretFormatHint (marks armed for the next keystroke, which rides
-  // the caret's x position), a block type is a per-line property — showing
-  // it at the caret reads as if it belonged to the character under it. So
-  // this floats in the left margin instead, aligned with the line's own top,
-  // independent of where on that line the caret happens to be.
-  let host = $state<HTMLDivElement | undefined>();
+  // Names the block the caret's *line* is in (H1/H2/H3, quote, code). Unlike
+  // CaretFormatHint (marks armed for the next keystroke, which rides the
+  // caret's x position), a block type is a per-line property — showing it at
+  // the caret reads as if it belonged to the character under it. So this
+  // floats in the left margin instead, aligned with the line's own vertical
+  // center, independent of where on that line the caret happens to be.
+  //
+  // Positioning is deliberately measurement-free: `right` pins the label's
+  // right edge a fixed gap from the text column, and CSS `transform:
+  // translateY(-50%)` (not a JS-computed top - height/2) centers it on the
+  // line. Reading `host.offsetWidth/offsetHeight` here would race the DOM
+  // patch that shows the label — the instant it flips from hidden to
+  // visible, those read back stale (zero), undercentering it by half its
+  // real height. That error is invisible against H1's tall line but visibly
+  // overlaps the line below for H2/H3, whose line boxes are barely taller
+  // than the label itself.
   let visible = $state(false);
   let top = $state(0);
-  let left = $state(0);
+  let right = $state(0);
 
   const GAP = 8; // px between the text column's edge and the label
+  // Below this much margin there's no safe room for any label text without
+  // overlapping the text column — hide rather than risk a horizontal clip.
+  const MIN_MARGIN = 100;
 
   const isFinePointer = (): boolean =>
     typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
@@ -43,15 +55,12 @@
     // fake it, the caret hint still covers marks on narrow viewports.
     const textEdge = v.dom.getBoundingClientRect().left;
     const marginEdge = v.dom.parentElement?.getBoundingClientRect().left ?? 0;
-    const w = host?.offsetWidth ?? 0;
-    const h = host?.offsetHeight ?? 0;
-    const nextLeft = textEdge - GAP - w;
-    if (nextLeft < marginEdge) {
+    if (textEdge - marginEdge < MIN_MARGIN) {
       visible = false;
       return;
     }
-    left = nextLeft;
-    top = (line.top + line.bottom) / 2 - h / 2;
+    right = window.innerWidth - (textEdge - GAP);
+    top = (line.top + line.bottom) / 2;
     visible = true;
   }
 
@@ -85,8 +94,7 @@
 <div
   class="line-hint"
   class:visible
-  bind:this={host}
-  style="top: {top}px; left: {left}px;"
+  style="top: {top}px; right: {right}px;"
   role="status"
   aria-live="polite"
 >

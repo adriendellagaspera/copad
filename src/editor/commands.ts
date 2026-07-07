@@ -50,10 +50,11 @@ export type BlockContext = { label: string; pos: number };
  * most specific container wins (e.g. a heading inside a list item reports
  * the heading), but `pos` always anchors to the start of the immediate
  * textblock (the current line), not the matched ancestor — so a label for a
- * quoted or listed paragraph still floats at that paragraph's own line
- * rather than the quote/list's first line. `null` for a plain paragraph, so
- * a line hint reading it stays quiet on ordinary text. Uses `$from` only —
- * a caret's line context doesn't depend on whether the selection is empty.
+ * quoted paragraph still floats at that paragraph's own line rather than the
+ * quote's first line. `null` for a plain paragraph — or a list item, whose
+ * bullet/number already makes its own nature visible without a label — so a
+ * line hint reading it stays quiet on ordinary text. Uses `$from` only — a
+ * caret's line context doesn't depend on whether the selection is empty.
  */
 export function activeBlockContext(state: EditorState): BlockContext | null {
   const { $from } = state.selection;
@@ -63,8 +64,6 @@ export function activeBlockContext(state: EditorState): BlockContext | null {
     if (node.type === schema.nodes.heading) return { label: `H${node.attrs.level as number}`, pos };
     if (node.type === schema.nodes.code_block) return { label: 'Code', pos };
     if (node.type === schema.nodes.blockquote) return { label: 'Quote', pos };
-    if (node.type === schema.nodes.bullet_list) return { label: 'List', pos };
-    if (node.type === schema.nodes.ordered_list) return { label: 'Numbered', pos };
   }
   return null;
 }
