@@ -98,6 +98,9 @@ export const BACKEND_ENABLED: Record<StorageId, boolean> = {
   [STORAGE_ID.webdav]: envBool(import.meta.env.VITE_ENABLE_WEBDAV, true),
   [STORAGE_ID.github]: envBool(import.meta.env.VITE_ENABLE_GITHUB, true),
   [STORAGE_ID.local]: envBool(import.meta.env.VITE_ENABLE_LOCAL, true),
+  // Not yet connected to a real GitLab account outside production — stays
+  // hidden until that's done, then flips to `true` in its own dedicated PR.
+  [STORAGE_ID.gitlab]: envBool(import.meta.env.VITE_ENABLE_GITLAB, false),
 };
 
 // ── Cloud folder + default filenames ──────────────────────────────────────────
