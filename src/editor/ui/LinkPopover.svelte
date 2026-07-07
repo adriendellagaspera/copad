@@ -1,10 +1,11 @@
 <script lang="ts">
   import type { EditorView } from 'prosemirror-view';
+  import type { EditorState } from 'prosemirror-state';
   import { TextSelection } from 'prosemirror-state';
   import { setLink, removeLink, currentLinkHref, normalizeHref, isValidHref } from '../linkCommands.js';
   import { runCommand } from '../commands.js';
 
-  let { view }: { view: EditorView | null } = $props();
+  let { view, editorState }: { view: EditorView | null; editorState: EditorState | null } = $props();
 
   let open = $state(false);
   let href = $state('');
@@ -13,21 +14,63 @@
   let inputEl = $state<HTMLInputElement | undefined>();
   let invalid = $derived(href.trim() !== '' && !isValidHref(href));
 
+  // The range the popover was opened for, captured up front (see openPopover)
+  // so apply()/unlink() always act on the text the user actually selected,
+  // never on whatever `view.state.selection` happens to be by the time they
+  // run — that live selection is deliberately collapsed to a caret below.
+  let linkFrom = $state(0);
+  let linkTo = $state(0);
+  // The doc the popover was opened against, kept by reference (ProseMirror
+  // nodes are immutable — any content change produces a new object). Used
+  // to auto-dismiss if the document changes underneath the popover.
+  let openDoc = $state<unknown>(null);
+
   function openPopover(): void {
     if (!view) return;
     const state = view.state;
+    const { from, to, empty } = state.selection;
     const existing = currentLinkHref(state);
     wasLinked = existing !== null;
     href = existing ?? '';
+    linkFrom = from;
+    linkTo = to;
+    openDoc = state.doc;
     try {
-      const c = view.coordsAtPos(state.selection.from);
+      const c = view.coordsAtPos(from);
       pos = { left: c.left, top: c.bottom + 6 };
     } catch {
       pos = null;
     }
+    // Collapse the live selection to a caret *before* handing focus to the
+    // popover's own <input> (the queueMicrotask below). Leaving a real,
+    // possibly cross-paragraph Selection active in the contenteditable
+    // while focus moves away asynchronously races prosemirror-view's own
+    // selectionchange-driven DOM sync: its DOMObserver reads the browser's
+    // current Selection back into a document position on every native
+    // `selectionchange` event, and losing focus mid-selection can hand it a
+    // now-stale position outside the document — this is what produced the
+    // reported "Position N out of range" / "setEnd on Range" crashes
+    // (reproduced via Ctrl+K opened over a selection, handing focus to this
+    // input). `linkFrom`/`linkTo` above remember the original range so
+    // apply()/unlink() can still act on it.
+    if (!empty) {
+      view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, to)));
+    }
     open = true;
     queueMicrotask(() => inputEl?.focus());
   }
+
+  // If the document changes while the popover is open — an undo/redo, a
+  // remote peer's edit, anything — the captured linkFrom/linkTo range and
+  // the wasLinked/href snapshot no longer describe anything well-defined:
+  // "the same range" may not even exist anymore. Rather than guess, close
+  // the popover; the user can re-open it against the current document. Our
+  // own selection-collapse dispatch above doesn't touch doc content, so it
+  // doesn't trigger this — only a real content change does.
+  $effect(() => {
+    if (!open || openDoc === null || !editorState) return;
+    if (editorState.doc !== openDoc) dismiss();
+  });
 
   function close(): void {
     open = false;
@@ -46,6 +89,19 @@
     close();
   }
 
+  /** Clamp the captured range to the current document, in case it changed
+   *  underneath the popover in some way the doc-identity effect above
+   *  didn't already close it for (defense in depth — normally that effect
+   *  means apply()/unlink() only ever run against the same doc `linkFrom`/
+   *  `linkTo` were captured from). */
+  function currentLinkRange(): { from: number; to: number } {
+    if (!view) return { from: linkFrom, to: linkTo };
+    const size = view.state.doc.content.size;
+    const from = Math.min(linkFrom, size);
+    const to = Math.min(linkTo, size);
+    return { from: Math.min(from, to), to: Math.max(from, to) };
+  }
+
   function apply(): void {
     if (!view) return;
     const h = href.trim();
@@ -55,8 +111,8 @@
       return;
     }
     if (!isValidHref(h)) return; // keep the popover open so the error stays visible
-    const { empty, from } = view.state.selection;
-    if (empty) {
+    const { from, to } = currentLinkRange();
+    if (from === to) {
       // No selection: insert the URL as linked text.
       const mark = view.state.schema.marks.link.create({ href: normalizeHref(h) });
       const tr = view.state.tr.insertText(h, from);
@@ -65,12 +121,20 @@
       close();
       return;
     }
+    // Restore the originally selected range — collapsed to a caret in
+    // openPopover to avoid the focus/selection race documented there — so
+    // setLink applies to the text the popover was actually opened for.
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
     runCommand(view, setLink(h));
     close();
   }
 
   function unlink(): void {
     if (!view) return;
+    const { from, to } = currentLinkRange();
+    if (from !== to) {
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
+    }
     runCommand(view, removeLink);
     close();
   }

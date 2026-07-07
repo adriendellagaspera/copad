@@ -29,7 +29,7 @@ function storageIds<const Ids extends readonly string[]>(
 }
 
 /** The canonical id for each storage backend — the single source of truth. */
-export const STORAGE_ID = storageIds('dropbox', 'pcloud', 'webdav', 'github', 'local');
+export const STORAGE_ID = storageIds('dropbox', 'pcloud', 'webdav', 'github', 'gitlab', 'local');
 
 /**
  * A config field's name, doubling as the storage sub-key for that field. Adapter-
@@ -69,6 +69,40 @@ const envInt = (raw: string | undefined, fallback: number): number => {
   return Number.isInteger(n) && n > 0 ? n : fallback;
 };
 
+/** Boolean override ("1"/"true"/"yes" ⇒ true, "0"/"false"/"no" ⇒ false, case-
+ *  insensitive), or `fallback` when the var is unset, blank, or unrecognized. */
+const envBool = (raw: string | undefined, fallback: boolean): boolean => {
+  const v = raw?.trim().toLowerCase();
+  if (v === '1' || v === 'true' || v === 'yes') return true;
+  if (v === '0' || v === 'false' || v === 'no') return false;
+  return fallback;
+};
+
+// ── Backend enable/disable ──────────────────────────────────────────────────────
+
+/**
+ * Whether each backend is offered in this deployment — `backends()` filters on
+ * this, so a disabled backend never appears as a pill or in Settings. Each id
+ * can be flipped independently via `VITE_ENABLE_<ID>` (e.g. `VITE_ENABLE_
+ * GITLAB=false`). Keyed via `STORAGE_ID.<id>` (not bareword string literals) —
+ * `StorageId` is a brand over `string`, so only a value already branded there
+ * type-checks as a key.
+ *
+ * Backends already relied on in production default to enabled; a newly added
+ * backend should default to *disabled* until it's been connected to a real
+ * account outside production, then flip to `true` in its own dedicated PR.
+ */
+export const BACKEND_ENABLED: Record<StorageId, boolean> = {
+  [STORAGE_ID.dropbox]: envBool(import.meta.env.VITE_ENABLE_DROPBOX, true),
+  [STORAGE_ID.pcloud]: envBool(import.meta.env.VITE_ENABLE_PCLOUD, true),
+  [STORAGE_ID.webdav]: envBool(import.meta.env.VITE_ENABLE_WEBDAV, true),
+  [STORAGE_ID.github]: envBool(import.meta.env.VITE_ENABLE_GITHUB, true),
+  [STORAGE_ID.local]: envBool(import.meta.env.VITE_ENABLE_LOCAL, true),
+  // Not yet connected to a real GitLab account outside production — stays
+  // hidden until that's done, then flips to `true` in its own dedicated PR.
+  [STORAGE_ID.gitlab]: envBool(import.meta.env.VITE_ENABLE_GITLAB, false),
+};
+
 // ── Cloud folder + default filenames ──────────────────────────────────────────
 
 /** Folder the cloud backends (Dropbox, pCloud) read and write within. */
@@ -79,6 +113,9 @@ export const DEFAULT_FILENAME = envStr(import.meta.env.VITE_DEFAULT_FILENAME, 'd
 
 /** GitHub's default target file — human-readable Markdown rather than `.yjs`. */
 export const GITHUB_DEFAULT_FILENAME = envStr(import.meta.env.VITE_GITHUB_DEFAULT_FILENAME, 'notes.md') as Filename;
+
+/** GitLab's default target file — human-readable Markdown, committable alongside code. */
+export const GITLAB_DEFAULT_FILENAME = envStr(import.meta.env.VITE_GITLAB_DEFAULT_FILENAME, 'notes.md') as Filename;
 
 // ── GitHub ────────────────────────────────────────────────────────────────────
 
@@ -91,6 +128,23 @@ export const GITHUB_DEFAULT_BRANCH = 'main';
 
 /** Marks a GitHub token as validated (set after a successful GET /user). */
 export const GITHUB_VALIDATED_KEY: StorageKey = backendKey(STORAGE_ID.github, 'validated');
+
+// ── GitLab ──────────────────────────────────────────────────────────────────
+// A GitLab PAT + project are reusable config (like GitHub), not per-session
+// credentials — so GitLab mirrors GitHub's configFields + validated-flag shape.
+
+/** GitLab instance base URL committed to when none is configured (self-hosted → override in Settings). */
+export const GITLAB_DEFAULT_HOST = envStr(import.meta.env.VITE_GITLAB_HOST, 'https://gitlab.com');
+
+/** REST API path appended to the instance host — `${host}${GITLAB_API_PATH}`. */
+export const GITLAB_API_PATH = envStr(import.meta.env.VITE_GITLAB_API_PATH, '/api/v4');
+
+/** Branch committed to when none is configured. Deployment-settable via the
+ *  `branch` config field's `VITE_GITLAB_BRANCH` lock, so no separate override here. */
+export const GITLAB_DEFAULT_BRANCH = 'main';
+
+/** Marks a GitLab token as validated (set after a successful GET /user). */
+export const GITLAB_VALIDATED_KEY: StorageKey = backendKey(STORAGE_ID.gitlab, 'validated');
 
 // ── OAuth redirect ────────────────────────────────────────────────────────────
 
