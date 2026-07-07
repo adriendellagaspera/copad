@@ -6,6 +6,7 @@
     filterItems,
     runSlashItem,
     setSlashIndex,
+    dismissSlash,
     type SlashItem,
   } from './slashMenu.js';
 
@@ -23,6 +24,22 @@
   $effect(() => {
     index;
     menuEl?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+  });
+
+  // Window-level Escape, capture phase (matches LinkPopover/RoomSwitcher/IdentityMenu/Settings):
+  // the plugin's own handleKeyDown only fires while ProseMirror's DOM node holds focus, which a
+  // mousemove into the menu (or any other focus race) can leave it without — this guarantees
+  // Escape always dismisses the menu regardless of where focus landed.
+  $effect(() => {
+    if (!open || !view) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        dismissSlash(view);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   });
 
   // Anchor the menu just below the "/" in viewport coordinates.
