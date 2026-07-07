@@ -319,10 +319,14 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-Shift-z': redo,
       'Escape': escapeCodeBlock,
       'ArrowDown': exitCodeBlockDown,
+      // The task_item split passes an explicit `checked: false` for the new
+      // item — splitListItem otherwise copies the *original* item's attrs
+      // onto both halves, so pressing Enter on a checked item would silently
+      // hand the brand-new row a pre-ticked checkbox.
       'Enter': chainCommands(
         exitCodeBlockOnBlankLine,
         splitListItem(s.nodes.list_item),
-        splitListItem(s.nodes.task_item)
+        splitListItem(s.nodes.task_item, { checked: false })
       ),
       'Backspace': clearEmptyCodeBlockBackward,
       'Tab': chainCommands(sinkListItem(s.nodes.list_item), sinkListItem(s.nodes.task_item)),
