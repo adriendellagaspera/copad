@@ -3,6 +3,10 @@ import { sharepointStorage } from './sharepoint.js';
 import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
 import { LoginKind } from './types.js';
+import type { RoomId } from '../collaboration/types.js';
+
+// Room stem is 'document', matching the plain default filename ('document.yjs') asserted below.
+const TEST_ROOM = 'document' as RoomId;
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -26,26 +30,26 @@ const connected = () =>
 
 describe('sharepointStorage auth', () => {
   it('is not authenticated before login', () => {
-    expect(sharepointStorage().auth.isAuthenticated()).toBe(false);
+    expect(sharepointStorage(TEST_ROOM).auth.isAuthenticated()).toBe(false);
   });
 
   it('exposes token, siteUrl, folder credential fields', () => {
-    const names = sharepointStorage().auth.credentialFields!.map(f => f.name);
+    const names = sharepointStorage(TEST_ROOM).auth.credentialFields!.map(f => f.name);
     expect(names).toEqual(expect.arrayContaining(['token', 'siteUrl', 'folder']));
   });
 
   it('login requires a token', async () => {
-    await expect(sharepointStorage().auth.login(creds({ token: '' }))).rejects.toThrow('access token is required');
+    await expect(sharepointStorage(TEST_ROOM).auth.login(creds({ token: '' }))).rejects.toThrow('access token is required');
   });
 
   it('login throws on 401 from /me', async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 401 } as Response);
-    await expect(sharepointStorage().auth.login(creds({ token: 'bad' }))).rejects.toThrow('invalid or expired');
+    await expect(sharepointStorage(TEST_ROOM).auth.login(creds({ token: 'bad' }))).rejects.toThrow('invalid or expired');
   });
 
   it('login validates /me and stores a OneDrive session (no siteUrl)', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ id: 'me' }) } as unknown as Response);
-    const { auth } = sharepointStorage();
+    const { auth } = sharepointStorage(TEST_ROOM);
     await auth.login(creds({ token: 'good' }));
     expect(auth.isAuthenticated()).toBe(true);
     expect(mockFetch).toHaveBeenCalledWith('https://graph.microsoft.com/v1.0/me', expect.anything());
@@ -55,14 +59,14 @@ describe('sharepointStorage auth', () => {
     mockFetch
       .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ id: 'me' }) } as unknown as Response) // /me
       .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ id: 'site-42' }) } as unknown as Response); // /sites
-    const { auth } = sharepointStorage();
+    const { auth } = sharepointStorage(TEST_ROOM);
     await auth.login(creds({ token: 'good', siteUrl: 'https://contoso.sharepoint.com/sites/x' }));
     expect(JSON.parse(store['storage.sharepoint.conf']).siteId).toBe('site-42');
   });
 
   it('logout clears the session', () => {
     connected();
-    const { auth } = sharepointStorage();
+    const { auth } = sharepointStorage(TEST_ROOM);
     auth.logout();
     expect(auth.isAuthenticated()).toBe(false);
   });
@@ -71,11 +75,11 @@ describe('sharepointStorage auth', () => {
 describe('sharepointStorage load/save', () => {
   let auth: StorageAuth;
   let storage: Storage;
-  beforeEach(() => { ({ auth, storage } = sharepointStorage()); connected(); void auth; });
+  beforeEach(() => { ({ auth, storage } = sharepointStorage(TEST_ROOM)); connected(); void auth; });
 
   it('throws when not connected', async () => {
     localStorage.clear();
-    await expect(sharepointStorage().storage.load()).rejects.toThrow('SharePoint: not connected');
+    await expect(sharepointStorage(TEST_ROOM).storage.load()).rejects.toThrow('SharePoint: not connected');
   });
 
   it('returns null on 404', async () => {
@@ -101,7 +105,7 @@ describe('sharepointStorage load/save', () => {
 
 describe('sharepointStorage access/contentFormat', () => {
   it('is binary by default, text for .md', () => {
-    const { storage } = sharepointStorage();
+    const { storage } = sharepointStorage(TEST_ROOM);
     expect(storage.contentFormat).toBe('binary');
     storage.setFilename?.('notes.md');
     expect(storage.contentFormat).toBe('text');
@@ -109,7 +113,7 @@ describe('sharepointStorage access/contentFormat', () => {
 
   it('reports owner when createdBy matches /me', async () => {
     connected();
-    const { storage } = sharepointStorage();
+    const { storage } = sharepointStorage(TEST_ROOM);
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: 'me' }) } as unknown as Response) // /me
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ createdBy: { user: { id: 'me' } } }) } as unknown as Response); // item

@@ -1,4 +1,4 @@
-import type { Storage, CredentialField, LoginOptions, DocContent } from './types.js';
+import type { Storage, CredentialField, LoginOptions, DocContent, Filename } from './types.js';
 import { DocFormat, InputType, LoginKind, StorageAccess } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { filenameStore } from './filename.js';
@@ -10,6 +10,7 @@ import {
   parseGraphOwnerId,
 } from './parse.js';
 import { localStore } from '../persistence/local.js';
+import type { RoomId } from '../collaboration/types.js';
 import { STORAGE_ID, DEFAULT_FILENAME, GRAPH_API_URL, SHAREPOINT_FOLDER, SHAREPOINT_KEY } from './constants.js';
 
 // Microsoft Graph — SharePoint / OneDrive for Business.
@@ -18,7 +19,6 @@ import { STORAGE_ID, DEFAULT_FILENAME, GRAPH_API_URL, SHAREPOINT_FOLDER, SHAREPO
 // short-lived (like a WebDAV app password); a full MSAL popup flow can be added
 // later behind configFields without changing this port.
 
-const fileName = filenameStore(STORAGE_ID.sharepoint);
 const confStore = localStore<SharePointConf | null>(
   SHAREPOINT_KEY,
   parseSharePointConf,
@@ -47,17 +47,17 @@ function driveRoot(c: SharePointConf): string {
 }
 
 /** Path to the target file, relative to the drive root (folder + per-room name). */
-function itemPath(c: SharePointConf): string {
+function itemPath(c: SharePointConf, filename: Filename): string {
   const folder = c.folder.replace(/^\/+|\/+$/g, '');
-  return [folder, fileName.get()].filter(Boolean).join('/');
+  return [folder, filename].filter(Boolean).join('/');
 }
 
-function driveItemUrl(c: SharePointConf): string {
-  return `${driveRoot(c)}/root:/${itemPath(c)}`;
+function driveItemUrl(c: SharePointConf, filename: Filename): string {
+  return `${driveRoot(c)}/root:/${itemPath(c, filename)}`;
 }
 
-function driveContentUrl(c: SharePointConf): string {
-  return `${driveItemUrl(c)}:/content`;
+function driveContentUrl(c: SharePointConf, filename: Filename): string {
+  return `${driveItemUrl(c, filename)}:/content`;
 }
 
 /** Resolve a SharePoint site URL to its Graph site id. */
@@ -72,7 +72,8 @@ async function resolveSiteId(token: string, siteUrl: string): Promise<string> {
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
-export function sharepointStorage(): { auth: StorageAuth; storage: Storage } {
+export function sharepointStorage(room: RoomId): { auth: StorageAuth; storage: Storage } {
+  const fileName = filenameStore(STORAGE_ID.sharepoint, room);
   const conf = (): SharePointConf | null => confStore.read();
 
   const auth: StorageAuth = {
@@ -121,7 +122,7 @@ export function sharepointStorage(): { auth: StorageAuth; storage: Storage } {
       const c = conf();
       if (!c) throw new Error('SharePoint: not connected');
 
-      const res = await fetch(driveContentUrl(c), { headers: authHeaders(c.token) });
+      const res = await fetch(driveContentUrl(c, fileName.get()), { headers: authHeaders(c.token) });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`SharePoint load failed: ${res.status}`);
 
@@ -144,7 +145,7 @@ export function sharepointStorage(): { auth: StorageAuth; storage: Storage } {
         ? 'text/plain; charset=utf-8'
         : 'application/octet-stream';
 
-      const res = await fetch(driveContentUrl(c), {
+      const res = await fetch(driveContentUrl(c, fileName.get()), {
         method: 'PUT',
         headers: { ...authHeaders(c.token), 'Content-Type': mime },
         body: bytes as unknown as BodyInit,
@@ -158,7 +159,7 @@ export function sharepointStorage(): { auth: StorageAuth; storage: Storage } {
 
       const [meRes, itemRes] = await Promise.all([
         fetch(`${GRAPH_API_URL}/me`, { headers: authHeaders(c.token) }),
-        fetch(driveItemUrl(c), { headers: authHeaders(c.token) }),
+        fetch(driveItemUrl(c, fileName.get()), { headers: authHeaders(c.token) }),
       ]);
       if (!meRes.ok || !itemRes.ok) return StorageAccess.Write;
 
