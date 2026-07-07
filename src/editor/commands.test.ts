@@ -58,6 +58,17 @@ describe('block commands', () => {
     expect(table?.child(1).firstChild?.type.name).toBe('table_cell');
   });
 
+  it('insertTable parks the caret in the first header cell, not wherever replaceSelectionWith would default to', () => {
+    const next = apply(paragraphState(''), commands.insertTable);
+    const $from = next.selection.$from;
+    // depth 1 = table, depth 2 = row, depth 3 = the cell the caret sits in.
+    expect($from.node(1).type.name).toBe('table');
+    expect($from.node(2).type.name).toBe('table_row');
+    expect($from.node(3).type.name).toBe('table_header');
+    expect($from.index(2)).toBe(0); // first cell of the first row
+    expect($from.index(1)).toBe(0); // first row of the table
+  });
+
   it('insertTable is a no-op inside an existing table', () => {
     const withTable = apply(paragraphState(''), commands.insertTable);
     // Move the cursor inside the first header cell.

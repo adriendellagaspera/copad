@@ -12,7 +12,7 @@ import {
   toggleHeaderRow,
 } from 'prosemirror-tables';
 import type { MarkType, NodeType, Attrs } from 'prosemirror-model';
-import type { EditorState, Command } from 'prosemirror-state';
+import { TextSelection, type EditorState, type Command } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { schema } from './schema.js';
 import { toggleBlockType } from './plugins.js';
@@ -43,7 +43,25 @@ const insertTable: Command = (state, dispatch) => {
     const rows = [types.row.create(null, headerCells)];
     for (let i = 1; i < TABLE_ROWS; i += 1) rows.push(types.row.create(null, bodyCells));
     const table = types.table.create(null, rows);
-    dispatch(state.tr.replaceSelectionWith(table).scrollIntoView());
+    const { tr } = state;
+    const from = tr.selection.from;
+    tr.replaceSelectionWith(table);
+    // `replaceSelectionWith` may split the surrounding paragraph to fit the
+    // table in as a sibling block, so its own post-insert selection can land
+    // in the *last* cell rather than the first — parking a fresh table's
+    // caret in the last cell instead of the first is surprising (every other
+    // editor starts you typing the first header) and, worse, leaves Tab with
+    // nowhere to go (it tabs out of the editor entirely). Re-anchor to the
+    // first header cell's content explicitly.
+    let tablePos = -1;
+    tr.doc.nodesBetween(Math.max(0, from - 1), tr.doc.content.size, (node, pos) => {
+      if (tablePos === -1 && node.type === types.table) tablePos = pos;
+    });
+    if (tablePos !== -1) {
+      // +1 into the table, +1 into the first row, +1 into the first cell.
+      tr.setSelection(TextSelection.near(tr.doc.resolve(tablePos + 3)));
+    }
+    dispatch(tr.scrollIntoView());
   }
   return true;
 };
