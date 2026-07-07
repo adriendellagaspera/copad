@@ -8,25 +8,25 @@ import {
   InputRule,
 } from 'prosemirror-inputrules';
 import { undo, redo } from 'y-prosemirror';
-import type { MarkType, ResolvedPos, Schema } from 'prosemirror-model';
+import type { MarkType, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
 import { Selection } from 'prosemirror-state';
 import type { Command, EditorState, Plugin, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
 
 /**
  * Leaves `$pos`'s enclosing code block (a node with `code: true`), mutating
- * `tr` in place:
+ * `tr` in place. Never mutates the code block itself, even an empty one —
+ * it may be deliberately blank, waiting to be filled in, so merely passing
+ * over it must not be destructive (matches Tiptap's CodeBlock extension,
+ * the reference implementation for this exact pattern: its `exitCode`-based
+ * exits never delete or convert the block; only its Backspace handler and
+ * its `Mod-Alt-c` toggle do — see `clearEmptyCodeBlockBackward` and
+ * `toggleCodeBlock` in commands.ts below):
  * - if a block already follows it, the selection simply moves there — no
  *   need to insert a duplicate paragraph, same as arrowing/clicking past the
- *   block would land you in it. This never touches the code block itself,
- *   even an empty one: it may be deliberately blank, waiting to be filled
- *   in, so passing over it must not be destructive;
- * - else if the code block is empty, it's converted directly into a
- *   paragraph in place — there's nothing to preserve, and nothing follows
- *   to move into, so leaving an empty code block behind while also
- *   inserting a new empty paragraph after it would just be clutter;
- * - else (real content, nothing follows — most often because it's the last
- *   node in the doc) a fresh paragraph is inserted after it and selected.
+ *   block would land you in it;
+ * - else a fresh paragraph is inserted after it and selected (most often
+ *   because the code block is the last node in the doc).
  *
  * Shared by every way of leaving a code block — Escape, ArrowDown at the
  * last position, and three-Enters-in-a-row on a trailing blank line — so
@@ -39,13 +39,6 @@ function exitCodeBlock(tr: Transaction, $pos: ResolvedPos): void {
 
   if (indexAfter < container.childCount) {
     tr.setSelection(Selection.near(tr.doc.resolve(after), 1));
-    return;
-  }
-
-  if ($pos.parent.content.size === 0) {
-    const blockPos = $pos.before();
-    tr.setNodeMarkup(blockPos, tr.doc.type.schema.nodes.paragraph);
-    tr.setSelection(Selection.near(tr.doc.resolve(blockPos + 1), 1));
     return;
   }
 
@@ -111,12 +104,15 @@ export const exitCodeBlockDown: Command = (state, dispatch) => {
 /**
  * Three Enters in a row (i.e. the code block's content already ends with
  * two newlines when a third Enter arrives) leaves the code block, undoing
- * the two blank lines that got us here first — so genuine code isn't split
- * from an exit gesture, and a code block that was blank to begin with
- * doesn't linger as an empty node once `exitCodeBlock` converts it away.
- * A single blank line is common and intentional inside real code (spacing
- * between functions), so a lone Enter must never trigger this — only a
- * second consecutive blank line unambiguously signals "let me out".
+ * the two blank lines that got us here first so genuine code isn't split by
+ * an exit gesture. A single blank line is common and intentional inside
+ * real code (spacing between functions), so a lone Enter must never trigger
+ * this — only a second consecutive blank line unambiguously signals "let me
+ * out". Matches Tiptap's `exitOnTripleEnter` exactly (verified against its
+ * source): a code block that was only blank lines is left behind as an
+ * empty code block, not deleted — `clearEmptyCodeBlockBackward` (Backspace)
+ * or the `Mod-Alt-c` toggle are what remove it, same as everywhere else
+ * this file leaves the block itself alone.
  * Returns `false` everywhere else so normal Enter handling (newlineInCode)
  * proceeds.
  */
@@ -133,6 +129,48 @@ export const exitCodeBlockOnBlankLine: Command = (state, dispatch) => {
   }
   return true;
 };
+
+/**
+ * Backspace at the start of an empty code block converts it straight back
+ * into an empty paragraph — the way to get rid of a code block you opened
+ * by mistake or emptied out, matching Tiptap's CodeBlock Backspace handler
+ * (verified against its source) and this app's own existing convention for
+ * every other empty block (baseKeymap's Backspace already lifts/removes an
+ * empty paragraph, heading, etc. the same way). Deliberately narrower than
+ * Tiptap's version, which also fires on a *non-empty* code block sitting at
+ * the very start of the document — an edge case this app doesn't otherwise
+ * special-case for any other block type, so extending it here would be an
+ * inconsistency, not a fix.
+ * Returns `false` everywhere else so normal Backspace handling (character
+ * deletion, joining with the previous block, etc.) proceeds.
+ */
+export const clearEmptyCodeBlockBackward: Command = (state, dispatch) => {
+  const $pos = inCodeBlock(state);
+  if (!$pos || $pos.parent.content.size !== 0 || $pos.parentOffset !== 0) return false;
+  if (dispatch) {
+    dispatch(state.tr.setNodeMarkup($pos.before(), state.schema.nodes.paragraph));
+  }
+  return true;
+};
+
+/**
+ * Toggle between `type` and `paragraph` for the block(s) under the
+ * selection — the same command that opened a block converts it back when
+ * invoked from inside one, so the code-block command itself is a way to
+ * remove a code block, not just a way to create one. Matches how every
+ * other toggleable command in this app already reads (`toggleMark` for
+ * bold/italic/strike), and Tiptap's own `toggleCodeBlock` bound to this
+ * exact `Mod-Alt-c` shortcut (verified against its source).
+ */
+export function toggleBlockType(type: NodeType, paragraph: NodeType): Command {
+  const setType = setBlockType(type);
+  const setParagraph = setBlockType(paragraph);
+  return (state, dispatch, view) => {
+    const { $from, to } = state.selection;
+    const active = to <= $from.end() && $from.parent.hasMarkup(type);
+    return (active ? setParagraph : setType)(state, dispatch, view);
+  };
+}
 
 type RuleHandler = (
   state: EditorState,
@@ -224,7 +262,7 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-Alt-1': setBlockType(s.nodes.heading, { level: 1 }),
       'Mod-Alt-2': setBlockType(s.nodes.heading, { level: 2 }),
       'Mod-Alt-3': setBlockType(s.nodes.heading, { level: 3 }),
-      'Mod-Alt-c': setBlockType(s.nodes.code_block),
+      'Mod-Alt-c': toggleBlockType(s.nodes.code_block, s.nodes.paragraph),
       'Mod-Shift-7': wrapInList(s.nodes.ordered_list),
       'Mod-Shift-8': wrapInList(s.nodes.bullet_list),
       'Mod-Shift-9': wrapIn(s.nodes.blockquote),
@@ -234,6 +272,7 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Escape': escapeCodeBlock,
       'ArrowDown': exitCodeBlockDown,
       'Enter': chainCommands(exitCodeBlockOnBlankLine, splitListItem(s.nodes.list_item)),
+      'Backspace': clearEmptyCodeBlockBackward,
       'Tab': sinkListItem(s.nodes.list_item),
       'Shift-Tab': liftListItem(s.nodes.list_item),
     }),

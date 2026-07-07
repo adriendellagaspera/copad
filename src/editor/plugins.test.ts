@@ -8,6 +8,8 @@ import {
   escapeCodeBlock,
   exitCodeBlockDown,
   exitCodeBlockOnBlankLine,
+  clearEmptyCodeBlockBackward,
+  toggleBlockType,
   BOLD_STAR_RULE,
   BOLD_UNDERSCORE_RULE,
   ITALIC_STAR_RULE,
@@ -149,13 +151,14 @@ describe('escapeCodeBlock', () => {
     expect(next!.selection.$head.parent.type.name).toBe('paragraph');
   });
 
-  it('converts an empty trailing code block directly into a paragraph, in place (no orphaned empty code block)', () => {
+  it('inserts a new paragraph after an empty trailing code block, WITHOUT touching the code block itself (never destructive — matches Tiptap)', () => {
     const codeBlock = schema.node('code_block');
     const doc = schema.node('doc', null, [codeBlock]);
     const { next } = run(doc, 1);
-    expect(next!.doc.childCount).toBe(1);
-    expect(next!.doc.firstChild?.type.name).toBe('paragraph');
-    expect(next!.doc.firstChild?.content.size).toBe(0);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.doc.firstChild?.type.name).toBe('code_block');
+    expect(next!.doc.lastChild?.type.name).toBe('paragraph');
+    expect(next!.selection.$head.parent.type.name).toBe('paragraph');
   });
 
   it('moves into an existing paragraph that already follows the code block, without inserting a new one', () => {
@@ -214,13 +217,14 @@ describe('escapeCodeBlock', () => {
     expect(next!.selection.$head.node(-1)).toBe(next!.doc.firstChild);
   });
 
-  it('converts an empty code block in place when nested alone in a blockquote', () => {
+  it('inserts a paragraph after an empty code block nested alone in a blockquote, without touching the code block', () => {
     const codeBlock = schema.node('code_block');
     const blockquote = schema.node('blockquote', null, [codeBlock]);
     const doc = schema.node('doc', null, [blockquote]);
     const { next } = run(doc, 2);
-    expect(next!.doc.firstChild?.childCount).toBe(1);
-    expect(next!.doc.firstChild?.firstChild?.type.name).toBe('paragraph');
+    expect(next!.doc.firstChild?.childCount).toBe(2);
+    expect(next!.doc.firstChild?.firstChild?.type.name).toBe('code_block');
+    expect(next!.doc.firstChild?.lastChild?.type.name).toBe('paragraph');
   });
 
   it('moves into an existing sibling inside a blockquote instead of inserting a duplicate', () => {
@@ -323,12 +327,13 @@ describe('exitCodeBlockDown', () => {
     expect(next!.selection.$head.parent.textContent).toBe('below');
   });
 
-  it('converts an empty trailing code block into a paragraph in place', () => {
+  it('inserts a paragraph after an empty trailing code block, WITHOUT converting/deleting the code block (ArrowDown must never be destructive)', () => {
     const codeBlock = schema.node('code_block');
     const doc = schema.node('doc', null, [codeBlock]);
     const { next } = run(doc, 1);
-    expect(next!.doc.childCount).toBe(1);
-    expect(next!.doc.firstChild?.type.name).toBe('paragraph');
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.doc.firstChild?.type.name).toBe('code_block');
+    expect(next!.doc.lastChild?.type.name).toBe('paragraph');
   });
 
   it("returns false when the caret isn't in a code block at all", () => {
@@ -373,13 +378,15 @@ describe('exitCodeBlockOnBlankLine (triple-Enter exit)', () => {
     expect(next!.doc.lastChild?.type.name).toBe('paragraph');
   });
 
-  it('a code block that was only blank lines converts in place instead of leaving an empty code block behind', () => {
+  it('a code block that was only blank lines is trimmed back to empty and left in place — not deleted (matches Tiptap: only Backspace/the Mod-Alt-c toggle remove a code block)', () => {
     const codeBlock = schema.node('code_block', null, schema.text('\n\n'));
     const doc = schema.node('doc', null, [codeBlock]);
     const { next } = run(doc, 3);
-    expect(next!.doc.childCount).toBe(1);
-    expect(next!.doc.firstChild?.type.name).toBe('paragraph');
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.doc.firstChild?.type.name).toBe('code_block');
     expect(next!.doc.firstChild?.content.size).toBe(0);
+    expect(next!.doc.lastChild?.type.name).toBe('paragraph');
+    expect(next!.selection.$head.parent.type.name).toBe('paragraph');
   });
 
   it('moves into an existing next sibling after trimming, without inserting a duplicate paragraph', () => {
@@ -418,5 +425,115 @@ describe('exitCodeBlockOnBlankLine (triple-Enter exit)', () => {
     const { handled, dispatched } = run(next!.doc, next!.selection.head);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
+  });
+});
+
+describe('clearEmptyCodeBlockBackward', () => {
+  const run = (doc: ReturnType<typeof schema.node>, selPos: number, selEnd?: number) =>
+    runCmd(clearEmptyCodeBlockBackward, doc, selPos, selEnd);
+
+  it('converts a sole empty code block into a paragraph on Backspace at its start', () => {
+    const codeBlock = schema.node('code_block');
+    const doc = schema.node('doc', null, [codeBlock]);
+    const { handled, next, dispatched } = run(doc, 1);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(1);
+    expect(next!.doc.firstChild?.type.name).toBe('paragraph');
+  });
+
+  it('converts an empty code block that is NOT the last node, leaving the rest of the doc untouched', () => {
+    const codeBlock = schema.node('code_block');
+    const para = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [codeBlock, para]);
+    const { next } = run(doc, 1);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.doc.firstChild?.type.name).toBe('paragraph');
+    expect(next!.doc.lastChild?.textContent).toBe('below');
+  });
+
+  it('returns false (normal character-deleting Backspace proceeds) when the code block has content, even at its start', () => {
+    const codeBlock = schema.node('code_block', null, schema.text('let x = 1'));
+    const doc = schema.node('doc', null, [codeBlock]);
+    const { handled, dispatched } = run(doc, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it("returns false when the caret is empty but NOT at the block's start, even if the block is empty (there's nothing before the caret in an empty block anyway, but guard the invariant explicitly)", () => {
+    const codeBlock = schema.node('code_block');
+    const doc = schema.node('doc', null, [codeBlock]);
+    // pos 1 is the only valid cursor position in a truly empty code block;
+    // simulate "not at start" via a non-empty block's start-of-second-line.
+    const nonEmptyBlock = schema.node('code_block', null, schema.text('a\nb'));
+    const doc2 = schema.node('doc', null, [nonEmptyBlock]);
+    const { handled: h1 } = run(doc, 1);
+    expect(h1).toBe(true); // sanity: does fire for the genuinely empty case
+    const { handled: h2, dispatched: d2 } = run(doc2, 3); // mid-content, not start
+    expect(h2).toBe(false);
+    expect(d2).toBe(false);
+  });
+
+  it("returns false when the caret isn't in a code block", () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph')]);
+    const { handled, dispatched } = run(doc, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('returns false for a cross-parent selection', () => {
+    const codeBlock = schema.node('code_block');
+    const para = schema.node('paragraph', null, schema.text('x'));
+    const doc = schema.node('doc', null, [codeBlock, para]);
+    const { handled, dispatched } = run(doc, 4, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('toggleBlockType', () => {
+  const toggle: Command = toggleBlockType(schema.nodes.code_block, schema.nodes.paragraph);
+  const run = (doc: ReturnType<typeof schema.node>, selPos: number, selEnd?: number) =>
+    runCmd(toggle, doc, selPos, selEnd);
+
+  it('turns a paragraph into a code block', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, schema.text('let x = 1')),
+    ]);
+    const { next } = run(doc, 3);
+    expect(next!.doc.firstChild?.type.name).toBe('code_block');
+    expect(next!.doc.firstChild?.textContent).toBe('let x = 1');
+  });
+
+  it('turns a code block back into a paragraph when invoked from inside one (the toggle)', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('code_block', null, schema.text('let x = 1')),
+    ]);
+    const { next } = run(doc, 3);
+    expect(next!.doc.firstChild?.type.name).toBe('paragraph');
+    expect(next!.doc.firstChild?.textContent).toBe('let x = 1');
+  });
+
+  it('round-trips: toggling twice returns to a code block', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('code_block', null, schema.text('x')),
+    ]);
+    const { next: once } = run(doc, 2);
+    expect(once!.doc.firstChild?.type.name).toBe('paragraph');
+    const { next: twice } = run(once!.doc, 2);
+    expect(twice!.doc.firstChild?.type.name).toBe('code_block');
+    expect(twice!.doc.firstChild?.textContent).toBe('x');
+  });
+
+  it('does not toggle off when the selection extends beyond the code block', () => {
+    const codeBlock = schema.node('code_block', null, schema.text('x'));
+    const para = schema.node('paragraph', null, schema.text('y'));
+    const doc = schema.node('doc', null, [codeBlock, para]);
+    // Selection from inside the code block to inside the paragraph — not
+    // "purely inside" the code block, so this must behave as "turn into
+    // code block" (setType), not the toggle-off branch.
+    const { next } = run(doc, 2, 5);
+    expect(next!.doc.firstChild?.type.name).toBe('code_block');
+    expect(next!.doc.lastChild?.type.name).toBe('code_block');
   });
 });
