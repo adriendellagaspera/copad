@@ -676,69 +676,128 @@
 </script>
 
 <div class="app">
-  <header>
-    <div class="brand">
-      <img src="{import.meta.env.BASE_URL}favicon.svg" alt="" width="26" height="26" />
-      <!-- Not a heading: an <h1> here would compete with the document's own
-           level-1 heading, giving screen-reader heading nav two page titles. -->
-      <!-- Reload is destructive (drops focus/selection instantly) and sits in the
-           header's normal tab order, so a stray Enter/Space while tabbing through
-           the page (e.g. to reach the floating selection toolbar) can trigger it
-           with no warning. Confirming keeps the deliberate mouse-click workflow
-           intact while guarding against an accidental keyboard activation. -->
-      <button class="wordmark" onclick={confirmReload} title="Reload">Copad</button>
+  <!-- Not a heading: an <h1> here would compete with the document's own
+       level-1 heading, giving screen-reader heading nav two page titles.
+       One capsule, one size grammar (see app.css) — a single floating pill
+       holds every piece of session chrome. On mobile it collapses to just
+       the room name; every action moves to the bottom dock below. -->
+  <header class="capsule">
+    <!-- Reload is destructive (drops focus/selection instantly) and sits in the
+         header's normal tab order, so a stray Enter/Space while tabbing through
+         the page (e.g. to reach the floating selection toolbar) can trigger it
+         with no warning. Confirming keeps the deliberate mouse-click workflow
+         intact while guarding against an accidental keyboard activation. -->
+    <button class="cap-mark" onclick={confirmReload} title="Copad — reload" aria-label="Copad — reload">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 19.5V6a2 2 0 0 1 2-2h8l6 6v9.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" /><path d="M14 4v6h6" />
+      </svg>
+    </button>
+
+    <RoomNameField {room} name={roomName.value} onRename={renameCurrentRoom} />
+
+    <button
+      class="cap-btn"
+      onclick={newRoom}
+      title="New document (opens in a new tab)"
+      aria-label="New document (opens in a new tab)"
+    >
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+    </button>
+
+    <div class="cap-fill"></div>
+
+    <div class="session">
+      <!-- One status chip: connection (Direct/Alone/…) + durability (Saved/Not saved).
+           Tap opens the detail sheet (connection + where it's kept + connect action). -->
+      <StatusPill
+        conn={sessionState.conn}
+        saveStatus={sessionState.saveStatus}
+        hasStorage={savedHere}
+        storageLabel={savedHere ? storage?.storage.label : undefined}
+        warning={conflictWarning}
+        transport={sessionState.diagnostics.transport}
+        encrypted={roomEncrypted}
+        onclick={() => (diagOpen = true)}
+      />
+      {#if otherPeers.length > 0}
+        <PresenceBar users={otherPeers} size={24} />
+      {/if}
     </div>
-    <div class="controls">
-      <RoomNameField {room} name={roomName.value} onRename={renameCurrentRoom} />
-      <button
-        class="btn-new icon-btn"
-        onclick={newRoom}
-        title="New document (opens in a new tab)"
-        aria-label="New document (opens in a new tab)"
-      >
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-      </button>
 
-      <div class="session">
-        <!-- One status chip: connection (Direct/Alone/…) + durability (Saved/Not saved).
-             Tap opens the detail sheet (connection + where it's kept + connect action). -->
-        <StatusPill
-          conn={sessionState.conn}
-          saveStatus={sessionState.saveStatus}
-          hasStorage={savedHere}
-          storageLabel={savedHere ? storage?.storage.label : undefined}
-          warning={conflictWarning}
-          transport={sessionState.diagnostics.transport}
-          encrypted={roomEncrypted}
-          onclick={() => (diagOpen = true)}
-        />
-        {#if otherPeers.length > 0}
-          <PresenceBar users={otherPeers} />
-        {/if}
-      </div>
+    <div class="cap-divider"></div>
 
+    <div class="cap-identity">
       <IdentityMenu
         {name}
         {color}
         colors={COLORS}
+        size={32}
         onName={(v) => { name = v as DisplayName; }}
         onColor={(c) => { color = c; }}
       />
-      <button class="share-btn" onclick={() => (shareOpen = true)} title="Share / invite collaborators">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
-          <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
-        </svg>
-        Share
-      </button>
-      <button class="icon-btn" onclick={() => openSettings()} title="Settings" aria-label="Settings">⚙</button>
-      <ThemeToggle {theme} />
     </div>
+    <button class="cap-share share-btn" onclick={() => (shareOpen = true)} title="Share / invite collaborators">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+        <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
+      </svg>
+      Share
+    </button>
+    <button class="cap-btn" onclick={() => openSettings()} title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+      </svg>
+    </button>
+    <div class="cap-theme"><ThemeToggle {theme} /></div>
   </header>
 
-
+  <!-- Mobile-only "nav mode" dock (M3) — a fixed bottom capsule mirroring the
+       header's actions, since the header itself collapsed to just the room
+       name above. Hidden the instant the document has focus, when
+       editor.css's .fixed-toolbar takes the same slot in "format mode" —
+       the two never show at once (see sessionState.editing). -->
+  <div class="mobile-dock" class:dock-hidden={sessionState.editing}>
+    <IdentityMenu
+      {name}
+      {color}
+      colors={COLORS}
+      placement="above"
+      onName={(v) => { name = v as DisplayName; }}
+      onColor={(c) => { color = c; }}
+    />
+    <StatusPill
+      conn={sessionState.conn}
+      saveStatus={sessionState.saveStatus}
+      hasStorage={savedHere}
+      storageLabel={savedHere ? storage?.storage.label : undefined}
+      warning={conflictWarning}
+      transport={sessionState.diagnostics.transport}
+      encrypted={roomEncrypted}
+      onclick={() => (diagOpen = true)}
+    />
+    <div class="dock-fill"></div>
+    <button class="dock-btn" onclick={newRoom} title="New document (opens in a new tab)" aria-label="New document (opens in a new tab)">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+    </button>
+    <button class="dock-share" onclick={() => (shareOpen = true)} title="Share / invite collaborators" aria-label="Share / invite collaborators">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+        <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
+      </svg>
+      Share
+    </button>
+    <button class="dock-btn" onclick={() => openSettings()} title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+      </svg>
+    </button>
+  </div>
 
   <!-- Presence / durability layer — one strip, one surface, never contradictory.
        Decision 2: the old always-on "Set up a storage backend…" InfoBanner is gone.
@@ -847,6 +906,7 @@
   backends={storageBackends}
   bind:open={settingsOpen}
   focusId={settingsFocus}
+  {theme}
   {localCache}
   onCacheChange={setLocalCache}
   onCacheClear={clearLocalCopies}

@@ -20,49 +20,148 @@
   min-height: 100dvh;
 }
 
-/* ── Header ── */
+/* ── Header — floating command capsule ──
+   One pill, one size grammar: capsule height 52px, icon buttons 36×36,
+   Share 38px tall (the only solid-accent, primary-action treatment). Two gap
+   sizes carry meaning — 2px between buttons in the same functional cluster
+   (Settings/Theme), 8px at every group boundary (around the divider, around
+   Share, around the identity avatar) — replacing the old mix of ad hoc
+   paddings (0.35 / 0.4 / 0.4×0.75rem) and the stray ⚙ glyph. */
 
-header {
+header.capsule {
   display: flex;
   align-items: center;
-  gap: var(--sp-4);
-  flex-wrap: wrap;
+  height: 52px;
+  padding: 0 8px;
+  margin: 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  box-shadow: var(--shadow-md);
 }
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-right: auto;
-}
-.brand img {
-  width: 26px;
-  height: 26px;
-  border-radius: var(--r-sm);
-  display: block;
-}
-.wordmark {
-  margin: 0;
+.cap-mark {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  margin-right: 10px;
   padding: 0;
   border: none;
-  background: none;
-  font-family: inherit;
-  font-size: var(--fs-600);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  color: var(--text);
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  display: grid;
+  place-items: center;
   cursor: pointer;
 }
-.wordmark:hover:not(:disabled) {
-  background: none;
-  color: var(--text-muted);
+.cap-mark svg {
+  display: block;
 }
 
-.controls {
-  display: flex;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
+.cap-fill {
+  flex: 1;
+  min-width: 0;
+}
+
+.cap-divider {
+  width: 1px;
+  height: 22px;
+  flex: none;
+  margin: 0 8px;
+  background: var(--border);
+}
+
+.cap-btn {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.cap-btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.cap-btn svg {
+  display: block;
+}
+
+.cap-share {
+  display: inline-flex;
   align-items: center;
+  gap: 6px;
+  height: 38px;
+  flex: none;
+  margin: 0 8px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font: inherit;
+  font-size: var(--fs-300);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.cap-share:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.cap-share svg {
+  display: block;
+}
+
+.cap-identity {
+  flex: none;
+  margin: 0 8px;
+}
+
+/* Session cluster (status + presence) inside the capsule — the .session
+   class name is kept for e2e/collab.test.ts's `.session .presence .avatar`
+   selector. */
+.session {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+/* Mobile: the pill collapses to a flush, chromeless strip holding only the
+   room name — every action moves to the bottom dock (.mobile-dock /
+   .fixed-toolbar.editing, see app.css below and editor.css) so the header
+   never costs more than a single ~44px line at rest, and none at all once
+   the dock takes over near the keyboard. Gated on pointer:coarse — the same
+   axis Editor.svelte's toolbar-vs-bubble switch already uses — so this is a
+   touch-device layout, not merely "narrow browser window". */
+@media (pointer: coarse) {
+  header.capsule {
+    height: 44px;
+    padding: 0 var(--sp-2);
+    margin: 0;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    background: var(--surface-2);
+    box-shadow: none;
+    justify-content: center;
+  }
+  header.capsule .cap-mark,
+  header.capsule .cap-btn,
+  header.capsule .cap-fill,
+  header.capsule .cap-divider,
+  header.capsule .cap-share,
+  header.capsule .cap-identity,
+  header.capsule .session,
+  header.capsule .cap-theme {
+    display: none;
+  }
 }
 
 label {
@@ -151,31 +250,6 @@ button.ghost {
 }
 button.ghost:hover:not(:disabled) {
   background: var(--surface-3);
-}
-
-/* New-document button — a compact icon (+) sharing .icon-btn sizing. */
-.btn-new svg {
-  display: block;
-}
-
-.share-btn {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-strong));
-  font-weight: 500;
-}
-.share-btn:hover:not(:disabled) {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-}
-.share-btn svg {
-  display: block;
-}
-
-/* ── Header session cluster (connection status + presence) ── */
-.session {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
 }
 
 /* ── Connect panel ── */
@@ -371,6 +445,11 @@ button.status-link {
   align-items: center;
   gap: var(--sp-2);
 }
+.appearance-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
 .field input {
   width: 100%;
 }
@@ -416,25 +495,91 @@ button.status-link {
     padding: var(--sp-4) var(--sp-3) var(--sp-6);
     gap: var(--sp-3);
   }
-  .controls {
-    width: 100%;
-  }
-  .controls > label {
-    flex: 1 1 140px;
-  }
-  .controls > label input,
-  .controls > label select {
-    flex: 1;
-    width: auto;
-  }
-  .room-switcher {
-    flex: 1 1 100%;
-  }
 }
 
 /* Comfortable hit targets on touch devices. */
 @media (pointer: coarse) {
   button {
     min-height: 40px;
+  }
+}
+
+/* ── Mobile bottom dock, "nav mode" (M3) ──
+   Mirrors editor.css's .fixed-toolbar "format mode" in the same fixed slot —
+   the two are mutually exclusive via sessionState.editing, so there is never
+   more than one 44px bar of chrome at the bottom, and none until the header
+   capsule collapses (see the pointer:coarse rule on header.capsule above).
+   Desktop never sees this: it keeps every action in the capsule. */
+.mobile-dock {
+  display: none;
+}
+@media (pointer: coarse) {
+  .mobile-dock {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 44px;
+    position: fixed;
+    left: var(--sp-2);
+    right: var(--sp-2);
+    bottom: max(var(--sp-2), env(safe-area-inset-bottom));
+    z-index: var(--z-menu);
+    padding: 0 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-full);
+    box-shadow: var(--shadow-md);
+  }
+  .mobile-dock.dock-hidden {
+    display: none;
+  }
+  .mobile-dock .dock-fill {
+    flex: 1;
+    min-width: 0;
+  }
+  .mobile-dock .dock-btn {
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+    flex: none;
+    padding: 0;
+    border: none;
+    border-radius: var(--r-full);
+    background: transparent;
+    color: var(--text-muted);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+  }
+  .mobile-dock .dock-btn:hover:not(:disabled) {
+    background: var(--surface-3);
+    color: var(--text);
+  }
+  .mobile-dock .dock-btn svg {
+    display: block;
+  }
+  .mobile-dock .dock-share {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 32px;
+    min-height: 32px;
+    flex: none;
+    margin: 0 4px;
+    padding: 0 10px;
+    border: none;
+    border-radius: var(--r-full);
+    background: var(--accent);
+    color: var(--accent-contrast);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .mobile-dock .dock-share:hover:not(:disabled) {
+    background: var(--accent-hover);
+  }
+  .mobile-dock .dock-share svg {
+    display: block;
   }
 }

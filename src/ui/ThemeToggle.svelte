@@ -29,12 +29,21 @@
 </button>
 
 <style>
+  /* Matches the capsule's .cap-btn metrics exactly (see app.css) — same
+     36×36 circle, same hover fill — so it reads as one more item in the
+     capsule's button cluster rather than a visitor with its own rules. */
   .icon-btn {
+    width: 36px;
+    height: 36px;
     min-width: 0;
-    padding: 0.4rem;
+    padding: 0;
+    border: none;
+    border-radius: var(--r-full);
+    background: transparent;
     color: var(--text-muted);
   }
   .icon-btn:hover:not(:disabled) {
+    background: var(--surface-3);
     color: var(--text);
   }
   svg {

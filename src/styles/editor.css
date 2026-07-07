@@ -97,6 +97,40 @@
   }
 }
 
+/* ── Mobile bottom dock, "format mode" (M3) ──
+   Hidden at rest — it only appears while the document has focus, occupying
+   the same fixed slot as App.svelte's nav-mode dock (.mobile-dock in
+   app.css). The two are mutually exclusive via the same sessionState.editing
+   flag, so formatting controls never cost vertical space until they're
+   actually needed, and always sit right above the keyboard. */
+@media (pointer: coarse) {
+  .fixed-toolbar {
+    display: none;
+    position: fixed;
+    left: var(--sp-2);
+    right: var(--sp-2);
+    bottom: max(var(--sp-2), env(safe-area-inset-bottom));
+    z-index: var(--z-menu);
+  }
+  .fixed-toolbar.editing {
+    display: block;
+  }
+  .fixed-toolbar .toolbar {
+    height: 44px;
+    padding: 0 6px;
+    gap: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-full);
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .fixed-toolbar .toolbar .spacer {
+    display: none;
+  }
+}
+
 /* ── Armed-formatting caret hint (desktop) ── */
 
 /* A small, non-interactive pill floating over the collapsed caret that names
@@ -204,7 +238,7 @@
   border: none;
   background: transparent;
   color: var(--text-faint);
-  border-radius: var(--r-2, 4px);
+  border-radius: var(--r-sm);
   cursor: pointer;
 }
 .status .diag-btn:hover {
@@ -354,6 +388,10 @@
 @media (max-width: 640px) {
   .content {
     padding: var(--sp-4);
+    /* Reserve room for the fixed bottom dock (nav or format mode, see
+       .mobile-dock in app.css and .fixed-toolbar above) so it never covers
+       the last lines of text. */
+    padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));
   }
   .ProseMirror {
     font-size: var(--fs-400);
@@ -361,6 +399,17 @@
   .status {
     flex-wrap: wrap;
     gap: var(--sp-2);
+  }
+}
+
+/* The document-meta footer (shortcuts/words/outline) sits in normal flow at
+   the bottom of the editor card, which now overlaps the fixed mobile dock
+   (.mobile-dock / .fixed-toolbar, both anchored near the viewport's bottom
+   edge). Word count and outline are desktop conveniences; hiding this strip
+   on touch avoids the collision rather than fighting it with more offsets. */
+@media (pointer: coarse) {
+  .status {
+    display: none;
   }
 }
 

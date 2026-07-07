@@ -49,7 +49,11 @@
 </script>
 
 {#if view}
-  <div class="toolbar" role="toolbar" aria-label="Formatting">
+  <!-- Prevent default on pointerdown so tapping a button never blurs the
+       ProseMirror content first: on mobile that blur (via Editor.svelte's
+       focusout tracking) would swap the bottom dock away from this exact
+       toolbar mid-tap. The click still fires and runs the command normally. -->
+  <div class="toolbar" role="toolbar" aria-label="Formatting" onpointerdown={(e) => e.preventDefault()}>
     <button data-active={bold}   aria-pressed={bold}   onclick={run(commands.bold)}   title="Bold (Mod+B)" aria-label="Bold"><b>B</b></button>
     <button data-active={italic} aria-pressed={italic} onclick={run(commands.italic)} title="Italic (Mod+I)" aria-label="Italic"><i>I</i></button>
     <button data-active={strike} aria-pressed={strike} onclick={run(commands.strike)} title="Strikethrough (Mod+Shift+X, or ~~text~~)" aria-label="Strikethrough"><s>S</s></button>

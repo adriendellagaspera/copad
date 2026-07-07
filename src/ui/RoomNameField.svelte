@@ -24,37 +24,49 @@
 </div>
 
 <style>
+  /* Behaves like a search-bar segment inside the header capsule: no border or
+     fill until hover/focus, so it never competes visually with the capsule's
+     one true accent, the Share button. */
   .room-switcher {
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 0;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--r-sm);
-    background: var(--surface);
-    padding-left: 0.5rem;
+    gap: 0.3rem;
+    height: 36px;
+    border-radius: var(--r-full);
+    background: transparent;
+    padding: 0 10px;
+    transition: background var(--dur-fast) var(--ease);
+  }
+  .room-switcher:hover {
+    background: var(--surface-3);
   }
   /* :focus-within has no ":visible" variant of its own, so gate it manually
      on tracked input modality (src/ui/inputModality.ts) — otherwise this
      shows on every mouse click into the field, unlike the rest of the app. */
   :global(:root[data-input-modality='keyboard']) .room-switcher:focus-within {
-    border-color: var(--accent);
+    background: var(--surface-3);
     box-shadow: 0 0 0 2px var(--selection);
   }
   .room-sigil {
     font-family: var(--font-mono);
     font-weight: 600;
-    font-size: var(--fs-400);
+    font-size: var(--fs-300);
     color: var(--text-faint);
     line-height: 1;
     user-select: none;
   }
   .room-name-input {
     font-family: var(--font-mono);
-    width: 9rem;
+    font-size: 0.8125rem;
+    width: 8.5rem;
     border: none;
     background: transparent;
-    padding: 0.4rem 0.3rem 0.4rem 0.35rem;
+    padding: 0;
+    color: var(--text-muted);
+  }
+  .room-name-input:focus {
+    color: var(--text);
   }
   /* Extra `.room-switcher` ancestor bumps specificity above app.css's
      modality-gated `input:focus-visible` rule (which now includes a
@@ -66,14 +78,27 @@
     box-shadow: none;
   }
 
-  /* On narrow screens the switcher spans the row, so let the name input grow. */
-  @media (max-width: 720px) {
+  /* Mobile (M3): the header capsule collapses to a flush strip holding only
+     this field (see header.capsule's pointer:coarse rule in app.css) — so it
+     drops its own chrome too, becoming plain centered text until tapped.
+     Same pointer:coarse axis as the capsule collapse it lives inside. */
+  @media (pointer: coarse) {
     .room-switcher {
-      width: 100%;
+      border: none;
+      background: transparent;
+      padding-left: 0;
+      justify-content: center;
+      width: auto;
+      max-width: 100%;
+    }
+    .room-sigil {
+      display: none;
     }
     .room-name-input {
       width: auto;
-      flex: 1;
+      max-width: 60vw;
+      text-align: center;
+      padding: 0.3rem 0;
     }
   }
 </style>
