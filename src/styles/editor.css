@@ -204,9 +204,11 @@
 }
 
 .ProseMirror {
-  outline: none;
   /* Fill the content area so clicking anywhere in the empty space below the
-     text still focuses the editor (Notion-like). */
+     text still focuses the editor (Notion-like). No :focus outline reset here
+     — the global :focus-visible / :focus:not(:focus-visible) rules in
+     base.css already give mouse clicks no ring and keyboard focus a visible
+     one; overriding it here used to kill the ring in both cases. */
   min-height: 100%;
   max-width: var(--measure);
   margin: 0 auto;
@@ -214,10 +216,6 @@
   font-size: var(--fs-500);
   line-height: var(--lh-read);
   color: var(--text);
-}
-
-.ProseMirror:focus {
-  outline: none;
 }
 
 .ProseMirror > :first-child {
@@ -307,10 +305,12 @@
   margin: 1.5em 0;
 }
 
-/* Placeholder for an empty document (set via a ProseMirror plugin / attr). */
+/* Placeholder for an empty document (set via a ProseMirror plugin / attr).
+   --text-muted, not --text-faint: at the reading font size this is normal-size
+   functional copy (AA needs 4.5:1; --text-faint only clears ~2.9:1). */
 .ProseMirror .is-empty::before {
   content: attr(data-placeholder);
-  color: var(--text-faint);
+  color: var(--text-muted);
   pointer-events: none;
   height: 0;
   float: left;

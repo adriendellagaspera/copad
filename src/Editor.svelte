@@ -269,7 +269,11 @@
   // away by PM's decoration diffing on each state update).
   $effect(() => {
     if (!view) return;
-    view.setProps({ attributes: { lang, spellcheck: spellcheck ? 'true' : 'false' } });
+    // setProps({ attributes }) replaces the whole attributes object, so every
+    // static attribute (not just lang/spellcheck) has to be repeated here.
+    view.setProps({
+      attributes: { lang, spellcheck: spellcheck ? 'true' : 'false', 'aria-label': 'Document editor' },
+    });
   });
 
   // Toggle editability when the write-gate opens/closes. ProseMirror re-reads the
@@ -322,6 +326,7 @@
       attributes: {
         lang: untrack(() => lang),
         spellcheck: untrack(() => spellcheck) ? 'true' : 'false',
+        'aria-label': 'Document editor',
       },
       // role is URL-derived and fixed for the session; untrack avoids a
       // reactive dependency inside ProseMirror's render cycle. The write-gate's
@@ -355,7 +360,7 @@
   });
 </script>
 
-<div class="editor">
+<main class="editor" aria-label="Document">
   <!-- Fixed bar: kept on touch devices, hidden on desktop (see editor.css)
        where the SelectionToolbar bubble takes over. -->
   <div class="fixed-toolbar">
@@ -372,4 +377,4 @@
   <CaretFormatHint {view} {editorState} />
   <SlashMenu {view} {editorState} />
   <LinkPopover {view} />
-</div>
+</main>

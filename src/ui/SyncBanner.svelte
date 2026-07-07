@@ -66,6 +66,12 @@
   // you opted to write solo, or the room is saved / on a hub and was never
   // gateable). Nothing during the gate's grace window. Same slot throughout.
   const show = $derived(gated || collabUnavailable || (alone && !gateEligible));
+
+  // Svelte's JS transition:slide isn't touched by the CSS reduced-motion reset
+  // in base.css (that only catches CSS animations/transitions), so it needs
+  // its own check.
+  const reducedMotion =
+    typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 </script>
 
 <!-- Presence-first solo state, one strip that escalates (north-star: voice + paper;
@@ -82,7 +88,7 @@
     class:soft={!strong}
     role="status"
     aria-live="polite"
-    transition:slide={{ duration: 150 }}
+    transition:slide={{ duration: reducedMotion ? 0 : 150 }}
   >
     <span class="ic" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

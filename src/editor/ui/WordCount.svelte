@@ -17,7 +17,7 @@
 
 <style>
   .wordcount {
-    color: var(--text-faint);
+    color: var(--text-muted);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }

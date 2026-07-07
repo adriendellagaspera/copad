@@ -25,19 +25,51 @@
   });
 
   let open = $state(false);
+  let triggerBtn = $state<HTMLButtonElement | undefined>();
 
   function goto(pos: number): void {
     if (!view) return;
     const target = Math.min(pos + 1, view.state.doc.content.size);
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, target)).scrollIntoView());
-    view.focus();
+    view.focus(); // deliberate: jumping to a heading focuses the document, not the trigger
     open = false;
+  }
+
+  // Escape has no focus target of its own, so return focus to the trigger
+  // (unlike the backdrop click, which already leaves focus wherever clicked).
+  $effect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        open = false;
+        triggerBtn?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  // Roving Up/Down between headings (ARIA menu convention).
+  function onMenuKeydown(e: KeyboardEvent): void {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const items = Array.from(
+      (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="menuitem"]'),
+    );
+    if (items.length === 0) return;
+    e.preventDefault();
+    const idx = items.indexOf(document.activeElement as HTMLElement);
+    const next =
+      e.key === 'ArrowDown'
+        ? items[(idx + 1) % items.length]
+        : items[(idx - 1 + items.length) % items.length];
+    next.focus();
   }
 </script>
 
 {#if headings.length > 0}
   <div class="outline">
     <button
+      bind:this={triggerBtn}
       class="ghost outline-btn"
       onclick={() => (open = !open)}
       aria-expanded={open}
@@ -50,7 +82,7 @@
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div class="outline-backdrop" onmousedown={() => (open = false)}></div>
-      <div class="outline-panel" role="menu" aria-label="Document outline">
+      <div class="outline-panel" role="menu" aria-label="Document outline" tabindex="-1" onkeydown={onMenuKeydown}>
         {#each headings as h (h.pos)}
           <button
             class="outline-item"

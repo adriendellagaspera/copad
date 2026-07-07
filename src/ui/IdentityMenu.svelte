@@ -14,6 +14,14 @@
 
   let open = $state(false);
   let root = $state<HTMLDivElement | undefined>();
+  let triggerBtn = $state<HTMLButtonElement | undefined>();
+
+  // Closing without a click on the trigger itself (outside click, Escape, Enter
+  // in the name field) would otherwise drop focus to the document body.
+  function closeAndReturnFocus(): void {
+    open = false;
+    triggerBtn?.focus();
+  }
 
   // Focus the name field when the popover opens (it mounts on open), without the
   // a11y-flagged `autofocus` attribute.
@@ -28,10 +36,14 @@
   $effect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
+      // An outside click already moves focus wherever the user clicked (or
+      // leaves it on body for a non-focusable area) — don't fight that by
+      // yanking focus back to the trigger.
       if (root && !root.contains(e.target as Node)) open = false;
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') open = false;
+      // Escape has no focus target of its own, so return focus to the trigger.
+      if (e.key === 'Escape') closeAndReturnFocus();
     };
     window.addEventListener('mousedown', onDown);
     window.addEventListener('keydown', onKey);
@@ -44,9 +56,10 @@
 
 <div class="identity" bind:this={root}>
   <button
+    bind:this={triggerBtn}
     class="identity-btn"
     class:hint={isDefault}
-    aria-haspopup="dialog"
+    aria-haspopup="true"
     aria-expanded={open}
     title="You — click to set your name & colour"
     aria-label="Your identity — click to edit"
@@ -57,7 +70,9 @@
   </button>
 
   {#if open}
-    <div class="identity-pop" role="dialog" aria-label="Your identity">
+    <!-- role="group", not "dialog": this is a small set of related controls,
+         not a modal — it has no focus trap and shouldn't announce as one. -->
+    <div class="identity-pop" role="group" aria-label="Your identity">
       <label class="identity-field">
         <span>Your name</span>
         <input
@@ -65,7 +80,7 @@
           placeholder="Your name"
           value={name === 'Anonymous' ? '' : name}
           oninput={(e) => onName(e.currentTarget.value)}
-          onkeydown={(e) => e.key === 'Enter' && (open = false)}
+          onkeydown={(e) => e.key === 'Enter' && closeAndReturnFocus()}
         />
       </label>
       <div class="identity-field">

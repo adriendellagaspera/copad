@@ -63,10 +63,12 @@
   import { createTheme } from './ui/theme.svelte.js';
   import { createToasts } from './ui/toasts.svelte.js';
   import { createLanguage } from './ui/language.svelte.js';
+  import { initInputModality } from './ui/inputModality.js';
 
   const theme = createTheme();
   const toasts = createToasts();
   const language = createLanguage();
+  $effect(() => initInputModality());
   let shareOpen = $state(false);
   // Copad's peer-to-peer (no async sync) default used to be explained up front by
   // a one-time intro modal. That taught the same "solo writing is ephemeral" lesson
@@ -639,7 +641,9 @@
   <header>
     <div class="brand">
       <img src="{import.meta.env.BASE_URL}favicon.svg" alt="" width="26" height="26" />
-      <h1>Copad</h1>
+      <!-- Not a heading: an <h1> here would compete with the document's own
+           level-1 heading, giving screen-reader heading nav two page titles. -->
+      <button class="wordmark" onclick={() => location.reload()} title="Reload">Copad</button>
     </div>
     <div class="controls">
       <RoomSwitcher {room} name={roomName.value} onRename={renameCurrentRoom} onOpen={openRoom} />

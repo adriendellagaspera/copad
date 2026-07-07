@@ -112,8 +112,14 @@
     font-weight: 600;
   }
   .dialog-close {
-    min-width: 0;
-    padding: 0.3rem 0.45rem;
+    /* >=44px hit area (WCAG 2.5.5) around a small glyph — the button grows via
+       padding, not by enlarging the ✕ itself. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
     color: var(--text-muted);
     border: none;
   }
