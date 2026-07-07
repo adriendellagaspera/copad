@@ -9,7 +9,14 @@
   padding: var(--sp-5) var(--sp-4) var(--sp-8);
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
+  /* Spacing between the header, the (conditionally rendered) SyncBanner, and
+     the content below is carried by margin-bottom on each piece rather than
+     flex `gap`. `gap` doesn't animate — it's constant while the banner's
+     slide-out transition shrinks its height, then vanishes in one frame the
+     instant the node is removed, producing a visible jump right before it
+     disappears. Margin-bottom on the banner's own element is read by Svelte's
+     `slide` transition alongside height, so it shrinks to 0 in step and there's
+     nothing left to collapse when the node goes away. */
   /* Lock to the viewport so the frame is fixed (not draggable on mobile) and the
      editor scrolls internally instead of pushing the whole page past the fold.
      dvh tracks the dynamic viewport (mobile browser chrome) where supported; vh
@@ -27,6 +34,7 @@ header {
   align-items: center;
   gap: var(--sp-4);
   flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
 }
 
 .brand {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { ConnStatus, Transport } from '../collaboration/types.js';
 
   let {
@@ -65,13 +66,64 @@
   // fact, its own tier) → the standing solo reminder (never blocks, transient —
   // you opted to write solo, or the room is saved / on a hub and was never
   // gateable). Nothing during the gate's grace window. Same slot throughout.
-  const show = $derived(gated || collabUnavailable || (alone && !gateEligible));
+  const wantShow = $derived(gated || collabUnavailable || (alone && !gateEligible));
 
-  // Svelte's JS transition:slide isn't touched by the CSS reduced-motion reset
-  // in base.css (that only catches CSS animations/transitions), so it needs
-  // its own check.
+  // Dismissible: the write-gate itself lives on the editor (click/keystroke
+  // lifts it regardless of this banner), so hiding the strip never traps you —
+  // it only drops the explanation + Invite/Connect nudge until the *reason*
+  // changes. `reason` collapses to 'hidden' whenever `wantShow` is false, so a
+  // dismissal is forgotten the moment there's a fresh thing to say (a new tier,
+  // or the same tier recurring after going away).
+  const reason = $derived(
+    !wantShow ? 'hidden' : gated ? 'gated' : collabUnavailable ? 'unavailable' : 'alone',
+  );
+  let dismissed = $state(false);
+  $effect(() => {
+    reason;
+    dismissed = false;
+  });
+  const show = $derived(wantShow && !dismissed);
+
+  // Svelte's JS transitions aren't touched by the CSS reduced-motion reset in
+  // base.css (that only catches CSS animations/transitions), so they need
+  // their own check.
   const reducedMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Plain `slide` fades opacity in only over the last 5% of the animation, so
+  // for most of the exit the rounded, bordered strip is fully visible while its
+  // own height/padding/margin/border shrink toward 0 — a squashed pill by the
+  // end, worst right where the border-radius no longer fits the box. Fading
+  // out over the *first* 60% instead means the strip is already invisible well
+  // before it gets short enough for the rounding to look wrong; the last 40%
+  // just closes the now-invisible gap it leaves behind.
+  function bannerOut(node: Element, { duration = 220 }: { duration?: number } = {}) {
+    const style = getComputedStyle(node);
+    const opacity = +style.opacity;
+    const height = parseFloat(style.height);
+    const paddingTop = parseFloat(style.paddingTop);
+    const paddingBottom = parseFloat(style.paddingBottom);
+    const marginTop = parseFloat(style.marginTop);
+    const marginBottom = parseFloat(style.marginBottom);
+    const borderTopWidth = parseFloat(style.borderTopWidth);
+    const borderBottomWidth = parseFloat(style.borderBottomWidth);
+    return {
+      duration,
+      easing: cubicOut,
+      css: (t: number) => `
+        overflow: hidden;
+        opacity: ${Math.max(0, (t - 0.4) / 0.6) * opacity};
+        height: ${t * height}px;
+        padding-top: ${t * paddingTop}px;
+        padding-bottom: ${t * paddingBottom}px;
+        margin-top: ${t * marginTop}px;
+        margin-bottom: ${t * marginBottom}px;
+        border-top-width: ${t * borderTopWidth}px;
+        border-bottom-width: ${t * borderBottomWidth}px;
+        min-height: 0;
+      `,
+    };
+  }
 </script>
 
 <!-- Presence-first solo state, one strip that escalates (north-star: voice + paper;
@@ -88,7 +140,8 @@
     class:soft={!strong}
     role="status"
     aria-live="polite"
-    transition:slide={{ duration: reducedMotion ? 0 : 150 }}
+    in:slide={{ duration: reducedMotion ? 0 : 150 }}
+    out:bannerOut={{ duration: reducedMotion ? 0 : 220 }}
   >
     <span class="ic" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -158,6 +211,14 @@
         <button class="link" onclick={onConnectStorage}>Connect storage</button>
       </span>
     {/if}
+    <button
+      class="dismiss ghost"
+      onclick={() => (dismissed = true)}
+      aria-label="Dismiss"
+      title="Dismiss"
+    >
+      ✕
+    </button>
   </div>
 {/if}
 
@@ -172,8 +233,14 @@
     gap: var(--sp-3);
     flex-wrap: wrap;
     padding: var(--sp-2) var(--sp-4);
+    /* Own margin, not the parent's flex `gap`: `slide` (see App.svelte's `.app`
+       comment) animates a node's margin alongside its height, so the trailing
+       gap shrinks away smoothly instead of snapping shut the instant this node
+       is removed at the end of the dismiss/disappear transition. */
+    margin-bottom: var(--sp-4);
     background: color-mix(in srgb, var(--warn-soft) 55%, var(--surface-2));
-    border-bottom: 1px solid color-mix(in srgb, var(--warn-border) 55%, var(--border));
+    border: 1px solid color-mix(in srgb, var(--warn-border) 55%, var(--border));
+    border-radius: var(--r-md);
     color: var(--text-muted);
     font-size: var(--fs-300);
     line-height: 1.4;
@@ -182,7 +249,7 @@
      drop the amber tint entirely for a plain neutral surface and a neutral icon. */
   .sync-banner.soft {
     background: var(--surface-2);
-    border-bottom-color: var(--border);
+    border-color: var(--border);
   }
   .ic {
     flex-shrink: 0;
@@ -205,6 +272,25 @@
     align-items: center;
     gap: var(--sp-2);
     flex-shrink: 0;
+  }
+  /* >=44px hit area (WCAG 2.5.5) around a small glyph — grown via padding, not
+     by enlarging the ✕ itself. Always last, after any tier's own actions. */
+  .dismiss {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    margin: calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2)) 0;
+    font-size: 0.75rem;
+    color: var(--text-faint);
+    border: none;
+  }
+  .dismiss:hover {
+    color: var(--text);
+    background: color-mix(in srgb, var(--text) 7%, transparent);
   }
   /* Primary — a filled accent chip. It pops without clashing now the field is only
      faintly tinted (the old saturated-yellow field made accent-blue collide). */
