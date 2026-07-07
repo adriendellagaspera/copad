@@ -10,7 +10,15 @@ import type { DropboxToken, DropboxAppKey } from './dropbox.js';
 import type { WebDavBaseUrl, WebDavAuthHeader } from './webdav.js';
 import type { PCloudToken, PCloudApiHost, PCloudClientId } from './pcloud.js';
 import type { GitLabProject, GitLabBranch, GitLabHost } from './gitlab.js';
-import { GITHUB_DEFAULT_BRANCH, GITLAB_DEFAULT_BRANCH, GITLAB_DEFAULT_HOST } from './constants.js';
+import type {
+  S3Endpoint,
+  S3Bucket,
+  S3Region,
+  S3KeyPrefix,
+  S3AccessKeyId,
+  S3SecretAccessKey,
+} from './s3.js';
+import { GITHUB_DEFAULT_BRANCH, GITLAB_DEFAULT_BRANCH, GITLAB_DEFAULT_HOST, S3_PREFIX } from './constants.js';
 
 // ── Stored-session shapes (owned here, imported by adapters) ──────────────────
 
@@ -33,12 +41,12 @@ export interface PCloudFileLinkResponse {
 /** Persisted S3 connection. All fields feed AWS Signature V4; `prefix` is the
  *  object-key folder the per-room filename is appended to. */
 export interface S3Conf {
-  endpoint: string;
-  bucket: string;
-  region: string;
-  prefix: string;
-  accessKeyId: string;
-  secretAccessKey: string;
+  endpoint: S3Endpoint;
+  bucket: S3Bucket;
+  region: S3Region;
+  prefix: S3KeyPrefix;
+  accessKeyId: S3AccessKeyId;
+  secretAccessKey: S3SecretAccessKey;
 }
 
 // ── localStorage + JSON.parse boundaries ─────────────────────────────────────
@@ -83,7 +91,16 @@ export function parseS3Conf(raw: string | null): S3Conf | null {
       typeof region !== 'string' || typeof prefix !== 'string' ||
       typeof accessKeyId !== 'string' || typeof secretAccessKey !== 'string'
     ) return null;
-    return { endpoint, bucket, region, prefix, accessKeyId, secretAccessKey };
+    // Already validated once at login() time — JSON round-trips a branded
+    // string transparently, so this is a re-cast, not a re-validation.
+    return {
+      endpoint: endpoint as S3Endpoint,
+      bucket: bucket as S3Bucket,
+      region: region as S3Region,
+      prefix: prefix as S3KeyPrefix,
+      accessKeyId: accessKeyId as S3AccessKeyId,
+      secretAccessKey: secretAccessKey as S3SecretAccessKey,
+    };
   } catch {
     return null;
   }
@@ -234,4 +251,41 @@ export function parseGitLabHost(raw: string): GitLabHost {
 /** Always succeeds — returns the default branch when the input is empty. */
 export function parseGitLabBranch(raw: string): GitLabBranch {
   return (raw.trim() || GITLAB_DEFAULT_BRANCH) as GitLabBranch;
+}
+
+// ── S3 config parsers ──────────────────────────────────────────────────────────
+
+/** Accepts any non-empty value — S3-compatible endpoints have no fixed format. */
+export function parseS3Endpoint(raw: string): S3Endpoint | null {
+  const s = raw.trim();
+  return s ? (s as S3Endpoint) : null;
+}
+
+/** Accepts any non-empty value. */
+export function parseS3Bucket(raw: string): S3Bucket | null {
+  const s = raw.trim();
+  return s ? (s as S3Bucket) : null;
+}
+
+/** Accepts any non-empty value. */
+export function parseS3Region(raw: string): S3Region | null {
+  const s = raw.trim();
+  return s ? (s as S3Region) : null;
+}
+
+/** Accepts any non-empty value. */
+export function parseS3AccessKeyId(raw: string): S3AccessKeyId | null {
+  const s = raw.trim();
+  return s ? (s as S3AccessKeyId) : null;
+}
+
+/** Accepts any non-empty value. */
+export function parseS3SecretAccessKey(raw: string): S3SecretAccessKey | null {
+  const s = raw.trim();
+  return s ? (s as S3SecretAccessKey) : null;
+}
+
+/** Always succeeds — falls back to the deployment default prefix when empty. */
+export function parseS3KeyPrefix(raw: string): S3KeyPrefix {
+  return (raw.trim() || S3_PREFIX) as S3KeyPrefix;
 }

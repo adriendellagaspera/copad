@@ -2,7 +2,16 @@ import type { Storage, CredentialField, LoginOptions, DocContent, Filename } fro
 import { DocFormat, InputType, LoginKind, StorageAccess } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { filenameStore } from './filename.js';
-import { type S3Conf, parseS3Conf } from './parse.js';
+import {
+  type S3Conf,
+  parseS3Conf,
+  parseS3Endpoint,
+  parseS3Bucket,
+  parseS3Region,
+  parseS3KeyPrefix,
+  parseS3AccessKeyId,
+  parseS3SecretAccessKey,
+} from './parse.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
 import { STORAGE_ID, DEFAULT_FILENAME, S3_PREFIX, S3_KEY } from './constants.js';
@@ -11,6 +20,26 @@ import { STORAGE_ID, DEFAULT_FILENAME, S3_PREFIX, S3_KEY } from './constants.js'
 // Path-style addressing: {endpoint}/{bucket}/{key}. Requests are signed with AWS
 // Signature V4 via Web Crypto — no SDK. The bucket must allow CORS from this origin;
 // the request is signed directly (host is part of the signature), so no proxy.
+
+// ── Branded types ─────────────────────────────────────────────────────────────
+
+/** An S3-compatible endpoint URL (e.g. `https://s3.eu-west-1.amazonaws.com`). */
+export type S3Endpoint = string & { readonly _brand: 'S3Endpoint' };
+
+/** A bucket name. */
+export type S3Bucket = string & { readonly _brand: 'S3Bucket' };
+
+/** An AWS region (or `auto` for R2). */
+export type S3Region = string & { readonly _brand: 'S3Region' };
+
+/** An object-key prefix (folder) within the bucket. */
+export type S3KeyPrefix = string & { readonly _brand: 'S3KeyPrefix' };
+
+/** An access key ID credential. */
+export type S3AccessKeyId = string & { readonly _brand: 'S3AccessKeyId' };
+
+/** A secret access key credential. */
+export type S3SecretAccessKey = string & { readonly _brand: 'S3SecretAccessKey' };
 
 /** SHA-256 of an empty body — the payload hash for GET requests. */
 const EMPTY_SHA256 =
@@ -50,7 +79,7 @@ async function hmac(key: ArrayBuffer, message: string): Promise<ArrayBuffer> {
   return crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(message));
 }
 
-async function signingKey(secret: string, dateStamp: string, region: string): Promise<ArrayBuffer> {
+async function signingKey(secret: S3SecretAccessKey, dateStamp: string, region: S3Region): Promise<ArrayBuffer> {
   const enc = new TextEncoder();
   const kDate = await hmac(enc.encode(`AWS4${secret}`).buffer as ArrayBuffer, dateStamp);
   const kRegion = await hmac(kDate, region);
@@ -139,17 +168,23 @@ export function s3Storage(room: RoomId): { auth: StorageAuth; storage: Storage }
     async login(opts?: LoginOptions) {
       const creds = opts?.kind === LoginKind.Credentials ? opts.credentials : {};
       const { endpoint = '', bucket = '', region = '', prefix = '', accessKeyId = '', secretAccessKey = '' } = creds;
-      if (!endpoint.trim() || !bucket.trim() || !region.trim() || !accessKeyId.trim() || !secretAccessKey.trim()) {
+
+      const endpointParsed = parseS3Endpoint(endpoint.trim().replace(/\/$/, ''));
+      const bucketParsed = parseS3Bucket(bucket);
+      const regionParsed = parseS3Region(region);
+      const accessKeyIdParsed = parseS3AccessKeyId(accessKeyId);
+      const secretAccessKeyParsed = parseS3SecretAccessKey(secretAccessKey);
+      if (!endpointParsed || !bucketParsed || !regionParsed || !accessKeyIdParsed || !secretAccessKeyParsed) {
         throw new Error('Endpoint, bucket, region, and credentials are required');
       }
 
       const c: S3Conf = {
-        endpoint: endpoint.trim().replace(/\/$/, ''),
-        bucket: bucket.trim(),
-        region: region.trim(),
-        prefix: prefix.trim() || S3_PREFIX,
-        accessKeyId: accessKeyId.trim(),
-        secretAccessKey: secretAccessKey.trim(),
+        endpoint: endpointParsed,
+        bucket: bucketParsed,
+        region: regionParsed,
+        prefix: parseS3KeyPrefix(prefix),
+        accessKeyId: accessKeyIdParsed,
+        secretAccessKey: secretAccessKeyParsed,
       };
 
       // Validate credentials with a signed HEAD on the target object. This checks
