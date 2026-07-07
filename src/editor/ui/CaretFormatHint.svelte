@@ -62,7 +62,19 @@
       visible = false;
       return;
     }
-    const caret = v.coordsAtPos(from);
+    // coordsAtPos measures against the live DOM, which can briefly disagree
+    // with `from` while a burst of transactions (e.g. rapid undo/redo) is
+    // still being flushed into the view, throwing a DOM range error even
+    // though `from` is perfectly in-bounds for the ProseMirror doc — see the
+    // same guard in SelectionToolbar/LinkPopover/SlashMenu. Skip this
+    // reposition; the next reactive pass tries again once things settle.
+    let caret;
+    try {
+      caret = v.coordsAtPos(from);
+    } catch {
+      visible = false;
+      return;
+    }
     const w = host?.offsetWidth ?? 0;
     const h = host?.offsetHeight ?? 0;
     let nextLeft = caret.left - w / 2;
