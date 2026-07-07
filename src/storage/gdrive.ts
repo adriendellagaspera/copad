@@ -10,6 +10,7 @@ import {
   parseGDriveFileList,
   parseGDriveCreatedFile,
   parseGDriveCanEdit,
+  parseGDriveClientId,
 } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
@@ -30,9 +31,19 @@ import {
 /** The id of a file in Google Drive. */
 export type GDriveFileId = string & { readonly _brand: 'GDriveFileId' };
 
+/** An OAuth2 access token issued by Google for the `drive.file` scope. */
+export type GDriveToken = string & { readonly _brand: 'GDriveToken' };
+
+/** A Google Cloud OAuth 2.0 Client ID (`*.apps.googleusercontent.com`). */
+export type GDriveClientId = string & { readonly _brand: 'GDriveClientId' };
+
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const tokenStore = localStore<string | null>(GDRIVE_TOKEN_KEY, (raw) => raw, (v) => v);
+const tokenStore = localStore<GDriveToken | null>(
+  GDRIVE_TOKEN_KEY,
+  (raw) => raw as GDriveToken | null,
+  (v) => v,
+);
 
 const cfg = configStore(STORAGE_ID.gdrive, [
   {
@@ -46,12 +57,12 @@ const cfg = configStore(STORAGE_ID.gdrive, [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function authHeaders(token: string): Record<string, string> {
+function authHeaders(token: GDriveToken): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
 /** Find the id of a non-trashed Drive file with this exact name, or null. */
-async function findFile(token: string, name: Filename): Promise<GDriveFileId | null> {
+async function findFile(token: GDriveToken, name: Filename): Promise<GDriveFileId | null> {
   const q = encodeURIComponent(`name='${name.replace(/'/g, "\\'")}' and trashed=false`);
   const res = await fetch(`${GDRIVE_FILES_URL}?q=${q}&fields=files(id)`, {
     headers: authHeaders(token),
@@ -73,13 +84,18 @@ export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Stora
   // names, so that would silently leave two duplicate files behind.
   let committing = false;
 
-  const token = (): string | null => tokenStore.read();
+  const token = (): GDriveToken | null => tokenStore.read();
+
+  /** The configured OAuth Client ID, parsed at the config boundary. */
+  function resolvedClientId(): GDriveClientId | null {
+    return parseGDriveClientId(cfg.config('clientId'));
+  }
 
   const auth: StorageAuth = {
     isAuthenticated: () => !!token(),
 
     async login() {
-      const clientId = cfg.config('clientId');
+      const clientId = resolvedClientId();
       if (!clientId) throw new Error('Add a Google Cloud Client ID in Settings first.');
 
       const REDIRECT_URI = oauthRedirectUri();
