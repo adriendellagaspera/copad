@@ -104,6 +104,43 @@
     dom.addEventListener('keydown', onKeydown);
     return () => dom.removeEventListener('keydown', onKeydown);
   });
+
+  const focusableEls = (): HTMLElement[] =>
+    host
+      ? Array.from(
+          host.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          ),
+        )
+      : [];
+
+  // Once focus is inside the bubble, it behaves like a closed loop: Escape
+  // hands focus back to the text, and Tab/Shift-Tab wrap at the ends instead
+  // of escaping into whatever follows the bubble in the page's tab order.
+  $effect(() => {
+    const h = host;
+    if (!h) return;
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        view?.focus();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const els = focusableEls();
+      const idx = els.indexOf(document.activeElement as HTMLElement);
+      if (idx === -1) return;
+      if (!e.shiftKey && idx === els.length - 1) {
+        e.preventDefault();
+        els[0].focus();
+      } else if (e.shiftKey && idx === 0) {
+        e.preventDefault();
+        els[els.length - 1].focus();
+      }
+    };
+    h.addEventListener('keydown', onKeydown);
+    return () => h.removeEventListener('keydown', onKeydown);
+  });
 </script>
 
 <!-- preventDefault on mousedown keeps the editor's focus + selection while a
