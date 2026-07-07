@@ -3,7 +3,7 @@
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { StorageBackend } from './storage/index.js';
   import { savedRoomsStore } from './storage/savedRooms.js';
-  import { setActiveRoom, filenameForRoom, firstFileCollision } from './storage/filename.js';
+  import { filenameForRoom, firstFileCollision } from './storage/filename.js';
   import type { Filename } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
   import { websocketCollab } from './collaboration/websocket.js';
@@ -261,7 +261,32 @@
   // default. Passed to the Editor, which broadcasts it in awareness to peers.
   let color = $state<CursorColor>(COLORS[Math.floor((Date.now() / 1000) % COLORS.length)]);
 
-  const storageBackends = backends();
+  // ── Document / room ────────────────────────────────────────────────────────
+  // Resolved before `backends()` below: each backend targets `room`'s document,
+  // captured once by closure at construction (see storage/filename.ts).
+
+  const DEFAULT_ROOM = resolveDefaultRoom(import.meta.env.VITE_DEFAULT_ROOM);
+
+  function roomFromUrl(): RoomId {
+    return parseRoomId(new URLSearchParams(location.search).get('room')) ?? DEFAULT_ROOM;
+  }
+
+  // Role is fixed for the session — it comes from the URL so the host can share
+  // a read-only link (?role=reader). Cooperative only: a modified client could
+  // ignore it, but it's appropriate for trusted collaborators.
+  function roleFromUrl(): SessionRole {
+    return new URLSearchParams(location.search).get('role') === SessionRole.Reader
+      ? SessionRole.Reader
+      : SessionRole.Writer;
+  }
+
+  // Fixed for the lifetime of this tab: a new document always opens a new tab
+  // (see `newRoom` below), so `room` never changes in place — there's no
+  // in-tab room switch to react to.
+  const room: RoomId = roomFromUrl();
+  const sessionRole: SessionRole = roleFromUrl();
+
+  const storageBackends = backends(room);
 
   // Start with whichever backend is already authenticated (returning user),
   // falling back to the env-var default or the first available.
@@ -314,33 +339,6 @@
     bump();
   }
 
-  // ── Document / room ────────────────────────────────────────────────────────
-
-  const DEFAULT_ROOM = resolveDefaultRoom(import.meta.env.VITE_DEFAULT_ROOM);
-
-  function roomFromUrl(): RoomId {
-    return parseRoomId(new URLSearchParams(location.search).get('room')) ?? DEFAULT_ROOM;
-  }
-
-  // Role is fixed for the session — it comes from the URL so the host can share
-  // a read-only link (?role=reader). Cooperative only: a modified client could
-  // ignore it, but it's appropriate for trusted collaborators.
-  function roleFromUrl(): SessionRole {
-    return new URLSearchParams(location.search).get('role') === SessionRole.Reader
-      ? SessionRole.Reader
-      : SessionRole.Writer;
-  }
-
-  // Fixed for the lifetime of this tab: a new document always opens a new tab
-  // (see `newRoom` below), so `room` never changes in place — there's no
-  // in-tab room switch to react to.
-  const room: RoomId = roomFromUrl();
-  const sessionRole: SessionRole = roleFromUrl();
-
-  // Tell the storage layer which room every backend targets. Every room derives
-  // its own file from the room id, so rooms never share one document.
-  setActiveRoom(room);
-
   // Returning-user default: if a backend is already authenticated but saves no room
   // yet (authed before this feature existed, or a fresh session), treat the room you
   // land in as one it saves — but only when you arrived at your own default room,
@@ -360,7 +358,7 @@
   // Storage (below), so it keeps its own document rather than inheriting this
   // backend's file. This is a per-user persistence fact, not a room-level role: with
   // per-target autosave, several people can each save their own copy. `tick` re-reads
-  // the (non-reactive) set after connect/disconnect; `room` re-reads it on switch.
+  // the (non-reactive) set after connect/disconnect; `room` is a const, only read here.
   const savedHere = $derived.by(() => {
     void tick;
     void room;
@@ -559,15 +557,14 @@
   }
 
   // Creating a new document always opens a fresh browser tab rather than
-  // switching this one in place. Why: `storage/filename.ts`'s `activeRoom` is a
-  // single pointer shared by *every* backend in this tab (not one per backend)
-  // — if two rooms' persist loops were ever alive in the same tab at once, both
-  // would resolve their target filename against whichever room is "active",
-  // silently overwriting one room's saved file with the other's content. A real
-  // tab sidesteps this for free: each tab gets its own JS module state, and the
-  // per-room-per-backend filename already lives correctly namespaced in
-  // localStorage. Until the Storage port is made room-explicit, a new document
-  // means a new tab — never a second room alongside this one.
+  // switching this one in place. Why: each backend's `filenameStore` captures
+  // `room` once, by closure, when `backends(room)` constructs it (see
+  // storage/filename.ts) — there is no live pointer to retarget, so switching
+  // rooms in place would mean rebuilding every backend from scratch. A real tab
+  // sidesteps this for free: each tab gets its own module state built for its
+  // own room, and the per-room-per-backend filename already lives correctly
+  // namespaced in localStorage. A new document means a new tab — never a
+  // second room alongside this one.
   function newRoom(): void {
     const r = Math.random().toString(36).slice(2, 10);
     window.open(`${location.pathname}?room=${encodeURIComponent(r)}`, '_blank', 'noopener');

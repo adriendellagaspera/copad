@@ -5,6 +5,10 @@ import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
 import { LoginKind } from './types.js';
 import type { Fetch } from '../network/types.js';
+import type { RoomId } from '../collaboration/types.js';
+
+// Room stem is 'document', matching the plain default filename ('document.yjs') asserted below.
+const TEST_ROOM = 'document' as RoomId;
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -29,7 +33,7 @@ beforeEach(() => {
 describe('dropboxStorage', () => {
   let auth: StorageAuth;
   let storage: Storage;
-  beforeEach(() => { ({ auth, storage } = dropboxStorage()); });
+  beforeEach(() => { ({ auth, storage } = dropboxStorage(TEST_ROOM)); });
 
   it('is not authenticated before login', () => {
     expect(auth.isAuthenticated()).toBe(false);
@@ -37,7 +41,7 @@ describe('dropboxStorage', () => {
 
   it('reads persisted token from localStorage', () => {
     localStorage.setItem('storage.dropbox.token', 'tok');
-    expect(dropboxStorage().auth.isAuthenticated()).toBe(true);
+    expect(dropboxStorage(TEST_ROOM).auth.isAuthenticated()).toBe(true);
   });
 
   it('logout clears token', () => {
@@ -88,7 +92,7 @@ describe('dropboxStorage', () => {
 describe('webdavStorage', () => {
   let auth: StorageAuth;
   let storage: Storage;
-  beforeEach(() => { ({ auth, storage } = webdavStorage(mockFetch as unknown as Fetch)); });
+  beforeEach(() => { ({ auth, storage } = webdavStorage(mockFetch as unknown as Fetch, TEST_ROOM)); });
 
   it('is not authenticated before login', () => {
     expect(auth.isAuthenticated()).toBe(false);

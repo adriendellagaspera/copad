@@ -5,6 +5,7 @@ import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import { extensionOf } from '../format/types.js';
 import { localStore } from '../persistence/local.js';
+import type { RoomId } from '../collaboration/types.js';
 import {
   parseRepo,
   parseBranch,
@@ -44,8 +45,6 @@ export type GitHubBranch = string & { readonly _brand: 'GitHubBranch' };
 export type GitHubFileSha = string & { readonly _brand: 'GitHubFileSha' };
 
 // ── Config ────────────────────────────────────────────────────────────────────
-
-const fileName = filenameStore(STORAGE_ID.github, GITHUB_DEFAULT_FILENAME);
 
 const cfg = configStore(STORAGE_ID.github, [
   {
@@ -93,7 +92,8 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
-export function githubStorage(): { auth: StorageAuth; storage: Storage } {
+export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Storage } {
+  const fileName = filenameStore(STORAGE_ID.github, room, GITHUB_DEFAULT_FILENAME);
   // Current file's SHA — required by GitHub to update an existing file.
   let fileSha: GitHubFileSha | null = null;
   // Guard against concurrent in-flight commits.

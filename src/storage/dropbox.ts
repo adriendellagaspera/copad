@@ -6,6 +6,7 @@ import { filenameStore } from './filename.js';
 import { pkceChallenge, openOAuthPopup } from './oauth.js';
 import { parseDropboxTokenResponse } from './parse.js';
 import { localStore } from '../persistence/local.js';
+import type { RoomId } from '../collaboration/types.js';
 import {
   STORAGE_ID,
   CLOUD_FOLDER,
@@ -18,8 +19,6 @@ import {
   oauthRedirectUri,
 } from './constants.js';
 
-const fileName = filenameStore(STORAGE_ID.dropbox);
-const filePath = () => `${CLOUD_FOLDER}/${fileName.get()}`;
 const tokenStore = localStore<string | null>(DROPBOX_TOKEN_KEY, (raw) => raw, (v) => v);
 
 // Persisted under `storage.dropbox.appKey` — same key the old connect form used.
@@ -33,7 +32,10 @@ const cfg = configStore(STORAGE_ID.dropbox, [
   },
 ]);
 
-export function dropboxStorage(): { auth: StorageAuth; storage: Storage } {
+export function dropboxStorage(room: RoomId): { auth: StorageAuth; storage: Storage } {
+  const fileName = filenameStore(STORAGE_ID.dropbox, room);
+  const filePath = () => `${CLOUD_FOLDER}/${fileName.get()}`;
+
   // Shared state: token lives in localStorage but we read it through the store
   // so both auth and storage see the same current value.
   const token = (): string | null => tokenStore.read();
