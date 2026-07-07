@@ -7,8 +7,12 @@
  * process alive and avoids a multi-second cold start the next time a peer opens
  * the app — without any server-side change.
  *
- * Pinging is skipped while the tab is hidden (Page Visibility API): a backgrounded
- * tab has no active WebRTC connections that a warm server would help.
+ * Pinging keeps running while the tab is hidden (Page Visibility API): a
+ * backgrounded-but-not-discarded tab still holds a live Collab connection to
+ * this room (WebRTC data channels aren't gated on tab focus), so its signaling
+ * server is exactly the one that matters to it. Stopping the ping there would
+ * let that server go cold and pay a cold-start delay on the next reconnect —
+ * on a tab that, from the user's side, never stopped syncing.
  */
 
 import type { SignalingUrl, SignalingPingUrl } from './types.js';
@@ -43,7 +47,6 @@ export function startSignalingKeepalive(servers: SignalingUrl[]): () => void {
   if (targets.length === 0) return () => {};
 
   const ping = (): void => {
-    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     for (const url of targets) {
       fetch(url as string, {
         method: 'GET',
