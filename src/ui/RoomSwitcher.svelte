@@ -7,7 +7,7 @@
     name: RoomName | null;
     /** Apply a rename to the current room (shared, never changes the id). */
     onRename: (raw: string) => void;
-    /** Open another room by id (navigates + remounts the editor). */
+    /** Open another room by id, in a new browser tab — this room stays put. */
     onOpen: (idOrUrl: string) => void;
   };
 
@@ -92,7 +92,7 @@
           <p class="switch-empty">No other rooms yet.</p>
         {:else}
           {#each others as r (r.id)}
-            <button class="switch-item" role="menuitem" onclick={() => pick(r.id)} title={r.id}>
+            <button class="switch-item" role="menuitem" onclick={() => pick(r.id)} title={`${r.id} (opens in a new tab)`}>
               <span class="switch-item-name">{r.name ?? r.id}</span>
               {#if r.name}<span class="switch-item-id">#{r.id}</span>{/if}
             </button>
@@ -100,7 +100,7 @@
         {/if}
       </div>
       <div class="switch-section">
-        <p class="switch-label">Open a room</p>
+        <p class="switch-label">Open a room in a new tab</p>
         <form
           class="switch-join"
           onsubmit={(e) => { e.preventDefault(); joinSubmit(); }}
@@ -109,7 +109,7 @@
             class="switch-join-input"
             placeholder="room id or shared URL"
             bind:value={joinValue}
-            aria-label="Open a room by id or URL"
+            aria-label="Open a room by id or URL in a new tab"
           />
           <button class="switch-join-go" type="submit" disabled={!joinValue.trim()}>Open</button>
         </form>

@@ -330,13 +330,14 @@
       : SessionRole.Writer;
   }
 
-  let room = $state<RoomId>(roomFromUrl());
+  // Fixed for the lifetime of this tab: opening another room always opens a new
+  // tab (see `openRoom` below), so there's no in-tab switch left to react to.
+  const room: RoomId = roomFromUrl();
   const sessionRole: SessionRole = roleFromUrl();
 
   // Tell the storage layer which room every backend targets. Every room derives
-  // its own file from the room id, so rooms never share one document. Set before
-  // the Editor first mounts and reads `filename()`.
-  setActiveRoom(untrack(() => room)); // one-time read at init (not reactive)
+  // its own file from the room id, so rooms never share one document.
+  setActiveRoom(room);
 
   // Returning-user default: if a backend is already authenticated but saves no room
   // yet (authed before this feature existed, or a fresh session), treat the room you
@@ -348,7 +349,7 @@
     // untrack: a one-time read at init (not a reactive dependency).
     const s = untrack(() => storage);
     if (s && s.auth.isAuthenticated() && savedRoomsStore(s.storage.id).all().length === 0) {
-      savedRoomsStore(s.storage.id).add(untrack(() => room));
+      savedRoomsStore(s.storage.id).add(room);
     }
   }
 
@@ -588,26 +589,34 @@
     return m ? decodeURIComponent(m[1]) : null;
   }
 
-  function goToRoom(idOrUrl: string) {
-    const r = parseRoomId(roomIdFrom(idOrUrl)) ?? DEFAULT_ROOM;
-    // A pasted encrypted invite carries its key in the URL fragment, which
-    // gets dropped when the URL below is rewritten to `?room=` only — so
-    // persist it as this room's per-room password before switching. The
-    // existing lock effect (which re-runs on `room`) then remembers its
-    // fingerprint on this first keyed visit, same as any other keyed room.
-    const key = keyFromInput(idOrUrl);
-    if (key) setRoomPassword(r, key);
-    if (r === room) return;
+  // Opening another room always opens a fresh browser tab rather than switching
+  // this one in place. Why: `storage/filename.ts`'s `activeRoom` is a single
+  // pointer shared by *every* backend in this tab (not one per backend) — if two
+  // rooms' persist loops were ever alive in the same tab at once, both would
+  // resolve their target filename against whichever room is "active", silently
+  // overwriting one room's saved file with the other's content. A real tab
+  // sidesteps this for free: each tab gets its own JS module state, and the
+  // per-room-per-backend filename already lives correctly namespaced in
+  // localStorage. Until the Storage port is made room-explicit, "another room"
+  // means "another tab" — never a second room alongside this one.
+  function roomHref(r: RoomId): string {
     const qs = r === DEFAULT_ROOM ? '' : `?room=${encodeURIComponent(r)}`;
-    history.pushState({}, '', location.pathname + qs);
-    // Point the storage layer at the new room *before* the {#key room} remount, so
-    // the fresh Editor loads/saves this room's own file.
-    setActiveRoom(r);
-    room = r;
+    return location.pathname + qs;
   }
 
-  function newRoom() {
-    goToRoom(Math.random().toString(36).slice(2, 10));
+  function openRoom(idOrUrl: string): void {
+    const r = parseRoomId(roomIdFrom(idOrUrl)) ?? DEFAULT_ROOM;
+    // A pasted encrypted invite carries its key in the URL fragment, which the
+    // opened URL below doesn't repeat — so persist it as this room's per-room
+    // password first. The new tab's lock effect then remembers its fingerprint
+    // on this first keyed visit, same as any other keyed room.
+    const key = keyFromInput(idOrUrl);
+    if (key) setRoomPassword(r, key);
+    window.open(roomHref(r), '_blank', 'noopener');
+  }
+
+  function newRoom(): void {
+    openRoom(Math.random().toString(36).slice(2, 10));
   }
 
   // Rename the current room — edits the shared name (synced to every peer via
@@ -624,21 +633,6 @@
   $effect(() => {
     updateRecentRoomName(room, roomName.value);
   });
-
-  // goToRoom() pushes a history entry on every switch, but nothing was ever
-  // listening for Back/Forward — the address bar would rewind while the
-  // keyed Editor kept showing the room it was already on. Re-read the URL on
-  // `popstate` and drive the same switch path so the two stay in sync.
-  $effect(() => {
-    function onPopState() {
-      const r = roomFromUrl();
-      if (r === room) return;
-      setActiveRoom(r);
-      room = r;
-    }
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  });
 </script>
 
 <div class="app">
@@ -648,8 +642,13 @@
       <h1>Copad</h1>
     </div>
     <div class="controls">
-      <RoomSwitcher {room} name={roomName.value} onRename={renameCurrentRoom} onOpen={goToRoom} />
-      <button class="btn-new icon-btn" onclick={newRoom} title="New document" aria-label="New document">
+      <RoomSwitcher {room} name={roomName.value} onRename={renameCurrentRoom} onOpen={openRoom} />
+      <button
+        class="btn-new icon-btn"
+        onclick={newRoom}
+        title="New document (opens in a new tab)"
+        aria-label="New document (opens in a new tab)"
+      >
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 5v14M5 12h14" />
         </svg>
