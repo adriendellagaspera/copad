@@ -29,4 +29,28 @@ describe('toast store', () => {
     t.info('i', 0);
     expect(t.items.map((x) => x.kind)).toEqual(['error', 'success', 'info']);
   });
+
+  it('refreshes an identical toast instead of stacking a duplicate', () => {
+    const t = createToasts();
+    const firstId = t.success('Invite link copied to clipboard', 1000);
+    expect(t.items).toHaveLength(1);
+    vi.advanceTimersByTime(700);
+    const secondId = t.success('Invite link copied to clipboard', 1000);
+    expect(secondId).toBe(firstId);
+    expect(t.items).toHaveLength(1);
+    // The timer was reset on the second push, so it should survive past the
+    // first push's original 1000ms deadline.
+    vi.advanceTimersByTime(700);
+    expect(t.items).toHaveLength(1);
+    vi.advanceTimersByTime(300);
+    expect(t.items).toHaveLength(0);
+  });
+
+  it('does not dedupe toasts with different text or kind', () => {
+    const t = createToasts();
+    t.success('a', 0);
+    t.success('b', 0);
+    t.info('a', 0);
+    expect(t.items).toHaveLength(3);
+  });
 });
