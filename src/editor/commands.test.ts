@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { schema } from './schema.js';
-import { commands, runCommand, activeInputMarks } from './commands.js';
+import { commands, runCommand, activeInputMarks, activeBlockLabel } from './commands.js';
 
 function paragraphState(text = 'hi'): EditorState {
   const para = text ? schema.node('paragraph', null, schema.text(text)) : schema.node('paragraph');
@@ -84,5 +84,35 @@ describe('activeInputMarks', () => {
     let state = paragraphState('hello');
     state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1, 4)));
     expect(activeInputMarks(state)).toEqual([]);
+  });
+});
+
+describe('activeBlockLabel', () => {
+  it('is null for a plain paragraph', () => {
+    expect(activeBlockLabel(paragraphState())).toBeNull();
+  });
+
+  it('reports the heading level', () => {
+    const h2 = apply(paragraphState(), commands.h2);
+    expect(activeBlockLabel(h2)).toBe('H2');
+
+    const h3 = apply(paragraphState(), commands.h3);
+    expect(activeBlockLabel(h3)).toBe('H3');
+  });
+
+  it('reports a code block', () => {
+    const codeBlock = apply(paragraphState(), commands.codeBlock);
+    expect(activeBlockLabel(codeBlock)).toBe('Code');
+  });
+
+  it('reports a blockquote', () => {
+    const quote = apply(paragraphState(), commands.blockquote);
+    expect(activeBlockLabel(quote)).toBe('Quote');
+  });
+
+  it('is null for a non-collapsed selection', () => {
+    let state = apply(paragraphState(), commands.h1);
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1, 2)));
+    expect(activeBlockLabel(state)).toBeNull();
   });
 });

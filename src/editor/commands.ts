@@ -41,6 +41,27 @@ export function activeInputMarks(state: EditorState): MarkType[] {
   return (state.storedMarks ?? $from.marks()).map((mark) => mark.type);
 }
 
+/**
+ * The block context the caret sits in right now, as a short human label
+ * (`H2`, `Quote`, `Code`, `List`, `Numbered`) — the block-level counterpart to
+ * `activeInputMarks`. Walks ancestors innermost-first so the most specific
+ * container wins (e.g. a heading inside a list item reports the heading).
+ * `null` for a plain paragraph, so the caret hint stays quiet on ordinary text.
+ */
+export function activeBlockLabel(state: EditorState): string | null {
+  if (!state.selection.empty) return null;
+  const { $from } = state.selection;
+  for (let d = $from.depth; d >= 0; d--) {
+    const node = $from.node(d);
+    if (node.type === schema.nodes.heading) return `H${node.attrs.level as number}`;
+    if (node.type === schema.nodes.code_block) return 'Code';
+    if (node.type === schema.nodes.blockquote) return 'Quote';
+    if (node.type === schema.nodes.bullet_list) return 'List';
+    if (node.type === schema.nodes.ordered_list) return 'Numbered';
+  }
+  return null;
+}
+
 export function isNodeActive(
   state: EditorState,
   type: NodeType,

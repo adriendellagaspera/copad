@@ -141,6 +141,18 @@
   font-family: var(--font-mono);
   font-size: 0.85em;
 }
+.caret-hint .ch-block {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.3rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.caret-hint .ch-block + .ch-glyph {
+  border-left: 1px solid var(--border);
+  padding-left: 0.35rem;
+  margin-left: 0.1rem;
+}
 
 /* ── Status bar ── */
 
