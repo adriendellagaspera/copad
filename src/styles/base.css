@@ -82,14 +82,23 @@ body {
   background: var(--selection);
 }
 
-/* Visible, consistent keyboard focus everywhere. */
-:focus-visible {
-  outline: 2px solid var(--accent);
+/* Visible keyboard focus everywhere — gated on tracked input modality
+   (src/ui/inputModality.ts), not just native :focus-visible. Text inputs and
+   contenteditable are :focus-visible in every browser even after a plain
+   mouse click, and a .focus() call made inside a keydown handler (e.g.
+   Escape returning focus to a popover's trigger) also counts as
+   keyboard-driven regardless of how the popover was opened — both would
+   pop the ring up on a click-only interaction without this gate. Softened
+   via color-mix rather than a solid, saturated outline.
+   Rule order matters: the plain reset must come first so the more specific,
+   keyboard-gated rule below can still win when both match. */
+:focus {
+  outline: none;
+}
+:root[data-input-modality='keyboard'] :focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
   outline-offset: 2px;
   border-radius: var(--r-sm);
-}
-:focus:not(:focus-visible) {
-  outline: none;
 }
 
 a {

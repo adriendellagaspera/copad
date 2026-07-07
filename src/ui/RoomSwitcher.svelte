@@ -153,9 +153,12 @@
     background: var(--surface);
     padding-left: 0.5rem;
   }
-  .room-switcher:focus-within {
+  /* :focus-within has no ":visible" variant of its own, so gate it manually
+     on tracked input modality (src/ui/inputModality.ts) — otherwise this
+     shows on every mouse click into the field, unlike the rest of the app. */
+  :global(:root[data-input-modality='keyboard']) .room-switcher:focus-within {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--selection);
+    box-shadow: 0 0 0 2px var(--selection);
   }
   .room-sigil {
     font-family: var(--font-mono);

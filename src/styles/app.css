@@ -43,10 +43,19 @@ header {
 }
 .wordmark {
   margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
   font-size: var(--fs-600);
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--text);
+  cursor: pointer;
+}
+.wordmark:hover:not(:disabled) {
+  background: none;
+  color: var(--text-muted);
 }
 
 .controls {
@@ -81,11 +90,15 @@ select {
   transition: border-color var(--dur-fast) var(--ease),
     box-shadow var(--dur-fast) var(--ease);
 }
-input:focus-visible,
-select:focus-visible {
+/* Gated on tracked input modality (src/ui/inputModality.ts), not bare
+   :focus-visible — every browser treats a focused text input as
+   :focus-visible even right after a plain mouse click, unlike buttons/links,
+   so this would otherwise show on every click into a field. */
+:root[data-input-modality='keyboard'] input:focus-visible,
+:root[data-input-modality='keyboard'] select:focus-visible {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--selection);
+  box-shadow: 0 0 0 2px var(--selection);
 }
 input::placeholder {
   color: var(--text-faint);
