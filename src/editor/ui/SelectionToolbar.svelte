@@ -75,6 +75,28 @@
       window.removeEventListener('resize', onMove);
     };
   });
+
+  // Tab normally leaves the contenteditable entirely (browser default, since
+  // ProseMirror only claims Tab inside a list — see buildPlugins). While the
+  // bubble is showing, redirect that Tab into its first button instead, so
+  // the toolbar is reachable from the keyboard without also stealing Tab
+  // when there's nothing to tab into.
+  $effect(() => {
+    const v = view;
+    if (!v) return;
+    const dom = v.dom;
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || e.shiftKey || !visible) return;
+      const target = host?.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (!target) return;
+      e.preventDefault();
+      target.focus();
+    };
+    dom.addEventListener('keydown', onKeydown);
+    return () => dom.removeEventListener('keydown', onKeydown);
+  });
 </script>
 
 <!-- preventDefault on mousedown keeps the editor's focus + selection while a
