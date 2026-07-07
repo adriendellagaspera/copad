@@ -1,5 +1,5 @@
 import { keymap } from 'prosemirror-keymap';
-import { baseKeymap, toggleMark, setBlockType, wrapIn, exitCode } from 'prosemirror-commands';
+import { chainCommands, baseKeymap, toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
 import { splitListItem, liftListItem, sinkListItem, wrapInList } from 'prosemirror-schema-list';
 import {
   inputRules,
@@ -8,25 +8,69 @@ import {
   InputRule,
 } from 'prosemirror-inputrules';
 import { undo, redo } from 'y-prosemirror';
-import type { MarkType, Schema } from 'prosemirror-model';
+import type { MarkType, ResolvedPos, Schema } from 'prosemirror-model';
 import { Selection } from 'prosemirror-state';
 import type { Command, EditorState, Plugin, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
 
 /**
- * Escape a code block (or any node with `code: true`) into the textblock
- * after it — otherwise a code_block with nothing following it (most often
- * because it's the last node in the doc) has no textblock below it to click
- * or arrow into, trapping the caret (`Enter`'s `newlineInCode` just keeps
- * adding lines inside the block instead of leaving it).
+ * Leaves `$pos`'s enclosing code block (a node with `code: true`), mutating
+ * `tr` in place:
+ * - if a block already follows it, the selection simply moves there — no
+ *   need to insert a duplicate paragraph, same as arrowing/clicking past the
+ *   block would land you in it. This never touches the code block itself,
+ *   even an empty one: it may be deliberately blank, waiting to be filled
+ *   in, so passing over it must not be destructive;
+ * - else if the code block is empty, it's converted directly into a
+ *   paragraph in place — there's nothing to preserve, and nothing follows
+ *   to move into, so leaving an empty code block behind while also
+ *   inserting a new empty paragraph after it would just be clutter;
+ * - else (real content, nothing follows — most often because it's the last
+ *   node in the doc) a fresh paragraph is inserted after it and selected.
  *
- * Deliberately does NOT delegate to prosemirror-commands' `exitCode`: that
- * command always *inserts* a fresh empty paragraph after the code block,
- * even when a block already follows it — so exiting a code block that sits
- * mid-document would litter it with a spurious empty paragraph on every
- * press. Here we only insert one when there's truly nothing to land in;
- * otherwise the selection just moves into the existing next sibling, same
- * as arrowing/clicking past the block.
+ * Shared by every way of leaving a code block — Escape, ArrowDown at the
+ * last position, and three-Enters-in-a-row on a trailing blank line — so
+ * they all converge on one consistent exit.
+ */
+function exitCodeBlock(tr: Transaction, $pos: ResolvedPos): void {
+  const container = $pos.node(-1);
+  const indexAfter = $pos.indexAfter(-1);
+  const after = $pos.after();
+
+  if (indexAfter < container.childCount) {
+    tr.setSelection(Selection.near(tr.doc.resolve(after), 1));
+    return;
+  }
+
+  if ($pos.parent.content.size === 0) {
+    const blockPos = $pos.before();
+    tr.setNodeMarkup(blockPos, tr.doc.type.schema.nodes.paragraph);
+    tr.setSelection(Selection.near(tr.doc.resolve(blockPos + 1), 1));
+    return;
+  }
+
+  const type = container.contentMatchAt(indexAfter).defaultType ?? tr.doc.type.schema.nodes.paragraph;
+  const node = type.createAndFill();
+  if (!node) return;
+  tr.insert(after, node);
+  tr.setSelection(Selection.near(tr.doc.resolve(after), 1));
+}
+
+/** True when the caret sits in a code block and nowhere else (an empty or
+ *  cross-parent selection doesn't have a single unambiguous block to exit). */
+function inCodeBlock(state: EditorState): ResolvedPos | null {
+  const { $head, $anchor } = state.selection;
+  if (!$head.sameParent($anchor) || !$head.parent.type.spec.code) return null;
+  return $head;
+}
+
+/**
+ * Escape a code block into whatever follows it — otherwise a code_block
+ * with nothing after it (most often because it's the last node in the doc)
+ * has no textblock below it to click or arrow into, trapping the caret
+ * (`Enter`'s `newlineInCode` just keeps adding lines inside the block
+ * instead of leaving it). Works from anywhere in the block, not just the
+ * last line.
  *
  * Always returns `true`: Firefox blurs contenteditable elements on Escape by
  * default, so it's swallowed even when there's no code block to exit (the
@@ -34,24 +78,59 @@ import { normalizeHref, isValidHref } from './linkCommands.js';
  * earlier in the plugin list).
  */
 export const escapeCodeBlock: Command = (state, dispatch) => {
-  const { $head, $anchor } = state.selection;
-  if (!$head.sameParent($anchor) || !$head.parent.type.spec.code) return true;
-
-  const container = $head.node(-1);
-  const indexAfter = $head.indexAfter(-1);
-  const pos = $head.after();
-
-  if (indexAfter < container.childCount) {
-    // A block already follows the code block — move into it instead of
-    // inserting a duplicate empty paragraph.
-    if (dispatch) {
-      const tr = state.tr.setSelection(Selection.near(state.doc.resolve(pos), 1));
-      dispatch(tr.scrollIntoView());
-    }
-    return true;
+  const $pos = inCodeBlock(state);
+  if (!$pos) return true;
+  if (dispatch) {
+    const tr = state.tr;
+    exitCodeBlock(tr, $pos);
+    dispatch(tr.scrollIntoView());
   }
+  return true;
+};
 
-  exitCode(state, dispatch);
+/**
+ * ArrowDown at the very end of a code block's content leaves it the same
+ * way Escape does. Native caret movement already handles ArrowDown *within*
+ * a multi-line code block (and between it and a following block, when the
+ * browser can find a line to land the caret on below) — this only fires at
+ * the one position where the browser has nowhere left to move the caret to,
+ * which is otherwise indistinguishable from the key doing nothing at all.
+ * Returns `false` everywhere else so normal ArrowDown handling proceeds.
+ */
+export const exitCodeBlockDown: Command = (state, dispatch) => {
+  const $pos = inCodeBlock(state);
+  if (!$pos || $pos.parentOffset !== $pos.parent.content.size) return false;
+  if (dispatch) {
+    const tr = state.tr;
+    exitCodeBlock(tr, $pos);
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+};
+
+/**
+ * Three Enters in a row (i.e. the code block's content already ends with
+ * two newlines when a third Enter arrives) leaves the code block, undoing
+ * the two blank lines that got us here first — so genuine code isn't split
+ * from an exit gesture, and a code block that was blank to begin with
+ * doesn't linger as an empty node once `exitCodeBlock` converts it away.
+ * A single blank line is common and intentional inside real code (spacing
+ * between functions), so a lone Enter must never trigger this — only a
+ * second consecutive blank line unambiguously signals "let me out".
+ * Returns `false` everywhere else so normal Enter handling (newlineInCode)
+ * proceeds.
+ */
+export const exitCodeBlockOnBlankLine: Command = (state, dispatch) => {
+  const $pos = inCodeBlock(state);
+  if (!$pos) return false;
+  const block = $pos.parent;
+  if ($pos.parentOffset !== block.content.size) return false;
+  if (!block.textContent.endsWith('\n\n')) return false;
+  if (dispatch) {
+    const tr = state.tr.delete($pos.pos - 2, $pos.pos);
+    exitCodeBlock(tr, tr.doc.resolve($pos.pos - 2));
+    dispatch(tr.scrollIntoView());
+  }
   return true;
 };
 
@@ -153,7 +232,8 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-y': redo,
       'Mod-Shift-z': redo,
       'Escape': escapeCodeBlock,
-      'Enter': splitListItem(s.nodes.list_item),
+      'ArrowDown': exitCodeBlockDown,
+      'Enter': chainCommands(exitCodeBlockOnBlankLine, splitListItem(s.nodes.list_item)),
       'Tab': sinkListItem(s.nodes.list_item),
       'Shift-Tab': liftListItem(s.nodes.list_item),
     }),
