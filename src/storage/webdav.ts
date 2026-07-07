@@ -8,6 +8,12 @@ import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
 import { STORAGE_ID, WEBDAV_KEY, DEFAULT_FILENAME } from './constants.js';
 
+/** The WebDAV folder URL, normalized (no trailing slash) once accepted at `login()` time. */
+export type WebDavBaseUrl = string & { readonly _brand: 'WebDavBaseUrl' };
+
+/** Base64-encoded `username:password` Basic-auth header value, computed once at `login()` time. */
+export type WebDavAuthHeader = string & { readonly _brand: 'WebDavAuthHeader' };
+
 const confStore = localStore<WebDavConf | null>(
   WEBDAV_KEY,
   parseWebDavConf,
@@ -39,7 +45,7 @@ export function webdavStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
       if (!baseUrl.trim() || !username.trim())
         throw new Error('URL and username are required');
 
-      const authHeader = btoa(`${username}:${password}`);
+      const authHeader = btoa(`${username}:${password}`) as WebDavAuthHeader;
 
       const res = await netFetch(baseUrl.replace(/\/$/, ''), {
         method: 'HEAD',
@@ -50,7 +56,7 @@ export function webdavStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
       if (!res.ok && res.status !== 404)
         throw new Error(`WebDAV connect failed: ${res.status}`);
 
-      confStore.write({ baseUrl: baseUrl.replace(/\/$/, ''), auth: authHeader });
+      confStore.write({ baseUrl: baseUrl.replace(/\/$/, '') as WebDavBaseUrl, auth: authHeader });
     },
 
     logout() {
