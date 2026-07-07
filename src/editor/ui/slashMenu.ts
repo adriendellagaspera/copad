@@ -169,6 +169,13 @@ export function setSlashIndex(view: EditorView, index: number): void {
 export function dismissSlash(view: EditorView): void {
   view.dispatch(view.state.tr.setMeta(slashKey, { type: 'dismiss' }));
   view.focus();
+  // Firefox can still blur the contenteditable right after an Escape
+  // keydown even though the key event's default action was prevented — that
+  // follow-up blur is a separate native action, not the keydown's own
+  // default, so it isn't cancelable from inside handleKeyDown and can undo
+  // the synchronous focus() above. Re-assert focus once more on the next
+  // tick to win that race.
+  setTimeout(() => view.focus(), 0);
 }
 
 /** Delete the `/query` text, then run the chosen block command. */
