@@ -104,6 +104,9 @@ export const BACKEND_ENABLED: Record<StorageId, boolean> = {
   // Not yet connected to a real S3-compatible bucket outside production —
   // stays hidden until that's done, then flips to `true` in its own PR.
   [STORAGE_ID.s3]: envBool(import.meta.env.VITE_ENABLE_S3, false),
+  // Not yet connected to a real Microsoft 365 account outside production —
+  // stays hidden until that's done, then flips to `true` in its own PR.
+  [STORAGE_ID.sharepoint]: envBool(import.meta.env.VITE_ENABLE_SHAREPOINT, false),
 };
 
 // ── Cloud folder + default filenames ──────────────────────────────────────────
