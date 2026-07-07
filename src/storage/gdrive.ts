@@ -1,4 +1,4 @@
-import type { Storage, DocContent } from './types.js';
+import type { Storage, DocContent, Filename } from './types.js';
 import { DocFormat, StorageAccess } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
@@ -51,7 +51,7 @@ function authHeaders(token: string): Record<string, string> {
 }
 
 /** Find the id of a non-trashed Drive file with this exact name, or null. */
-async function findFile(token: string, name: string): Promise<GDriveFileId | null> {
+async function findFile(token: string, name: Filename): Promise<GDriveFileId | null> {
   const q = encodeURIComponent(`name='${name.replace(/'/g, "\\'")}' and trashed=false`);
   const res = await fetch(`${GDRIVE_FILES_URL}?q=${q}&fields=files(id)`, {
     headers: authHeaders(token),
