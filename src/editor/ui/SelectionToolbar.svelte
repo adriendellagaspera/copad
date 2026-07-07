@@ -27,6 +27,12 @@
   const isFinePointer = (): boolean =>
     typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
 
+  // True once Tab has moved focus from the editor into one of the bubble's
+  // own buttons — at that point the view itself is blurred, but the bubble
+  // must stay up (hiding it would yank focus off the now-invisible button).
+  const focusInToolbar = (): boolean =>
+    !!host && !!document.activeElement && host.contains(document.activeElement);
+
   function reposition(): void {
     const v = view;
     const st = editorState;
@@ -36,8 +42,9 @@
     }
     const { from, to, empty } = st.selection;
     // Show only for a real, focused selection — a collapsed caret or a blurred
-    // editor (e.g. focus moved to a dialog) hides it.
-    if (empty || !v.hasFocus()) {
+    // editor (e.g. focus moved to a dialog) hides it, unless the focus moved
+    // into the bubble itself.
+    if (empty || (!v.hasFocus() && !focusInToolbar())) {
       visible = false;
       return;
     }
