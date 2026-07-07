@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 describe('backends()', () => {
-  it('offers every production-proven backend by default, but not gitlab, s3, or sharepoint yet', async () => {
+  it('offers every production-proven backend by default, but not gitlab, s3, sharepoint, or gdrive yet', async () => {
     const { backends } = await import('./index.js');
     const ids = backends(TEST_ROOM).map(b => b.storage.id).sort();
     expect(ids).toEqual(['dropbox', 'github', 'local', 'pcloud', 'webdav']);
@@ -48,6 +48,13 @@ describe('backends()', () => {
     const { backends } = await import('./index.js');
     const ids = backends(TEST_ROOM).map(b => b.storage.id);
     expect(ids).toContain('sharepoint');
+  });
+
+  it('VITE_ENABLE_GDRIVE=true surfaces gdrive once it is ready to test outside prod', async () => {
+    vi.stubEnv('VITE_ENABLE_GDRIVE', 'true');
+    const { backends } = await import('./index.js');
+    const ids = backends(TEST_ROOM).map(b => b.storage.id);
+    expect(ids).toContain('gdrive');
   });
 
   it('hides a backend disabled via VITE_ENABLE_<ID>, leaving the rest untouched', async () => {
