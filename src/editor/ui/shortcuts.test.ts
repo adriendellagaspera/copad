@@ -17,6 +17,7 @@ describe('editorShortcuts', () => {
     expect(editorShortcuts(OS.Other).map((s) => s.label)).toEqual([
       'Bold',
       'Italic',
+      'Strikethrough',
       'Link',
       'Commands',
       'Undo',
