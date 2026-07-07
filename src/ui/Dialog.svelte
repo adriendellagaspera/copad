@@ -48,12 +48,25 @@
       restoreTo?.focus?.();
     };
   });
-</script>
 
-<!-- A window-level listener, not just the dialog div's onkeydown below, because focus
-     can end up outside the dialog (e.g. a native <details>/<summary> toggle or a click
-     on non-interactive text) — Escape must still close it either way. -->
-<svelte:window onkeydown={(e) => open && e.key === 'Escape' && (e.preventDefault(), onclose())} />
+  // Window-level Escape, not just the dialog div's onkeydown above, because focus
+  // can end up outside the dialog (e.g. a native <details>/<summary> toggle or a
+  // click on non-interactive text) — Escape must still close it either way. Capture
+  // phase so we see it before any other in-page listener (or a browser-extension
+  // content script on an autofocused input, e.g. a password manager) gets a chance
+  // to stopPropagation() or otherwise swallow the first press.
+  $effect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onclose();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  });
+</script>
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events -->

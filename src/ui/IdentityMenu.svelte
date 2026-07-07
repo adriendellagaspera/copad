@@ -46,10 +46,14 @@
       if (e.key === 'Escape') closeAndReturnFocus();
     };
     window.addEventListener('mousedown', onDown);
-    window.addEventListener('keydown', onKey);
+    // Capture phase so we see Escape before any other in-page listener (or a
+    // browser-extension content script on the autofocused name input, e.g. a
+    // password manager) gets a chance to stopPropagation() or otherwise
+    // swallow the first press.
+    window.addEventListener('keydown', onKey, true);
     return () => {
       window.removeEventListener('mousedown', onDown);
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
     };
   });
 </script>
