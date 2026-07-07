@@ -17,11 +17,6 @@
   let titleId = 'dialog-title';
 
   function trapTab(e: KeyboardEvent): void {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onclose();
-      return;
-    }
     if (e.key !== 'Tab' || !dialogEl) return;
     const f = dialogEl.querySelectorAll<HTMLElement>(
       'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -54,6 +49,11 @@
     };
   });
 </script>
+
+<!-- A window-level listener, not just the dialog div's onkeydown below, because focus
+     can end up outside the dialog (e.g. a native <details>/<summary> toggle or a click
+     on non-interactive text) — Escape must still close it either way. -->
+<svelte:window onkeydown={(e) => open && e.key === 'Escape' && (e.preventDefault(), onclose())} />
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
