@@ -4,7 +4,7 @@ import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import { pkceChallenge, openOAuthPopup } from './oauth.js';
-import { parseDropboxTokenResponse } from './parse.js';
+import { parseDropboxTokenResponse, parseDropboxAppKey } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
 import {
@@ -19,7 +19,22 @@ import {
   oauthRedirectUri,
 } from './constants.js';
 
-const tokenStore = localStore<string | null>(DROPBOX_TOKEN_KEY, (raw) => raw, (v) => v);
+// ── Branded types ─────────────────────────────────────────────────────────────
+
+/** An OAuth access token issued by Dropbox after a successful login. */
+export type DropboxToken = string & { readonly _brand: 'DropboxToken' };
+
+/** The Dropbox OAuth app's client id (App key), configured in Settings or locked via env. */
+export type DropboxAppKey = string & { readonly _brand: 'DropboxAppKey' };
+
+// The value read back out of localStorage was only ever written by the token
+// exchange below (via parseDropboxTokenResponse, the true mint site), so this
+// is a re-hydration cast, not a second validation step.
+const tokenStore = localStore<DropboxToken | null>(
+  DROPBOX_TOKEN_KEY,
+  (raw) => raw as DropboxToken | null,
+  (v) => v,
+);
 
 // Persisted under `storage.dropbox.appKey` — same key the old connect form used.
 const cfg = configStore(STORAGE_ID.dropbox, [
@@ -38,13 +53,17 @@ export function dropboxStorage(room: RoomId): { auth: StorageAuth; storage: Stor
 
   // Shared state: token lives in localStorage but we read it through the store
   // so both auth and storage see the same current value.
-  const token = (): string | null => tokenStore.read();
+  const token = (): DropboxToken | null => tokenStore.read();
+
+  // Parse the configured app key at the point of use — the single boundary
+  // where the raw configured string becomes a DropboxAppKey.
+  const resolvedAppKey = (): DropboxAppKey | null => parseDropboxAppKey(cfg.config('appKey'));
 
   const auth: StorageAuth = {
     isAuthenticated: () => !!token(),
 
     async login() {
-      const appKey = cfg.config('appKey');
+      const appKey = resolvedAppKey();
       if (!appKey) throw new Error('Add a Dropbox app key in Settings first.');
 
       const REDIRECT_URI = oauthRedirectUri();
