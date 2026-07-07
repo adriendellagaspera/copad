@@ -22,6 +22,7 @@ import {
   PCLOUD_EU_API_HOST,
   PCLOUD_GETFILELINK_PATH,
   PCLOUD_UPLOAD_PATH,
+  OAUTH_TIMEOUT_MS,
 } from './constants.js';
 
 // ── Branded types ─────────────────────────────────────────────────────────────
@@ -72,19 +73,31 @@ export function pcloudStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
       if (!clientId) throw new Error('Add a pCloud Client ID in Settings first.');
 
       await new Promise<void>((resolve, reject) => {
+        // Unlike the shared openOAuthPopup() helper the other OAuth backends use,
+        // this third-party SDK gives us no popup-blocked signal and no timeout of
+        // its own — without one, a blocked popup or a callback the SDK never fires
+        // leaves the Connect button stuck on "Connecting…" forever.
+        const timeout = setTimeout(() => {
+          reject(new Error('pCloud auth timed out — check that popups are allowed for this site.'));
+        }, OAUTH_TIMEOUT_MS);
+
         pcloudSdk.oauth.popup(
           clientId,
           // The SDK callback hands us raw strings with no separate response-parse
           // step to hook into — this callback signature IS the IO boundary, so we
           // brand both fields right here.
           (token: string, locationid?: number) => {
+            clearTimeout(timeout);
             const host = ((locationid ?? 1) === 2
               ? PCLOUD_EU_API_HOST
               : PCLOUD_API_HOST) as PCloudApiHost;
             sessionStore.write({ token: token as PCloudToken, host });
             resolve();
           },
-          (err: unknown) => reject(new Error(`pCloud auth failed: ${String(err)}`))
+          (err: unknown) => {
+            clearTimeout(timeout);
+            reject(new Error(`pCloud auth failed: ${String(err)}`));
+          }
         );
       });
     },
