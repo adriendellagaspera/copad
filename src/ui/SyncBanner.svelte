@@ -196,6 +196,11 @@
     gap: var(--sp-3);
     flex-wrap: wrap;
     padding: var(--sp-2) var(--sp-4);
+    /* Own margin, not the parent's flex `gap`: `slide` (see App.svelte's `.app`
+       comment) animates a node's margin alongside its height, so the trailing
+       gap shrinks away smoothly instead of snapping shut the instant this node
+       is removed at the end of the dismiss/disappear transition. */
+    margin-bottom: var(--sp-4);
     background: color-mix(in srgb, var(--warn-soft) 55%, var(--surface-2));
     border: 1px solid color-mix(in srgb, var(--warn-border) 55%, var(--border));
     border-radius: var(--r-md);
