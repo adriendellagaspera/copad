@@ -52,4 +52,26 @@ describe('html codec', () => {
     const restored = readPmDoc(dst);
     expect(JSON.stringify(restored.toJSON())).toContain('"underline"');
   });
+
+  it('round-trips a checklist through data-type="taskList"/"taskItem"', async () => {
+    const { paragraph, task_list, task_item } = schema.nodes;
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        task_list.create(null, [
+          task_item.create({ checked: true }, paragraph.create(null, schema.text('done'))),
+        ]),
+      ]),
+    );
+    const bytes = await htmlCodec.encode(doc);
+    const html = new TextDecoder().decode(bytes);
+    expect(html).toContain('data-type="taskList"');
+    expect(html).toContain('data-checked="true"');
+    const dst = new Y.Doc();
+    await htmlCodec.decode(bytes, dst);
+    const restored = readPmDoc(dst);
+    expect(restored.firstChild?.type.name).toBe('task_list');
+    expect(restored.firstChild?.firstChild?.attrs.checked).toBe(true);
+  });
 });
