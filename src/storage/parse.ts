@@ -7,13 +7,14 @@
 import type { Filename } from './types.js';
 import type { GitHubRepo, GitHubBranch, GitHubFileSha } from './github.js';
 import type { DropboxToken, DropboxAppKey } from './dropbox.js';
+import type { WebDavBaseUrl, WebDavAuthHeader } from './webdav.js';
 import { GITHUB_DEFAULT_BRANCH } from './constants.js';
 
 // ── Stored-session shapes (owned here, imported by adapters) ──────────────────
 
 export interface WebDavConf {
-  baseUrl: string;
-  auth: string;
+  baseUrl: WebDavBaseUrl;
+  auth: WebDavAuthHeader;
 }
 
 export interface PCloudSession {
@@ -36,7 +37,7 @@ export function parseWebDavConf(raw: string | null): WebDavConf | null {
     if (typeof obj !== 'object' || obj === null) return null;
     const { baseUrl, auth } = obj as Record<string, unknown>;
     if (typeof baseUrl !== 'string' || typeof auth !== 'string') return null;
-    return { baseUrl, auth };
+    return { baseUrl: baseUrl as WebDavBaseUrl, auth: auth as WebDavAuthHeader };
   } catch {
     return null;
   }
