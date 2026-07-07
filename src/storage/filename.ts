@@ -11,21 +11,6 @@ export interface FilenameStore {
   set(name: string): void;
 }
 
-// ── Active room (app-global) ─────────────────────────────────────────────────
-// A backend targets exactly one file at a time, but that file depends on the room
-// you're in, so one backend can hold a *distinct* document per room instead of
-// every room sharing a single file. Exactly one room is active at a time, so the
-// active room lives here as app-global state that every filenameStore reads.
-// `App.svelte` sets it on startup and on each room switch, synchronously — before
-// the Editor remounts and reads `filename()`.
-
-let activeRoom: RoomId | null = null;
-
-/** Set the room whose document every backend currently targets. */
-export function setActiveRoom(room: RoomId): void {
-  activeRoom = room;
-}
-
 /** localStorage key for a backend's target filename in one room. */
 function perRoomFilenameKey(backendId: StorageId, room: RoomId) {
   return storageKey(`storage.${backendId}.filename.${room}`);
@@ -51,27 +36,27 @@ function roomDefaultFilename(room: RoomId, fallback: Filename): Filename {
  * this is how a user picks a format — `notes.md`, `document.html`, … — for the
  * room they're in.
  *
+ * `room` is captured once, by closure — a tab is in exactly one room for its
+ * whole lifetime (there is no in-tab room switch), so the store never needs to
+ * re-target after construction.
+ *
  * Stored per backend *and room* under `storage.<id>.filename.<room>`. localStorage
  * and parsing stay behind the store — this module only reads/writes typed Filenames.
  */
-export function filenameStore(backendId: StorageId, fallback: Filename = DEFAULT_FILENAME): FilenameStore {
-  // Stand-in room for non-App / adapter contexts that never set an active room:
-  // there the backend behaves like a single global filename defaulting to the
-  // plain fallback (not a per-room derived name).
-  const NO_ROOM = 'document' as RoomId;
-  const defaultFor = (room: RoomId): Filename =>
-    room === NO_ROOM ? fallback : roomDefaultFilename(room, fallback);
-  const perRoom = (room: RoomId) =>
-    localStore<Filename>(
-      perRoomFilenameKey(backendId, room),
-      (raw) => parseFilename(raw, defaultFor(room)),
-      (name) => name.trim() || null,
-    );
-  const currentRoom = (): RoomId => activeRoom ?? NO_ROOM;
+export function filenameStore(
+  backendId: StorageId,
+  room: RoomId,
+  fallback: Filename = DEFAULT_FILENAME,
+): FilenameStore {
+  const store = localStore<Filename>(
+    perRoomFilenameKey(backendId, room),
+    (raw) => parseFilename(raw, roomDefaultFilename(room, fallback)),
+    (name) => name.trim() || null,
+  );
 
   return {
-    get: () => perRoom(currentRoom()).read(),
-    set: (name) => perRoom(currentRoom()).write(name.trim() as Filename),
+    get: () => store.read(),
+    set: (name) => store.write(name.trim() as Filename),
   };
 }
 

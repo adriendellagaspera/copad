@@ -2,7 +2,7 @@
 //
 // Connection status, presence, save status and transport diagnostics are all
 // derived from the `collab` instance the Editor owns — but they are now shown in
-// App's header, which sits outside the {#key room} Editor block. Same pattern as
+// App's header, which sits outside the Editor block. Same pattern as
 // roomName.svelte.ts: the Editor pushes these values as they change; the header
 // reads them reactively. Only one Editor is mounted at a time, so a single
 // module-level holder is enough; the Editor resets it on teardown.
