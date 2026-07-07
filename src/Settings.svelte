@@ -231,9 +231,23 @@
       restoreTo?.focus?.();
     };
   });
-</script>
 
-<svelte:window onkeydown={e => open && e.key === 'Escape' && close()} />
+  // Capture phase so we see Escape before any other in-page listener (or a
+  // browser-extension content script on an autofocused input, e.g. a password
+  // manager) gets a chance to stopPropagation() or otherwise swallow the first
+  // press — matches Dialog.svelte / IdentityMenu.svelte.
+  $effect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        close();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  });
+</script>
 
 {#if open}
   <div class="settings-backdrop" onclick={close} role="presentation"></div>
