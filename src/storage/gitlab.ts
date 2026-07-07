@@ -1,4 +1,4 @@
-import type { Storage, DocContent } from './types.js';
+import type { Storage, DocContent, Filename } from './types.js';
 import { DocFormat, InputType, StorageAccess } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
@@ -91,7 +91,7 @@ function apiBase(host: GitLabHost): string {
 }
 
 /** Files API endpoint for the target file (project + path both URL-encoded). */
-function filesUrl(host: GitLabHost, project: GitLabProject, path: string): string {
+function filesUrl(host: GitLabHost, project: GitLabProject, path: Filename): string {
   return `${apiBase(host)}/projects/${encodeURIComponent(project)}/repository/files/${encodeURIComponent(path)}`;
 }
 
