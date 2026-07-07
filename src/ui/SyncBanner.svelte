@@ -1,5 +1,6 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { ConnStatus, Transport } from '../collaboration/types.js';
 
   let {
@@ -83,11 +84,46 @@
   });
   const show = $derived(wantShow && !dismissed);
 
-  // Svelte's JS transition:slide isn't touched by the CSS reduced-motion reset
-  // in base.css (that only catches CSS animations/transitions), so it needs
-  // its own check.
+  // Svelte's JS transitions aren't touched by the CSS reduced-motion reset in
+  // base.css (that only catches CSS animations/transitions), so they need
+  // their own check.
   const reducedMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Plain `slide` fades opacity in only over the last 5% of the animation, so
+  // for most of the exit the rounded, bordered strip is fully visible while its
+  // own height/padding/margin/border shrink toward 0 — a squashed pill by the
+  // end, worst right where the border-radius no longer fits the box. Fading
+  // out over the *first* 60% instead means the strip is already invisible well
+  // before it gets short enough for the rounding to look wrong; the last 40%
+  // just closes the now-invisible gap it leaves behind.
+  function bannerOut(node: Element, { duration = 220 }: { duration?: number } = {}) {
+    const style = getComputedStyle(node);
+    const opacity = +style.opacity;
+    const height = parseFloat(style.height);
+    const paddingTop = parseFloat(style.paddingTop);
+    const paddingBottom = parseFloat(style.paddingBottom);
+    const marginTop = parseFloat(style.marginTop);
+    const marginBottom = parseFloat(style.marginBottom);
+    const borderTopWidth = parseFloat(style.borderTopWidth);
+    const borderBottomWidth = parseFloat(style.borderBottomWidth);
+    return {
+      duration,
+      easing: cubicOut,
+      css: (t: number) => `
+        overflow: hidden;
+        opacity: ${Math.max(0, (t - 0.4) / 0.6) * opacity};
+        height: ${t * height}px;
+        padding-top: ${t * paddingTop}px;
+        padding-bottom: ${t * paddingBottom}px;
+        margin-top: ${t * marginTop}px;
+        margin-bottom: ${t * marginBottom}px;
+        border-top-width: ${t * borderTopWidth}px;
+        border-bottom-width: ${t * borderBottomWidth}px;
+        min-height: 0;
+      `,
+    };
+  }
 </script>
 
 <!-- Presence-first solo state, one strip that escalates (north-star: voice + paper;
@@ -104,7 +140,8 @@
     class:soft={!strong}
     role="status"
     aria-live="polite"
-    transition:slide={{ duration: reducedMotion ? 0 : 150 }}
+    in:slide={{ duration: reducedMotion ? 0 : 150 }}
+    out:bannerOut={{ duration: reducedMotion ? 0 : 220 }}
   >
     <span class="ic" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
