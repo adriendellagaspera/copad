@@ -108,34 +108,147 @@ describe('link input rule', () => {
 });
 
 describe('escapeCodeBlock', () => {
-  it('exits a trailing code block into a new paragraph after it', () => {
-    const codeBlock = schema.node('code_block', null, schema.text('let x = 1'));
-    const doc = schema.node('doc', null, [codeBlock]);
-    const state = EditorState.create({
-      schema,
-      doc,
-      selection: TextSelection.create(doc, 3),
-    });
+  /** Runs escapeCodeBlock and returns { handled, next, dispatched } — `next`
+   *  is the resulting state if a transaction was dispatched, else null. */
+  function run(
+    doc: ReturnType<typeof schema.node>,
+    selPos: number
+  ): { handled: boolean; next: EditorState | null; dispatched: boolean } {
+    const state = EditorState.create({ schema, doc, selection: TextSelection.create(doc, selPos) });
     let next: EditorState | null = null;
-    escapeCodeBlock(state, (tr) => {
+    let dispatched = false;
+    const handled = escapeCodeBlock(state, (tr) => {
+      dispatched = true;
       next = state.apply(tr);
     });
-    expect(next).not.toBeNull();
+    return { handled, next, dispatched };
+  }
+
+  it('exits a trailing code block (last node in the doc) into a new paragraph after it', () => {
+    const codeBlock = schema.node('code_block', null, schema.text('let x = 1'));
+    const doc = schema.node('doc', null, [codeBlock]);
+    const { handled, next, dispatched } = run(doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
     expect(next!.doc.childCount).toBe(2);
     expect(next!.doc.lastChild?.type.name).toBe('paragraph');
     expect(next!.selection.$head.parent.type.name).toBe('paragraph');
   });
 
-  it("returns true (swallowing Escape) even when there's nothing to exit", () => {
+  it('exits an empty trailing code block into a new paragraph after it', () => {
+    const codeBlock = schema.node('code_block');
+    const doc = schema.node('doc', null, [codeBlock]);
+    const { next } = run(doc, 1);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.doc.lastChild?.type.name).toBe('paragraph');
+  });
+
+  it('moves into an existing paragraph that already follows the code block, without inserting a new one', () => {
+    const codeBlock = schema.node('code_block', null, schema.text('let x = 1'));
+    const para = schema.node('paragraph', null, schema.text('already here'));
+    const doc = schema.node('doc', null, [codeBlock, para]);
+    const { next, dispatched } = run(doc, 3);
+    expect(dispatched).toBe(true);
+    // No node was inserted: still exactly 2 children, and the paragraph's
+    // text is untouched (a naive exitCode would insert a 3rd, empty one).
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.doc.child(1).textContent).toBe('already here');
+    expect(next!.selection.$head.parent).toBe(next!.doc.child(1));
+  });
+
+  it('lands in an adjacent code block rather than duplicating a paragraph', () => {
+    const codeBlock1 = schema.node('code_block', null, schema.text('a'));
+    const codeBlock2 = schema.node('code_block', null, schema.text('b'));
+    const doc = schema.node('doc', null, [codeBlock1, codeBlock2]);
+    const { next } = run(doc, 1);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.selection.$head.parent.type.name).toBe('code_block');
+    expect(next!.selection.$head.parent).toBe(next!.doc.child(1));
+  });
+
+  it('only escapes to the enclosing container, not past it — exits a code block nested in a blockquote into a new paragraph inside the blockquote', () => {
+    const codeBlock = schema.node('code_block', null, schema.text('let x = 1'));
+    const blockquote = schema.node('blockquote', null, [codeBlock]);
+    const doc = schema.node('doc', null, [blockquote]);
+    const { next } = run(doc, 3);
+    expect(next!.doc.childCount).toBe(1);
+    expect(next!.doc.firstChild?.type.name).toBe('blockquote');
+    expect(next!.doc.firstChild?.childCount).toBe(2);
+    expect(next!.doc.firstChild?.lastChild?.type.name).toBe('paragraph');
+    expect(next!.selection.$head.node(-1)).toBe(next!.doc.firstChild);
+  });
+
+  it('moves into an existing sibling inside a blockquote instead of inserting a duplicate', () => {
+    const codeBlock = schema.node('code_block', null, schema.text('let x = 1'));
+    const para = schema.node('paragraph', null, schema.text('after, in quote'));
+    const blockquote = schema.node('blockquote', null, [codeBlock, para]);
+    const doc = schema.node('doc', null, [blockquote]);
+    const { next } = run(doc, 3);
+    expect(next!.doc.firstChild?.childCount).toBe(2);
+    expect(next!.doc.firstChild?.lastChild?.textContent).toBe('after, in quote');
+    expect(next!.selection.$head.parent).toBe(next!.doc.firstChild?.lastChild);
+  });
+
+  it('exits the same way regardless of caret position within the code block (not just at the end)', () => {
+    const codeBlock = schema.node('code_block', null, schema.text('let x = 1'));
+    const para = schema.node('paragraph', null, schema.text('next'));
+    const doc = schema.node('doc', null, [codeBlock, para]);
+    // Position 1 = right at the very start of the code block's text.
+    const { next } = run(doc, 1);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.selection.$head.parent.textContent).toBe('next');
+  });
+
+  it('moves past the immediate next sibling, not further, when several blocks follow', () => {
+    const codeBlock = schema.node('code_block', null, schema.text('x'));
+    const para1 = schema.node('paragraph', null, schema.text('first'));
+    const para2 = schema.node('paragraph', null, schema.text('second'));
+    const doc = schema.node('doc', null, [codeBlock, para1, para2]);
+    const { next } = run(doc, 1);
+    expect(next!.doc.childCount).toBe(3);
+    expect(next!.selection.$head.parent.textContent).toBe('first');
+  });
+
+  it("returns true (swallowing Escape) but dispatches nothing when the caret isn't in a code block", () => {
     const doc = schema.node('doc', null, [
       schema.node('paragraph', null, schema.text('hello')),
     ]);
-    const state = EditorState.create({ schema, doc });
+    const { handled, dispatched } = run(doc, 1);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(false);
+  });
+
+  it('is a no-op on a second press once the caret already left the code block', () => {
+    const codeBlock = schema.node('code_block', null, schema.text('x'));
+    const doc = schema.node('doc', null, [codeBlock]);
+    const { next } = run(doc, 1);
+    const { dispatched } = run(next!.doc, next!.selection.head);
+    expect(dispatched).toBe(false);
+  });
+
+  it('dispatches nothing for a selection spanning out of the code block into a different parent', () => {
+    const codeBlock = schema.node('code_block', null, schema.text('let x = 1'));
+    const para = schema.node('paragraph', null, schema.text('next'));
+    const doc = schema.node('doc', null, [codeBlock, para]);
+    const state = EditorState.create({
+      schema,
+      doc,
+      // from inside the code block (pos 3) to inside the paragraph (pos past it)
+      selection: TextSelection.create(doc, 3, doc.content.size - 1),
+    });
     let dispatched = false;
     const handled = escapeCodeBlock(state, () => {
       dispatched = true;
     });
     expect(handled).toBe(true);
     expect(dispatched).toBe(false);
+  });
+
+  it('does nothing (but still swallows) when called in dry-run mode (no dispatch) from within a code block', () => {
+    const codeBlock = schema.node('code_block', null, schema.text('let x = 1'));
+    const doc = schema.node('doc', null, [codeBlock]);
+    const state = EditorState.create({ schema, doc, selection: TextSelection.create(doc, 3) });
+    expect(() => escapeCodeBlock(state, undefined)).not.toThrow();
+    expect(escapeCodeBlock(state, undefined)).toBe(true);
   });
 });

@@ -9,20 +9,48 @@ import {
 } from 'prosemirror-inputrules';
 import { undo, redo } from 'y-prosemirror';
 import type { MarkType, Schema } from 'prosemirror-model';
+import { Selection } from 'prosemirror-state';
 import type { Command, EditorState, Plugin, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
 
 /**
- * Escape a code block (or any node with `code: true`) into a fresh paragraph
- * after it — otherwise a code_block that's the last node in the doc has no
- * textblock below it to click or arrow into, trapping the caret (`Enter`'s
- * `newlineInCode` just keeps adding lines inside the block instead of
- * leaving it). Always returns `true`: Firefox blurs contenteditable elements
- * on Escape by default, so it's swallowed even when `exitCode` doesn't apply
- * (the slash menu handles its own Escape first, via slashMenuPlugin running
+ * Escape a code block (or any node with `code: true`) into the textblock
+ * after it — otherwise a code_block with nothing following it (most often
+ * because it's the last node in the doc) has no textblock below it to click
+ * or arrow into, trapping the caret (`Enter`'s `newlineInCode` just keeps
+ * adding lines inside the block instead of leaving it).
+ *
+ * Deliberately does NOT delegate to prosemirror-commands' `exitCode`: that
+ * command always *inserts* a fresh empty paragraph after the code block,
+ * even when a block already follows it — so exiting a code block that sits
+ * mid-document would litter it with a spurious empty paragraph on every
+ * press. Here we only insert one when there's truly nothing to land in;
+ * otherwise the selection just moves into the existing next sibling, same
+ * as arrowing/clicking past the block.
+ *
+ * Always returns `true`: Firefox blurs contenteditable elements on Escape by
+ * default, so it's swallowed even when there's no code block to exit (the
+ * slash menu handles its own Escape first, via slashMenuPlugin running
  * earlier in the plugin list).
  */
 export const escapeCodeBlock: Command = (state, dispatch) => {
+  const { $head, $anchor } = state.selection;
+  if (!$head.sameParent($anchor) || !$head.parent.type.spec.code) return true;
+
+  const container = $head.node(-1);
+  const indexAfter = $head.indexAfter(-1);
+  const pos = $head.after();
+
+  if (indexAfter < container.childCount) {
+    // A block already follows the code block — move into it instead of
+    // inserting a duplicate empty paragraph.
+    if (dispatch) {
+      const tr = state.tr.setSelection(Selection.near(state.doc.resolve(pos), 1));
+      dispatch(tr.scrollIntoView());
+    }
+    return true;
+  }
+
   exitCode(state, dispatch);
   return true;
 };
