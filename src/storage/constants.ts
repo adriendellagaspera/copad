@@ -69,6 +69,37 @@ const envInt = (raw: string | undefined, fallback: number): number => {
   return Number.isInteger(n) && n > 0 ? n : fallback;
 };
 
+/** Boolean override ("1"/"true"/"yes" ⇒ true, "0"/"false"/"no" ⇒ false, case-
+ *  insensitive), or `fallback` when the var is unset, blank, or unrecognized. */
+const envBool = (raw: string | undefined, fallback: boolean): boolean => {
+  const v = raw?.trim().toLowerCase();
+  if (v === '1' || v === 'true' || v === 'yes') return true;
+  if (v === '0' || v === 'false' || v === 'no') return false;
+  return fallback;
+};
+
+// ── Backend enable/disable ──────────────────────────────────────────────────────
+
+/**
+ * Whether each backend is offered in this deployment — `backends()` filters on
+ * this, so a disabled backend never appears as a pill or in Settings. Each id
+ * can be flipped independently via `VITE_ENABLE_<ID>` (e.g. `VITE_ENABLE_
+ * GITLAB=false`). Keyed via `STORAGE_ID.<id>` (not bareword string literals) —
+ * `StorageId` is a brand over `string`, so only a value already branded there
+ * type-checks as a key.
+ *
+ * Backends already relied on in production default to enabled; a newly added
+ * backend should default to *disabled* until it's been connected to a real
+ * account outside production, then flip to `true` in its own dedicated PR.
+ */
+export const BACKEND_ENABLED: Record<StorageId, boolean> = {
+  [STORAGE_ID.dropbox]: envBool(import.meta.env.VITE_ENABLE_DROPBOX, true),
+  [STORAGE_ID.pcloud]: envBool(import.meta.env.VITE_ENABLE_PCLOUD, true),
+  [STORAGE_ID.webdav]: envBool(import.meta.env.VITE_ENABLE_WEBDAV, true),
+  [STORAGE_ID.github]: envBool(import.meta.env.VITE_ENABLE_GITHUB, true),
+  [STORAGE_ID.local]: envBool(import.meta.env.VITE_ENABLE_LOCAL, true),
+};
+
 // ── Cloud folder + default filenames ──────────────────────────────────────────
 
 /** Folder the cloud backends (Dropbox, pCloud) read and write within. */
