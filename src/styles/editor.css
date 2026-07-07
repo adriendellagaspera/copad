@@ -141,17 +141,40 @@
   font-family: var(--font-mono);
   font-size: 0.85em;
 }
-.caret-hint .ch-block {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 0.3rem;
-  font-weight: 600;
-  white-space: nowrap;
+
+/* ── Line block-context hint (desktop) ── */
+
+/* Names the block the caret's line is in (H1/H2/H3, list, quote, code) —
+   a per-line property, so unlike .caret-hint it never rides the caret's x
+   position. It floats in the left margin outside the centered text measure
+   (see .ProseMirror's max-width), vertically aligned with the line's top.
+   Hidden below pointer-fine or once the viewport is too narrow for a margin
+   to exist (see LineBlockHint's reposition — it hides rather than overlap
+   the text). */
+.line-hint {
+  display: none;
 }
-.caret-hint .ch-block + .ch-glyph {
-  border-left: 1px solid var(--border);
-  padding-left: 0.35rem;
-  margin-left: 0.1rem;
+
+@media (pointer: fine) {
+  .line-hint.visible {
+    display: flex;
+    align-items: center;
+    position: fixed;
+    z-index: var(--z-menu);
+    /* top/left set inline from the line's start coords. */
+    padding: 1px var(--sp-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: var(--fs-300);
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+  }
 }
 
 /* ── Status bar ── */

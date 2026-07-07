@@ -11,6 +11,7 @@
   import Toolbar from './Toolbar.svelte';
   import SelectionToolbar from './editor/ui/SelectionToolbar.svelte';
   import CaretFormatHint from './editor/ui/CaretFormatHint.svelte';
+  import LineBlockHint from './editor/ui/LineBlockHint.svelte';
   import { codecForFilename } from './format/index.js';
   import SlashMenu from './editor/ui/SlashMenu.svelte';
   import LinkPopover from './editor/ui/LinkPopover.svelte';
@@ -399,6 +400,7 @@
   </div>
   <SelectionToolbar {view} {editorState} {toasts} />
   <CaretFormatHint {view} {editorState} />
+  <LineBlockHint {view} {editorState} />
   <SlashMenu {view} {editorState} />
   <LinkPopover {view} />
 </main>

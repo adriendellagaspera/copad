@@ -41,25 +41,37 @@ export function activeInputMarks(state: EditorState): MarkType[] {
   return (state.storedMarks ?? $from.marks()).map((mark) => mark.type);
 }
 
+/** A named block context (`H2`, `Quote`, …) anchored to where its line starts. */
+export type BlockContext = { label: string; pos: number };
+
 /**
- * The block context the caret sits in right now, as a short human label
- * (`H2`, `Quote`, `Code`, `List`, `Numbered`) — the block-level counterpart to
- * `activeInputMarks`. Walks ancestors innermost-first so the most specific
- * container wins (e.g. a heading inside a list item reports the heading).
- * `null` for a plain paragraph, so the caret hint stays quiet on ordinary text.
+ * The block context the caret's line sits in right now — the block-level
+ * counterpart to `activeInputMarks`. Walks ancestors innermost-first so the
+ * most specific container wins (e.g. a heading inside a list item reports
+ * the heading), but `pos` always anchors to the start of the immediate
+ * textblock (the current line), not the matched ancestor — so a label for a
+ * quoted or listed paragraph still floats at that paragraph's own line
+ * rather than the quote/list's first line. `null` for a plain paragraph, so
+ * a line hint reading it stays quiet on ordinary text. Uses `$from` only —
+ * a caret's line context doesn't depend on whether the selection is empty.
  */
-export function activeBlockLabel(state: EditorState): string | null {
-  if (!state.selection.empty) return null;
+export function activeBlockContext(state: EditorState): BlockContext | null {
   const { $from } = state.selection;
+  const pos = $from.start($from.depth);
   for (let d = $from.depth; d >= 0; d--) {
     const node = $from.node(d);
-    if (node.type === schema.nodes.heading) return `H${node.attrs.level as number}`;
-    if (node.type === schema.nodes.code_block) return 'Code';
-    if (node.type === schema.nodes.blockquote) return 'Quote';
-    if (node.type === schema.nodes.bullet_list) return 'List';
-    if (node.type === schema.nodes.ordered_list) return 'Numbered';
+    if (node.type === schema.nodes.heading) return { label: `H${node.attrs.level as number}`, pos };
+    if (node.type === schema.nodes.code_block) return { label: 'Code', pos };
+    if (node.type === schema.nodes.blockquote) return { label: 'Quote', pos };
+    if (node.type === schema.nodes.bullet_list) return { label: 'List', pos };
+    if (node.type === schema.nodes.ordered_list) return { label: 'Numbered', pos };
   }
   return null;
+}
+
+/** Just the label from {@link activeBlockContext} — convenient where the anchor position isn't needed. */
+export function activeBlockLabel(state: EditorState): string | null {
+  return activeBlockContext(state)?.label ?? null;
 }
 
 export function isNodeActive(

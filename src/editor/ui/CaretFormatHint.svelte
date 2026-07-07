@@ -2,7 +2,7 @@
   import type { EditorView } from 'prosemirror-view';
   import type { EditorState } from 'prosemirror-state';
   import type { MarkType } from 'prosemirror-model';
-  import { activeInputMarks, activeBlockLabel } from '../commands.js';
+  import { activeInputMarks } from '../commands.js';
   import { schema } from '../schema.js';
 
   type Props = {
@@ -17,10 +17,11 @@
   // showing for a real selection, nothing told the writer that Mod-B/Mod-I had
   // armed a mark *before* they typed. This is a small, non-interactive pill
   // that floats over the collapsed caret and names the marks the next keystroke
-  // will carry, plus the block context (H1/H2/H3, list, quote, code) so a
-  // writer can tell they're in a Heading 2 rather than a Heading 3 without
-  // opening the toolbar. On touch the fixed toolbar's pressed buttons already
-  // show it, so this stays out of the way (pointer-fine gates it in editor.css).
+  // will carry. On touch the fixed toolbar's pressed buttons already show it, so
+  // this stays out of the way (pointer-fine gates it in editor.css).
+  // The block context (heading level, list, quote, code) is a per-line — not
+  // per-character — property, so it's shown by the sibling LineBlockHint
+  // instead, anchored to the line rather than riding along with the caret.
   let host = $state<HTMLDivElement | undefined>();
   let visible = $state(false);
   let top = $state(0);
@@ -48,20 +49,10 @@
     return MARK_GLYPHS.filter((m) => active.has(m.type));
   });
 
-  // The block the caret sits in (heading level, list, quote, code) — null for
-  // a plain paragraph so the hint doesn't fire on every keystroke.
-  const blockLabel = $derived.by(() => (editorState ? activeBlockLabel(editorState) : null));
-
   function reposition(): void {
     const v = view;
     const st = editorState;
-    if (
-      !v ||
-      !st ||
-      !isFinePointer() ||
-      (armed.length === 0 && !blockLabel) ||
-      !v.hasFocus()
-    ) {
+    if (!v || !st || !isFinePointer() || armed.length === 0 || !v.hasFocus()) {
       visible = false;
       return;
     }
@@ -88,7 +79,6 @@
     void editorState;
     void view;
     void armed;
-    void blockLabel;
     reposition();
   });
 
@@ -117,9 +107,6 @@
   role="status"
   aria-live="polite"
 >
-  {#if blockLabel}
-    <span class="ch-block">{blockLabel}</span>
-  {/if}
   {#each armed as m (m.label)}
     <span class="ch-glyph" title={m.label} aria-label={m.label}>
       {#if m.render === 'b'}<b>B</b>

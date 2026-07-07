@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { schema } from './schema.js';
-import { commands, runCommand, activeInputMarks, activeBlockLabel } from './commands.js';
+import { commands, runCommand, activeInputMarks, activeBlockLabel, activeBlockContext } from './commands.js';
 
 function paragraphState(text = 'hi'): EditorState {
   const para = text ? schema.node('paragraph', null, schema.text(text)) : schema.node('paragraph');
@@ -110,9 +110,26 @@ describe('activeBlockLabel', () => {
     expect(activeBlockLabel(quote)).toBe('Quote');
   });
 
-  it('is null for a non-collapsed selection', () => {
+  it('still reports the block for a non-collapsed selection (a line concept, not a mark-arming one)', () => {
     let state = apply(paragraphState(), commands.h1);
     state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1, 2)));
-    expect(activeBlockLabel(state)).toBeNull();
+    expect(activeBlockLabel(state)).toBe('H1');
+  });
+});
+
+describe('activeBlockContext', () => {
+  it('anchors to the start of the current line, not the matched ancestor', () => {
+    // A heading anchors to its own start (the whole node is one line).
+    const heading = apply(paragraphState(), commands.h2);
+    expect(activeBlockContext(heading)).toEqual({ label: 'H2', pos: 1 });
+  });
+
+  it('anchors a quoted paragraph to the paragraph itself, not the blockquote', () => {
+    const quote = apply(paragraphState(), commands.blockquote);
+    // blockquote > paragraph > "hi": the paragraph's own content starts one
+    // position deeper than the blockquote's.
+    const ctx = activeBlockContext(quote);
+    expect(ctx?.label).toBe('Quote');
+    expect(ctx?.pos).toBe(2);
   });
 });
