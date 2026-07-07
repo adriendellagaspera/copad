@@ -484,6 +484,21 @@
   }
 }
 
+/* Brief highlight when a peer is picked from the presence bar (jumpToPresence
+   in remoteCursors.ts) — a pulse ring so the just-scrolled-to cursor/selection
+   is easy to spot, distinct from the idle-fade opacity above. */
+.presence-jump-flash {
+  animation: presence-jump-flash 900ms ease;
+}
+@keyframes presence-jump-flash {
+  0%, 100% {
+    box-shadow: none;
+  }
+  25%, 75% {
+    box-shadow: 0 0 0 4px var(--accent-soft);
+  }
+}
+
 /* ── Checklist ── */
 
 .ProseMirror ul[data-type='taskList'] {

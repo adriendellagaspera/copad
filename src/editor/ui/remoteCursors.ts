@@ -13,8 +13,9 @@ import { fadeTier, type PresenceActivity } from '../../collaboration/presenceAct
 /** Tags a rendered cursor/selection element with its owning clientId so
  *  `refreshPresenceFade` can find and re-fade it without going through
  *  y-prosemirror's decoration recompute (see that function's doc comment
- *  for why recompute alone doesn't work here). */
-const PRESENCE_ATTR = 'data-presence-client';
+ *  for why recompute alone doesn't work here). Also what `jumpToPresence`
+ *  below scrolls to when a peer is picked from the presence bar. */
+export const PRESENCE_ATTR = 'data-presence-client';
 
 export function remoteCursorBuilder(activity: PresenceActivity) {
   return (user: PeerUser, clientId: number): HTMLElement => {
@@ -57,5 +58,25 @@ export function refreshPresenceFade(root: Element, activity: PresenceActivity): 
     const clientId = Number(el.getAttribute(PRESENCE_ATTR));
     if (Number.isNaN(clientId)) return;
     el.style.setProperty('--presence-fade', fadeTier(activity.idleMs(clientId)).toFixed(2));
+  });
+}
+
+/** How long the flash highlight (below) stays on the DOM before it's removed,
+ *  in ms — must match the `presence-jump-flash` CSS animation's duration. */
+const JUMP_FLASH_MS = 900;
+
+/**
+ * Scrolls a peer's rendered cursor/selection into view and briefly flashes it
+ * — the presence bar's "where is this person" action (Figma-style jump to a
+ * collaborator), invoked by clicking their avatar. A no-op if the peer has no
+ * decoration currently rendered (e.g. they just left).
+ */
+export function jumpToPresence(root: Element, clientId: number): void {
+  const els = root.querySelectorAll<HTMLElement>(`[${PRESENCE_ATTR}="${clientId}"]`);
+  if (els.length === 0) return;
+  els[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  els.forEach((el) => {
+    el.classList.add('presence-jump-flash');
+    setTimeout(() => el.classList.remove('presence-jump-flash'), JUMP_FLASH_MS);
   });
 }

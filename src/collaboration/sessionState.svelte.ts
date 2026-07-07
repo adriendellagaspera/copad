@@ -31,6 +31,11 @@ let diag = $state<SessionDiagnostics>({ transport: Transport.P2P });
 // layout in App.svelte / editor.css). Irrelevant on desktop, where the
 // formatting toolbar lives in the floating selection bubble instead.
 let editing = $state(false);
+// Set by the Editor once its view mounts: scrolls a peer's cursor/selection
+// into view and briefly flashes it. Read by the header's presence bar and by
+// ConnectionDialog, both of which sit outside the Editor block. Undefined
+// while no Editor is mounted (e.g. mid room-switch remount).
+let jumpToPeer = $state<((clientId: number) => void) | undefined>(undefined);
 
 /** Reactive accessor read by the header. */
 export const sessionState = {
@@ -52,6 +57,9 @@ export const sessionState = {
   get editing(): boolean {
     return editing;
   },
+  get jumpToPeer(): ((clientId: number) => void) | undefined {
+    return jumpToPeer;
+  },
 };
 
 export function setSessionConn(value: ConnStatus): void {
@@ -70,6 +78,9 @@ export function setSessionDiagnostics(value: SessionDiagnostics): void {
 export function setSessionEditing(value: boolean): void {
   editing = value;
 }
+export function setSessionJumpToPeer(value: ((clientId: number) => void) | undefined): void {
+  jumpToPeer = value;
+}
 
 /** Restore defaults when the Editor unmounts (room change / teardown). */
 export function resetSessionState(): void {
@@ -79,4 +90,5 @@ export function resetSessionState(): void {
   peers = 1;
   diag = { transport: Transport.P2P };
   editing = false;
+  jumpToPeer = undefined;
 }

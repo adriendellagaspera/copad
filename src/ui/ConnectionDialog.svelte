@@ -25,6 +25,7 @@
     peers = [],
     getDiagnostics,
     reconnect,
+    jumpToPeer,
     onConnectStorage,
   }: {
     open: boolean;
@@ -45,9 +46,16 @@
     peers?: PeerUser[];
     getDiagnostics?: () => Promise<Diagnostics>;
     reconnect?: () => void;
+    /** Scrolls a peer's cursor into view — closes this sheet so the jump is visible. */
+    jumpToPeer?: (clientId: number) => void;
     /** Open Settings to connect a backend (shown when the room is not saved). */
     onConnectStorage: () => void;
   } = $props();
+
+  function selectPeer(clientId: number): void {
+    onclose();
+    jumpToPeer?.(clientId);
+  }
 
   let diag = $state<Diagnostics | undefined>(undefined);
   let loading = $state(false);
@@ -212,7 +220,7 @@
       </p>
       {#if showPresence}
         <div class="presence-row">
-          <PresenceBar users={peers} />
+          <PresenceBar users={peers} onSelect={jumpToPeer && selectPeer} />
         </div>
       {/if}
     </div>

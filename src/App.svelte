@@ -723,7 +723,7 @@
         onclick={() => (diagOpen = true)}
       />
       {#if otherPeers.length > 0}
-        <PresenceBar users={otherPeers} size={24} />
+        <PresenceBar users={otherPeers} size={24} onSelect={sessionState.jumpToPeer} />
       {/if}
     </div>
 
@@ -900,6 +900,7 @@
   peers={sessionState.users}
   getDiagnostics={sessionState.diagnostics.getDiagnostics}
   reconnect={sessionState.diagnostics.reconnect}
+  jumpToPeer={sessionState.jumpToPeer}
   onConnectStorage={() => openSettings()}
 />
 
