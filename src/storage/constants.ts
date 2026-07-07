@@ -101,6 +101,9 @@ export const BACKEND_ENABLED: Record<StorageId, boolean> = {
   // Not yet connected to a real GitLab account outside production — stays
   // hidden until that's done, then flips to `true` in its own dedicated PR.
   [STORAGE_ID.gitlab]: envBool(import.meta.env.VITE_ENABLE_GITLAB, false),
+  // Not yet connected to a real S3-compatible bucket outside production —
+  // stays hidden until that's done, then flips to `true` in its own PR.
+  [STORAGE_ID.s3]: envBool(import.meta.env.VITE_ENABLE_S3, false),
 };
 
 // ── Cloud folder + default filenames ──────────────────────────────────────────

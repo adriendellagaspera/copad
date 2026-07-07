@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 describe('backends()', () => {
-  it('offers every production-proven backend by default, but not gitlab yet', async () => {
+  it('offers every production-proven backend by default, but not gitlab or s3 yet', async () => {
     const { backends } = await import('./index.js');
     const ids = backends(TEST_ROOM).map(b => b.storage.id).sort();
     expect(ids).toEqual(['dropbox', 'github', 'local', 'pcloud', 'webdav']);
@@ -34,6 +34,13 @@ describe('backends()', () => {
     const { backends } = await import('./index.js');
     const ids = backends(TEST_ROOM).map(b => b.storage.id);
     expect(ids).toContain('gitlab');
+  });
+
+  it('VITE_ENABLE_S3=true surfaces s3 once it is ready to test outside prod', async () => {
+    vi.stubEnv('VITE_ENABLE_S3', 'true');
+    const { backends } = await import('./index.js');
+    const ids = backends(TEST_ROOM).map(b => b.storage.id);
+    expect(ids).toContain('s3');
   });
 
   it('hides a backend disabled via VITE_ENABLE_<ID>, leaving the rest untouched', async () => {
