@@ -492,7 +492,13 @@
   // explainer instead of relying on the banner alone. It closes itself the moment
   // `writeGateSeen` flips true (whichever action the user picks, or a plain
   // dismiss), since this derived recomputes to false.
-  const showWriteGateExplainer = $derived(writeLocked && !writeGateSeen);
+  //
+  // Deferred while Share or Settings is already open: both render their own
+  // full-screen `Dialog`/backdrop, and popping a second one on top mid-flow would
+  // steal the click the user was mid-way through (e.g. "Copy link"). It simply
+  // waits — `writeLocked` and `writeGateSeen` are unaffected by either dialog, so
+  // this recomputes to true the moment the user closes them, gate still armed.
+  const showWriteGateExplainer = $derived(writeLocked && !writeGateSeen && !shareOpen && !settingsOpen);
 
   function allowWriteSolo(): void {
     if (!soloRooms.includes(room)) soloRooms = [...soloRooms, room];
