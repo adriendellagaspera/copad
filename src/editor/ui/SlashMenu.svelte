@@ -12,10 +12,18 @@
   let { view, editorState }: { view: EditorView | null; editorState: EditorState | null } =
     $props();
 
+  let menuEl: HTMLDivElement | null = $state(null);
+
   const st = $derived(editorState ? slashKey.getState(editorState) : null);
   const open = $derived(!!st?.active);
   const items = $derived<SlashItem[]>(st?.active ? filterItems(st.query) : []);
   const index = $derived(items.length ? Math.min(st?.active ? st.index : 0, items.length - 1) : 0);
+
+  // Keep the keyboard-active item visible as ArrowUp/Down/Tab move past the menu's edges.
+  $effect(() => {
+    index;
+    menuEl?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+  });
 
   // Anchor the menu just below the "/" in viewport coordinates.
   const coords = $derived.by(() => {
@@ -32,6 +40,7 @@
 {#if open && items.length > 0 && coords}
   <div
     class="slash-menu"
+    bind:this={menuEl}
     role="listbox"
     aria-label="Insert block"
     style="left:{coords.left}px; top:{coords.top}px"

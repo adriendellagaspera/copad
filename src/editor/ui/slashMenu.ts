@@ -145,8 +145,13 @@ export function slashMenuPlugin(): Plugin<SlashState> {
           case 'ArrowUp':
             setSlashIndex(view, (index - 1 + items.length) % items.length);
             return true;
-          case 'Enter':
           case 'Tab':
+            setSlashIndex(
+              view,
+              event.shiftKey ? (index - 1 + items.length) % items.length : (index + 1) % items.length
+            );
+            return true;
+          case 'Enter':
             runSlashItem(view, items[index]);
             return true;
         }
