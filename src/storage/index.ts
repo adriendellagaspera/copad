@@ -3,6 +3,7 @@ import { dropboxStorage } from './dropbox.js';
 import { webdavStorage } from './webdav.js';
 import { localFsStorage } from './local.js';
 import { githubStorage } from './github.js';
+import { gitlabStorage } from './gitlab.js';
 import type { Storage } from './types.js';
 import type { StorageAuth } from './auth.js';
 import type { RoomId } from '../collaboration/types.js';
@@ -33,6 +34,7 @@ export function backends(room: RoomId): StorageBackend[] {
     dropboxStorage(room),
     webdavStorage(netFetch, room),
     githubStorage(room),
+    gitlabStorage(room),
     // Always offer local-file storage; it self-reports availability.ok=false when
     // the File System Access API is absent (e.g. Firefox, Safari, Brave Shields).
     localFsStorage(),

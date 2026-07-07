@@ -26,6 +26,7 @@ Storage adapters return `{ auth: StorageAuth; storage: Storage }` — auth and b
 | `pcloudStorage()` | `src/storage/pcloud.ts` | OAuth popup |
 | `webdavStorage()` | `src/storage/webdav.ts` | Requires `VITE_PROXY_URL` (CORS) |
 | `githubStorage()` | `src/storage/github.ts` | Commits to a GitHub repo via PAT; `contentFormat` is `'text'` for human-readable files, `'binary'` for `.yjs`. |
+| `gitlabStorage()` | `src/storage/gitlab.ts` | Commits to a GitLab project (gitlab.com or self-hosted) via PAT; mirrors `githubStorage()` (configFields + validated flag + POST/PUT create-or-update). |
 | `localFsStorage()` | `src/storage/local.ts` | File System Access API, Chrome/Edge only |
 | `webrtcCollab()` | `src/collaboration/webrtc.ts` | y-webrtc peer-to-peer transport (**default**). Needs STUN, plus TURN on mobile/symmetric NAT. |
 | `websocketCollab()` | `src/collaboration/websocket.ts` | y-websocket hub transport (opt-in via `VITE_COLLAB_TRANSPORT=websocket`). Central relay, **no WebRTC → no STUN/TURN**; server is in the data path (no E2E). |
@@ -223,6 +224,12 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_GITHUB_BRANCH` | no | Locks the GitHub branch (default: `main`); otherwise set at runtime in Settings |
 | `VITE_GITHUB_TOKEN` | no | Locks the GitHub PAT; bypasses the Connect validation step (deployment-managed) |
 | `VITE_GITHUB_API_URL` | no | GitHub REST API base (default: `https://api.github.com`); set for a GitHub Enterprise host. In `src/storage/constants.ts`. |
+| `VITE_GITLAB_PROJECT` | no | Locks the GitLab project (`namespace/project`); otherwise set at runtime in Settings. |
+| `VITE_GITLAB_HOST` | no | Locks the GitLab instance host (default: `https://gitlab.com`); set for self-hosted GitLab. |
+| `VITE_GITLAB_BRANCH` | no | Locks the GitLab branch (default: `main`); otherwise set at runtime in Settings. |
+| `VITE_GITLAB_TOKEN` | no | Locks the GitLab PAT; bypasses the Connect validation step (deployment-managed). |
+| `VITE_GITLAB_API_PATH` | no | GitLab REST API path appended to the host (default: `/api/v4`). In `src/storage/constants.ts`. |
+| `VITE_GITLAB_DEFAULT_FILENAME` | no | Initial GitLab target file (default: `notes.md`). |
 | `VITE_CLOUD_FOLDER` | no | Folder the cloud backends (Dropbox, pCloud) read/write within (default: `/copad`). In `src/storage/constants.ts`. |
 | `VITE_DEFAULT_FILENAME` | no | Initial target filename for cloud backends (default: `document.yjs`); the extension selects the codec. |
 | `VITE_GITHUB_DEFAULT_FILENAME` | no | Initial GitHub target file (default: `notes.md`). |
@@ -232,7 +239,7 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_PCLOUD_GETFILELINK_PATH` / `VITE_PCLOUD_UPLOAD_PATH` | no | pCloud API paths (defaults: `/getfilelink` / `/uploadfile`). |
 | `VITE_OAUTH_TIMEOUT_MS` | no | How long to wait for the OAuth popup before giving up (default: `300000`). |
 | `VITE_OAUTH_POPUP_FEATURES` | no | OAuth popup window features (default: `width=520,height=640`). |
-| `VITE_BASE64_CHUNK` | no | Chunk size for base64-encoding large GitHub uploads (default: `32768`). |
+| `VITE_BASE64_CHUNK` | no | Chunk size for base64-encoding large GitHub/GitLab uploads (default: `32768`). |
 | `VITE_PROXY_URL` | for WebDAV | CORS proxy URL |
 | `VITE_WEBDAV_URL` | no | Pre-fill the WebDAV URL input |
 | `VITE_STORAGE_BACKEND` | no | Default storage backend id |

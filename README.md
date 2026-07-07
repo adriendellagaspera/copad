@@ -73,6 +73,7 @@ Adapters in [`src/storage/`](src/storage/):
 | **Dropbox** | OAuth2 **PKCE** (popup) | ✅ CORS OK (token + content) | No |
 | **pCloud** | OAuth token (popup) | ⚠️ upload OK, read CORS-iffy | For reads only |
 | **WebDAV / Nextcloud** | Basic (app password) | ❌ no CORS by default | Yes (unless server is CORS-enabled) |
+| **GitLab** | Personal Access Token | ✅ native CORS (self-hosted too) | No |
 | **Local file** | None (File System Access API) | ✅ Chrome/Edge only | No |
 
 **Adding a backend** (Google Drive, S3/R2, OneDrive…) = write a factory function returning
@@ -244,6 +245,7 @@ src/
     pcloud.ts    # pCloud adapter
     dropbox.ts   # Dropbox adapter (PKCE)
     webdav.ts    # WebDAV / Nextcloud adapter
+    gitlab.ts    # GitLab adapter (PAT, gitlab.com or self-hosted)
     local.ts     # Local file adapter (File System Access API, Chrome/Edge)
     index.ts     # registry of configured backends
   network/
