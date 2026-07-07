@@ -78,4 +78,23 @@ describe('lineBlockHintPlugin', () => {
     expect(el.getAttribute('aria-hidden')).toBe('true');
     expect(el.className).toBe('line-hint-inline');
   });
+
+  it('stays quiet on an empty heading that is the document’s sole block (the ghost placeholder covers it)', () => {
+    const heading = schema.node('heading', { level: 1 });
+    const doc = schema.node('doc', null, [heading]);
+    let state = EditorState.create({ schema, doc, plugins: [plugin] });
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1)));
+    state = state.apply(state.tr.setMeta(plugin, { focused: true }));
+    expect(getDecorations(state)).toBeNull();
+  });
+
+  it('still labels an empty heading once it is not the sole block', () => {
+    const heading = schema.node('heading', { level: 2 });
+    const para = schema.node('paragraph', null, schema.text('hi'));
+    const doc = schema.node('doc', null, [heading, para]);
+    let state = EditorState.create({ schema, doc, plugins: [plugin] });
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1)));
+    state = state.apply(state.tr.setMeta(plugin, { focused: true }));
+    expect(decorationLabels(state)).toEqual(['H2']);
+  });
 });

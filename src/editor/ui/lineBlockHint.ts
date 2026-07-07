@@ -2,6 +2,7 @@ import { Plugin, PluginKey } from 'prosemirror-state';
 import type { EditorState } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import { activeBlockContext } from '../commands.js';
+import { isSoleEmptyBlock } from './placeholder.js';
 
 type LineBlockHintState = { focused: boolean };
 
@@ -57,12 +58,24 @@ export function lineBlockHintPlugin(): Plugin {
         // CSS's `pointer: fine` media query) — but skip it entirely while
         // unfocused so it doesn't appear over a document nobody is editing.
         if (!key.getState(state)?.focused) return null;
+        // The one case the ghost placeholder covers (see placeholder.ts):
+        // its `::before` is a float that doesn't reserve line space the way
+        // our real inline widget would, so the two visibly collide if both
+        // try to render into that single empty block.
+        if (isSoleEmptyBlock(state.doc)) return null;
         const ctx = activeBlockContext(state);
         if (!ctx) return null;
         return DecorationSet.create(state.doc, [
+          // Keyed on position *and* label (not a constant) — ProseMirror
+          // reuses a widget's DOM node across redraws whenever the key
+          // matches, and the spec requires same-key widgets to be
+          // interchangeable. A heading-level (or line) change is a
+          // different label at a different pos, so it must get a new key,
+          // or the stale node lingers and the line-to-line transition reads
+          // as the badge showing up a beat late.
           Decoration.widget(ctx.pos, () => widgetFor(ctx.label), {
             side: -1,
-            key: 'line-hint',
+            key: `line-hint:${ctx.pos}:${ctx.label}`,
             ignoreSelection: true,
           }),
         ]);
