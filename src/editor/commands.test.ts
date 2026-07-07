@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { schema } from './schema.js';
-import { commands, runCommand, activeInputMarks } from './commands.js';
+import { commands, runCommand, activeInputMarks, activeBlockLabel, activeBlockContext } from './commands.js';
 
 function paragraphState(text = 'hi'): EditorState {
   const para = text ? schema.node('paragraph', null, schema.text(text)) : schema.node('paragraph');
@@ -84,5 +84,52 @@ describe('activeInputMarks', () => {
     let state = paragraphState('hello');
     state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1, 4)));
     expect(activeInputMarks(state)).toEqual([]);
+  });
+});
+
+describe('activeBlockLabel', () => {
+  it('is null for a plain paragraph', () => {
+    expect(activeBlockLabel(paragraphState())).toBeNull();
+  });
+
+  it('reports the heading level', () => {
+    const h2 = apply(paragraphState(), commands.h2);
+    expect(activeBlockLabel(h2)).toBe('H2');
+
+    const h3 = apply(paragraphState(), commands.h3);
+    expect(activeBlockLabel(h3)).toBe('H3');
+  });
+
+  it('reports a code block', () => {
+    const codeBlock = apply(paragraphState(), commands.codeBlock);
+    expect(activeBlockLabel(codeBlock)).toBe('Code');
+  });
+
+  it('reports a blockquote', () => {
+    const quote = apply(paragraphState(), commands.blockquote);
+    expect(activeBlockLabel(quote)).toBe('Quote');
+  });
+
+  it('still reports the block for a non-collapsed selection (a line concept, not a mark-arming one)', () => {
+    let state = apply(paragraphState(), commands.h1);
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1, 2)));
+    expect(activeBlockLabel(state)).toBe('H1');
+  });
+});
+
+describe('activeBlockContext', () => {
+  it('anchors to the start of the current line, not the matched ancestor', () => {
+    // A heading anchors to its own start (the whole node is one line).
+    const heading = apply(paragraphState(), commands.h2);
+    expect(activeBlockContext(heading)).toEqual({ label: 'H2', pos: 1 });
+  });
+
+  it('anchors a quoted paragraph to the paragraph itself, not the blockquote', () => {
+    const quote = apply(paragraphState(), commands.blockquote);
+    // blockquote > paragraph > "hi": the paragraph's own content starts one
+    // position deeper than the blockquote's.
+    const ctx = activeBlockContext(quote);
+    expect(ctx?.label).toBe('Quote');
+    expect(ctx?.pos).toBe(2);
   });
 });

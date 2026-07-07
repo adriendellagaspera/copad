@@ -142,6 +142,39 @@
   font-size: 0.85em;
 }
 
+/* ── Line block-context hint (desktop) ── */
+
+/* Names the block the caret's line is in (H1/H2/H3, quote, code) as a real
+   inline element at the start of that line (a widget decoration from
+   lineBlockHint.ts — see its doc comment for why an in-flow element rather
+   than a floating badge: this app's text column has almost no reserved
+   margin to float one in). Sized independently of the surrounding block's
+   own font (a heading's h1-h3 rules would otherwise blow it up) and hidden
+   below pointer-fine, matching .caret-hint / .ch-glyph. */
+.line-hint-inline {
+  display: none;
+}
+
+@media (pointer: fine) {
+  .line-hint-inline {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    margin-right: 0.4em;
+    padding: 0 0.35em;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: var(--fs-300);
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+    user-select: none;
+  }
+}
+
 /* ── Status bar ── */
 
 /* Footer bar at the bottom of the editor — document meta (word count, outline).

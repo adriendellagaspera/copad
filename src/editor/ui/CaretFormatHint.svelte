@@ -19,6 +19,9 @@
   // that floats over the collapsed caret and names the marks the next keystroke
   // will carry. On touch the fixed toolbar's pressed buttons already show it, so
   // this stays out of the way (pointer-fine gates it in editor.css).
+  // The block context (heading level, list, quote, code) is a per-line — not
+  // per-character — property, so it's shown by the sibling LineBlockHint
+  // instead, anchored to the line rather than riding along with the caret.
   let host = $state<HTMLDivElement | undefined>();
   let visible = $state(false);
   let top = $state(0);
