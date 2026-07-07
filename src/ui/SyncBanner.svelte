@@ -65,7 +65,23 @@
   // fact, its own tier) → the standing solo reminder (never blocks, transient —
   // you opted to write solo, or the room is saved / on a hub and was never
   // gateable). Nothing during the gate's grace window. Same slot throughout.
-  const show = $derived(gated || collabUnavailable || (alone && !gateEligible));
+  const wantShow = $derived(gated || collabUnavailable || (alone && !gateEligible));
+
+  // Dismissible: the write-gate itself lives on the editor (click/keystroke
+  // lifts it regardless of this banner), so hiding the strip never traps you —
+  // it only drops the explanation + Invite/Connect nudge until the *reason*
+  // changes. `reason` collapses to 'hidden' whenever `wantShow` is false, so a
+  // dismissal is forgotten the moment there's a fresh thing to say (a new tier,
+  // or the same tier recurring after going away).
+  const reason = $derived(
+    !wantShow ? 'hidden' : gated ? 'gated' : collabUnavailable ? 'unavailable' : 'alone',
+  );
+  let dismissed = $state(false);
+  $effect(() => {
+    reason;
+    dismissed = false;
+  });
+  const show = $derived(wantShow && !dismissed);
 
   // Svelte's JS transition:slide isn't touched by the CSS reduced-motion reset
   // in base.css (that only catches CSS animations/transitions), so it needs
@@ -158,6 +174,14 @@
         <button class="link" onclick={onConnectStorage}>Connect storage</button>
       </span>
     {/if}
+    <button
+      class="dismiss ghost"
+      onclick={() => (dismissed = true)}
+      aria-label="Dismiss"
+      title="Dismiss"
+    >
+      ✕
+    </button>
   </div>
 {/if}
 
@@ -206,6 +230,25 @@
     align-items: center;
     gap: var(--sp-2);
     flex-shrink: 0;
+  }
+  /* >=44px hit area (WCAG 2.5.5) around a small glyph — grown via padding, not
+     by enlarging the ✕ itself. Always last, after any tier's own actions. */
+  .dismiss {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    margin: calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2)) 0;
+    font-size: 0.75rem;
+    color: var(--text-faint);
+    border: none;
+  }
+  .dismiss:hover {
+    color: var(--text);
+    background: color-mix(in srgb, var(--text) 7%, transparent);
   }
   /* Primary — a filled accent chip. It pops without clashing now the field is only
      faintly tinted (the old saturated-yellow field made accent-blue collide). */
