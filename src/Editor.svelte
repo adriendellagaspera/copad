@@ -73,8 +73,9 @@
   const SAVE_DEBOUNCE = 3_000;
 
   // Collab session — created once for the lifetime of this component.
-  // untrack: both props are intentionally read once — {#key room} in the parent
-  // remounts this component whenever room changes.
+  // untrack: both props are intentionally read once — `room` is fixed for the
+  // tab's lifetime, and a `connect` change goes through the parent's
+  // `rebuildCollab()` remount, not a reactive read here.
   const collab = untrack(() => connect)(untrack(() => room));
   const yFragment = collab.doc.getXmlFragment('prosemirror');
 

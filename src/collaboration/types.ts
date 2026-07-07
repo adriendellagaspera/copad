@@ -14,15 +14,6 @@ export type RoomId = string & { readonly _brand: 'RoomId' };
  *  immutable {@link RoomId}, so renaming a room can't "lose" it. */
 export type RoomName = string & { readonly _brand: 'RoomName' };
 
-/** A room the user has visited, remembered locally so the room switcher can
- *  offer it again — the anti-loss safety net. `name` is the last-known shared
- *  name (may be null before it has loaded/been set); `visitedAt` is epoch ms. */
-export interface RecentRoom {
-  readonly id: RoomId;
-  readonly name: RoomName | null;
-  readonly visitedAt: number;
-}
-
 /** A WebRTC signaling server URL (`ws://`/`wss://`) that has passed
  *  `resolveSignaling()` validation — peers use it only to discover each other. */
 export type SignalingUrl = string & { readonly _brand: 'SignalingUrl' };

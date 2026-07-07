@@ -10,8 +10,8 @@
 //   App   (header)  → renameRoom(name)               local edit, written through
 //   App/UI (read)   → roomName.value                 reactive current value
 //
-// Only one Editor is mounted at a time ({#key room} remounts it), so a single
-// module-level holder is sufficient; the Editor unbinds on teardown.
+// Only one Editor is mounted at a time, so a single module-level holder is
+// sufficient; the Editor unbinds on teardown.
 
 import type { RoomName } from './types.js';
 

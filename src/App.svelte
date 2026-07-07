@@ -21,9 +21,8 @@
   import { fetchIceServers } from './collaboration/iceServers.js';
   import { parseRoomId, parseRoomName, parseRoomCredential } from './collaboration/parse.js';
   import { roomName, renameRoom } from './collaboration/roomName.svelte.js';
-  import { recordRoomVisit, updateRecentRoomName } from './collaboration/recentRooms.js';
   import { sessionState } from './collaboration/sessionState.svelte.js';
-  import RoomSwitcher from './ui/RoomSwitcher.svelte';
+  import RoomNameField from './ui/RoomNameField.svelte';
   import IdentityMenu from './ui/IdentityMenu.svelte';
   import StatusPill from './ui/StatusPill.svelte';
   import PresenceBar from './ui/PresenceBar.svelte';
@@ -109,7 +108,7 @@
   // Gate the first Editor mount on the ICE fetch when an endpoint is configured,
   // so the initial connection already carries the fetched TURN relay. We resolve
   // ICE *before* the first build rather than reconnecting after: a post-mount
-  // rebuild would remount the Editor via {#key}, and a same-room remount races
+  // rebuild goes through `rebuildCollab()`'s remount, and a same-room remount races
   // y-webrtc's global room registry (openRoom throws "already exists" if the old
   // provider's async teardown hasn't deregistered the room yet, leaving the new
   // provider unsubscribed). fetchIceServers self-bounds via ICE_FETCH_TIMEOUT_MS,
@@ -191,21 +190,21 @@
   const collabUnavailable = collabWarning !== undefined;
 
   // Local document cache (IndexedDB). On by default; the Settings toggle flips it.
-  // `connect` is derived so flipping it rebuilds the factory, and the keyed block
-  // below remounts the Editor so the change takes effect immediately.
+  // `connect` is derived so flipping it rebuilds the factory, and `rebuildCollab()`
+  // remounts the Editor so the change takes effect immediately.
   let localCache = $state(localCacheEnabled());
 
   // Bumped when a TURN/security settings change needs a fresh factory. Read in
   // `connect` so the derived rebuilds with the new ICE/cipher; the actual remount
-  // is driven by `rebuildCollab()` (a same-room {#key} swap would race y-webrtc).
+  // is driven by `rebuildCollab()` (a direct swap would race y-webrtc — see below).
   let collabEpoch = $state(0);
   const connect = $derived.by(() => {
     void collabEpoch;
     return collabPlan.build(localCache);
   });
 
-  // The Editor is unmounted only while `editorMounted` is false; the `{#key room}`
-  // block below still handles room switches (different y-webrtc room → no clash).
+  // The Editor is unmounted only while `editorMounted` is false. `room` is fixed
+  // for the tab's lifetime (see above), so this is the only remount path.
   let editorMounted = $state(true);
   let rebuilding = false;
   /**
@@ -332,8 +331,9 @@
       : SessionRole.Writer;
   }
 
-  // Fixed for the lifetime of this tab: opening another room always opens a new
-  // tab (see `openRoom` below), so there's no in-tab switch left to react to.
+  // Fixed for the lifetime of this tab: a new document always opens a new tab
+  // (see `newRoom` below), so `room` never changes in place — there's no
+  // in-tab room switch to react to.
   const room: RoomId = roomFromUrl();
   const sessionRole: SessionRole = roleFromUrl();
 
@@ -558,67 +558,19 @@
     return true;
   }
 
-  // Accept a bare id, a "?room=x" fragment, or a full shared URL — so pasting a
-  // collaborator's link into the switcher's "open a room" field just works.
-  function roomIdFrom(input: string): string {
-    const t = input.trim();
-    if (!t) return t;
-    try {
-      // A full URL always resolves through its `room` param — including its
-      // absence, which means "the default room". Never fall back to treating
-      // the whole URL as a room id (a default-room secret link has no
-      // `?room=`, only `#k=`, and would otherwise mint a garbage room named
-      // after the entire pasted URL).
-      return new URL(t).searchParams.get('room') ?? '';
-    } catch {
-      /* not a full URL — fall through */
-    }
-    const m = t.match(/[?&]room=([^&]+)/);
-    return m ? decodeURIComponent(m[1]) : t;
-  }
-
-  // Extract a secret-link key (`#k=…`) from a pasted invite URL/fragment, if
-  // present — so it can be preserved across the switch even though the new
-  // URL is rewritten to a plain `?room=` with no hash.
-  function keyFromInput(input: string): string | null {
-    const t = input.trim();
-    try {
-      return new URLSearchParams(new URL(t).hash.slice(1)).get('k');
-    } catch {
-      /* not a full URL — fall through */
-    }
-    const m = t.match(/[#&]k=([^&]+)/);
-    return m ? decodeURIComponent(m[1]) : null;
-  }
-
-  // Opening another room always opens a fresh browser tab rather than switching
-  // this one in place. Why: `storage/filename.ts`'s `activeRoom` is a single
-  // pointer shared by *every* backend in this tab (not one per backend) — if two
-  // rooms' persist loops were ever alive in the same tab at once, both would
-  // resolve their target filename against whichever room is "active", silently
-  // overwriting one room's saved file with the other's content. A real tab
-  // sidesteps this for free: each tab gets its own JS module state, and the
+  // Creating a new document always opens a fresh browser tab rather than
+  // switching this one in place. Why: `storage/filename.ts`'s `activeRoom` is a
+  // single pointer shared by *every* backend in this tab (not one per backend)
+  // — if two rooms' persist loops were ever alive in the same tab at once, both
+  // would resolve their target filename against whichever room is "active",
+  // silently overwriting one room's saved file with the other's content. A real
+  // tab sidesteps this for free: each tab gets its own JS module state, and the
   // per-room-per-backend filename already lives correctly namespaced in
-  // localStorage. Until the Storage port is made room-explicit, "another room"
-  // means "another tab" — never a second room alongside this one.
-  function roomHref(r: RoomId): string {
-    const qs = r === DEFAULT_ROOM ? '' : `?room=${encodeURIComponent(r)}`;
-    return location.pathname + qs;
-  }
-
-  function openRoom(idOrUrl: string): void {
-    const r = parseRoomId(roomIdFrom(idOrUrl)) ?? DEFAULT_ROOM;
-    // A pasted encrypted invite carries its key in the URL fragment, which the
-    // opened URL below doesn't repeat — so persist it as this room's per-room
-    // password first. The new tab's lock effect then remembers its fingerprint
-    // on this first keyed visit, same as any other keyed room.
-    const key = keyFromInput(idOrUrl);
-    if (key) setRoomPassword(r, key);
-    window.open(roomHref(r), '_blank', 'noopener');
-  }
-
+  // localStorage. Until the Storage port is made room-explicit, a new document
+  // means a new tab — never a second room alongside this one.
   function newRoom(): void {
-    openRoom(Math.random().toString(36).slice(2, 10));
+    const r = Math.random().toString(36).slice(2, 10);
+    window.open(`${location.pathname}?room=${encodeURIComponent(r)}`, '_blank', 'noopener');
   }
 
   // Rename the current room — edits the shared name (synced to every peer via
@@ -626,15 +578,6 @@
   function renameCurrentRoom(raw: string): void {
     renameRoom(parseRoomName(raw));
   }
-
-  // Remember every room we open so the switcher can always offer it again.
-  $effect(() => {
-    recordRoomVisit(room, null);
-  });
-  // Keep the remembered name in step with the shared name as it loads / changes.
-  $effect(() => {
-    updateRecentRoomName(room, roomName.value);
-  });
 </script>
 
 <div class="app">
@@ -646,7 +589,7 @@
       <button class="wordmark" onclick={() => location.reload()} title="Reload">Copad</button>
     </div>
     <div class="controls">
-      <RoomSwitcher {room} name={roomName.value} onRename={renameCurrentRoom} onOpen={openRoom} />
+      <RoomNameField {room} name={roomName.value} onRename={renameCurrentRoom} />
       <button
         class="btn-new icon-btn"
         onclick={newRoom}
@@ -743,22 +686,20 @@
       onSkip={continueWithoutPassword}
     />
   {:else if editorMounted}
-    {#key room}
-      <Editor
-        {name}
-        {color}
-        {room}
-        role={sessionRole}
-        {connect}
-        {toasts}
-        storage={savedHere ? storage!.storage : null}
-        lang={language.resolved}
-        spellcheck={language.spellcheck}
-        {writeLocked}
-        writeGateEligible={gateEligible}
-        onWriteSolo={allowWriteSolo}
-      />
-    {/key}
+    <Editor
+      {name}
+      {color}
+      {room}
+      role={sessionRole}
+      {connect}
+      {toasts}
+      storage={savedHere ? storage!.storage : null}
+      lang={language.resolved}
+      spellcheck={language.spellcheck}
+      {writeLocked}
+      writeGateEligible={gateEligible}
+      onWriteSolo={allowWriteSolo}
+    />
   {/if}
 </div>
 

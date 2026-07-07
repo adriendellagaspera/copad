@@ -57,11 +57,6 @@ export const ICE_FETCH_TIMEOUT_MS =
 export const KEY_LOCAL_CACHE = nsKey('localCache');
 /** Index of rooms with a local cache, so "clear" works without `indexedDB.databases()`. */
 export const KEY_CACHED_ROOMS = nsKey('cachedRooms');
-/** Rooms the user has recently visited, powering the room switcher (anti-loss). */
-export const KEY_RECENT_ROOMS = nsKey('recentRooms');
-
-/** How many recently-visited rooms to remember in the switcher. */
-export const RECENT_ROOMS_MAX = 12;
 
 /** IndexedDB database-name prefix — shares the app namespace (`copad:`). */
 export const CACHE_DB_PREFIX = NS_PREFIX;

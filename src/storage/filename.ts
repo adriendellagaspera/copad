@@ -14,10 +14,13 @@ export interface FilenameStore {
 // ── Active room (app-global) ─────────────────────────────────────────────────
 // A backend targets exactly one file at a time, but that file depends on the room
 // you're in, so one backend can hold a *distinct* document per room instead of
-// every room sharing a single file. Exactly one room is active at a time, so the
-// active room lives here as app-global state that every filenameStore reads.
-// `App.svelte` sets it on startup and on each room switch, synchronously — before
-// the Editor remounts and reads `filename()`.
+// every room sharing a single file. A tab is always in exactly one room for its
+// whole lifetime (there is no in-tab room switch), so the active room lives here
+// as app-global state that every filenameStore reads. `App.svelte` sets it once,
+// synchronously, at startup — before backends construct and any filename() read
+// happens. It stays module-global (rather than a constructor parameter) because
+// backend modules build their `filenameStore()` singleton at import time, before
+// the room is known; only the later `get()`/`set()` calls need it.
 
 let activeRoom: RoomId | null = null;
 

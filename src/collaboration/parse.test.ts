@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePeerAwarenessState, parseRoomName, parseRecentRooms, parseIceServersResponse, parseKeyFingerprint } from './parse.js';
+import { parsePeerAwarenessState, parseRoomName, parseIceServersResponse, parseKeyFingerprint } from './parse.js';
 
 describe('parsePeerAwarenessState — fallback behaviour', () => {
   it('returns safe defaults for null', () => {
@@ -163,39 +163,6 @@ describe('parseRoomName', () => {
     expect(parseRoomName('')).toBeNull();
     expect(parseRoomName('   ')).toBeNull();
     expect(parseRoomName(null)).toBeNull();
-  });
-});
-
-describe('parseRecentRooms', () => {
-  it('returns an empty list for null or invalid JSON', () => {
-    expect(parseRecentRooms(null)).toEqual([]);
-    expect(parseRecentRooms('not json')).toEqual([]);
-    expect(parseRecentRooms('{}')).toEqual([]);
-  });
-
-  it('parses valid entries and brands their fields', () => {
-    const raw = JSON.stringify([
-      { id: 'a', name: 'Alpha', visitedAt: 5 },
-      { id: 'b', name: null, visitedAt: 2 },
-    ]);
-    expect(parseRecentRooms(raw)).toEqual([
-      { id: 'a', name: 'Alpha', visitedAt: 5 },
-      { id: 'b', name: null, visitedAt: 2 },
-    ]);
-  });
-
-  it('drops entries with a missing/blank id', () => {
-    const raw = JSON.stringify([
-      { id: '', name: 'X', visitedAt: 1 },
-      { name: 'Y', visitedAt: 1 },
-      { id: 'ok', name: 'Z', visitedAt: 1 },
-    ]);
-    expect(parseRecentRooms(raw).map((r) => r.id)).toEqual(['ok']);
-  });
-
-  it('defaults a malformed name to null and a missing visitedAt to 0', () => {
-    const raw = JSON.stringify([{ id: 'a', name: 42 }]);
-    expect(parseRecentRooms(raw)).toEqual([{ id: 'a', name: null, visitedAt: 0 }]);
   });
 });
 
