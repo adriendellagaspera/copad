@@ -34,6 +34,8 @@
   import { parsePeerAwarenessState, parseRoomName } from './collaboration/parse.js';
   import { browserId } from './collaboration/browserId.js';
   import { persistTargetKey, isPersistLeader } from './collaboration/leader.js';
+  import { trackPresenceActivity } from './collaboration/presenceActivity.js';
+  import { remoteCursorBuilder, remoteSelectionBuilder, refreshPresenceFade } from './editor/ui/remoteCursors.js';
   import { bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
   import {
     setSessionConn,
@@ -78,6 +80,13 @@
   // `rebuildCollab()` remount, not a reactive read here.
   const collab = untrack(() => connect)(untrack(() => room));
   const yFragment = collab.doc.getXmlFragment('prosemirror');
+
+  // Idle tracking for remote cursors — fed into yCursorPlugin's builders below
+  // so a peer who parked their cursor and stepped away fades instead of
+  // cluttering the doc forever (SOTA: Figma fades after ~5 min idle).
+  const presenceActivity = trackPresenceActivity(collab.awareness);
+  const REMOTE_CURSOR_FADE_TICK = 15_000;
+  let fadeTimer: ReturnType<typeof setInterval> | undefined;
 
   // Shared, editable room name. It lives in a dedicated Y.Map — NOT the
   // prosemirror fragment — so it syncs to every peer and rides along in the .yjs
@@ -312,7 +321,10 @@
       schema,
       plugins: [
         ySyncPlugin(yFragment),
-        yCursorPlugin(collab.awareness),
+        yCursorPlugin(collab.awareness, {
+          cursorBuilder: remoteCursorBuilder(presenceActivity),
+          selectionBuilder: remoteSelectionBuilder(presenceActivity),
+        }),
         yUndoPlugin(),
         slashMenuPlugin(),
         placeholderPlugin('Write something, or press “/” for commands…'),
@@ -346,11 +358,22 @@
     });
 
     editorState = state;
+
+    // Remote cursors fade continuously with idle time, but y-prosemirror keys
+    // its cursor widget by clientId and reuses the existing DOM node across
+    // decoration recomputes rather than rebuilding it — so periodically
+    // forcing a recompute wouldn't re-run remoteCursorBuilder for an
+    // otherwise-untouched peer. Mutate the already-rendered elements directly.
+    fadeTimer = setInterval(() => {
+      if (view) refreshPresenceFade(view.dom, presenceActivity);
+    }, REMOTE_CURSOR_FADE_TICK);
   });
 
   onDestroy(() => {
     clearTimeout(saveTimer);
     clearTimeout(savedTimer);
+    clearInterval(fadeTimer);
+    presenceActivity.destroy();
     offStatus();
     roomMeta.unobserve(onRoomMeta);
     unbindRoomName();
