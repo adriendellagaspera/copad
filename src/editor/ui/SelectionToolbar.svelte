@@ -140,13 +140,22 @@
   // goToNextCell in buildPlugins) — a bare caret there must NOT be
   // hijacked into the toolbar, or Tab-to-next-cell silently breaks and
   // pressing Tab instead yanks focus onto a button.
+  //
+  // Shift-F10 / the Menu key are the OS-standard keyboard equivalent of a
+  // right-click — the same discoverable entry point Word/Excel/Sheets use
+  // to reach a cell's contextual menu — so they always focus the bubble's
+  // first button when it's visible, table caret or not. This is what a
+  // keyboard user reaches for once Tab is unavailable (e.g. inside a table).
   $effect(() => {
     const v = view;
     if (!v) return;
     const dom = v.dom;
     const onKeydown = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab' || e.shiftKey || !visible) return;
-      if (v.state.selection.empty && isInTable(v.state)) return;
+      const isContextMenuKey = e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey);
+      const isTabIntoBubble = e.key === 'Tab' && !e.shiftKey;
+      if (!isContextMenuKey && !isTabIntoBubble) return;
+      if (!visible) return;
+      if (isTabIntoBubble && v.state.selection.empty && isInTable(v.state)) return;
       const target = host?.querySelector<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
       );
