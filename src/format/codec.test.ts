@@ -147,6 +147,25 @@ describe('markdown codec', () => {
     expect(restored.firstChild?.type.name).toBe('bullet_list');
     expect(restored.textContent).toContain('[ ] a');
   });
+
+  it('round-trips a GFM table', async () => {
+    const dst = new Y.Doc();
+    await markdownCodec.decode(
+      new TextEncoder().encode('| A | B |\n| --- | --- |\n| 1 | 2 |\n'),
+      dst
+    );
+    const restored = readPmDoc(dst);
+    expect(restored.firstChild?.type.name).toBe('table');
+    expect(restored.firstChild?.firstChild?.firstChild?.type.name).toBe('table_header');
+    expect(restored.firstChild?.child(1).firstChild?.type.name).toBe('table_cell');
+    expect(restored.textContent).toContain('A');
+    expect(restored.textContent).toContain('1');
+
+    const bytes = await markdownCodec.encode(dst);
+    const md = new TextDecoder().decode(bytes);
+    expect(md).toContain('| A | B |');
+    expect(md).toContain('| 1 | 2 |');
+  });
 });
 
 describe('text codec', () => {

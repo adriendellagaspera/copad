@@ -62,4 +62,16 @@ describe('docToMarkdown', () => {
     expect(out).toContain('- [x] done');
     expect(out).toContain('- [ ] todo');
   });
+
+  it('serializes a table as a GFM pipe table', () => {
+    const { table, table_row, table_cell, table_header } = schema.nodes;
+    const t = table.create(null, [
+      table_row.create(null, [table_header.create(null, schema.text('A')), table_header.create(null, schema.text('B'))]),
+      table_row.create(null, [table_cell.create(null, schema.text('1')), table_cell.create(null, schema.text('2'))]),
+    ]);
+    const out = md(t);
+    expect(out).toContain('| A | B |');
+    expect(out).toContain('| --- | --- |');
+    expect(out).toContain('| 1 | 2 |');
+  });
 });

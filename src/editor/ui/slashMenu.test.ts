@@ -22,6 +22,7 @@ describe('slash menu filtering', () => {
     expect(filterItems('hr').map((i) => i.title)).toContain('Divider');
     expect(filterItems('unordered').map((i) => i.title)).toContain('Bulleted list');
     expect(filterItems('todo').map((i) => i.title)).toContain('Checklist');
+    expect(filterItems('grid').map((i) => i.title)).toContain('Table');
   });
 
   it('returns nothing for a non-matching query', () => {

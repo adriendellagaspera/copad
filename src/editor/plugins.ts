@@ -9,6 +9,7 @@ import {
 } from 'prosemirror-inputrules';
 import { undo, redo } from 'y-prosemirror';
 import { findWrapping } from 'prosemirror-transform';
+import { goToNextCell, columnResizing, tableEditing } from 'prosemirror-tables';
 import type { MarkType, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
 import { Selection } from 'prosemirror-state';
 import type { Command, EditorState, Plugin, Transaction } from 'prosemirror-state';
@@ -285,6 +286,17 @@ export function checklistRuleHandler(s: Schema): RuleHandler {
   };
 }
 
+/** Swallow Enter inside a table cell instead of letting `baseKeymap`'s
+ *  `splitBlock` split the cell itself in two — GFM-shaped cells are
+ *  single-line (`cellContent: 'inline*'`, see schema.ts), so there's no
+ *  "new paragraph within the cell" to make room for. */
+function preventEnterInTableCell(s: Schema): Command {
+  return (state) => {
+    const { parent } = state.selection.$from;
+    return parent.type === s.nodes.table_cell || parent.type === s.nodes.table_header;
+  };
+}
+
 export function buildPlugins(s: Schema): Plugin[] {
   return [
     keymap({
@@ -324,13 +336,22 @@ export function buildPlugins(s: Schema): Plugin[] {
       // onto both halves, so pressing Enter on a checked item would silently
       // hand the brand-new row a pre-ticked checkbox.
       'Enter': chainCommands(
+        preventEnterInTableCell(s),
         exitCodeBlockOnBlankLine,
         splitListItem(s.nodes.list_item),
         splitListItem(s.nodes.task_item, { checked: false })
       ),
       'Backspace': clearEmptyCodeBlockBackward,
-      'Tab': chainCommands(sinkListItem(s.nodes.list_item), sinkListItem(s.nodes.task_item)),
-      'Shift-Tab': chainCommands(liftListItem(s.nodes.list_item), liftListItem(s.nodes.task_item)),
+      'Tab': chainCommands(
+        goToNextCell(1),
+        sinkListItem(s.nodes.list_item),
+        sinkListItem(s.nodes.task_item)
+      ),
+      'Shift-Tab': chainCommands(
+        goToNextCell(-1),
+        liftListItem(s.nodes.list_item),
+        liftListItem(s.nodes.task_item)
+      ),
     }),
     keymap(baseKeymap),
     inputRules({
@@ -360,6 +381,8 @@ export function buildPlugins(s: Schema): Plugin[] {
         new InputRule(LINK_RULE, linkRuleHandler(s.marks.link)),
       ],
     }),
+    columnResizing(),
+    tableEditing(),
     taskItemCheckboxPlugin,
   ];
 }

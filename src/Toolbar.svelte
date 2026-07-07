@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { EditorView } from 'prosemirror-view';
   import type { EditorState } from 'prosemirror-state';
-  import { isMarkActive, isNodeActive, runCommand, commands } from './editor/commands.js';
+  import { isMarkActive, isNodeActive, runCommand, commands, isInTable } from './editor/commands.js';
   import { isLinkActive } from './editor/linkCommands.js';
   import { docToMarkdown } from './editor/markdown.js';
   import { schema } from './editor/schema.js';
@@ -29,6 +29,7 @@
   const checklist = $derived(editorState ? isNodeActive(editorState, schema.nodes.task_list)    : false);
   const quote     = $derived(editorState ? isNodeActive(editorState, schema.nodes.blockquote)   : false);
   const codeblock = $derived(editorState ? isNodeActive(editorState, schema.nodes.code_block)   : false);
+  const inTable   = $derived(editorState ? isInTable(editorState) : false);
 
   const run = (cmd: (typeof commands)[keyof typeof commands]) => () => {
     if (view) runCommand(view, cmd);
@@ -71,6 +72,16 @@
     <button data-active={quote}     aria-pressed={quote}     onclick={run(commands.blockquote)}     title="Blockquote (Mod+Shift+9, or > + space)" aria-label="Blockquote">❝</button>
     <button data-active={codeblock} aria-pressed={codeblock} onclick={run(commands.codeBlock)}      title="Code block (Mod+Alt+C, or ``` )">Code</button>
     <button onclick={run(commands.horizontalRule)} title="Divider (type ---)" aria-label="Insert divider">―</button>
+    <span class="sep" role="separator"></span>
+    <button data-active={inTable} onclick={run(commands.insertTable)} title="Insert 3×3 table" aria-label="Insert table">▦</button>
+    {#if inTable}
+      <button onclick={run(commands.addRowAfter)}    title="Add row below"    aria-label="Add row below">+Row</button>
+      <button onclick={run(commands.addColumnAfter)} title="Add column right" aria-label="Add column right">+Col</button>
+      <button onclick={run(commands.deleteRow)}      title="Delete row"       aria-label="Delete row">−Row</button>
+      <button onclick={run(commands.deleteColumn)}   title="Delete column"    aria-label="Delete column">−Col</button>
+      <button onclick={run(commands.toggleHeaderRow)} title="Toggle header row" aria-label="Toggle header row">Hdr</button>
+      <button onclick={run(commands.deleteTable)}    title="Delete table"     aria-label="Delete table">🗑</button>
+    {/if}
     <span class="sep" role="separator"></span>
     <button onclick={run(commands.undo)} title="Undo (Mod+Z)" aria-label="Undo">↶</button>
     <button onclick={run(commands.redo)} title="Redo (Mod+Y)" aria-label="Redo">↷</button>

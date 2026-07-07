@@ -22,6 +22,7 @@ export const SLASH_ITEMS: SlashItem[] = [
   { title: 'Quote', hint: 'Blockquote', keywords: 'quote blockquote', command: commands.blockquote },
   { title: 'Code block', hint: 'Monospace block', keywords: 'code pre fenced', command: commands.codeBlock },
   { title: 'Divider', hint: 'Horizontal rule', keywords: 'divider hr rule line', command: commands.horizontalRule },
+  { title: 'Table', hint: '3×3 table with a header row', keywords: 'table grid rows columns', command: commands.insertTable },
 ];
 
 export function filterItems(query: string): SlashItem[] {

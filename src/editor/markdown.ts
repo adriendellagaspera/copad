@@ -72,6 +72,20 @@ function serializeBlock(node: PMNode, indent = ''): string {
       });
       return lines.join('\n');
     }
+    case 'table': {
+      const rows: string[][] = [];
+      node.forEach((row) => {
+        const cells: string[] = [];
+        row.forEach((cell) => cells.push(serializeInline(cell).replace(/\|/g, '\\|').trim()));
+        rows.push(cells);
+      });
+      const colCount = rows[0]?.length ?? 0;
+      return [
+        `| ${(rows[0] ?? []).join(' | ')} |`,
+        `| ${Array(colCount).fill('---').join(' | ')} |`,
+        ...rows.slice(1).map((cells) => `| ${cells.join(' | ')} |`),
+      ].join('\n');
+    }
     default:
       return serializeInline(node);
   }

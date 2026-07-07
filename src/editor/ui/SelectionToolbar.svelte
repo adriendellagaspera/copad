@@ -2,6 +2,7 @@
   import type { EditorView } from 'prosemirror-view';
   import { TextSelection, type EditorState } from 'prosemirror-state';
   import Toolbar from '../../Toolbar.svelte';
+  import { isInTable } from '../commands.js';
   import type { Toasts } from '../../ui/toasts.svelte.js';
 
   type Props = {
@@ -41,10 +42,13 @@
       return;
     }
     const { from, to, empty } = st.selection;
-    // Show only for a real, focused selection — a collapsed caret or a blurred
-    // editor (e.g. focus moved to a dialog) hides it, unless the focus moved
-    // into the bubble itself.
-    if (empty || (!v.hasFocus() && !focusInToolbar())) {
+    // Show for a real, focused selection, or a collapsed caret inside a table
+    // — the fixed toolbar's table controls (add/delete row & column…) are
+    // otherwise unreachable by mouse on desktop, since the fixed bar itself is
+    // hidden there (see editor.css) and a bare caret has no selection to
+    // bubble over. A blurred editor (e.g. focus moved to a dialog) still
+    // hides it, unless focus moved into the bubble itself.
+    if ((!v.hasFocus() && !focusInToolbar()) || (empty && !isInTable(st))) {
       visible = false;
       return;
     }
