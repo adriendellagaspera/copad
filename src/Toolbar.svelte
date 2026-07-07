@@ -19,6 +19,7 @@
   const italic    = $derived(editorState ? isMarkActive(editorState, schema.marks.em)     : false);
   const code      = $derived(editorState ? isMarkActive(editorState, schema.marks.code)   : false);
   const strike    = $derived(editorState ? isMarkActive(editorState, schema.marks.strike) : false);
+  const underline = $derived(editorState ? isMarkActive(editorState, schema.marks.underline) : false);
   const link      = $derived(editorState ? isLinkActive(editorState) : false);
   const h1        = $derived(editorState ? isNodeActive(editorState, schema.nodes.heading, { level: 1 }) : false);
   const h2        = $derived(editorState ? isNodeActive(editorState, schema.nodes.heading, { level: 2 }) : false);
@@ -53,6 +54,7 @@
     <button data-active={bold}   aria-pressed={bold}   onclick={run(commands.bold)}   title="Bold (Mod+B)" aria-label="Bold"><b>B</b></button>
     <button data-active={italic} aria-pressed={italic} onclick={run(commands.italic)} title="Italic (Mod+I)" aria-label="Italic"><i>I</i></button>
     <button data-active={strike} aria-pressed={strike} onclick={run(commands.strike)} title="Strikethrough (Mod+Shift+X, or ~~text~~)" aria-label="Strikethrough"><s>S</s></button>
+    <button data-active={underline} aria-pressed={underline} onclick={run(commands.underline)} title="Underline (Mod+Shift+U)" aria-label="Underline"><u>U</u></button>
     <button data-active={code}   aria-pressed={code}   onclick={run(commands.code)}   title="Inline code (Mod+`, or `text`)" aria-label="Inline code">{'</>'}</button>
     <button data-active={link}   aria-pressed={link}   onclick={openLink}             title="Link (Mod+K, or [text](url))" aria-label="Link">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M15 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1" /></svg>

@@ -65,7 +65,7 @@ A backend moves *bytes*; a **codec** (`src/format/`) turns those bytes into the 
 |-------|-----------|-------|
 | `yjsCodec` | `.yjs` | **Native default.** Full CRDT state (history + content) — the only format that round-trips collaborative merge. Fallback for unknown extensions. |
 | `textCodec` | `.txt` | Plain text; one paragraph per line. Formatting flattened. |
-| `markdownCodec` | `.md`, `.markdown` | CommonMark + GFM strikethrough (`~~`). |
+| `markdownCodec` | `.md`, `.markdown` | CommonMark + GFM strikethrough (`~~`). No native underline syntax — that mark is flattened to plain text on export. |
 | `htmlCodec` | `.html`, `.htm` | ProseMirror DOM parser/serializer; **needs a DOM** (browser only). |
 | `jsonCodec` | `.json` | ProseMirror document JSON; lossless for our schema. |
 

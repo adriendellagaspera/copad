@@ -82,6 +82,21 @@ describe('markdown codec', () => {
     expect(md).toContain('# Title');
     expect(md).toContain('~~gone~~');
   });
+
+  it('flattens underline to plain text (Markdown has no underline syntax)', async () => {
+    const { paragraph } = schema.nodes;
+    const { underline } = schema.marks;
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        paragraph.create(null, schema.text('under', [underline.create()])),
+      ])
+    );
+    const md = new TextDecoder().decode(await markdownCodec.encode(doc));
+    expect(md).toContain('under');
+    expect(md).not.toMatch(/<\/?u>/);
+  });
 });
 
 describe('text codec', () => {
