@@ -188,10 +188,12 @@
     getDiagnostics: collab.getDiagnostics ? () => collab.getDiagnostics!() : undefined,
     reconnect: collab.reconnect,
   });
-  // Reads `view` live at call time, so it's safe to publish once here even
-  // though `view` itself isn't assigned until onMount below.
+  // Reads `view`/`users` live at call time, so it's safe to publish once here
+  // even though `view` itself isn't assigned until onMount below. The peer's
+  // own colour drives the flash ring so it reads as "them", not a generic cue.
   setSessionJumpToPeer((clientId) => {
-    if (view) jumpToPresence(view.dom, clientId);
+    if (!view) return;
+    jumpToPresence(view.dom, clientId, users.find((u) => u.id === clientId)?.color);
   });
   $effect(() => setSessionConn(conn));
   $effect(() => setSessionSave(saveStatus));

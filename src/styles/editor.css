@@ -485,17 +485,27 @@
 }
 
 /* Brief highlight when a peer is picked from the presence bar (jumpToPresence
-   in remoteCursors.ts) — a pulse ring so the just-scrolled-to cursor/selection
-   is easy to spot, distinct from the idle-fade opacity above. */
+   in remoteCursors.ts) — a double pulse in the peer's own colour (set inline
+   as --jump-color), so the just-scrolled-to cursor/selection reads as "look
+   here" rather than blending into the idle-fade opacity above. Two pulses
+   (Figma/Live Share's "flash to attention" idiom) read as a deliberate cue
+   even at a glance, where a single fade can be missed if the eye isn't
+   already on that spot when it plays. */
 .presence-jump-flash {
-  animation: presence-jump-flash 900ms ease;
+  --jump-color: var(--accent);
+  position: relative;
+  z-index: 1;
+  border-radius: 3px;
+  animation: presence-jump-flash 1200ms ease-out;
 }
 @keyframes presence-jump-flash {
-  0%, 100% {
-    box-shadow: none;
+  0%, 30%, 60%, 100% {
+    box-shadow: 0 0 0 0 transparent;
+    background-color: transparent;
   }
-  25%, 75% {
-    box-shadow: 0 0 0 4px var(--accent-soft);
+  12%, 42% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--jump-color) 65%, transparent);
+    background-color: color-mix(in srgb, var(--jump-color) 35%, transparent);
   }
 }
 

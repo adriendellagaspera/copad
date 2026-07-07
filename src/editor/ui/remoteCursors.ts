@@ -7,7 +7,7 @@
  */
 
 import type { DecorationAttrs } from 'prosemirror-view';
-import type { PeerUser } from '../../collaboration/types.js';
+import type { PeerUser, CursorColor } from '../../collaboration/types.js';
 import { fadeTier, type PresenceActivity } from '../../collaboration/presenceActivity.js';
 
 /** Tags a rendered cursor/selection element with its owning clientId so
@@ -63,19 +63,35 @@ export function refreshPresenceFade(root: Element, activity: PresenceActivity): 
 
 /** How long the flash highlight (below) stays on the DOM before it's removed,
  *  in ms — must match the `presence-jump-flash` CSS animation's duration. */
-const JUMP_FLASH_MS = 900;
+const JUMP_FLASH_MS = 1200;
 
 /**
- * Scrolls a peer's rendered cursor/selection into view and briefly flashes it
- * — the presence bar's "where is this person" action (Figma-style jump to a
+ * Scrolls a peer's rendered cursor into view and briefly flashes it (plus
+ * their live selection highlight, if any) in the peer's own colour — the
+ * presence bar's "where is this person" action (Figma-style jump to a
  * collaborator), invoked by clicking their avatar. A no-op if the peer has no
  * decoration currently rendered (e.g. they just left).
+ *
+ * The cursor widget (`.ProseMirror-yjs-cursor`) is the scroll target, never
+ * the selection highlight: y-prosemirror always renders exactly one cursor
+ * widget per present peer regardless of whether they have a selection (see
+ * `createDecorations` in y-prosemirror's cursor plugin — the widget sits at
+ * `head` unconditionally), whereas the selection highlight can be split
+ * across several small, sometimes near-empty spans when it crosses a block
+ * boundary. Picking the first of those as the scroll anchor was unreliable —
+ * `getBoundingClientRect()` on a degenerate span can land the scroll in the
+ * wrong place, which is what made this look broken while a peer had an
+ * active selection instead of a bare caret.
  */
-export function jumpToPresence(root: Element, clientId: number): void {
-  const els = root.querySelectorAll<HTMLElement>(`[${PRESENCE_ATTR}="${clientId}"]`);
-  if (els.length === 0) return;
-  els[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-  els.forEach((el) => {
+export function jumpToPresence(root: Element, clientId: number, color?: CursorColor): void {
+  const cursor = root.querySelector<HTMLElement>(`.ProseMirror-yjs-cursor[${PRESENCE_ATTR}="${clientId}"]`);
+  const selection = root.querySelectorAll<HTMLElement>(`.ProseMirror-yjs-selection[${PRESENCE_ATTR}="${clientId}"]`);
+  const target = cursor ?? selection[0];
+  if (!target) return;
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const flashed = cursor ? [cursor, ...selection] : Array.from(selection);
+  flashed.forEach((el) => {
+    if (color) el.style.setProperty('--jump-color', color);
     el.classList.add('presence-jump-flash');
     setTimeout(() => el.classList.remove('presence-jump-flash'), JUMP_FLASH_MS);
   });
