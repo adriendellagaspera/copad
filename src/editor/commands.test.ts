@@ -70,6 +70,11 @@ describe('activeInputMarks', () => {
     expect(names(armed)).toEqual(['strong']);
   });
 
+  it('reports underline armed by its toggle at the caret', () => {
+    const armed = apply(paragraphState(), commands.underline);
+    expect(names(armed)).toEqual(['underline']);
+  });
+
   it('reports marks inherited from the caret position', () => {
     // A paragraph whose text carries the strong mark; caret placed inside it.
     const strong = schema.marks.strong.create();

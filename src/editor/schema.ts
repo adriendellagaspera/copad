@@ -8,15 +8,22 @@ const nodes = addListNodes(
   'block'
 );
 
-const marks = basicSchema.spec.marks.addToEnd('strike', {
-  parseDOM: [
-    { tag: 's' },
-    { tag: 'del' },
-    { style: 'text-decoration=line-through' },
-  ],
-  toDOM() {
-    return ['s', 0];
-  },
-});
+const marks = basicSchema.spec.marks
+  .addToEnd('strike', {
+    parseDOM: [
+      { tag: 's' },
+      { tag: 'del' },
+      { style: 'text-decoration=line-through' },
+    ],
+    toDOM() {
+      return ['s', 0];
+    },
+  })
+  .addToEnd('underline', {
+    parseDOM: [{ tag: 'u' }, { style: 'text-decoration=underline' }],
+    toDOM() {
+      return ['u', 0];
+    },
+  });
 
 export const schema = new Schema({ nodes, marks });
