@@ -145,8 +145,19 @@
   // Per-backend filename overrides — keyed by backend id (cloud backends).
   let fnames = $state<Record<string, string>>({});
 
+  // Bumped after any write to a backend's plain-localStorage-backed config or
+  // session state (configStore, credential store). That storage isn't Svelte
+  // state, so nothing else would tell the `ready`/`authed` consts below to
+  // re-derive when it changes — `withVersion` reads it to force that.
+  let stateVersion = $state(0);
+  function withVersion<T>(value: T): T {
+    void stateVersion;
+    return value;
+  }
+
   function setConfig(b: StorageBackend, name: string, value: string) {
     b.auth.setConfig?.(name, value);
+    stateVersion += 1;
     onchange?.();
   }
 
@@ -170,11 +181,13 @@
       errors = { ...errors, [b.storage.id]: (e as Error).message };
     } finally {
       busy = { ...busy, [b.storage.id]: false };
+      stateVersion += 1;
     }
   }
 
   function disconnect(b: StorageBackend) {
     b.auth.logout();
+    stateVersion += 1;
     ondisconnect?.(b);
   }
 
@@ -390,8 +403,8 @@
     {/snippet}
 
     {#each configurable as b (b.storage.id)}
-      {@const ready = isConfigured(b.auth)}
-      {@const authed = b.auth.isAuthenticated()}
+      {@const ready = withVersion(isConfigured(b.auth))}
+      {@const authed = withVersion(b.auth.isAuthenticated())}
       <section class="backend" class:focused={b.storage.id === focusId}>
         <div class="backend-head">
           <span class="backend-name">{b.storage.label}</span>
@@ -445,7 +458,7 @@
     {/if}
 
     {#each connectable as b (b.storage.id)}
-      {@const authed = b.auth.isAuthenticated()}
+      {@const authed = withVersion(b.auth.isAuthenticated())}
       <section class="backend" class:focused={b.storage.id === focusId}>
         <div class="backend-head">
           <span class="backend-name">{b.storage.label}</span>

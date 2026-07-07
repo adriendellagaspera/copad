@@ -1,5 +1,5 @@
 import { keymap } from 'prosemirror-keymap';
-import { baseKeymap, toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
+import { baseKeymap, chainCommands, toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
 import { splitListItem, liftListItem, sinkListItem, wrapInList } from 'prosemirror-schema-list';
 import {
   inputRules,
@@ -8,9 +8,171 @@ import {
   InputRule,
 } from 'prosemirror-inputrules';
 import { undo, redo } from 'y-prosemirror';
-import type { MarkType, Schema } from 'prosemirror-model';
-import type { EditorState, Plugin, Transaction } from 'prosemirror-state';
+import { findWrapping } from 'prosemirror-transform';
+import type { MarkType, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
+import { Selection } from 'prosemirror-state';
+import type { Command, EditorState, Plugin, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
+import { taskItemCheckboxPlugin } from './taskList.js';
+
+/**
+ * Leaves `$pos`'s enclosing code block (a node with `code: true`), mutating
+ * `tr` in place. Never mutates the code block itself, even an empty one —
+ * it may be deliberately blank, waiting to be filled in, so merely passing
+ * over it must not be destructive (matches Tiptap's CodeBlock extension,
+ * the reference implementation for this exact pattern: its `exitCode`-based
+ * exits never delete or convert the block; only its Backspace handler and
+ * its `Mod-Alt-c` toggle do — see `clearEmptyCodeBlockBackward` and
+ * `toggleCodeBlock` in commands.ts below):
+ * - if a block already follows it, the selection simply moves there — no
+ *   need to insert a duplicate paragraph, same as arrowing/clicking past the
+ *   block would land you in it;
+ * - else a fresh paragraph is inserted after it and selected (most often
+ *   because the code block is the last node in the doc).
+ *
+ * Shared by every way of leaving a code block — Escape, ArrowDown at the
+ * last position, and three-Enters-in-a-row on a trailing blank line — so
+ * they all converge on one consistent exit.
+ */
+function exitCodeBlock(tr: Transaction, $pos: ResolvedPos): void {
+  const container = $pos.node(-1);
+  const indexAfter = $pos.indexAfter(-1);
+  const after = $pos.after();
+
+  if (indexAfter < container.childCount) {
+    tr.setSelection(Selection.near(tr.doc.resolve(after), 1));
+    return;
+  }
+
+  const type = container.contentMatchAt(indexAfter).defaultType ?? tr.doc.type.schema.nodes.paragraph;
+  const node = type.createAndFill();
+  if (!node) return;
+  tr.insert(after, node);
+  tr.setSelection(Selection.near(tr.doc.resolve(after), 1));
+}
+
+/** True when the caret sits in a code block and nowhere else (an empty or
+ *  cross-parent selection doesn't have a single unambiguous block to exit). */
+function inCodeBlock(state: EditorState): ResolvedPos | null {
+  const { $head, $anchor } = state.selection;
+  if (!$head.sameParent($anchor) || !$head.parent.type.spec.code) return null;
+  return $head;
+}
+
+/**
+ * Escape a code block into whatever follows it — otherwise a code_block
+ * with nothing after it (most often because it's the last node in the doc)
+ * has no textblock below it to click or arrow into, trapping the caret
+ * (`Enter`'s `newlineInCode` just keeps adding lines inside the block
+ * instead of leaving it). Works from anywhere in the block, not just the
+ * last line.
+ *
+ * Always returns `true`: Firefox blurs contenteditable elements on Escape by
+ * default, so it's swallowed even when there's no code block to exit (the
+ * slash menu handles its own Escape first, via slashMenuPlugin running
+ * earlier in the plugin list).
+ */
+export const escapeCodeBlock: Command = (state, dispatch) => {
+  const $pos = inCodeBlock(state);
+  if (!$pos) return true;
+  if (dispatch) {
+    const tr = state.tr;
+    exitCodeBlock(tr, $pos);
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+};
+
+/**
+ * ArrowDown at the very end of a code block's content leaves it the same
+ * way Escape does. Native caret movement already handles ArrowDown *within*
+ * a multi-line code block (and between it and a following block, when the
+ * browser can find a line to land the caret on below) — this only fires at
+ * the one position where the browser has nowhere left to move the caret to,
+ * which is otherwise indistinguishable from the key doing nothing at all.
+ * Returns `false` everywhere else so normal ArrowDown handling proceeds.
+ */
+export const exitCodeBlockDown: Command = (state, dispatch) => {
+  const $pos = inCodeBlock(state);
+  if (!$pos || $pos.parentOffset !== $pos.parent.content.size) return false;
+  if (dispatch) {
+    const tr = state.tr;
+    exitCodeBlock(tr, $pos);
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+};
+
+/**
+ * Three Enters in a row (i.e. the code block's content already ends with
+ * two newlines when a third Enter arrives) leaves the code block, undoing
+ * the two blank lines that got us here first so genuine code isn't split by
+ * an exit gesture. A single blank line is common and intentional inside
+ * real code (spacing between functions), so a lone Enter must never trigger
+ * this — only a second consecutive blank line unambiguously signals "let me
+ * out". Matches Tiptap's `exitOnTripleEnter` exactly (verified against its
+ * source): a code block that was only blank lines is left behind as an
+ * empty code block, not deleted — `clearEmptyCodeBlockBackward` (Backspace)
+ * or the `Mod-Alt-c` toggle are what remove it, same as everywhere else
+ * this file leaves the block itself alone.
+ * Returns `false` everywhere else so normal Enter handling (newlineInCode)
+ * proceeds.
+ */
+export const exitCodeBlockOnBlankLine: Command = (state, dispatch) => {
+  const $pos = inCodeBlock(state);
+  if (!$pos) return false;
+  const block = $pos.parent;
+  if ($pos.parentOffset !== block.content.size) return false;
+  if (!block.textContent.endsWith('\n\n')) return false;
+  if (dispatch) {
+    const tr = state.tr.delete($pos.pos - 2, $pos.pos);
+    exitCodeBlock(tr, tr.doc.resolve($pos.pos - 2));
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+};
+
+/**
+ * Backspace at the start of an empty code block converts it straight back
+ * into an empty paragraph — the way to get rid of a code block you opened
+ * by mistake or emptied out, matching Tiptap's CodeBlock Backspace handler
+ * (verified against its source) and this app's own existing convention for
+ * every other empty block (baseKeymap's Backspace already lifts/removes an
+ * empty paragraph, heading, etc. the same way). Deliberately narrower than
+ * Tiptap's version, which also fires on a *non-empty* code block sitting at
+ * the very start of the document — an edge case this app doesn't otherwise
+ * special-case for any other block type, so extending it here would be an
+ * inconsistency, not a fix.
+ * Returns `false` everywhere else so normal Backspace handling (character
+ * deletion, joining with the previous block, etc.) proceeds.
+ */
+export const clearEmptyCodeBlockBackward: Command = (state, dispatch) => {
+  const $pos = inCodeBlock(state);
+  if (!$pos || $pos.parent.content.size !== 0 || $pos.parentOffset !== 0) return false;
+  if (dispatch) {
+    dispatch(state.tr.setNodeMarkup($pos.before(), state.schema.nodes.paragraph));
+  }
+  return true;
+};
+
+/**
+ * Toggle between `type` and `paragraph` for the block(s) under the
+ * selection — the same command that opened a block converts it back when
+ * invoked from inside one, so the code-block command itself is a way to
+ * remove a code block, not just a way to create one. Matches how every
+ * other toggleable command in this app already reads (`toggleMark` for
+ * bold/italic/strike), and Tiptap's own `toggleCodeBlock` bound to this
+ * exact `Mod-Alt-c` shortcut (verified against its source).
+ */
+export function toggleBlockType(type: NodeType, paragraph: NodeType): Command {
+  const setType = setBlockType(type);
+  const setParagraph = setBlockType(paragraph);
+  return (state, dispatch, view) => {
+    const { $from, to } = state.selection;
+    const active = to <= $from.end() && $from.parent.hasMarkup(type);
+    return (active ? setParagraph : setType)(state, dispatch, view);
+  };
+}
 
 type RuleHandler = (
   state: EditorState,
@@ -82,6 +244,46 @@ export const STRIKE_RULE = /(?:^|\s)(~~(?!\s)([^~]+)~~)$/;
 export const CODE_RULE = /(?:^|\s)(`(?!\s)([^`]+)`)$/;
 /** Link: `[text](url)`. */
 export const LINK_RULE = /(?:^|\s)(\[([^\]]+)\]\(([^)\s]+)\))$/;
+/** Checklist: bare `[] `/`[ ] `/`[x] ` at the start of a line — deliberately
+ *  *not* `- [ ] ` (GFM's file syntax, handled on markdown import instead):
+ *  the bullet-list rule above already fires on `- ` alone, so a dash-prefixed
+ *  trigger could never be typed before that rule pre-empts it. */
+export const CHECKLIST_RULE = /^\s*\[([ xX]?)\]\s$/;
+
+/**
+ * Handles both checklist shapes a plain `wrappingInputRule` can't tell apart:
+ * typing `[x] ` on an *existing* task_item's own line (the common case — you
+ * pressed Enter to get a new checklist row, then mark it done) just needs
+ * `checked` flipped, not another wrap; `findWrapping` has no notion of "this
+ * paragraph already lives in one" and returns null there, so a bare
+ * `wrappingInputRule(CHECKLIST_RULE, task_item, …)` silently no-ops on every
+ * item after the first. Elsewhere (a plain paragraph, a bullet item, …) it
+ * wraps the block in a new task_list/task_item, same as the library helper.
+ */
+export function checklistRuleHandler(s: Schema): RuleHandler {
+  return (state, match, start, end) => {
+    const checked = /x/i.test(match[1] ?? '');
+    const { tr } = state;
+    const $start = tr.doc.resolve(start);
+    const parentDepth = $start.depth;
+    if (
+      parentDepth > 0 &&
+      $start.node(parentDepth - 1).type === s.nodes.task_item &&
+      $start.index(parentDepth - 1) === 0
+    ) {
+      tr.delete(start, end);
+      tr.setNodeMarkup($start.before(parentDepth - 1), undefined, { checked });
+      return tr;
+    }
+    tr.delete(start, end);
+    const $wrapAt = tr.doc.resolve(start);
+    const range = $wrapAt.blockRange();
+    const wrapping = range && findWrapping(range, s.nodes.task_item, { checked });
+    if (!wrapping) return null;
+    tr.wrap(range, wrapping);
+    return tr;
+  };
+}
 
 export function buildPlugins(s: Schema): Plugin[] {
   return [
@@ -90,6 +292,9 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-i': toggleMark(s.marks.em),
       'Mod-`': toggleMark(s.marks.code),
       'Mod-Shift-x': toggleMark(s.marks.strike),
+      // Mod-U alone is Chrome/Firefox's reserved "View Source" shortcut and
+      // can't be preventDefault-ed, so it never reaches the page — Shift it.
+      'Mod-Shift-u': toggleMark(s.marks.underline),
       // Bridge to the Svelte LinkPopover — handled by a listener on the editor DOM.
       'Mod-k': (_state, _dispatch, view) => {
         view?.dom.dispatchEvent(new CustomEvent('copad:link', { bubbles: true }));
@@ -102,20 +307,30 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-Alt-1': setBlockType(s.nodes.heading, { level: 1 }),
       'Mod-Alt-2': setBlockType(s.nodes.heading, { level: 2 }),
       'Mod-Alt-3': setBlockType(s.nodes.heading, { level: 3 }),
-      'Mod-Alt-c': setBlockType(s.nodes.code_block),
+      'Mod-Alt-c': toggleBlockType(s.nodes.code_block, s.nodes.paragraph),
+      // 6 slots in next to 7/8/9 (ordered/bullet/quote) for the one other
+      // list-shaped block type — checklist.
+      'Mod-Shift-6': wrapInList(s.nodes.task_list),
       'Mod-Shift-7': wrapInList(s.nodes.ordered_list),
       'Mod-Shift-8': wrapInList(s.nodes.bullet_list),
       'Mod-Shift-9': wrapIn(s.nodes.blockquote),
       'Mod-z': undo,
       'Mod-y': redo,
       'Mod-Shift-z': redo,
-      // Firefox blurs contenteditable elements on Escape by default; swallow it
-      // so the caret stays in the document (the slash menu handles its own
-      // Escape first, via slashMenuPlugin running earlier in the plugin list).
-      'Escape': () => true,
-      'Enter': splitListItem(s.nodes.list_item),
-      'Tab': sinkListItem(s.nodes.list_item),
-      'Shift-Tab': liftListItem(s.nodes.list_item),
+      'Escape': escapeCodeBlock,
+      'ArrowDown': exitCodeBlockDown,
+      // The task_item split passes an explicit `checked: false` for the new
+      // item — splitListItem otherwise copies the *original* item's attrs
+      // onto both halves, so pressing Enter on a checked item would silently
+      // hand the brand-new row a pre-ticked checkbox.
+      'Enter': chainCommands(
+        exitCodeBlockOnBlankLine,
+        splitListItem(s.nodes.list_item),
+        splitListItem(s.nodes.task_item, { checked: false })
+      ),
+      'Backspace': clearEmptyCodeBlockBackward,
+      'Tab': chainCommands(sinkListItem(s.nodes.list_item), sinkListItem(s.nodes.task_item)),
+      'Shift-Tab': chainCommands(liftListItem(s.nodes.list_item), liftListItem(s.nodes.task_item)),
     }),
     keymap(baseKeymap),
     inputRules({
@@ -125,6 +340,9 @@ export function buildPlugins(s: Schema): Plugin[] {
         textblockTypeInputRule(/^###\s$/, s.nodes.heading, { level: 3 }),
         textblockTypeInputRule(/^```$/, s.nodes.code_block),
         wrappingInputRule(/^\s*>\s$/, s.nodes.blockquote),
+        // Checklist before plain bullet — both start with punctuation the
+        // bullet rule doesn't match (`[`), so order is only for clarity here.
+        new InputRule(CHECKLIST_RULE, checklistRuleHandler(s)),
         wrappingInputRule(/^\s*([-+*])\s$/, s.nodes.bullet_list),
         wrappingInputRule(/^(\d+)\.\s$/, s.nodes.ordered_list),
         // `---`, `***` or `___` on their own line → horizontal rule.
@@ -142,5 +360,6 @@ export function buildPlugins(s: Schema): Plugin[] {
         new InputRule(LINK_RULE, linkRuleHandler(s.marks.link)),
       ],
     }),
+    taskItemCheckboxPlugin,
   ];
 }

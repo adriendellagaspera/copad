@@ -82,6 +82,71 @@ describe('markdown codec', () => {
     expect(md).toContain('# Title');
     expect(md).toContain('~~gone~~');
   });
+
+  it('flattens underline to plain text (Markdown has no underline syntax)', async () => {
+    const { paragraph } = schema.nodes;
+    const { underline } = schema.marks;
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        paragraph.create(null, schema.text('under', [underline.create()])),
+      ])
+    );
+    const md = new TextDecoder().decode(await markdownCodec.encode(doc));
+    expect(md).toContain('under');
+    expect(md).not.toMatch(/<\/?u>/);
+  });
+
+  it('keeps the link syntax when the linked text is also underlined', async () => {
+    const { paragraph } = schema.nodes;
+    const { underline, link } = schema.marks;
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        paragraph.create(null, [
+          schema.text('site', [link.create({ href: 'https://e.com' }), underline.create()]),
+        ]),
+      ])
+    );
+    const md = new TextDecoder().decode(await markdownCodec.encode(doc));
+    expect(md).toContain('[site](https://e.com)');
+  });
+
+  it('round-trips a checklist (checked and unchecked items)', async () => {
+    const { paragraph, task_list, task_item } = schema.nodes;
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        task_list.create(null, [
+          task_item.create({ checked: true }, paragraph.create(null, schema.text('done'))),
+          task_item.create({ checked: false }, paragraph.create(null, schema.text('todo'))),
+        ]),
+      ])
+    );
+    const bytes = await markdownCodec.encode(doc);
+    const md = new TextDecoder().decode(bytes);
+    expect(md).toContain('- [x] done');
+    expect(md).toContain('- [ ] todo');
+
+    const dst = new Y.Doc();
+    await markdownCodec.decode(bytes, dst);
+    const restored = readPmDoc(dst);
+    expect(restored.firstChild?.type.name).toBe('task_list');
+    expect(restored.firstChild?.child(0).type.name).toBe('task_item');
+    expect(restored.firstChild?.child(0).attrs.checked).toBe(true);
+    expect(restored.firstChild?.child(1).attrs.checked).toBe(false);
+  });
+
+  it('leaves a mixed checkbox/plain list as a plain bullet_list', async () => {
+    const dst = new Y.Doc();
+    await markdownCodec.decode(new TextEncoder().encode('- [ ] a\n- b\n'), dst);
+    const restored = readPmDoc(dst);
+    expect(restored.firstChild?.type.name).toBe('bullet_list');
+    expect(restored.textContent).toContain('[ ] a');
+  });
 });
 
 describe('text codec', () => {

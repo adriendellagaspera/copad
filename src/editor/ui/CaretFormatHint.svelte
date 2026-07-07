@@ -31,10 +31,11 @@
 
   // Presentation order + glyph for each mark the schema can carry, so the pill
   // reads like the toolbar the writer already knows.
-  const MARK_GLYPHS: readonly { type: MarkType; label: string; render: 'b' | 'i' | 's' | 'code' | 'link' }[] = [
+  const MARK_GLYPHS: readonly { type: MarkType; label: string; render: 'b' | 'i' | 's' | 'u' | 'code' | 'link' }[] = [
     { type: schema.marks.strong, label: 'Bold', render: 'b' },
     { type: schema.marks.em, label: 'Italic', render: 'i' },
     { type: schema.marks.strike, label: 'Strikethrough', render: 's' },
+    { type: schema.marks.underline, label: 'Underline', render: 'u' },
     { type: schema.marks.code, label: 'Code', render: 'code' },
     { type: schema.marks.link, label: 'Link', render: 'link' },
   ];
@@ -62,7 +63,19 @@
       visible = false;
       return;
     }
-    const caret = v.coordsAtPos(from);
+    // coordsAtPos measures against the live DOM, which can briefly disagree
+    // with `from` while a burst of transactions (e.g. rapid undo/redo) is
+    // still being flushed into the view, throwing a DOM range error even
+    // though `from` is perfectly in-bounds for the ProseMirror doc — see the
+    // same guard in SelectionToolbar/LinkPopover/SlashMenu. Skip this
+    // reposition; the next reactive pass tries again once things settle.
+    let caret;
+    try {
+      caret = v.coordsAtPos(from);
+    } catch {
+      visible = false;
+      return;
+    }
     const w = host?.offsetWidth ?? 0;
     const h = host?.offsetHeight ?? 0;
     let nextLeft = caret.left - w / 2;
@@ -112,6 +125,7 @@
       {#if m.render === 'b'}<b>B</b>
       {:else if m.render === 'i'}<i>I</i>
       {:else if m.render === 's'}<s>S</s>
+      {:else if m.render === 'u'}<u>U</u>
       {:else if m.render === 'code'}<span class="ch-code">{'</>'}</span>
       {:else}<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M15 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1" /></svg>{/if}
     </span>

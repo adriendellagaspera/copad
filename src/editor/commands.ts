@@ -5,6 +5,7 @@ import type { MarkType, NodeType, Attrs } from 'prosemirror-model';
 import type { EditorState, Command } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { schema } from './schema.js';
+import { toggleBlockType } from './plugins.js';
 
 /** Insert a horizontal rule at the selection. */
 const insertHorizontalRule: Command = (state, dispatch) => {
@@ -88,6 +89,7 @@ export const commands = {
   italic: toggleMark(schema.marks.em),
   code: toggleMark(schema.marks.code),
   strike: toggleMark(schema.marks.strike),
+  underline: toggleMark(schema.marks.underline),
   h1: setBlockType(schema.nodes.heading, { level: 1 }),
   h2: setBlockType(schema.nodes.heading, { level: 2 }),
   h3: setBlockType(schema.nodes.heading, { level: 3 }),
@@ -95,7 +97,12 @@ export const commands = {
   blockquote: wrapIn(schema.nodes.blockquote),
   bullet: wrapInList(schema.nodes.bullet_list),
   ordered: wrapInList(schema.nodes.ordered_list),
-  codeBlock: setBlockType(schema.nodes.code_block),
+  taskList: wrapInList(schema.nodes.task_list),
+  // A toggle, not a one-way setBlockType: invoking it from inside a code
+  // block converts it back to a paragraph — the same command that opens a
+  // code block is how you remove one, matching Tiptap's toggleCodeBlock on
+  // this exact Mod-Alt-c shortcut. See toggleBlockType in plugins.ts.
+  codeBlock: toggleBlockType(schema.nodes.code_block, schema.nodes.paragraph),
   horizontalRule: insertHorizontalRule,
   undo,
   redo,

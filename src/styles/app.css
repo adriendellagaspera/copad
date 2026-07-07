@@ -9,7 +9,14 @@
   padding: var(--sp-5) var(--sp-4) var(--sp-8);
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
+  /* Spacing between the header, the (conditionally rendered) SyncBanner, and
+     the content below is carried by margin-bottom on each piece rather than
+     flex `gap`. `gap` doesn't animate — it's constant while the banner's
+     slide-out transition shrinks its height, then vanishes in one frame the
+     instant the node is removed, producing a visible jump right before it
+     disappears. Margin-bottom on the banner's own element is read by Svelte's
+     `slide` transition alongside height, so it shrinks to 0 in step and there's
+     nothing left to collapse when the node goes away. */
   /* Lock to the viewport so the frame is fixed (not draggable on mobile) and the
      editor scrolls internally instead of pushing the whole page past the fold.
      dvh tracks the dynamic viewport (mobile browser chrome) where supported; vh
@@ -51,6 +58,13 @@ header.capsule {
   border: 1px solid var(--border);
   border-radius: var(--r-full);
   box-shadow: var(--shadow-md);
+  /* .app spaces its children via margin-bottom on each piece, not flex gap
+     (see .app's comment above) — the SyncBanner's slide-out transition
+     reads its own margin-bottom alongside height, so it shrinks to 0 in
+     step instead of leaving a one-frame jump when gap would've vanished
+     instantly. The header carries the same convention for the gap before
+     whatever renders below it (SyncBanner or the editor directly). */
+  margin-bottom: var(--sp-4);
 }
 
 .cap-mark {
@@ -174,10 +188,14 @@ header.capsule {
   header.capsule {
     height: 44px;
     padding: 0 var(--sp-2);
-    margin: 0;
     /* Undo the desktop hugging: on mobile this is a flush title strip, not a
        floating pill — it should span the row like any other header bar, and
-       never animate a width change (there's nothing to grow/shrink toward). */
+       never animate a width change (there's nothing to grow/shrink toward).
+       margin-bottom is kept (tightened to --sp-3, matching .app's own mobile
+       rhythm below) rather than zeroed — .app has no flex gap of its own
+       (see its comment), so zeroing this would collide the strip straight
+       into the SyncBanner/editor with no gap at all. */
+    margin: 0 0 var(--sp-3);
     align-self: stretch;
     width: auto;
     max-width: none;

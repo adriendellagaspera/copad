@@ -34,4 +34,44 @@ describe('html codec', () => {
     expect(restored.textContent).toContain('Heading');
     expect(JSON.stringify(restored.toJSON())).toContain('"strong"');
   });
+
+  it('round-trips underline through <u>', async () => {
+    const { paragraph } = schema.nodes;
+    const { underline } = schema.marks;
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        paragraph.create(null, schema.text('under', [underline.create()])),
+      ]),
+    );
+    const bytes = await htmlCodec.encode(doc);
+    expect(new TextDecoder().decode(bytes)).toContain('<u>');
+    const dst = new Y.Doc();
+    await htmlCodec.decode(bytes, dst);
+    const restored = readPmDoc(dst);
+    expect(JSON.stringify(restored.toJSON())).toContain('"underline"');
+  });
+
+  it('round-trips a checklist through data-type="taskList"/"taskItem"', async () => {
+    const { paragraph, task_list, task_item } = schema.nodes;
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        task_list.create(null, [
+          task_item.create({ checked: true }, paragraph.create(null, schema.text('done'))),
+        ]),
+      ]),
+    );
+    const bytes = await htmlCodec.encode(doc);
+    const html = new TextDecoder().decode(bytes);
+    expect(html).toContain('data-type="taskList"');
+    expect(html).toContain('data-checked="true"');
+    const dst = new Y.Doc();
+    await htmlCodec.decode(bytes, dst);
+    const restored = readPmDoc(dst);
+    expect(restored.firstChild?.type.name).toBe('task_list');
+    expect(restored.firstChild?.firstChild?.attrs.checked).toBe(true);
+  });
 });

@@ -428,5 +428,5 @@
   <SelectionToolbar {view} {editorState} {toasts} />
   <CaretFormatHint {view} {editorState} />
   <SlashMenu {view} {editorState} />
-  <LinkPopover {view} />
+  <LinkPopover {view} {editorState} />
 </main>

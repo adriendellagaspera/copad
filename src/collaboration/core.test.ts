@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as Y from 'yjs';
 import { createCollabCore } from './core.js';
+import { CONNECT_TIMEOUT_MS } from './constants.js';
 import type { RoomId } from './types.js';
 
 const ROOM = 'room' as RoomId;
@@ -52,6 +53,81 @@ describe('createCollabCore status machine', () => {
     attached = true;
     core.emitStatus();
     expect(seen.length).toBe(n);
+    core.destroy();
+  });
+});
+
+describe('createCollabCore unreachable timeout', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('reports unreachable once the timeout elapses while never attached', () => {
+    const core = makeCore();
+    const seen: string[] = [];
+    core.onStatus((s) => seen.push(s));
+    expect(seen.at(-1)).toBe('connecting');
+
+    vi.advanceTimersByTime(CONNECT_TIMEOUT_MS - 1);
+    expect(seen.at(-1)).toBe('connecting');
+
+    vi.advanceTimersByTime(1);
+    expect(seen.at(-1)).toBe('unreachable');
+    core.destroy();
+  });
+
+  it('clears unreachable and resets the window once attached', () => {
+    const core = makeCore();
+    const seen: string[] = [];
+    core.onStatus((s) => seen.push(s));
+    vi.advanceTimersByTime(CONNECT_TIMEOUT_MS);
+    expect(seen.at(-1)).toBe('unreachable');
+
+    attached = true;
+    core.emitStatus();
+    expect(seen.at(-1)).toBe('waiting');
+
+    attached = false;
+    core.emitStatus();
+    expect(seen.at(-1)).toBe('connecting'); // fresh window, not still unreachable
+    vi.advanceTimersByTime(CONNECT_TIMEOUT_MS - 1);
+    expect(seen.at(-1)).toBe('connecting');
+    core.destroy();
+  });
+
+  it('resetConnectTimeout() rearms a fresh window on manual reconnect', () => {
+    const core = makeCore();
+    const seen: string[] = [];
+    core.onStatus((s) => seen.push(s));
+    vi.advanceTimersByTime(CONNECT_TIMEOUT_MS);
+    expect(seen.at(-1)).toBe('unreachable');
+
+    core.resetConnectTimeout();
+    core.emitStatus();
+    expect(seen.at(-1)).toBe('connecting');
+
+    vi.advanceTimersByTime(CONNECT_TIMEOUT_MS - 1);
+    expect(seen.at(-1)).toBe('connecting');
+    vi.advanceTimersByTime(1);
+    expect(seen.at(-1)).toBe('unreachable');
+    core.destroy();
+  });
+
+  it('does not count time spent offline against the connect window', () => {
+    const core = makeCore();
+    const seen: string[] = [];
+    core.onStatus((s) => seen.push(s));
+
+    vi.advanceTimersByTime(CONNECT_TIMEOUT_MS - 1);
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+    window.dispatchEvent(new Event('offline'));
+    expect(seen.at(-1)).toBe('offline');
+
+    vi.advanceTimersByTime(10 * CONNECT_TIMEOUT_MS); // well past the window, but offline the whole time
+    expect(seen.at(-1)).toBe('offline');
+
+    Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+    window.dispatchEvent(new Event('online'));
+    expect(seen.at(-1)).toBe('connecting'); // fresh window starts now, not already expired
     core.destroy();
   });
 });

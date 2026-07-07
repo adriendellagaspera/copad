@@ -48,8 +48,22 @@
       visible = false;
       return;
     }
-    const start = v.coordsAtPos(from);
-    const end = v.coordsAtPos(to);
+    // coordsAtPos measures against the *live DOM*, which briefly disagrees
+    // with `from`/`to` while a burst of transactions (e.g. rapid undo/redo)
+    // is still being flushed into the view — it can throw a DOM range error
+    // (`setEnd`/`collapse` offset out of bounds) even though `from`/`to` are
+    // perfectly in-bounds for the ProseMirror doc itself. LinkPopover and
+    // SlashMenu already guard their own coordsAtPos calls the same way: skip
+    // this reposition and let the next reactive pass (which always follows
+    // within a tick once things settle) try again.
+    let start, end;
+    try {
+      start = v.coordsAtPos(from);
+      end = v.coordsAtPos(to);
+    } catch {
+      visible = false;
+      return;
+    }
     const w = host?.offsetWidth ?? 0;
     const h = host?.offsetHeight ?? 0;
     const centre = (start.left + end.left) / 2;

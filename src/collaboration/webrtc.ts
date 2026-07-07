@@ -160,6 +160,9 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
         webrtc.disconnect();
         webrtc.connect();
         rewireSignaling();
+        // A manual retry earns a fresh "can't connect" window rather than
+        // instantly re-reporting Unreachable from the last attempt's timeout.
+        core.resetConnectTimeout();
         core.emitStatus();
       },
       async getDiagnostics(): Promise<Diagnostics> {

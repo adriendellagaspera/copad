@@ -73,6 +73,10 @@ Adapters in [`src/storage/`](src/storage/):
 | **Dropbox** | OAuth2 **PKCE** (popup) | ✅ CORS OK (token + content) | No |
 | **pCloud** | OAuth token (popup) | ⚠️ upload OK, read CORS-iffy | For reads only |
 | **WebDAV / Nextcloud** | Basic (app password) | ❌ no CORS by default | Yes (unless server is CORS-enabled) |
+| **GitLab** | Personal Access Token | ✅ native CORS (self-hosted too) | No |
+| **S3-compatible** (AWS/R2/MinIO/B2) | Access keys (**SigV4**, no SDK) | ⚠️ bucket must allow CORS | No (signed direct) |
+| **SharePoint / OneDrive** | Microsoft Graph token | ✅ native CORS | No |
+| **Google Drive** | OAuth2 **PKCE** (popup) | ✅ native CORS | No |
 | **Local file** | None (File System Access API) | ✅ Chrome/Edge only | No |
 
 **Adding a backend** (Google Drive, S3/R2, OneDrive…) = write a factory function returning
@@ -122,6 +126,32 @@ saved in the browser, and an `.env` value locks the field as deployment-managed.
 ### Set up pCloud
 
 Create an app at https://docs.pcloud.com → *My applications*, copy the **Client ID** into `VITE_PCLOUD_CLIENT_ID` (or into the app's Settings ⚙ panel), and add your redirect URL. The US/EU region is detected automatically from the OAuth response.
+
+### Set up S3-compatible storage
+
+Copad signs requests to any S3-compatible bucket directly from the browser
+(AWS Signature V4 — no SDK, nothing server-side). In the app choose
+**S3-compatible** and fill **endpoint**, **bucket**, **region**, **access key
+ID**, and **secret access key**; an optional **key prefix** folders your
+documents (default `copad`). The bucket must allow **CORS** from Copad's origin
+— allow the `GET`, `PUT`, and `HEAD` methods and the `authorization` +
+`x-amz-*` request headers.
+
+Known endpoints — path-style, `https://<endpoint>/<bucket>/<key>`:
+
+| Provider | Endpoint (host) | Region |
+|---|---|---|
+| AWS S3 | `s3.<region>.amazonaws.com` | e.g. `us-east-1` |
+| Cloudflare R2 | `<account-id>.r2.cloudflarestorage.com` | `auto` |
+| Backblaze B2 | `s3.<region>.backblazeb2.com` | e.g. `us-west-004` |
+| Wasabi | `s3.<region>.wasabisys.com` | e.g. `eu-central-1` |
+| DigitalOcean Spaces | `<region>.digitaloceanspaces.com` | e.g. `nyc3` |
+| Scaleway | `s3.<region>.scw.cloud` | e.g. `fr-par` |
+| Google Cloud Storage | `storage.googleapis.com` | your bucket's region |
+| MinIO / self-hosted | your MinIO URL | as configured |
+
+> The credentials are per-session (not stored as deployment config); a scoped
+> key that can `GetObject`/`PutObject` on the prefix is enough — no `ListBucket`.
 
 ### OAuth redirect URIs
 
@@ -244,6 +274,10 @@ src/
     pcloud.ts    # pCloud adapter
     dropbox.ts   # Dropbox adapter (PKCE)
     webdav.ts    # WebDAV / Nextcloud adapter
+    gitlab.ts    # GitLab adapter (PAT, gitlab.com or self-hosted)
+    s3.ts        # S3-compatible adapter (AWS SigV4 via crypto.subtle)
+    sharepoint.ts# SharePoint / OneDrive adapter (Microsoft Graph)
+    gdrive.ts    # Google Drive adapter (PKCE, drive.file scope)
     local.ts     # Local file adapter (File System Access API, Chrome/Edge)
     index.ts     # registry of configured backends
   network/
@@ -264,7 +298,7 @@ src/
   Editor.svelte  # ProseMirror + Yjs binding + autosave / leader election
   Toolbar.svelte # rich-text toolbar (Svelte 5 $derived active states)
   App.svelte     # room management, storage picker, connect UI, collab transport wiring
-  redirect.ts    # OAuth popup landing page (pCloud + Dropbox)
+  redirect.ts    # OAuth popup landing page (pCloud + Dropbox + Google Drive)
 ```
 
 The collaboration servers are not vendored here — they're upstream packages run via their

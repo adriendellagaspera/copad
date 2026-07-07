@@ -57,6 +57,10 @@ export function websocketCollab(opts: WebsocketCollabOptions): CollabConnect {
       reconnect() {
         provider.disconnect();
         provider.connect();
+        // A manual retry earns a fresh "can't connect" window rather than
+        // instantly re-reporting Unreachable from the last attempt's timeout.
+        core.resetConnectTimeout();
+        core.emitStatus();
       },
       async getDiagnostics() {
         // No per-peer carriage on the hub — everyone talks to the same server.

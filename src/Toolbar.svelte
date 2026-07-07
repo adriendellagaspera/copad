@@ -19,12 +19,14 @@
   const italic    = $derived(editorState ? isMarkActive(editorState, schema.marks.em)     : false);
   const code      = $derived(editorState ? isMarkActive(editorState, schema.marks.code)   : false);
   const strike    = $derived(editorState ? isMarkActive(editorState, schema.marks.strike) : false);
+  const underline = $derived(editorState ? isMarkActive(editorState, schema.marks.underline) : false);
   const link      = $derived(editorState ? isLinkActive(editorState) : false);
   const h1        = $derived(editorState ? isNodeActive(editorState, schema.nodes.heading, { level: 1 }) : false);
   const h2        = $derived(editorState ? isNodeActive(editorState, schema.nodes.heading, { level: 2 }) : false);
   const h3        = $derived(editorState ? isNodeActive(editorState, schema.nodes.heading, { level: 3 }) : false);
   const bullet    = $derived(editorState ? isNodeActive(editorState, schema.nodes.bullet_list)  : false);
   const ordered   = $derived(editorState ? isNodeActive(editorState, schema.nodes.ordered_list) : false);
+  const checklist = $derived(editorState ? isNodeActive(editorState, schema.nodes.task_list)    : false);
   const quote     = $derived(editorState ? isNodeActive(editorState, schema.nodes.blockquote)   : false);
   const codeblock = $derived(editorState ? isNodeActive(editorState, schema.nodes.code_block)   : false);
 
@@ -57,6 +59,7 @@
     <button data-active={bold}   aria-pressed={bold}   onclick={run(commands.bold)}   title="Bold (Mod+B)" aria-label="Bold"><b>B</b></button>
     <button data-active={italic} aria-pressed={italic} onclick={run(commands.italic)} title="Italic (Mod+I)" aria-label="Italic"><i>I</i></button>
     <button data-active={strike} aria-pressed={strike} onclick={run(commands.strike)} title="Strikethrough (Mod+Shift+X, or ~~text~~)" aria-label="Strikethrough"><s>S</s></button>
+    <button data-active={underline} aria-pressed={underline} onclick={run(commands.underline)} title="Underline (Mod+Shift+U)" aria-label="Underline"><u>U</u></button>
     <button data-active={code}   aria-pressed={code}   onclick={run(commands.code)}   title="Inline code (Mod+`, or `text`)" aria-label="Inline code">{'</>'}</button>
     <button data-active={link}   aria-pressed={link}   onclick={openLink}             title="Link (Mod+K, or [text](url))" aria-label="Link">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M15 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1" /></svg>
@@ -68,6 +71,7 @@
     <span class="sep" role="separator"></span>
     <button data-active={bullet}    aria-pressed={bullet}    onclick={run(commands.bullet)}         title="Bullet list (Mod+Shift+8, or - + space)">• List</button>
     <button data-active={ordered}   aria-pressed={ordered}   onclick={run(commands.ordered)}        title="Ordered list (Mod+Shift+7, or 1. + space)">1. List</button>
+    <button data-active={checklist} aria-pressed={checklist} onclick={run(commands.taskList)}       title="Checklist (Mod+Shift+6, or [] + space)" aria-label="Checklist">☑</button>
     <button data-active={quote}     aria-pressed={quote}     onclick={run(commands.blockquote)}     title="Blockquote (Mod+Shift+9, or > + space)" aria-label="Blockquote">❝</button>
     <button data-active={codeblock} aria-pressed={codeblock} onclick={run(commands.codeBlock)}      title="Code block (Mod+Alt+C, or ``` )">Code</button>
     <button onclick={run(commands.horizontalRule)} title="Divider (type ---)" aria-label="Insert divider">―</button>

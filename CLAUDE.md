@@ -26,6 +26,10 @@ Storage adapters return `{ auth: StorageAuth; storage: Storage }` — auth and b
 | `pcloudStorage()` | `src/storage/pcloud.ts` | OAuth popup |
 | `webdavStorage()` | `src/storage/webdav.ts` | Requires `VITE_PROXY_URL` (CORS) |
 | `githubStorage()` | `src/storage/github.ts` | Commits to a GitHub repo via PAT; `contentFormat` is `'text'` for human-readable files, `'binary'` for `.yjs`. |
+| `gitlabStorage()` | `src/storage/gitlab.ts` | Commits to a GitLab project (gitlab.com or self-hosted) via PAT; mirrors `githubStorage()` (configFields + validated flag + POST/PUT create-or-update). |
+| `s3Storage()` | `src/storage/s3.ts` | Any S3-compatible bucket (AWS, R2, MinIO, B2, GCS…). AWS SigV4 signed with `crypto.subtle` (no SDK); binary `.yjs`; bucket must allow CORS. |
+| `sharepointStorage()` | `src/storage/sharepoint.ts` | SharePoint / OneDrive for Business via Microsoft Graph, delegated bearer token (credentialFields, like WebDAV); Graph has native CORS (no proxy). |
+| `gdriveStorage()` | `src/storage/gdrive.ts` | OAuth2 PKCE (like Dropbox); `drive.file` scope, file resolved by per-room filename; extension-driven `contentFormat`. |
 | `localFsStorage()` | `src/storage/local.ts` | File System Access API, Chrome/Edge only |
 | `webrtcCollab()` | `src/collaboration/webrtc.ts` | y-webrtc peer-to-peer transport (**default**). Needs STUN, plus TURN on mobile/symmetric NAT. |
 | `websocketCollab()` | `src/collaboration/websocket.ts` | y-websocket hub transport (opt-in via `VITE_COLLAB_TRANSPORT=websocket`). Central relay, **no WebRTC → no STUN/TURN**; server is in the data path (no E2E). |
@@ -44,7 +48,7 @@ Room access adapters (all in `src/collaboration/roomAccess.ts` / `roomCipher.ts`
 
 `resolveRoomStrategy(VITE_ROOM_AUTH)` parses the env var once and returns a `RoomStrategy` — the `{ access, cipher }` pair built **together** so each strategy keeps its concrete type end-to-end. In particular the `secret-link` dual-port object is assigned directly to both fields (no widen-to-`RoomAccess`-then-cast-back-to-`RoomCipher`). Lives in `src/collaboration/config.ts`.
 
-Both adapters share `createCollabCore()` (`src/collaboration/core.ts`) — the transport-agnostic half of a `Collab`: status/synced subscriber fan-out, the `connecting → waiting → connected` machine, online/offline reactivity, the local-cache lifecycle, and teardown. Each adapter supplies only provider wiring + two hooks (`isAttached()`, `peerCount()`); the duplicated boilerplate lives in one place.
+Both adapters share `createCollabCore()` (`src/collaboration/core.ts`) — the transport-agnostic half of a `Collab`: status/synced subscriber fan-out, the `connecting → waiting → connected` machine (falling to `unreachable` if not attached after `CONNECT_TIMEOUT_MS`, so the UI stops spinning on a dead/misconfigured server — cleared by a successful attach or a manual `reconnect()`), online/offline reactivity, the local-cache lifecycle, and teardown. Each adapter supplies only provider wiring + two hooks (`isAttached()`, `peerCount()`); the duplicated boilerplate lives in one place.
 
 ### Wiring
 
@@ -65,7 +69,7 @@ A backend moves *bytes*; a **codec** (`src/format/`) turns those bytes into the 
 |-------|-----------|-------|
 | `yjsCodec` | `.yjs` | **Native default.** Full CRDT state (history + content) — the only format that round-trips collaborative merge. Fallback for unknown extensions. |
 | `textCodec` | `.txt` | Plain text; one paragraph per line. Formatting flattened. |
-| `markdownCodec` | `.md`, `.markdown` | CommonMark + GFM strikethrough (`~~`). |
+| `markdownCodec` | `.md`, `.markdown` | CommonMark + GFM strikethrough (`~~`) and checklists (`- [ ]`/`- [x]`). No native underline syntax — that mark is flattened to plain text on export. |
 | `htmlCodec` | `.html`, `.htm` | ProseMirror DOM parser/serializer; **needs a DOM** (browser only). |
 | `jsonCodec` | `.json` | ProseMirror document JSON; lossless for our schema. |
 
@@ -87,7 +91,7 @@ Backends that need neither (Local) omit both. Each backend's front-page **pill**
 No magic literal lives buried in business logic. Deployment-relevant constants — endpoints, defaults, timeouts, folder paths, and the localStorage keys each vertical owns — are centralized in a **config/constants module per vertical**, and read a `VITE_*` env override where deployments legitimately vary:
 - `src/config.ts` — app-global: the storage **namespace** (`APP_NAMESPACE` / `nsKey()`, default `copad`). Overridable via `VITE_APP_NAMESPACE` so two deployments on one origin can isolate their `copad:`-namespaced state. The no-flash script in `index.html` can't read env at runtime, so it's kept in sync at *build* time by the `inject-app-namespace` plugin in `vite.config.ts` (same default).
 - `src/collaboration/constants.ts` — signaling/STUN/room defaults, the signaling keep-alive interval (`VITE_SIGNALING_KEEPALIVE_MS`), local-dev hostnames, cache DB prefixes (plaintext + `enc:`), room-password + room-encrypted keys.
-- `src/storage/constants.ts` — backend endpoint URLs/hosts/paths, the shared cloud folder, GitHub API base, OAuth popup tuning + redirect, base64 chunk size, default filenames, and backend identity. `STORAGE_ID` (built by the `storageIds()` brander) is the single source of truth for backend ids — adapters and keys derive from it, so each `as StorageId` cast lives in exactly one place. Every persisted key is built by `backendKey(id, purpose: KeyPurpose)` as a uniform `storage.<id>.<purpose>`. `KeyPurpose` is a union of the fixed singleton slots (`token`, `session`, `conf`, `validated`, `rooms` — typo-checked at call sites) plus a branded `ConfigFieldName` open arm for adapter-defined config fields, branded once at the configStore boundary. (Per-room filenames use their own `storage.<id>.filename.<room>` key built directly, not a `KeyPurpose`.) Each endpoint/host/path/tunable reads a `VITE_*` override (via the `envStr` / `envInt` helpers) so a deployment can react to a provider rotating a domain or a regional split (pCloud US/EU) without a rebuild.
+- `src/storage/constants.ts` — backend endpoint URLs/hosts/paths, the shared cloud folder, GitHub API base, OAuth popup tuning + redirect, base64 chunk size, default filenames, and backend identity. `STORAGE_ID` (built by the `storageIds()` brander) is the single source of truth for backend ids — adapters and keys derive from it, so each `as StorageId` cast lives in exactly one place. Every persisted key is built by `backendKey(id, purpose: KeyPurpose)` as a uniform `storage.<id>.<purpose>`. `KeyPurpose` is a union of the fixed singleton slots (`token`, `session`, `conf`, `validated`, `rooms` — typo-checked at call sites) plus a branded `ConfigFieldName` open arm for adapter-defined config fields, branded once at the configStore boundary. (Per-room filenames use their own `storage.<id>.filename.<room>` key built directly, not a `KeyPurpose`.) Each endpoint/host/path/tunable reads a `VITE_*` override (via the `envStr` / `envInt` helpers) so a deployment can react to a provider rotating a domain or a regional split (pCloud US/EU) without a rebuild. `BACKEND_ENABLED` (via the `envBool` helper) lets each backend be hidden entirely — pill and Settings section both gone — via `VITE_ENABLE_<ID>`; `backends()` in `src/storage/index.ts` filters on it. A newly added backend defaults to disabled until it's been connected to a real account outside production; flipping the default to enabled is its own dedicated PR.
 
 The only constants with **no** env override are the per-backend localStorage **key strings** (`storage.<id>.*`, `collab.room-password.*`, `collab.room-encrypted.*`, `collab.room-open.*` — pure identity; changing them just orphans saved state with no deployment benefit) and the GitHub default branch (already deployment-settable via the `branch` config field's `VITE_GITHUB_BRANCH` lock). Changing `VITE_APP_NAMESPACE` on a *live* deployment likewise orphans `copad:`-namespaced state — it's a set-once-at-deploy knob.
 
@@ -211,6 +215,7 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_COLLAB_TRANSPORT` | no | Collaboration transport: `webrtc` (default) or `websocket`. **Chosen explicitly** (not inferred from any URL) — `resolveTransport()` in `src/collaboration/config.ts`. |
 | `VITE_SIGNALING_URL` | no | WebRTC signaling server(s), comma-separated. `ws://localhost:4444` default applies **only on a local host**; on a deployed origin it's empty (warning banner shown) — must be `wss://` (browsers block `ws://` from https as mixed content). Resolved by `resolveSignaling()` in `src/collaboration/config.ts`. Used only on the WebRTC transport. |
 | `VITE_SIGNALING_KEEPALIVE_MS` | no | How often (ms) the WebRTC client pings each signaling server over HTTP to keep a spin-down-on-idle host (e.g. Render free tier) warm, so peer discovery doesn't fail on a cold start (default: `240000` = 4 min). In `src/collaboration/constants.ts`. WebRTC transport only. |
+| `VITE_CONNECT_TIMEOUT_MS` | no | How long (ms) a transport may sit not-attached before the status pill reports "Can't connect" (`ConnStatus.Unreachable`) instead of spinning on "Connecting…" forever (default: `8000`). Resets on a successful attach or a manual reconnect. In `src/collaboration/constants.ts`. Applies to both transports. |
 | `VITE_WEBSOCKET_URL` | no | y-websocket hub URL, used when `VITE_COLLAB_TRANSPORT=websocket` (central relay, no STUN/TURN — works on mobile NAT; server sees plaintext, so no E2E). Setting it alone does NOT switch transports. Must be `wss://` on a deployed origin. Resolved by `resolveWebsocket()` in `src/collaboration/config.ts`. |
 | `VITE_ROOM_AUTH` | no | Room access + encryption strategy: `public` (default, no password), `site-password`, `room-password`, or `secret-link`. Parsed by `resolveRoomStrategy()` in `src/collaboration/config.ts`. The in-app Share dialog can also encrypt a room on the fly (secure link `#k=` or per-room password); effective cipher precedence in `App.svelte` is secure-link → per-room password → this strategy. |
 | `VITE_ROOM_PASSWORD` | no | Site-wide password used when `VITE_ROOM_AUTH=site-password`. Feeds y-webrtc AES encryption (WebRTC transport only; WebSocket hub is plaintext by design). |
@@ -223,6 +228,17 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_GITHUB_BRANCH` | no | Locks the GitHub branch (default: `main`); otherwise set at runtime in Settings |
 | `VITE_GITHUB_TOKEN` | no | Locks the GitHub PAT; bypasses the Connect validation step (deployment-managed) |
 | `VITE_GITHUB_API_URL` | no | GitHub REST API base (default: `https://api.github.com`); set for a GitHub Enterprise host. In `src/storage/constants.ts`. |
+| `VITE_GITLAB_PROJECT` | no | Locks the GitLab project (`namespace/project`); otherwise set at runtime in Settings. |
+| `VITE_GITLAB_HOST` | no | Locks the GitLab instance host (default: `https://gitlab.com`); set for self-hosted GitLab. |
+| `VITE_GITLAB_BRANCH` | no | Locks the GitLab branch (default: `main`); otherwise set at runtime in Settings. |
+| `VITE_GITLAB_TOKEN` | no | Locks the GitLab PAT; bypasses the Connect validation step (deployment-managed). |
+| `VITE_GITLAB_API_PATH` | no | GitLab REST API path appended to the host (default: `/api/v4`). In `src/storage/constants.ts`. |
+| `VITE_GITLAB_DEFAULT_FILENAME` | no | Initial GitLab target file (default: `notes.md`). |
+| `VITE_S3_PREFIX` | no | Object-key prefix (folder) the S3 backend reads/writes within (default: `copad`). |
+| `VITE_GRAPH_API_URL` | no | Microsoft Graph API base (default: `https://graph.microsoft.com/v1.0`); set for a national cloud. |
+| `VITE_SHAREPOINT_FOLDER` | no | Drive folder SharePoint/OneDrive reads/writes within (default: `Documents`). |
+| `VITE_GDRIVE_CLIENT_ID` | no | Locks the Google Cloud OAuth Client ID; otherwise set at runtime in Settings. |
+| `VITE_GDRIVE_AUTH_URL` / `VITE_GDRIVE_TOKEN_URL` / `VITE_GDRIVE_FILES_URL` / `VITE_GDRIVE_UPLOAD_URL` / `VITE_GDRIVE_SCOPE` | no | Google Drive OAuth/Drive endpoint + scope overrides (defaults are the public Google endpoints; scope defaults to `drive.file`). |
 | `VITE_CLOUD_FOLDER` | no | Folder the cloud backends (Dropbox, pCloud) read/write within (default: `/copad`). In `src/storage/constants.ts`. |
 | `VITE_DEFAULT_FILENAME` | no | Initial target filename for cloud backends (default: `document.yjs`); the extension selects the codec. |
 | `VITE_GITHUB_DEFAULT_FILENAME` | no | Initial GitHub target file (default: `notes.md`). |
@@ -232,10 +248,11 @@ This codebase uses **functional naming** — no OO suffixes.
 | `VITE_PCLOUD_GETFILELINK_PATH` / `VITE_PCLOUD_UPLOAD_PATH` | no | pCloud API paths (defaults: `/getfilelink` / `/uploadfile`). |
 | `VITE_OAUTH_TIMEOUT_MS` | no | How long to wait for the OAuth popup before giving up (default: `300000`). |
 | `VITE_OAUTH_POPUP_FEATURES` | no | OAuth popup window features (default: `width=520,height=640`). |
-| `VITE_BASE64_CHUNK` | no | Chunk size for base64-encoding large GitHub uploads (default: `32768`). |
+| `VITE_BASE64_CHUNK` | no | Chunk size for base64-encoding large GitHub/GitLab uploads (default: `32768`). |
 | `VITE_PROXY_URL` | for WebDAV | CORS proxy URL |
 | `VITE_WEBDAV_URL` | no | Pre-fill the WebDAV URL input |
 | `VITE_STORAGE_BACKEND` | no | Default storage backend id |
+| `VITE_ENABLE_DROPBOX` / `VITE_ENABLE_PCLOUD` / `VITE_ENABLE_WEBDAV` / `VITE_ENABLE_GITHUB` / `VITE_ENABLE_LOCAL` | no | Hide a backend entirely — no pill, no Settings section (default: `true` for each). A newly added backend defaults to `false` until proven working outside production. In `src/storage/constants.ts`'s `BACKEND_ENABLED`. |
 | `VITE_STUN_URL` | no | STUN server(s), comma-separated (default: `stun:stun.l.google.com:19302`; set empty to disable). Via `resolveIceServers()`. |
 | `VITE_TURN_URL` | no | TURN relay url(s), comma-separated. Needed for restrictive/mobile NATs (CGNAT / symmetric NAT). When unset, a public default relay (`DEFAULT_TURN` in `config.ts`) is used unless disabled. Runtime Settings TURN (`turn.ts`) overrides this. |
 | `VITE_TURN_USERNAME` | no | TURN username. |

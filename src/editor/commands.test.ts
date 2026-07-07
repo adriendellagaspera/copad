@@ -32,6 +32,14 @@ describe('block commands', () => {
     expect(next.doc.firstChild?.type.name).toBe('code_block');
   });
 
+  it('taskList wraps the block in a task_list/task_item', () => {
+    const next = apply(paragraphState(), commands.taskList);
+    expect(next.doc.firstChild?.type.name).toBe('task_list');
+    const item = next.doc.firstChild?.firstChild;
+    expect(item?.type.name).toBe('task_item');
+    expect(item?.attrs.checked).toBe(false);
+  });
+
   it('horizontalRule inserts a horizontal_rule node', () => {
     const next = apply(paragraphState(''), commands.horizontalRule);
     let found = false;
@@ -68,6 +76,11 @@ describe('activeInputMarks', () => {
   it('reports a mark armed by a toggle at the caret (stored marks)', () => {
     const armed = apply(paragraphState(), commands.bold);
     expect(names(armed)).toEqual(['strong']);
+  });
+
+  it('reports underline armed by its toggle at the caret', () => {
+    const armed = apply(paragraphState(), commands.underline);
+    expect(names(armed)).toEqual(['underline']);
   });
 
   it('reports marks inherited from the caret position', () => {

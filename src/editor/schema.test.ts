@@ -8,6 +8,7 @@ describe('schema', () => {
     expect(schema.marks.em).toBeDefined();
     expect(schema.marks.code).toBeDefined();
     expect(schema.marks.strike).toBeDefined();
+    expect(schema.marks.underline).toBeDefined();
   });
 
   it('has all required nodes', () => {
@@ -18,6 +19,8 @@ describe('schema', () => {
     expect(schema.nodes.ordered_list).toBeDefined();
     expect(schema.nodes.list_item).toBeDefined();
     expect(schema.nodes.code_block).toBeDefined();
+    expect(schema.nodes.task_list).toBeDefined();
+    expect(schema.nodes.task_item).toBeDefined();
   });
 
   it('can create a paragraph with text', () => {
@@ -49,5 +52,31 @@ describe('schema', () => {
     const mark = strike.create();
     const spec = strike.spec.toDOM!(mark, false);
     expect(spec).toEqual(['s', 0]);
+  });
+
+  it('underline mark toDOM returns <u> element spec', () => {
+    const underline = schema.marks.underline;
+    const mark = underline.create();
+    const spec = underline.spec.toDOM!(mark, false);
+    expect(spec).toEqual(['u', 0]);
+  });
+
+  it('creates an unchecked task_item by default', () => {
+    const item = schema.nodes.task_item.create(null, schema.nodes.paragraph.create());
+    expect(item.attrs.checked).toBe(false);
+  });
+
+  it('creates a checked task_item when given the attr', () => {
+    const item = schema.nodes.task_item.create({ checked: true }, schema.nodes.paragraph.create());
+    expect(item.attrs.checked).toBe(true);
+  });
+
+  it('task_list requires at least one task_item', () => {
+    const list = schema.nodes.task_list.create(
+      null,
+      schema.nodes.task_item.create(null, schema.nodes.paragraph.create())
+    );
+    expect(list.childCount).toBe(1);
+    expect(list.firstChild?.type.name).toBe('task_item');
   });
 });

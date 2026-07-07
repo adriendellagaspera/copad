@@ -39,4 +39,27 @@ describe('docToMarkdown', () => {
     expect(md(schema.node('code_block', null, schema.text('let x = 1')))).toContain('let x = 1');
     expect(md(schema.node('horizontal_rule'))).toContain('---');
   });
+
+  it('flattens underline to plain text (no Markdown syntax for it)', () => {
+    const out = md(para(schema.text('under', [schema.marks.underline.create()])));
+    expect(out).toContain('under');
+    expect(out).not.toMatch(/<\/?u>/);
+  });
+
+  it('keeps a link when the linked text is also underlined', () => {
+    const link = schema.marks.link.create({ href: 'https://e.com' });
+    const underline = schema.marks.underline.create();
+    const out = md(para(schema.text('site', [link, underline])));
+    expect(out).toContain('[site](https://e.com)');
+  });
+
+  it('serializes a checklist with checked and unchecked items', () => {
+    const list = schema.node('task_list', null, [
+      schema.node('task_item', { checked: true }, [para(schema.text('done'))]),
+      schema.node('task_item', { checked: false }, [para(schema.text('todo'))]),
+    ]);
+    const out = md(list);
+    expect(out).toContain('- [x] done');
+    expect(out).toContain('- [ ] todo');
+  });
 });
