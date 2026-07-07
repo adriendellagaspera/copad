@@ -34,4 +34,22 @@ describe('html codec', () => {
     expect(restored.textContent).toContain('Heading');
     expect(JSON.stringify(restored.toJSON())).toContain('"strong"');
   });
+
+  it('round-trips underline through <u>', async () => {
+    const { paragraph } = schema.nodes;
+    const { underline } = schema.marks;
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        paragraph.create(null, schema.text('under', [underline.create()])),
+      ]),
+    );
+    const bytes = await htmlCodec.encode(doc);
+    expect(new TextDecoder().decode(bytes)).toContain('<u>');
+    const dst = new Y.Doc();
+    await htmlCodec.decode(bytes, dst);
+    const restored = readPmDoc(dst);
+    expect(JSON.stringify(restored.toJSON())).toContain('"underline"');
+  });
 });
