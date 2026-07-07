@@ -58,7 +58,16 @@ async function signingKey(secret: string, dateStamp: string, region: string): Pr
   return hmac(kService, 'aws4_request');
 }
 
-/** Sign a request, returning the headers to send (host, x-amz-*, Authorization). */
+/**
+ * Sign a request, returning the headers to send (host, x-amz-*, Authorization).
+ *
+ * `host` is included in the canonical request (SigV4 requires it) even though a
+ * browser won't let a script actually set the `Host` header — `fetch` silently
+ * drops it and sends its own, derived from `url`. That's harmless here: the
+ * value we sign is `url.host`, which is exactly the `Host` the browser will
+ * send for that same URL, so the signature still matches what the server sees
+ * on the wire.
+ */
 async function signRequest(
   method: 'GET' | 'PUT' | 'HEAD',
   url: URL,
