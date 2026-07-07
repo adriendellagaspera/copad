@@ -6,6 +6,7 @@ import { extensionOf } from '../format/types.js';
 import {
   type SharePointConf,
   parseSharePointConf,
+  parseSharePointFolder,
   parseGraphUserId,
   parseGraphSiteId,
   parseGraphOwnerId,
@@ -32,6 +33,15 @@ export type GraphUserId = string & { readonly _brand: 'GraphUserId' };
 /** A Microsoft Graph SharePoint site id (from `/sites/{host}:{path}`). */
 export type GraphSiteId = string & { readonly _brand: 'GraphSiteId' };
 
+/** A delegated Microsoft Graph bearer token, pasted in by the user. There's no
+ *  separate API-response shape to parse — the token is validated by whether
+ *  the `/me` call it's sent with succeeds, so it's branded right after that
+ *  check passes in `login()`, the single cast site for user-supplied tokens. */
+export type SharePointToken = string & { readonly _brand: 'SharePointToken' };
+
+/** A drive folder path the user configures (defaults to `SHAREPOINT_FOLDER`). */
+export type SharePointFolder = string & { readonly _brand: 'SharePointFolder' };
+
 const confStore = localStore<SharePointConf | null>(
   SHAREPOINT_KEY,
   parseSharePointConf,
@@ -50,7 +60,7 @@ const credentialFields: CredentialField[] = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function authHeaders(token: string): Record<string, string> {
+function authHeaders(token: SharePointToken): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
@@ -74,7 +84,7 @@ function driveContentUrl(c: SharePointConf, filename: Filename): string {
 }
 
 /** Resolve a SharePoint site URL to its Graph site id. */
-async function resolveSiteId(token: string, siteUrl: string): Promise<GraphSiteId> {
+async function resolveSiteId(token: SharePointToken, siteUrl: string): Promise<GraphSiteId> {
   const url = new URL(siteUrl);
   const res = await fetch(`${GRAPH_API_URL}/sites/${url.hostname}:${url.pathname}`, {
     headers: authHeaders(token),
@@ -95,18 +105,21 @@ export function sharepointStorage(room: RoomId): { auth: StorageAuth; storage: S
     async login(opts?: LoginOptions) {
       const creds = opts?.kind === LoginKind.Credentials ? opts.credentials : {};
       const { token = '', siteUrl = '', folder = '' } = creds;
-      if (!token.trim()) throw new Error('An access token is required');
+      const rawToken = token.trim();
+      if (!rawToken) throw new Error('An access token is required');
 
-      // Validate the token works.
-      const meRes = await fetch(`${GRAPH_API_URL}/me`, { headers: authHeaders(token.trim()) });
+      // Use the raw string here — we are the validation step; SharePointToken
+      // is only produced after a successful response.
+      const meRes = await fetch(`${GRAPH_API_URL}/me`, { headers: { Authorization: `Bearer ${rawToken}` } });
       if (meRes.status === 401) throw new Error('SharePoint: invalid or expired token');
       if (!meRes.ok) throw new Error(`SharePoint connect failed: ${meRes.status}`);
+      const validToken = rawToken as SharePointToken;
 
-      const siteId = siteUrl.trim() ? await resolveSiteId(token.trim(), siteUrl.trim()) : null;
+      const siteId = siteUrl.trim() ? await resolveSiteId(validToken, siteUrl.trim()) : null;
       confStore.write({
-        token: token.trim(),
+        token: validToken,
         siteId,
-        folder: folder.trim() || SHAREPOINT_FOLDER,
+        folder: parseSharePointFolder(folder),
       });
     },
 

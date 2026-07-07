@@ -18,8 +18,8 @@ import type {
   S3AccessKeyId,
   S3SecretAccessKey,
 } from './s3.js';
-import type { GraphUserId, GraphSiteId } from './sharepoint.js';
-import { GITHUB_DEFAULT_BRANCH, GITLAB_DEFAULT_BRANCH, GITLAB_DEFAULT_HOST, S3_PREFIX } from './constants.js';
+import type { GraphUserId, GraphSiteId, SharePointToken, SharePointFolder } from './sharepoint.js';
+import { GITHUB_DEFAULT_BRANCH, GITLAB_DEFAULT_BRANCH, GITLAB_DEFAULT_HOST, S3_PREFIX, SHAREPOINT_FOLDER } from './constants.js';
 
 // ── Stored-session shapes (owned here, imported by adapters) ──────────────────
 
@@ -53,9 +53,9 @@ export interface S3Conf {
 /** Persisted SharePoint / OneDrive session. `siteId` null ⇒ the user's OneDrive;
  *  set ⇒ a specific SharePoint site's default drive. */
 export interface SharePointConf {
-  token: string;
+  token: SharePointToken;
   siteId: GraphSiteId | null;
-  folder: string;
+  folder: SharePointFolder;
 }
 
 // ── localStorage + JSON.parse boundaries ─────────────────────────────────────
@@ -121,11 +121,22 @@ export function parseSharePointConf(raw: string | null): SharePointConf | null {
     const obj: unknown = JSON.parse(raw);
     if (typeof obj !== 'object' || obj === null) return null;
     const { token, siteId, folder } = obj as Record<string, unknown>;
-    if (typeof token !== 'string' || typeof folder !== 'string') return null;
-    return { token, siteId: typeof siteId === 'string' ? (siteId as GraphSiteId) : null, folder };
+    if (typeof token !== 'string') return null;
+    return {
+      token: token as SharePointToken,
+      siteId: typeof siteId === 'string' ? (siteId as GraphSiteId) : null,
+      folder: parseSharePointFolder(typeof folder === 'string' ? folder : ''),
+    };
   } catch {
     return null;
   }
+}
+
+/** A user-configured drive folder path: trimmed, falling back to the
+ *  deployment default (`SHAREPOINT_FOLDER`) when blank. */
+export function parseSharePointFolder(raw: string): SharePointFolder {
+  const trimmed = raw.trim();
+  return (trimmed || SHAREPOINT_FOLDER) as SharePointFolder;
 }
 
 /** Whether the user has completed a successful GitHub token validation. */

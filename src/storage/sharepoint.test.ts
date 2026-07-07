@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { sharepointStorage } from './sharepoint.js';
+import type { SharePointToken, SharePointFolder } from './sharepoint.js';
 import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
 import { LoginKind } from './types.js';
@@ -26,7 +27,11 @@ beforeEach(() => {
 
 const creds = (o: Record<string, string>) => ({ kind: LoginKind.Credentials, credentials: o });
 const connected = () =>
-  localStorage.setItem('storage.sharepoint.conf', JSON.stringify({ token: 't', siteId: null, folder: 'Documents' }));
+  localStorage.setItem('storage.sharepoint.conf', JSON.stringify({
+    token: 't' as SharePointToken,
+    siteId: null,
+    folder: 'Documents' as SharePointFolder,
+  }));
 
 describe('sharepointStorage auth', () => {
   it('is not authenticated before login', () => {
