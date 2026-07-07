@@ -173,7 +173,8 @@
     flex-wrap: wrap;
     padding: var(--sp-2) var(--sp-4);
     background: color-mix(in srgb, var(--warn-soft) 55%, var(--surface-2));
-    border-bottom: 1px solid color-mix(in srgb, var(--warn-border) 55%, var(--border));
+    border: 1px solid color-mix(in srgb, var(--warn-border) 55%, var(--border));
+    border-radius: var(--r-md);
     color: var(--text-muted);
     font-size: var(--fs-300);
     line-height: 1.4;
@@ -182,7 +183,7 @@
      drop the amber tint entirely for a plain neutral surface and a neutral icon. */
   .sync-banner.soft {
     background: var(--surface-2);
-    border-bottom-color: var(--border);
+    border-color: var(--border);
   }
   .ic {
     flex-shrink: 0;
