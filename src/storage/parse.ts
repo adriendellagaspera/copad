@@ -9,7 +9,8 @@ import type { GitHubRepo, GitHubBranch, GitHubFileSha } from './github.js';
 import type { DropboxToken, DropboxAppKey } from './dropbox.js';
 import type { WebDavBaseUrl, WebDavAuthHeader } from './webdav.js';
 import type { PCloudToken, PCloudApiHost, PCloudClientId } from './pcloud.js';
-import { GITHUB_DEFAULT_BRANCH } from './constants.js';
+import type { GitLabProject, GitLabBranch, GitLabHost } from './gitlab.js';
+import { GITHUB_DEFAULT_BRANCH, GITLAB_DEFAULT_BRANCH, GITLAB_DEFAULT_HOST } from './constants.js';
 
 // ── Stored-session shapes (owned here, imported by adapters) ──────────────────
 
@@ -61,6 +62,11 @@ export function parsePCloudSession(raw: string | null): PCloudSession | null {
 
 /** Whether the user has completed a successful GitHub token validation. */
 export function parseGitHubValidated(raw: string | null): boolean {
+  return raw !== null;
+}
+
+/** Whether the user has completed a successful GitLab token validation. */
+export function parseGitLabValidated(raw: string | null): boolean {
   return raw !== null;
 }
 
@@ -116,6 +122,32 @@ export function parseGitHubLoadResponse(raw: unknown): { content: string; sha: G
   return { content, sha: sha as GitHubFileSha };
 }
 
+// ── GitLab API JSON boundaries ────────────────────────────────────────────────
+
+/** Base64 `content` from a Repository Files API response. */
+export function parseGitLabFileContent(raw: unknown): string {
+  if (typeof raw !== 'object' || raw === null)
+    throw new Error('Unexpected GitLab file response');
+  const content = (raw as Record<string, unknown>)['content'];
+  if (typeof content !== 'string') throw new Error('GitLab file response missing content');
+  return content;
+}
+
+/** The effective access level from a project response — the max of the user's
+ *  project- and group-level access. 0 when absent. */
+export function parseGitLabAccessLevel(raw: unknown): number {
+  if (typeof raw !== 'object' || raw === null) return 0;
+  const perms = (raw as Record<string, unknown>)['permissions'];
+  if (typeof perms !== 'object' || perms === null) return 0;
+  const p = perms as Record<string, unknown>;
+  const level = (block: unknown): number => {
+    if (typeof block !== 'object' || block === null) return 0;
+    const lvl = (block as Record<string, unknown>)['access_level'];
+    return typeof lvl === 'number' ? lvl : 0;
+  };
+  return Math.max(level(p['project_access']), level(p['group_access']));
+}
+
 // ── postMessage boundary ──────────────────────────────────────────────────────
 
 /** Extract the OAuth authorization code from a postMessage event payload. */
@@ -154,4 +186,23 @@ export function parseDropboxAppKey(raw: string): DropboxAppKey | null {
 export function parsePCloudClientId(raw: string): PCloudClientId | null {
   const trimmed = raw.trim();
   return trimmed ? (trimmed as PCloudClientId) : null;
+}
+
+// ── GitLab config parsers ─────────────────────────────────────────────────────
+
+/** Accepts `namespace/project` (subgroups allowed: `group/subgroup/project`).
+ *  Rejects empty strings and bare single-segment names. */
+export function parseProject(raw: string): GitLabProject | null {
+  const s = raw.trim();
+  return /^[^/\s]+(?:\/[^/\s]+)+$/.test(s) ? (s as GitLabProject) : null;
+}
+
+/** Normalises the instance host (strips a trailing slash), defaulting to gitlab.com. */
+export function parseGitLabHost(raw: string): GitLabHost {
+  return ((raw.trim() || GITLAB_DEFAULT_HOST).replace(/\/$/, '')) as GitLabHost;
+}
+
+/** Always succeeds — returns the default branch when the input is empty. */
+export function parseGitLabBranch(raw: string): GitLabBranch {
+  return (raw.trim() || GITLAB_DEFAULT_BRANCH) as GitLabBranch;
 }

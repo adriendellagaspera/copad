@@ -88,6 +88,7 @@ export const commands = {
   italic: toggleMark(schema.marks.em),
   code: toggleMark(schema.marks.code),
   strike: toggleMark(schema.marks.strike),
+  underline: toggleMark(schema.marks.underline),
   h1: setBlockType(schema.nodes.heading, { level: 1 }),
   h2: setBlockType(schema.nodes.heading, { level: 2 }),
   h3: setBlockType(schema.nodes.heading, { level: 3 }),

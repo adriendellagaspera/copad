@@ -212,6 +212,9 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-i': toggleMark(s.marks.em),
       'Mod-`': toggleMark(s.marks.code),
       'Mod-Shift-x': toggleMark(s.marks.strike),
+      // Mod-U alone is Chrome/Firefox's reserved "View Source" shortcut and
+      // can't be preventDefault-ed, so it never reaches the page — Shift it.
+      'Mod-Shift-u': toggleMark(s.marks.underline),
       // Bridge to the Svelte LinkPopover — handled by a listener on the editor DOM.
       'Mod-k': (_state, _dispatch, view) => {
         view?.dom.dispatchEvent(new CustomEvent('copad:link', { bubbles: true }));

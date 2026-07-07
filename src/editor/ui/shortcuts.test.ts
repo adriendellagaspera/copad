@@ -18,6 +18,7 @@ describe('editorShortcuts', () => {
       'Bold',
       'Italic',
       'Strikethrough',
+      'Underline',
       'Link',
       'Commands',
       'Undo',

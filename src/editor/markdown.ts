@@ -20,6 +20,9 @@ function serializeInline(node: PMNode): string {
       if (has('strong')) text = `**${text}**`;
       if (has('em')) text = `*${text}*`;
       if (has('strike')) text = `~~${text}~~`;
+      // No `has('underline')` branch, deliberately: Markdown has no native
+      // underline syntax (same as the real Codec in format/markdown.ts), so
+      // underlined text is copied as plain text.
     }
     if (link) { const href = linkHref(link); if (href) text = `[${text}](${href})`; }
     out += text;

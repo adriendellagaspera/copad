@@ -28,17 +28,20 @@ const parser = new MarkdownParser(schema, tokenizer, {
 });
 
 // The default serializer covers our basic+list nodes and em/strong/code/link;
-// teach it our `strike` mark to match the parser above.
+// teach it our `strike` mark to match the parser above, and drop `underline`
+// silently (Markdown has no native underline syntax — same as CommonMark
+// itself: the mark just doesn't survive a round-trip through this format).
 const serializer = new MarkdownSerializer(defaultMarkdownSerializer.nodes, {
   ...defaultMarkdownSerializer.marks,
   strike: { open: '~~', close: '~~', mixable: true, expelEnclosingWhitespace: true },
+  underline: { open: '', close: '', mixable: true },
 });
 
 /**
  * Markdown (CommonMark + GFM strikethrough). Maps cleanly onto our schema for
  * the structures Markdown can express (headings, lists, blockquotes, code,
- * emphasis, strikethrough…). Constructs our schema doesn't model are dropped on
- * import.
+ * emphasis, strikethrough…). Constructs our schema doesn't model (underline…)
+ * are dropped or flattened on import/export.
  */
 export const markdownCodec: Codec = {
   id: 'markdown',

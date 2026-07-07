@@ -8,6 +8,7 @@ describe('schema', () => {
     expect(schema.marks.em).toBeDefined();
     expect(schema.marks.code).toBeDefined();
     expect(schema.marks.strike).toBeDefined();
+    expect(schema.marks.underline).toBeDefined();
   });
 
   it('has all required nodes', () => {
@@ -49,5 +50,12 @@ describe('schema', () => {
     const mark = strike.create();
     const spec = strike.spec.toDOM!(mark, false);
     expect(spec).toEqual(['s', 0]);
+  });
+
+  it('underline mark toDOM returns <u> element spec', () => {
+    const underline = schema.marks.underline;
+    const mark = underline.create();
+    const spec = underline.spec.toDOM!(mark, false);
+    expect(spec).toEqual(['u', 0]);
   });
 });

@@ -23,10 +23,17 @@ afterEach(() => {
 });
 
 describe('backends()', () => {
-  it('offers every backend by default', async () => {
+  it('offers every production-proven backend by default, but not gitlab yet', async () => {
     const { backends } = await import('./index.js');
     const ids = backends(TEST_ROOM).map(b => b.storage.id).sort();
     expect(ids).toEqual(['dropbox', 'github', 'local', 'pcloud', 'webdav']);
+  });
+
+  it('VITE_ENABLE_GITLAB=true surfaces gitlab once it is ready to test outside prod', async () => {
+    vi.stubEnv('VITE_ENABLE_GITLAB', 'true');
+    const { backends } = await import('./index.js');
+    const ids = backends(TEST_ROOM).map(b => b.storage.id);
+    expect(ids).toContain('gitlab');
   });
 
   it('hides a backend disabled via VITE_ENABLE_<ID>, leaving the rest untouched', async () => {
