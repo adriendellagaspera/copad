@@ -11,6 +11,8 @@ describe('trackPresenceActivity', () => {
   afterEach(() => vi.useRealTimers());
 
   it('reports 0 idle for a client just observed', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
     const awareness = newAwareness();
     awareness.setLocalState({ hello: 'world' });
     const activity = trackPresenceActivity(awareness);
@@ -19,6 +21,8 @@ describe('trackPresenceActivity', () => {
   });
 
   it('reports 0 for a client seen before tracking started', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
     const awareness = newAwareness();
     awareness.setLocalState({ hello: 'world' });
     // Simulate this peer having been present for a while already.

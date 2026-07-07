@@ -30,6 +30,7 @@ export function editorShortcuts(os: OS = parseOS()): Shortcut[] {
   return [
     { keys: [mod, keyCap('B')], label: shortcutLabel('Bold') },
     { keys: [mod, keyCap('I')], label: shortcutLabel('Italic') },
+    { keys: [mod, keyCap('Shift'), keyCap('X')], label: shortcutLabel('Strikethrough') },
     { keys: [mod, keyCap('K')], label: shortcutLabel('Link') },
     { keys: [keyCap('/')], label: shortcutLabel('Commands') },
     { keys: [mod, keyCap('Z')], label: shortcutLabel('Undo') },
