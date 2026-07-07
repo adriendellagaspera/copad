@@ -290,7 +290,10 @@ export function buildPlugins(s: Schema): Plugin[] {
     keymap({
       'Mod-b': toggleMark(s.marks.strong),
       'Mod-i': toggleMark(s.marks.em),
-      'Mod-`': toggleMark(s.marks.code),
+      // Mod-` (and Mod-Shift-`) are macOS-reserved system-wide for cycling
+      // windows of the front app — no browser ever sees the keystroke, so
+      // toggling code on that binding silently does nothing on a Mac.
+      'Mod-Shift-c': toggleMark(s.marks.code),
       'Mod-Shift-x': toggleMark(s.marks.strike),
       // Mod-U alone is Chrome/Firefox's reserved "View Source" shortcut and
       // can't be preventDefault-ed, so it never reaches the page — Shift it.
