@@ -51,6 +51,9 @@
   } from './collaboration/roomLock.js';
   import { keyFingerprint } from './collaboration/roomCrypto.js';
   import RoomLock from './ui/RoomLock.svelte';
+  import WriteGateIntro from './ui/WriteGateIntro.svelte';
+  import { KEY_WRITE_GATE_SEEN } from './collaboration/constants.js';
+  import { localStore } from './persistence/local.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
   import { SessionRole, ConnStatus, Transport } from './collaboration/types.js';
@@ -397,8 +400,13 @@
   // Connect storage). It's not a wall: the writing gesture itself opts you into
   // writing solo — Editor's yield-on-write lifts the gate under your cursor on the
   // first click/keystroke (remembered per room) — and it also lifts on its own the
-  // instant a peer joins or the room becomes Saved. There's no separate overlay and
-  // no scrim over the text, in keeping with "the interface recedes in front of it".
+  // instant a peer joins or the room becomes Saved. Ordinarily there's no separate
+  // overlay and no scrim over the text, in keeping with "the interface recedes in
+  // front of it" — *except* the very first time this browser ever arms the gate,
+  // where the mechanic is unintuitive enough to warrant a deliberate, blocking
+  // acknowledgment (see `writeGateSeenStore` / `WriteGateIntro` below). That one
+  // dialog sits on top of the still-visible editor rather than replacing it, and
+  // never reappears once seen.
   //
   // What "into the void" really means: no peer is *receiving* my edits AND nothing
   // durable is keeping them. That's P2P transport (a hub relays to later joiners,
@@ -424,6 +432,26 @@
   // into one room doesn't unlock another during the same session.
   const GATE_GRACE_MS = 2_000;
   let soloRooms = $state<RoomId[]>([]);
+
+  // First time this browser ever arms the gate, the ambient banner alone is too
+  // easy to miss: the mechanic — solo edits are ephemeral, not just "not yet
+  // synced" — is unintuitive and structural, worth a deliberate acknowledgment
+  // once. So the *first* arm, globally (not per room — it's the mechanic being
+  // taught, not any one room), escalates to a blocking explainer dialog on top of
+  // the (still-mounted, still-visible) editor; every arm after that falls back to
+  // the banner + type-to-write-solo gate, unchanged. Persisted so it truly shows
+  // once per browser, not once per session.
+  const writeGateSeenStore = localStore<boolean>(
+    KEY_WRITE_GATE_SEEN,
+    (raw) => raw === 'true',
+    String,
+  );
+  let writeGateSeen = $state(writeGateSeenStore.read());
+  function markWriteGateSeen(): void {
+    if (writeGateSeen) return;
+    writeGateSeen = true;
+    writeGateSeenStore.write(true);
+  }
 
   // Everything except the grace timing: are we, right now, a writer alone in a
   // P2P live-only room who hasn't opted to write solo? (No peer ⟺ not Connected —
@@ -460,8 +488,29 @@
 
   const writeLocked = $derived(gateEligible && gateArmed);
 
+  // Gate armed + never acknowledged before in this browser ⟹ show the one-time
+  // explainer instead of relying on the banner alone. It closes itself the moment
+  // `writeGateSeen` flips true (whichever action the user picks, or a plain
+  // dismiss), since this derived recomputes to false.
+  const showWriteGateExplainer = $derived(writeLocked && !writeGateSeen);
+
   function allowWriteSolo(): void {
     if (!soloRooms.includes(room)) soloRooms = [...soloRooms, room];
+  }
+
+  function writeSoloFromExplainer(): void {
+    markWriteGateSeen();
+    allowWriteSolo();
+  }
+
+  function inviteFromExplainer(): void {
+    markWriteGateSeen();
+    shareOpen = true;
+  }
+
+  function connectStorageFromExplainer(): void {
+    markWriteGateSeen();
+    openSettings();
   }
 
   // ── Encrypted-room access gate ───────────────────────────────────────────────
@@ -755,6 +804,17 @@
         onWriteSolo={allowWriteSolo}
       />
     {/key}
+    <!-- Sits on top of the still-mounted, still-visible Editor above (never
+         replaces it — a peer who left after syncing content must never have that
+         content hidden behind this). Closes itself once `writeGateSeen` flips,
+         whether via a button or a plain dismiss (✕ / Escape / backdrop click). -->
+    <WriteGateIntro
+      open={showWriteGateExplainer}
+      onWriteSolo={writeSoloFromExplainer}
+      onInvite={inviteFromExplainer}
+      onConnectStorage={connectStorageFromExplainer}
+      onDismiss={markWriteGateSeen}
+    />
   {/if}
 </div>
 

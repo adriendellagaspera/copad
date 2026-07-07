@@ -60,6 +60,11 @@ export const KEY_CACHED_ROOMS = nsKey('cachedRooms');
 /** Rooms the user has recently visited, powering the room switcher (anti-loss). */
 export const KEY_RECENT_ROOMS = nsKey('recentRooms');
 
+/** Whether this browser has already seen the write-gate's one-time explainer
+ *  dialog (see App.svelte's write-gate section). Global, not per-room — the
+ *  mechanic itself is what's being taught, not any one room's behavior. */
+export const KEY_WRITE_GATE_SEEN = nsKey('writeGateSeen');
+
 /** How many recently-visited rooms to remember in the switcher. */
 export const RECENT_ROOMS_MAX = 12;
 
