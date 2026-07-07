@@ -50,6 +50,10 @@
   } from './collaboration/roomLock.js';
   import { keyFingerprint } from './collaboration/roomCrypto.js';
   import RoomLock from './ui/RoomLock.svelte';
+  import WriteGateIntro from './ui/WriteGateIntro.svelte';
+  import CollabUnavailableIntro from './ui/CollabUnavailableIntro.svelte';
+  import { KEY_WRITE_GATE_SEEN, KEY_COLLAB_UNAVAILABLE_SEEN } from './collaboration/constants.js';
+  import { localStore } from './persistence/local.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
   import { SessionRole, ConnStatus, Transport } from './collaboration/types.js';
@@ -397,8 +401,13 @@
   // Connect storage). It's not a wall: the writing gesture itself opts you into
   // writing solo — Editor's yield-on-write lifts the gate under your cursor on the
   // first click/keystroke (remembered per room) — and it also lifts on its own the
-  // instant a peer joins or the room becomes Saved. There's no separate overlay and
-  // no scrim over the text, in keeping with "the interface recedes in front of it".
+  // instant a peer joins or the room becomes Saved. Ordinarily there's no separate
+  // overlay and no scrim over the text, in keeping with "the interface recedes in
+  // front of it" — *except* the very first time this browser ever arms the gate,
+  // where the mechanic is unintuitive enough to warrant a deliberate, blocking
+  // acknowledgment (see `writeGateSeenStore` / `WriteGateIntro` below). That one
+  // dialog sits on top of the still-visible editor rather than replacing it, and
+  // never reappears once seen.
   //
   // What "into the void" really means: no peer is *receiving* my edits AND nothing
   // durable is keeping them. That's P2P transport (a hub relays to later joiners,
@@ -424,6 +433,26 @@
   // into one room doesn't unlock another during the same session.
   const GATE_GRACE_MS = 2_000;
   let soloRooms = $state<RoomId[]>([]);
+
+  // First time this browser ever arms the gate, the ambient banner alone is too
+  // easy to miss: the mechanic — solo edits are ephemeral, not just "not yet
+  // synced" — is unintuitive and structural, worth a deliberate acknowledgment
+  // once. So the *first* arm, globally (not per room — it's the mechanic being
+  // taught, not any one room), escalates to a blocking explainer dialog on top of
+  // the (still-mounted, still-visible) editor; every arm after that falls back to
+  // the banner + type-to-write-solo gate, unchanged. Persisted so it truly shows
+  // once per browser, not once per session.
+  const writeGateSeenStore = localStore<boolean>(
+    KEY_WRITE_GATE_SEEN,
+    (raw) => raw === 'true',
+    String,
+  );
+  let writeGateSeen = $state(writeGateSeenStore.read());
+  function markWriteGateSeen(): void {
+    if (writeGateSeen) return;
+    writeGateSeen = true;
+    writeGateSeenStore.write(true);
+  }
 
   // Everything except the grace timing: are we, right now, a writer alone in a
   // P2P live-only room who hasn't opted to write solo? (No peer ⟺ not Connected —
@@ -460,8 +489,66 @@
 
   const writeLocked = $derived(gateEligible && gateArmed);
 
+  // Gate armed + never acknowledged before in this browser ⟹ show the one-time
+  // explainer instead of relying on the banner alone. It closes itself the moment
+  // `writeGateSeen` flips true (whichever action the user picks, or a plain
+  // dismiss), since this derived recomputes to false.
+  //
+  // Deferred while Share or Settings is already open: both render their own
+  // full-screen `Dialog`/backdrop, and popping a second one on top mid-flow would
+  // steal the click the user was mid-way through (e.g. "Copy link"). It simply
+  // waits — `writeLocked` and `writeGateSeen` are unaffected by either dialog, so
+  // this recomputes to true the moment the user closes them, gate still armed.
+  const showWriteGateExplainer = $derived(writeLocked && !writeGateSeen && !shareOpen && !settingsOpen);
+
   function allowWriteSolo(): void {
     if (!soloRooms.includes(room)) soloRooms = [...soloRooms, room];
+  }
+
+  function writeSoloFromExplainer(): void {
+    markWriteGateSeen();
+    allowWriteSolo();
+  }
+
+  function inviteFromExplainer(): void {
+    markWriteGateSeen();
+    shareOpen = true;
+  }
+
+  function connectStorageFromExplainer(): void {
+    markWriteGateSeen();
+    openSettings();
+  }
+
+  // ── Collab-unavailable intro: a structurally local-only deployment ─────────
+  // `collabUnavailable` never blocks (see above) — it's an environment fact, not
+  // a transient state the user can resolve. But landing on what looks like a
+  // normal collaborative editor when it's actually permanently local-only is its
+  // own unintuitive surprise, same shape as the write-gate's: nothing signals it
+  // except a neutral SyncBanner tier, easy to miss entirely. So the same
+  // treatment applies — a one-time, deliberate acknowledgment, the first time
+  // this browser ever loads a deployment in this state. Never re-blocks writing;
+  // it's purely informational, dismissible like any other dialog.
+  const collabUnavailableSeenStore = localStore<boolean>(
+    KEY_COLLAB_UNAVAILABLE_SEEN,
+    (raw) => raw === 'true',
+    String,
+  );
+  let collabUnavailableSeen = $state(collabUnavailableSeenStore.read());
+  function markCollabUnavailableSeen(): void {
+    if (collabUnavailableSeen) return;
+    collabUnavailableSeen = true;
+    collabUnavailableSeenStore.write(true);
+  }
+  // Deferred while Share or Settings is open, for the same stacking-collision
+  // reason as `showWriteGateExplainer`.
+  const showCollabUnavailableIntro = $derived(
+    collabUnavailable && !collabUnavailableSeen && !shareOpen && !settingsOpen,
+  );
+
+  function connectStorageFromCollabIntro(): void {
+    markCollabUnavailableSeen();
+    openSettings();
   }
 
   // ── Encrypted-room access gate ───────────────────────────────────────────────
@@ -652,7 +739,11 @@
        presence/durability concern was the real inconsistency. So it's one strip
        with an escalation ladder: gated (blocks, transient) → collab-unavailable
        (never blocks, permanent, its own tier) → solo reminder (never blocks,
-       transient). See SyncBanner's `collabUnavailable` tier for the copy. -->
+       transient). See SyncBanner's `collabUnavailable` tier for the copy.
+       The collab-unavailable tier also gets the same one-time-dialog treatment
+       as the write-gate (see `CollabUnavailableIntro` below): landing on what
+       looks like a normal collaborative editor that's structurally local-only
+       is its own unintuitive surprise, easy to miss in a banner alone. -->
   <SyncBanner
     conn={sessionState.conn}
     transport={sessionState.diagnostics.transport}
@@ -696,6 +787,26 @@
       {writeLocked}
       writeGateEligible={gateEligible}
       onWriteSolo={allowWriteSolo}
+    />
+    <!-- Sits on top of the still-mounted, still-visible Editor above (never
+         replaces it — a peer who left after syncing content must never have that
+         content hidden behind this). Closes itself once `writeGateSeen` flips,
+         whether via a button or a plain dismiss (✕ / Escape / backdrop click). -->
+    <WriteGateIntro
+      open={showWriteGateExplainer}
+      onWriteSolo={writeSoloFromExplainer}
+      onInvite={inviteFromExplainer}
+      onConnectStorage={connectStorageFromExplainer}
+      onDismiss={markWriteGateSeen}
+    />
+    <!-- Mutually exclusive with WriteGateIntro (gateEligible requires
+         !collabUnavailable), so at most one of the two is ever open. -->
+    <CollabUnavailableIntro
+      open={showCollabUnavailableIntro}
+      saved={savedHere}
+      storageLabel={savedHere && storage ? storage.storage.label : null}
+      onConnectStorage={connectStorageFromCollabIntro}
+      onDismiss={markCollabUnavailableSeen}
     />
   {/if}
 </div>

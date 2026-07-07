@@ -57,6 +57,16 @@ export const ICE_FETCH_TIMEOUT_MS =
 export const KEY_LOCAL_CACHE = nsKey('localCache');
 /** Index of rooms with a local cache, so "clear" works without `indexedDB.databases()`. */
 export const KEY_CACHED_ROOMS = nsKey('cachedRooms');
+/** Whether this browser has already seen the write-gate's one-time explainer
+ *  dialog (see App.svelte's write-gate section). Global, not per-room — the
+ *  mechanic itself is what's being taught, not any one room's behavior. */
+export const KEY_WRITE_GATE_SEEN = nsKey('writeGateSeen');
+
+/** Whether this browser has already seen the one-time explainer dialog for a
+ *  deployment with no real-time sync configured (`collabUnavailable`). Global,
+ *  not per-room — it's an environment fact, not a per-room behavior. Naturally
+ *  origin-scoped by localStorage, so it re-shows once on a different deployment. */
+export const KEY_COLLAB_UNAVAILABLE_SEEN = nsKey('collabUnavailableSeen');
 
 /** IndexedDB database-name prefix — shares the app namespace (`copad:`). */
 export const CACHE_DB_PREFIX = NS_PREFIX;
