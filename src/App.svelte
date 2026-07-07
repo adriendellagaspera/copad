@@ -414,10 +414,11 @@
   // so solo isn't pointless there), live-only for you (a Saved room keeps your
   // copy), and **not Connected** — no peer present. Crucially we key on "no peer",
   // NOT on ConnStatus.Waiting: whether we've attached to the signaling socket yet
-  // is an implementation detail the writer doesn't care about. Connecting, Waiting
-  // and Offline are identical to them — in all three, zero peers have their bytes.
-  // Keying on Waiting alone made the gate invisible exactly when signaling is
-  // absent or cold (a fresh serverless deploy), i.e. when protection matters most.
+  // is an implementation detail the writer doesn't care about. Connecting, Waiting,
+  // Unreachable and Offline are identical to them — in all four, zero peers have
+  // their bytes. Keying on Waiting alone made the gate invisible exactly when
+  // signaling is absent or cold (a fresh serverless deploy), i.e. when protection
+  // matters most.
   //
   // The flicker risk that narrow gating avoided (a brief Connecting on every load,
   // before a peer is found) is handled by a **grace delay** instead of exclusion:
@@ -456,7 +457,7 @@
 
   // Everything except the grace timing: are we, right now, a writer alone in a
   // P2P live-only room who hasn't opted to write solo? (No peer ⟺ not Connected —
-  // Connecting, Waiting and Offline all qualify.)
+  // Connecting, Unreachable, Waiting and Offline all qualify.)
   //
   // `!collabUnavailable` is the crucial guard: the gate exists to stop you writing
   // into the void *while someone could still join*. If this deployment can't sync

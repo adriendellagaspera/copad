@@ -44,7 +44,7 @@
   } = $props();
 
   type Tone = 'muted' | 'ok' | 'warn' | 'danger' | 'accent';
-  type ConnIcon = 'offline' | 'spinner' | 'live';
+  type ConnIcon = 'offline' | 'spinner' | 'live' | 'unreachable';
   // Durability on a single cloud/sync axis so the state reads even wordless (the
   // form used on mobile): cloud-check = kept in storage, cloud-off = not kept
   // (muted for live-only by design, danger for a failed save). Conflict keeps a
@@ -73,6 +73,16 @@
           icon: 'spinner',
           pulse: false,
           title: isP2P ? 'Connecting to the signaling server' : 'Connecting to the collaboration server',
+        };
+      if (conn === ConnStatus.Unreachable)
+        return {
+          label: "Can't connect",
+          tone: 'danger',
+          icon: 'unreachable',
+          pulse: false,
+          title: isP2P
+            ? "Couldn't reach the signaling server — check your connection, or click to retry"
+            : "Couldn't reach the collaboration server — check your connection, or click to retry",
         };
       if (conn === ConnStatus.Waiting)
         return {
@@ -143,6 +153,10 @@
       <span class="spinner" aria-hidden="true"></span>
     {:else if c.icon === 'offline'}
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 5-2.6M19 13a10 10 0 0 0-4-2.8M12 20h.01" /></svg>
+    {:else if c.icon === 'unreachable'}
+      <!-- Alert circle — distinct from the spinner (still trying) and the offline
+           slash (no network at all): the server itself didn't answer in time. -->
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><line x1="12" y1="7.5" x2="12" y2="12.5" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
     {:else}
       <span class="live-dot" class:pulse={c.pulse} aria-hidden="true"></span>
     {/if}

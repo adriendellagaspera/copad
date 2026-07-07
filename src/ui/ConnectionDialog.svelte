@@ -131,6 +131,16 @@
           head: 'Connecting…',
           sub: isP2P ? 'Reaching the signaling server to find peers.' : 'Reaching the collaboration server.',
         };
+      if (conn === ConnStatus.Unreachable)
+        return {
+          tone: 'danger',
+          spinner: false,
+          pulse: false,
+          head: "Can't connect",
+          sub: isP2P
+            ? "Couldn't reach the signaling server. Check your connection, or reconnect below."
+            : "Couldn't reach the collaboration server. Check your connection, or reconnect below.",
+        };
       if (conn === ConnStatus.Waiting)
         return {
           tone: 'muted',

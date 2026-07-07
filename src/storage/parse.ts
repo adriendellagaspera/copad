@@ -19,6 +19,7 @@ import type {
   S3SecretAccessKey,
 } from './s3.js';
 import type { GraphUserId, GraphSiteId, SharePointToken, SharePointFolder } from './sharepoint.js';
+import type { GDriveFileId, GDriveToken, GDriveClientId } from './gdrive.js';
 import { GITHUB_DEFAULT_BRANCH, GITLAB_DEFAULT_BRANCH, GITLAB_DEFAULT_HOST, S3_PREFIX, SHAREPOINT_FOLDER } from './constants.js';
 
 // ── Stored-session shapes (owned here, imported by adapters) ──────────────────
@@ -261,6 +262,55 @@ export function parseGraphOwnerId(raw: unknown): GraphUserId | null {
   if (typeof user !== 'object' || user === null) return null;
   const id = (user as Record<string, unknown>)['id'];
   return typeof id === 'string' ? (id as GraphUserId) : null;
+}
+
+// ── Google Drive API JSON boundaries ──────────────────────────────────────────
+
+/** OAuth token exchange response. */
+export function parseGDriveTokenResponse(raw: unknown): { access_token: GDriveToken } {
+  if (typeof raw !== 'object' || raw === null)
+    throw new Error('Unexpected Google Drive token response');
+  const { access_token } = raw as Record<string, unknown>;
+  if (typeof access_token !== 'string')
+    throw new Error('Google Drive token response missing access_token');
+  return { access_token: access_token as GDriveToken };
+}
+
+/** First file id from a `files.list` search, or null when none match. */
+export function parseGDriveFileList(raw: unknown): GDriveFileId | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const files = (raw as Record<string, unknown>)['files'];
+  if (!Array.isArray(files) || files.length === 0) return null;
+  const first = files[0];
+  const id = typeof first === 'object' && first !== null
+    ? (first as Record<string, unknown>)['id']
+    : undefined;
+  return typeof id === 'string' ? (id as GDriveFileId) : null;
+}
+
+/** File id from a create/update response — required for subsequent updates. */
+export function parseGDriveCreatedFile(raw: unknown): GDriveFileId {
+  if (typeof raw !== 'object' || raw === null)
+    throw new Error('Unexpected Google Drive file response');
+  const id = (raw as Record<string, unknown>)['id'];
+  if (typeof id !== 'string') throw new Error('Google Drive file response missing id');
+  return id as GDriveFileId;
+}
+
+/** `capabilities.canEdit` from a file metadata response (defaults to read-only). */
+export function parseGDriveCanEdit(raw: unknown): boolean {
+  if (typeof raw !== 'object' || raw === null) return false;
+  const caps = (raw as Record<string, unknown>)['capabilities'];
+  if (typeof caps !== 'object' || caps === null) return false;
+  return (caps as Record<string, unknown>)['canEdit'] === true;
+}
+
+// ── Google Drive config parsers ───────────────────────────────────────────────
+
+/** Trims the configured OAuth Client ID — empty means "not configured". */
+export function parseGDriveClientId(raw: string): GDriveClientId | null {
+  const s = raw.trim();
+  return s ? (s as GDriveClientId) : null;
 }
 
 // ── postMessage boundary ──────────────────────────────────────────────────────

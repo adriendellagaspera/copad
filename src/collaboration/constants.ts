@@ -51,6 +51,19 @@ const rawIceTimeout = Number(import.meta.env.VITE_ICE_FETCH_TIMEOUT_MS);
 export const ICE_FETCH_TIMEOUT_MS =
   Number.isInteger(rawIceTimeout) && rawIceTimeout > 0 ? rawIceTimeout : 5_000;
 
+/**
+ * How long a transport may sit not-attached before `createCollabCore` reports
+ * `ConnStatus.Unreachable` instead of leaving the status pill on "Connecting…"
+ * forever. Long enough that a normal handshake or a signaling server's own
+ * reconnect backoff doesn't trip it, short enough that a genuinely dead/
+ * misconfigured server surfaces as actionable within one glance. A manual
+ * reconnect (or the browser regaining network) resets the window. Override
+ * via `VITE_CONNECT_TIMEOUT_MS`; an unset/invalid value keeps the default.
+ */
+const rawConnectTimeout = Number(import.meta.env.VITE_CONNECT_TIMEOUT_MS);
+export const CONNECT_TIMEOUT_MS =
+  Number.isInteger(rawConnectTimeout) && rawConnectTimeout > 0 ? rawConnectTimeout : 8_000;
+
 // ── Browser-local keys ────────────────────────────────────────────────────────
 
 /** Local-document-cache on/off preference. */
