@@ -76,6 +76,7 @@ Adapters in [`src/storage/`](src/storage/):
 | **GitLab** | Personal Access Token | ✅ native CORS (self-hosted too) | No |
 | **S3-compatible** (AWS/R2/MinIO/B2) | Access keys (**SigV4**, no SDK) | ⚠️ bucket must allow CORS | No (signed direct) |
 | **SharePoint / OneDrive** | Microsoft Graph token | ✅ native CORS | No |
+| **Google Drive** | OAuth2 **PKCE** (popup) | ✅ native CORS | No |
 | **Local file** | None (File System Access API) | ✅ Chrome/Edge only | No |
 
 **Adding a backend** (Google Drive, S3/R2, OneDrive…) = write a factory function returning
@@ -276,6 +277,7 @@ src/
     gitlab.ts    # GitLab adapter (PAT, gitlab.com or self-hosted)
     s3.ts        # S3-compatible adapter (AWS SigV4 via crypto.subtle)
     sharepoint.ts# SharePoint / OneDrive adapter (Microsoft Graph)
+    gdrive.ts    # Google Drive adapter (PKCE, drive.file scope)
     local.ts     # Local file adapter (File System Access API, Chrome/Edge)
     index.ts     # registry of configured backends
   network/
@@ -296,7 +298,7 @@ src/
   Editor.svelte  # ProseMirror + Yjs binding + autosave / leader election
   Toolbar.svelte # rich-text toolbar (Svelte 5 $derived active states)
   App.svelte     # room management, storage picker, connect UI, collab transport wiring
-  redirect.ts    # OAuth popup landing page (pCloud + Dropbox)
+  redirect.ts    # OAuth popup landing page (pCloud + Dropbox + Google Drive)
 ```
 
 The collaboration servers are not vendored here — they're upstream packages run via their
