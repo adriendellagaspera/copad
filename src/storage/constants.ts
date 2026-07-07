@@ -29,7 +29,7 @@ function storageIds<const Ids extends readonly string[]>(
 }
 
 /** The canonical id for each storage backend — the single source of truth. */
-export const STORAGE_ID = storageIds('dropbox', 'pcloud', 'webdav', 'github', 'gitlab', 'local');
+export const STORAGE_ID = storageIds('dropbox', 'pcloud', 'webdav', 'github', 'gitlab', 's3', 'local');
 
 /**
  * A config field's name, doubling as the storage sub-key for that field. Adapter-
@@ -101,6 +101,9 @@ export const BACKEND_ENABLED: Record<StorageId, boolean> = {
   // Not yet connected to a real GitLab account outside production — stays
   // hidden until that's done, then flips to `true` in its own dedicated PR.
   [STORAGE_ID.gitlab]: envBool(import.meta.env.VITE_ENABLE_GITLAB, false),
+  // Not yet connected to a real S3-compatible bucket outside production —
+  // stays hidden until that's done, then flips to `true` in its own PR.
+  [STORAGE_ID.s3]: envBool(import.meta.env.VITE_ENABLE_S3, false),
 };
 
 // ── Cloud folder + default filenames ──────────────────────────────────────────
@@ -145,6 +148,12 @@ export const GITLAB_DEFAULT_BRANCH = 'main';
 
 /** Marks a GitLab token as validated (set after a successful GET /user). */
 export const GITLAB_VALIDATED_KEY: StorageKey = backendKey(STORAGE_ID.gitlab, 'validated');
+
+// ── S3-compatible ───────────────────────────────────────────────────────────
+
+/** Object-key prefix (folder) the S3 backend reads/writes within. */
+export const S3_PREFIX = envStr(import.meta.env.VITE_S3_PREFIX, 'copad');
+export const S3_KEY: StorageKey = backendKey(STORAGE_ID.s3, 'conf');
 
 // ── OAuth redirect ────────────────────────────────────────────────────────────
 
