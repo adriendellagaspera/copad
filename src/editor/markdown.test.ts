@@ -52,4 +52,14 @@ describe('docToMarkdown', () => {
     const out = md(para(schema.text('site', [link, underline])));
     expect(out).toContain('[site](https://e.com)');
   });
+
+  it('serializes a checklist with checked and unchecked items', () => {
+    const list = schema.node('task_list', null, [
+      schema.node('task_item', { checked: true }, [para(schema.text('done'))]),
+      schema.node('task_item', { checked: false }, [para(schema.text('todo'))]),
+    ]);
+    const out = md(list);
+    expect(out).toContain('- [x] done');
+    expect(out).toContain('- [ ] todo');
+  });
 });

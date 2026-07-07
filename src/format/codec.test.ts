@@ -113,6 +113,40 @@ describe('markdown codec', () => {
     const md = new TextDecoder().decode(await markdownCodec.encode(doc));
     expect(md).toContain('[site](https://e.com)');
   });
+
+  it('round-trips a checklist (checked and unchecked items)', async () => {
+    const { paragraph, task_list, task_item } = schema.nodes;
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        task_list.create(null, [
+          task_item.create({ checked: true }, paragraph.create(null, schema.text('done'))),
+          task_item.create({ checked: false }, paragraph.create(null, schema.text('todo'))),
+        ]),
+      ])
+    );
+    const bytes = await markdownCodec.encode(doc);
+    const md = new TextDecoder().decode(bytes);
+    expect(md).toContain('- [x] done');
+    expect(md).toContain('- [ ] todo');
+
+    const dst = new Y.Doc();
+    await markdownCodec.decode(bytes, dst);
+    const restored = readPmDoc(dst);
+    expect(restored.firstChild?.type.name).toBe('task_list');
+    expect(restored.firstChild?.child(0).type.name).toBe('task_item');
+    expect(restored.firstChild?.child(0).attrs.checked).toBe(true);
+    expect(restored.firstChild?.child(1).attrs.checked).toBe(false);
+  });
+
+  it('leaves a mixed checkbox/plain list as a plain bullet_list', async () => {
+    const dst = new Y.Doc();
+    await markdownCodec.decode(new TextEncoder().encode('- [ ] a\n- b\n'), dst);
+    const restored = readPmDoc(dst);
+    expect(restored.firstChild?.type.name).toBe('bullet_list');
+    expect(restored.textContent).toContain('[ ] a');
+  });
 });
 
 describe('text codec', () => {

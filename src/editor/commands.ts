@@ -97,6 +97,7 @@ export const commands = {
   blockquote: wrapIn(schema.nodes.blockquote),
   bullet: wrapInList(schema.nodes.bullet_list),
   ordered: wrapInList(schema.nodes.ordered_list),
+  taskList: wrapInList(schema.nodes.task_list),
   // A toggle, not a one-way setBlockType: invoking it from inside a code
   // block converts it back to a paragraph — the same command that opens a
   // code block is how you remove one, matching Tiptap's toggleCodeBlock on

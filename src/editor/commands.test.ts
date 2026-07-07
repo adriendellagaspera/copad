@@ -32,6 +32,14 @@ describe('block commands', () => {
     expect(next.doc.firstChild?.type.name).toBe('code_block');
   });
 
+  it('taskList wraps the block in a task_list/task_item', () => {
+    const next = apply(paragraphState(), commands.taskList);
+    expect(next.doc.firstChild?.type.name).toBe('task_list');
+    const item = next.doc.firstChild?.firstChild;
+    expect(item?.type.name).toBe('task_item');
+    expect(item?.attrs.checked).toBe(false);
+  });
+
   it('horizontalRule inserts a horizontal_rule node', () => {
     const next = apply(paragraphState(''), commands.horizontalRule);
     let found = false;
