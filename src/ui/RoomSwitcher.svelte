@@ -175,7 +175,12 @@
     background: transparent;
     padding: 0.4rem 0.3rem 0.4rem 0.35rem;
   }
-  .room-name-input:focus-visible {
+  /* Extra `.room-switcher` ancestor bumps specificity above app.css's
+     modality-gated `input:focus-visible` rule (which now includes a
+     :root[...] attribute selector and would otherwise win) — this input
+     relies solely on the wrapping pill's own :focus-within ring below, so
+     the two don't double up as separate, misaligned overlays. */
+  .room-switcher .room-name-input:focus-visible {
     outline: none;
     box-shadow: none;
   }
