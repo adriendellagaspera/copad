@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { EditorState } from 'prosemirror-state';
+import { EditorState, TextSelection } from 'prosemirror-state';
 import { schema } from './schema.js';
 import {
   markRuleHandler,
   linkRuleHandler,
+  escapeCodeBlock,
   BOLD_STAR_RULE,
   BOLD_UNDERSCORE_RULE,
   ITALIC_STAR_RULE,
@@ -103,5 +104,38 @@ describe('link input rule', () => {
   it('rejects an invalid href and leaves the text untouched', () => {
     const next = run('[todo](justaword)', LINK_RULE, linkRuleHandler(schema.marks.link));
     expect(next).toBeNull();
+  });
+});
+
+describe('escapeCodeBlock', () => {
+  it('exits a trailing code block into a new paragraph after it', () => {
+    const codeBlock = schema.node('code_block', null, schema.text('let x = 1'));
+    const doc = schema.node('doc', null, [codeBlock]);
+    const state = EditorState.create({
+      schema,
+      doc,
+      selection: TextSelection.create(doc, 3),
+    });
+    let next: EditorState | null = null;
+    escapeCodeBlock(state, (tr) => {
+      next = state.apply(tr);
+    });
+    expect(next).not.toBeNull();
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.doc.lastChild?.type.name).toBe('paragraph');
+    expect(next!.selection.$head.parent.type.name).toBe('paragraph');
+  });
+
+  it("returns true (swallowing Escape) even when there's nothing to exit", () => {
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, schema.text('hello')),
+    ]);
+    const state = EditorState.create({ schema, doc });
+    let dispatched = false;
+    const handled = escapeCodeBlock(state, () => {
+      dispatched = true;
+    });
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(false);
   });
 });

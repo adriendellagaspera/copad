@@ -1,5 +1,5 @@
 import { keymap } from 'prosemirror-keymap';
-import { baseKeymap, toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
+import { baseKeymap, toggleMark, setBlockType, wrapIn, exitCode } from 'prosemirror-commands';
 import { splitListItem, liftListItem, sinkListItem, wrapInList } from 'prosemirror-schema-list';
 import {
   inputRules,
@@ -9,8 +9,23 @@ import {
 } from 'prosemirror-inputrules';
 import { undo, redo } from 'y-prosemirror';
 import type { MarkType, Schema } from 'prosemirror-model';
-import type { EditorState, Plugin, Transaction } from 'prosemirror-state';
+import type { Command, EditorState, Plugin, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
+
+/**
+ * Escape a code block (or any node with `code: true`) into a fresh paragraph
+ * after it — otherwise a code_block that's the last node in the doc has no
+ * textblock below it to click or arrow into, trapping the caret (`Enter`'s
+ * `newlineInCode` just keeps adding lines inside the block instead of
+ * leaving it). Always returns `true`: Firefox blurs contenteditable elements
+ * on Escape by default, so it's swallowed even when `exitCode` doesn't apply
+ * (the slash menu handles its own Escape first, via slashMenuPlugin running
+ * earlier in the plugin list).
+ */
+export const escapeCodeBlock: Command = (state, dispatch) => {
+  exitCode(state, dispatch);
+  return true;
+};
 
 type RuleHandler = (
   state: EditorState,
@@ -109,10 +124,7 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-z': undo,
       'Mod-y': redo,
       'Mod-Shift-z': redo,
-      // Firefox blurs contenteditable elements on Escape by default; swallow it
-      // so the caret stays in the document (the slash menu handles its own
-      // Escape first, via slashMenuPlugin running earlier in the plugin list).
-      'Escape': () => true,
+      'Escape': escapeCodeBlock,
       'Enter': splitListItem(s.nodes.list_item),
       'Tab': sinkListItem(s.nodes.list_item),
       'Shift-Tab': liftListItem(s.nodes.list_item),
