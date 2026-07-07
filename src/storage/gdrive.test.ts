@@ -107,6 +107,27 @@ describe('gdriveStorage save', () => {
     expect(mockFetch.mock.calls[1][1].method).toBe('PATCH');
     expect(mockFetch.mock.calls[1][0]).toContain('/fid?uploadType=media');
   });
+
+  it('drops a second save that overlaps an in-flight one, instead of racing to create two files', async () => {
+    // The search resolves only once we let it — while it's pending, a second
+    // save() call must not also start a "no fileId yet" create.
+    let resolveSearch!: (v: unknown) => void;
+    mockFetch.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveSearch = () => resolve({ ok: true, json: () => Promise.resolve({ files: [] }) }); }),
+    );
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: 'new-id' }) } as unknown as Response) // create
+      .mockResolvedValueOnce({ ok: true, status: 200 } as Response); // media PATCH
+
+    const first = storage.save({ format: 'binary', bytes: new Uint8Array([9]) });
+    const second = storage.save({ format: 'binary', bytes: new Uint8Array([9]) }); // dropped: committing already true
+    resolveSearch({});
+    await Promise.all([first, second]);
+
+    // Exactly one search + one create + one PATCH — never a second create.
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mockFetch.mock.calls.filter(c => c[1]?.method === 'POST')).toHaveLength(1);
+  });
 });
 
 describe('gdriveStorage access', () => {

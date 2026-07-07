@@ -67,6 +67,11 @@ export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Stora
   // Id of the Drive file for the current filename — resolved by name (drive.file
   // scope is name-based), cached in-memory, reset when the target filename changes.
   let fileId: GDriveFileId | null = null;
+  // Guard against concurrent in-flight saves: without it, two overlapping calls
+  // (e.g. autosave firing again before a slow save resolves) could each see no
+  // fileId yet and both create a same-named file — Drive doesn't enforce unique
+  // names, so that would silently leave two duplicate files behind.
+  let committing = false;
 
   const token = (): string | null => tokenStore.read();
 
@@ -158,6 +163,7 @@ export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Stora
     },
 
     async save(content: DocContent): Promise<void> {
+      if (committing) return;
       const tok = token();
       if (!tok) throw new Error('Google Drive: not connected');
 
@@ -167,24 +173,29 @@ export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Stora
           : content.bytes;
       const mime = content.format === DocFormat.Text ? 'text/plain' : 'application/octet-stream';
 
-      // Resolve (or create) the target file, then upload its media.
-      fileId = fileId ?? await findFile(tok, fileName.get());
-      if (!fileId) {
-        const res = await fetch(`${GDRIVE_FILES_URL}?fields=id`, {
-          method: 'POST',
-          headers: { ...authHeaders(tok), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: fileName.get() }),
-        });
-        if (!res.ok) throw new Error(`Google Drive create failed: ${res.status}`);
-        fileId = parseGDriveCreatedFile(await res.json());
-      }
+      committing = true;
+      try {
+        // Resolve (or create) the target file, then upload its media.
+        fileId = fileId ?? await findFile(tok, fileName.get());
+        if (!fileId) {
+          const res = await fetch(`${GDRIVE_FILES_URL}?fields=id`, {
+            method: 'POST',
+            headers: { ...authHeaders(tok), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: fileName.get() }),
+          });
+          if (!res.ok) throw new Error(`Google Drive create failed: ${res.status}`);
+          fileId = parseGDriveCreatedFile(await res.json());
+        }
 
-      const res = await fetch(`${GDRIVE_UPLOAD_URL}/${fileId}?uploadType=media`, {
-        method: 'PATCH',
-        headers: { ...authHeaders(tok), 'Content-Type': mime },
-        body: bytes as unknown as BodyInit,
-      });
-      if (!res.ok) throw new Error(`Google Drive save failed: ${res.status}`);
+        const res = await fetch(`${GDRIVE_UPLOAD_URL}/${fileId}?uploadType=media`, {
+          method: 'PATCH',
+          headers: { ...authHeaders(tok), 'Content-Type': mime },
+          body: bytes as unknown as BodyInit,
+        });
+        if (!res.ok) throw new Error(`Google Drive save failed: ${res.status}`);
+      } finally {
+        committing = false;
+      }
     },
 
     async access(): Promise<StorageAccess> {
