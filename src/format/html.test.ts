@@ -34,4 +34,61 @@ describe('html codec', () => {
     expect(restored.textContent).toContain('Heading');
     expect(JSON.stringify(restored.toJSON())).toContain('"strong"');
   });
+
+  it('round-trips underline through <u>', async () => {
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        schema.nodes.paragraph.create(null, schema.text('x', [schema.marks.underline.create()])),
+      ]),
+    );
+    const bytes = await htmlCodec.encode(doc);
+    expect(new TextDecoder().decode(bytes)).toContain('<u>');
+    const dst = new Y.Doc();
+    await htmlCodec.decode(bytes, dst);
+    const restored = readPmDoc(dst);
+    expect(restored.firstChild?.firstChild?.marks[0]?.type.name).toBe('underline');
+  });
+
+  it('round-trips a checklist through <ul data-type="taskList">', async () => {
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        schema.nodes.task_list.create(null, [
+          schema.nodes.task_item.create({ checked: true }, schema.nodes.paragraph.create(null, schema.text('done'))),
+        ]),
+      ]),
+    );
+    const bytes = await htmlCodec.encode(doc);
+    const html = new TextDecoder().decode(bytes);
+    expect(html).toContain('data-type="taskList"');
+    expect(html).toContain('data-checked="true"');
+    const dst = new Y.Doc();
+    await htmlCodec.decode(bytes, dst);
+    const restored = readPmDoc(dst);
+    expect(restored.firstChild?.type.name).toBe('task_list');
+    expect(restored.firstChild?.firstChild?.attrs.checked).toBe(true);
+  });
+
+  it('round-trips a table through <table>/<th>/<td>', async () => {
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        schema.nodes.table.create(null, [
+          schema.nodes.table_row.create(null, [schema.nodes.table_header.create(null, schema.text('A'))]),
+          schema.nodes.table_row.create(null, [schema.nodes.table_cell.create(null, schema.text('1'))]),
+        ]),
+      ]),
+    );
+    const bytes = await htmlCodec.encode(doc);
+    const dst = new Y.Doc();
+    await htmlCodec.decode(bytes, dst);
+    const restored = readPmDoc(dst);
+    expect(restored.firstChild?.type.name).toBe('table');
+    expect(restored.firstChild?.child(0).child(0).type.name).toBe('table_header');
+    expect(restored.firstChild?.child(1).child(0).type.name).toBe('table_cell');
+  });
 });

@@ -1,6 +1,16 @@
 import { toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
 import { wrapInList } from 'prosemirror-schema-list';
 import { undo, redo } from 'y-prosemirror';
+import {
+  tableNodeTypes,
+  isInTable,
+  addRowAfter,
+  addColumnAfter,
+  deleteRow,
+  deleteColumn,
+  deleteTable,
+  toggleHeaderRow,
+} from 'prosemirror-tables';
 import type { MarkType, NodeType, Attrs } from 'prosemirror-model';
 import type { EditorState, Command } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
@@ -13,6 +23,26 @@ const insertHorizontalRule: Command = (state, dispatch) => {
     dispatch(
       state.tr.replaceSelectionWith(schema.nodes.horizontal_rule.create()).scrollIntoView()
     );
+  }
+  return true;
+};
+
+const TABLE_ROWS = 3;
+const TABLE_COLS = 3;
+
+/** Insert a default `TABLE_ROWS`×`TABLE_COLS` table (header row + body) at the
+ *  selection. A no-op inside an existing table — tables don't nest. */
+const insertTable: Command = (state, dispatch) => {
+  if (isInTable(state)) return false;
+  const types = tableNodeTypes(state.schema);
+  if (!types.table || !types.row || !types.cell || !types.header_cell) return false;
+  if (dispatch) {
+    const headerCells = Array.from({ length: TABLE_COLS }, () => types.header_cell.create());
+    const bodyCells = Array.from({ length: TABLE_COLS }, () => types.cell.create());
+    const rows = [types.row.create(null, headerCells)];
+    for (let i = 1; i < TABLE_ROWS; i += 1) rows.push(types.row.create(null, bodyCells));
+    const table = types.table.create(null, rows);
+    dispatch(state.tr.replaceSelectionWith(table).scrollIntoView());
   }
   return true;
 };
@@ -88,6 +118,7 @@ export const commands = {
   italic: toggleMark(schema.marks.em),
   code: toggleMark(schema.marks.code),
   strike: toggleMark(schema.marks.strike),
+  underline: toggleMark(schema.marks.underline),
   h1: setBlockType(schema.nodes.heading, { level: 1 }),
   h2: setBlockType(schema.nodes.heading, { level: 2 }),
   h3: setBlockType(schema.nodes.heading, { level: 3 }),
@@ -95,8 +126,20 @@ export const commands = {
   blockquote: wrapIn(schema.nodes.blockquote),
   bullet: wrapInList(schema.nodes.bullet_list),
   ordered: wrapInList(schema.nodes.ordered_list),
+  taskList: wrapInList(schema.nodes.task_list),
   codeBlock: setBlockType(schema.nodes.code_block),
   horizontalRule: insertHorizontalRule,
+  insertTable,
+  addRowAfter,
+  addColumnAfter,
+  deleteRow,
+  deleteColumn,
+  deleteTable,
+  toggleHeaderRow,
   undo,
   redo,
 } as const;
+
+/** Whether the selection sits inside a table — gates the Toolbar's
+ *  contextual row/column controls. */
+export { isInTable };

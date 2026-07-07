@@ -18,8 +18,10 @@ export const SLASH_ITEMS: SlashItem[] = [
   { title: 'Heading 3', hint: 'Small heading', keywords: 'h3', command: commands.h3 },
   { title: 'Bulleted list', hint: 'Unordered list', keywords: 'bullet unordered ul list', command: commands.bullet },
   { title: 'Numbered list', hint: 'Ordered list', keywords: 'ordered ol numbered list', command: commands.ordered },
+  { title: 'Checklist', hint: 'To-do list with checkboxes', keywords: 'todo task checkbox checklist', command: commands.taskList },
   { title: 'Quote', hint: 'Blockquote', keywords: 'quote blockquote', command: commands.blockquote },
   { title: 'Code block', hint: 'Monospace block', keywords: 'code pre fenced', command: commands.codeBlock },
+  { title: 'Table', hint: '3×3 table with a header row', keywords: 'table grid rows columns', command: commands.insertTable },
   { title: 'Divider', hint: 'Horizontal rule', keywords: 'divider hr rule line', command: commands.horizontalRule },
 ];
 

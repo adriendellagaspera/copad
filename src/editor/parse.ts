@@ -16,3 +16,8 @@ export function linkHref(mark: Mark): string | null {
   const raw = mark.attrs['href'];
   return typeof raw === 'string' ? raw : null;
 }
+
+/** Whether a task_item node is checked off. */
+export function taskItemChecked(node: PMNode): boolean {
+  return node.attrs['checked'] === true;
+}

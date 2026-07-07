@@ -1,5 +1,5 @@
 import { keymap } from 'prosemirror-keymap';
-import { baseKeymap, toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
+import { baseKeymap, chainCommands, toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
 import { splitListItem, liftListItem, sinkListItem, wrapInList } from 'prosemirror-schema-list';
 import {
   inputRules,
@@ -8,9 +8,12 @@ import {
   InputRule,
 } from 'prosemirror-inputrules';
 import { undo, redo } from 'y-prosemirror';
+import { goToNextCell, columnResizing, tableEditing } from 'prosemirror-tables';
+import { findWrapping } from 'prosemirror-transform';
 import type { MarkType, Schema } from 'prosemirror-model';
-import type { EditorState, Plugin, Transaction } from 'prosemirror-state';
+import type { Command, EditorState, Plugin, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
+import { taskItemCheckboxPlugin } from './taskList.js';
 
 type RuleHandler = (
   state: EditorState,
@@ -82,6 +85,53 @@ export const STRIKE_RULE = /(?:^|\s)(~~(?!\s)([^~]+)~~)$/;
 export const CODE_RULE = /(?:^|\s)(`(?!\s)([^`]+)`)$/;
 /** Link: `[text](url)`. */
 export const LINK_RULE = /(?:^|\s)(\[([^\]]+)\]\(([^)\s]+)\))$/;
+/** Checklist: bare `[] `/`[ ] `/`[x] ` at the start of a line — deliberately
+ *  *not* `- [ ] ` (GFM's file syntax, handled on markdown import instead):
+ *  the bullet-list rule above already fires on `- ` alone, so a dash-prefixed
+ *  trigger could never be typed before that rule pre-empts it. */
+export const CHECKLIST_RULE = /^\s*\[([ xX]?)\]\s$/;
+
+/**
+ * Handles both checklist shapes a plain `wrappingInputRule` can't tell apart:
+ * typing `[x] ` on an *existing* task_item's own line (the common case — you
+ * pressed Enter to get a new checklist row, then mark it done) just needs
+ * `checked` flipped, not another wrap; `findWrapping` has no notion of "this
+ * paragraph already lives in one" and returns null there, so a bare
+ * `wrappingInputRule(CHECKLIST_RULE, task_item, …)` silently no-ops on every
+ * item after the first. Elsewhere (a plain paragraph, a bullet item, …) it
+ * wraps the block in a new task_list/task_item, same as the library helper.
+ */
+export function checklistRuleHandler(s: Schema): RuleHandler {
+  return (state, match, start, end) => {
+    const checked = /x/i.test(match[1] ?? '');
+    const { tr } = state;
+    const $start = tr.doc.resolve(start);
+    const parentDepth = $start.depth;
+    if (parentDepth > 0 && $start.node(parentDepth - 1).type === s.nodes.task_item && $start.index(parentDepth - 1) === 0) {
+      tr.delete(start, end);
+      tr.setNodeMarkup($start.before(parentDepth - 1), undefined, { checked });
+      return tr;
+    }
+    tr.delete(start, end);
+    const $wrapAt = tr.doc.resolve(start);
+    const range = $wrapAt.blockRange();
+    const wrapping = range && findWrapping(range, s.nodes.task_item, { checked });
+    if (!wrapping) return null;
+    tr.wrap(range, wrapping);
+    return tr;
+  };
+}
+
+/** Swallow Enter inside a table cell instead of letting `baseKeymap`'s
+ *  `splitBlock` split the cell itself in two — GFM-shaped cells are
+ *  single-line (`cellContent: 'inline*'`, see schema.ts), so there's no
+ *  "new paragraph within the cell" to make room for. */
+function preventEnterInTableCell(s: Schema): Command {
+  return (state) => {
+    const { parent } = state.selection.$from;
+    return parent.type === s.nodes.table_cell || parent.type === s.nodes.table_header;
+  };
+}
 
 export function buildPlugins(s: Schema): Plugin[] {
   return [
@@ -90,6 +140,9 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-i': toggleMark(s.marks.em),
       'Mod-`': toggleMark(s.marks.code),
       'Mod-Shift-x': toggleMark(s.marks.strike),
+      // Mod-U alone is Chrome/Firefox's reserved "View Source" shortcut and
+      // can't be preventDefault-ed, so it never reaches the page — Shift it.
+      'Mod-Shift-u': toggleMark(s.marks.underline),
       // Bridge to the Svelte LinkPopover — handled by a listener on the editor DOM.
       'Mod-k': (_state, _dispatch, view) => {
         view?.dom.dispatchEvent(new CustomEvent('copad:link', { bubbles: true }));
@@ -103,6 +156,9 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-Alt-2': setBlockType(s.nodes.heading, { level: 2 }),
       'Mod-Alt-3': setBlockType(s.nodes.heading, { level: 3 }),
       'Mod-Alt-c': setBlockType(s.nodes.code_block),
+      // 6 slots in next to 7/8/9 (ordered/bullet/quote) for the one other
+      // list-shaped block type — checklist.
+      'Mod-Shift-6': wrapInList(s.nodes.task_list),
       'Mod-Shift-7': wrapInList(s.nodes.ordered_list),
       'Mod-Shift-8': wrapInList(s.nodes.bullet_list),
       'Mod-Shift-9': wrapIn(s.nodes.blockquote),
@@ -113,9 +169,21 @@ export function buildPlugins(s: Schema): Plugin[] {
       // so the caret stays in the document (the slash menu handles its own
       // Escape first, via slashMenuPlugin running earlier in the plugin list).
       'Escape': () => true,
-      'Enter': splitListItem(s.nodes.list_item),
-      'Tab': sinkListItem(s.nodes.list_item),
-      'Shift-Tab': liftListItem(s.nodes.list_item),
+      'Enter': chainCommands(
+        preventEnterInTableCell(s),
+        splitListItem(s.nodes.list_item),
+        splitListItem(s.nodes.task_item)
+      ),
+      'Tab': chainCommands(
+        goToNextCell(1),
+        sinkListItem(s.nodes.list_item),
+        sinkListItem(s.nodes.task_item)
+      ),
+      'Shift-Tab': chainCommands(
+        goToNextCell(-1),
+        liftListItem(s.nodes.list_item),
+        liftListItem(s.nodes.task_item)
+      ),
     }),
     keymap(baseKeymap),
     inputRules({
@@ -125,6 +193,9 @@ export function buildPlugins(s: Schema): Plugin[] {
         textblockTypeInputRule(/^###\s$/, s.nodes.heading, { level: 3 }),
         textblockTypeInputRule(/^```$/, s.nodes.code_block),
         wrappingInputRule(/^\s*>\s$/, s.nodes.blockquote),
+        // Checklist before plain bullet — both start with punctuation the
+        // bullet rule doesn't match (`[`), so order is only for clarity here.
+        new InputRule(CHECKLIST_RULE, checklistRuleHandler(s)),
         wrappingInputRule(/^\s*([-+*])\s$/, s.nodes.bullet_list),
         wrappingInputRule(/^(\d+)\.\s$/, s.nodes.ordered_list),
         // `---`, `***` or `___` on their own line → horizontal rule.
@@ -142,5 +213,8 @@ export function buildPlugins(s: Schema): Plugin[] {
         new InputRule(LINK_RULE, linkRuleHandler(s.marks.link)),
       ],
     }),
+    columnResizing(),
+    tableEditing(),
+    taskItemCheckboxPlugin,
   ];
 }

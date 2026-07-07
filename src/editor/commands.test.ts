@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { schema } from './schema.js';
-import { commands, runCommand, activeInputMarks, activeBlockLabel, activeBlockContext } from './commands.js';
+import { commands, runCommand, activeInputMarks, isInTable, activeBlockLabel, activeBlockContext } from './commands.js';
 
 function paragraphState(text = 'hi'): EditorState {
   const para = text ? schema.node('paragraph', null, schema.text(text)) : schema.node('paragraph');
@@ -41,6 +41,45 @@ describe('block commands', () => {
     expect(found).toBe(true);
   });
 
+  it('taskList wraps the block in a task_list/task_item', () => {
+    const next = apply(paragraphState(), commands.taskList);
+    expect(next.doc.firstChild?.type.name).toBe('task_list');
+    expect(next.doc.firstChild?.firstChild?.type.name).toBe('task_item');
+    expect(next.doc.firstChild?.firstChild?.attrs.checked).toBe(false);
+  });
+
+  it('insertTable inserts a default table, and is a no-op inside one', () => {
+    const next = apply(paragraphState(''), commands.insertTable);
+    let table: import('prosemirror-model').Node | null = null;
+    next.doc.descendants((n) => {
+      if (n.type.name === 'table') table = n;
+    });
+    expect(table).not.toBeNull();
+    expect(table!.childCount).toBe(3); // header row + 2 body rows
+    expect(table!.child(0).child(0).type.name).toBe('table_header');
+    expect(table!.child(1).child(0).type.name).toBe('table_cell');
+
+    // Place the cursor inside the freshly-inserted table and try again.
+    const insideTable = next.apply(next.tr.setSelection(TextSelection.create(next.doc, 3)));
+    expect(isInTable(insideTable)).toBe(true);
+    const dispatched = { called: false };
+    commands.insertTable(insideTable, () => {
+      dispatched.called = true;
+    });
+    expect(dispatched.called).toBe(false);
+  });
+
+  it('addRowAfter grows a table by one row', () => {
+    const withTable = apply(paragraphState(''), commands.insertTable);
+    const insideTable = withTable.apply(withTable.tr.setSelection(TextSelection.create(withTable.doc, 3)));
+    const grown = apply(insideTable, commands.addRowAfter);
+    let table: import('prosemirror-model').Node | null = null;
+    grown.doc.descendants((n) => {
+      if (n.type.name === 'table') table = n;
+    });
+    expect(table!.childCount).toBe(4);
+  });
+
   it('runCommand executes against a view-like object without throwing', () => {
     // runCommand calls view.focus(); provide a minimal stub.
     const state = paragraphState();
@@ -68,6 +107,11 @@ describe('activeInputMarks', () => {
   it('reports a mark armed by a toggle at the caret (stored marks)', () => {
     const armed = apply(paragraphState(), commands.bold);
     expect(names(armed)).toEqual(['strong']);
+  });
+
+  it('underline toggles the underline mark', () => {
+    const armed = apply(paragraphState(), commands.underline);
+    expect(names(armed)).toEqual(['underline']);
   });
 
   it('reports marks inherited from the caret position', () => {

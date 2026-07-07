@@ -82,6 +82,102 @@ describe('markdown codec', () => {
     expect(md).toContain('# Title');
     expect(md).toContain('~~gone~~');
   });
+
+  it('drops underline on export but keeps the text', async () => {
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        schema.nodes.paragraph.create(null, [
+          schema.text('plain '),
+          schema.text('under', [schema.marks.underline.create()]),
+        ]),
+      ]),
+    );
+    const md = new TextDecoder().decode(await markdownCodec.encode(doc));
+    expect(md).toContain('under');
+    expect(md).not.toContain('<u>');
+  });
+
+  it('round-trips a checklist as GFM `- [ ] `/`- [x] `', async () => {
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        schema.nodes.task_list.create(null, [
+          schema.nodes.task_item.create({ checked: true }, schema.nodes.paragraph.create(null, schema.text('done'))),
+          schema.nodes.task_item.create({ checked: false }, schema.nodes.paragraph.create(null, schema.text('todo'))),
+        ]),
+      ]),
+    );
+    const bytes = await markdownCodec.encode(doc);
+    const md = new TextDecoder().decode(bytes);
+    expect(md).toContain('- [x] done');
+    expect(md).toContain('- [ ] todo');
+
+    const dst = new Y.Doc();
+    await markdownCodec.decode(bytes, dst);
+    const restored = readPmDoc(dst);
+    let taskList: ReturnType<typeof readPmDoc> | null = null;
+    restored.descendants((n) => {
+      if (n.type.name === 'task_list') taskList = n;
+    });
+    expect(taskList).not.toBeNull();
+    expect(taskList!.childCount).toBe(2);
+    expect(taskList!.child(0).attrs.checked).toBe(true);
+    expect(taskList!.child(1).attrs.checked).toBe(false);
+  });
+
+  it("doesn't convert a mixed checkbox/plain bullet list", async () => {
+    const bytes = new TextEncoder().encode('- [ ] a\n- b\n');
+    const dst = new Y.Doc();
+    await markdownCodec.decode(bytes, dst);
+    const restored = readPmDoc(dst);
+    let sawTaskList = false;
+    restored.descendants((n) => {
+      if (n.type.name === 'task_list') sawTaskList = true;
+    });
+    expect(sawTaskList).toBe(false);
+    expect(restored.textContent).toContain('[ ] a');
+  });
+
+  it('round-trips a GFM table with a header row', async () => {
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        schema.nodes.table.create(null, [
+          schema.nodes.table_row.create(null, [
+            schema.nodes.table_header.create(null, schema.text('A')),
+            schema.nodes.table_header.create(null, schema.text('B')),
+          ]),
+          schema.nodes.table_row.create(null, [
+            schema.nodes.table_cell.create(null, schema.text('1')),
+            schema.nodes.table_cell.create(null, schema.text('2')),
+          ]),
+        ]),
+      ]),
+    );
+    const bytes = await markdownCodec.encode(doc);
+    const md = new TextDecoder().decode(bytes);
+    expect(md).toContain('| A | B |');
+    expect(md).toContain('| --- | --- |');
+    expect(md).toContain('| 1 | 2 |');
+
+    const dst = new Y.Doc();
+    await markdownCodec.decode(bytes, dst);
+    const restored = readPmDoc(dst);
+    let table: ReturnType<typeof readPmDoc> | null = null;
+    restored.descendants((n) => {
+      if (n.type.name === 'table') table = n;
+    });
+    expect(table).not.toBeNull();
+    expect(table!.childCount).toBe(2);
+    expect(table!.child(0).child(0).type.name).toBe('table_header');
+    expect(table!.child(0).textContent).toBe('AB');
+    expect(table!.child(1).child(0).type.name).toBe('table_cell');
+    expect(table!.child(1).textContent).toBe('12');
+  });
 });
 
 describe('text codec', () => {

@@ -8,6 +8,7 @@ describe('schema', () => {
     expect(schema.marks.em).toBeDefined();
     expect(schema.marks.code).toBeDefined();
     expect(schema.marks.strike).toBeDefined();
+    expect(schema.marks.underline).toBeDefined();
   });
 
   it('has all required nodes', () => {
@@ -18,6 +19,12 @@ describe('schema', () => {
     expect(schema.nodes.ordered_list).toBeDefined();
     expect(schema.nodes.list_item).toBeDefined();
     expect(schema.nodes.code_block).toBeDefined();
+    expect(schema.nodes.task_list).toBeDefined();
+    expect(schema.nodes.task_item).toBeDefined();
+    expect(schema.nodes.table).toBeDefined();
+    expect(schema.nodes.table_row).toBeDefined();
+    expect(schema.nodes.table_cell).toBeDefined();
+    expect(schema.nodes.table_header).toBeDefined();
   });
 
   it('can create a paragraph with text', () => {
@@ -49,5 +56,31 @@ describe('schema', () => {
     const mark = strike.create();
     const spec = strike.spec.toDOM!(mark, false);
     expect(spec).toEqual(['s', 0]);
+  });
+
+  it('underline mark toDOM returns <u> element spec', () => {
+    const underline = schema.marks.underline;
+    const mark = underline.create();
+    const spec = underline.spec.toDOM!(mark, false);
+    expect(spec).toEqual(['u', 0]);
+  });
+
+  it('creates a checked and unchecked task_item', () => {
+    const unchecked = schema.nodes.task_item.create({}, schema.nodes.paragraph.create());
+    const checked = schema.nodes.task_item.create({ checked: true }, schema.nodes.paragraph.create());
+    expect(unchecked.attrs.checked).toBe(false);
+    expect(checked.attrs.checked).toBe(true);
+  });
+
+  it('creates a table with a header row and body cells', () => {
+    const header = schema.nodes.table_header.create();
+    const cell = schema.nodes.table_cell.create();
+    const table = schema.nodes.table.create(null, [
+      schema.nodes.table_row.create(null, [header, header]),
+      schema.nodes.table_row.create(null, [cell, cell]),
+    ]);
+    expect(table.childCount).toBe(2);
+    expect(table.child(0).child(0).type.name).toBe('table_header');
+    expect(table.child(1).child(0).type.name).toBe('table_cell');
   });
 });

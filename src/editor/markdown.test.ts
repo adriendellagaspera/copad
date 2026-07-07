@@ -39,4 +39,37 @@ describe('docToMarkdown', () => {
     expect(md(schema.node('code_block', null, schema.text('let x = 1')))).toContain('let x = 1');
     expect(md(schema.node('horizontal_rule'))).toContain('---');
   });
+
+  it('drops underline (no native markdown syntax) but keeps the text', () => {
+    const out = md(para(schema.text('x', [schema.marks.underline.create()])));
+    expect(out).toContain('x');
+    expect(out).not.toContain('<u>');
+  });
+
+  it('serializes a checklist with checked/unchecked markers', () => {
+    const list = schema.node('task_list', null, [
+      schema.node('task_item', { checked: true }, [para(schema.text('done'))]),
+      schema.node('task_item', { checked: false }, [para(schema.text('todo'))]),
+    ]);
+    const out = md(list);
+    expect(out).toContain('- [x] done');
+    expect(out).toContain('- [ ] todo');
+  });
+
+  it('serializes a table as a GFM pipe table with a header separator', () => {
+    const table = schema.node('table', null, [
+      schema.node('table_row', null, [
+        schema.node('table_header', null, schema.text('A')),
+        schema.node('table_header', null, schema.text('B')),
+      ]),
+      schema.node('table_row', null, [
+        schema.node('table_cell', null, schema.text('1')),
+        schema.node('table_cell', null, schema.text('2')),
+      ]),
+    ]);
+    const out = md(table);
+    expect(out).toContain('| A | B |');
+    expect(out).toContain('| --- | --- |');
+    expect(out).toContain('| 1 | 2 |');
+  });
 });
