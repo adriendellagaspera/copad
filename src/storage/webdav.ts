@@ -5,9 +5,9 @@ import type { Fetch } from '../network/types.js';
 import { filenameStore } from './filename.js';
 import { type WebDavConf, parseWebDavConf } from './parse.js';
 import { localStore } from '../persistence/local.js';
+import type { RoomId } from '../collaboration/types.js';
 import { STORAGE_ID, WEBDAV_KEY, DEFAULT_FILENAME } from './constants.js';
 
-const fileName = filenameStore(STORAGE_ID.webdav);
 const confStore = localStore<WebDavConf | null>(
   WEBDAV_KEY,
   parseWebDavConf,
@@ -26,7 +26,8 @@ const credentialFields: CredentialField[] = [
   { name: 'password', label: 'App password', type: InputType.Password },
 ];
 
-export function webdavStorage(netFetch: Fetch): { auth: StorageAuth; storage: Storage } {
+export function webdavStorage(netFetch: Fetch, room: RoomId): { auth: StorageAuth; storage: Storage } {
+  const fileName = filenameStore(STORAGE_ID.webdav, room);
   const conf = (): WebDavConf | null => confStore.read();
 
   const auth: StorageAuth = {

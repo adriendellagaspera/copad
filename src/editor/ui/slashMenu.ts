@@ -145,8 +145,13 @@ export function slashMenuPlugin(): Plugin<SlashState> {
           case 'ArrowUp':
             setSlashIndex(view, (index - 1 + items.length) % items.length);
             return true;
-          case 'Enter':
           case 'Tab':
+            setSlashIndex(
+              view,
+              event.shiftKey ? (index - 1 + items.length) % items.length : (index + 1) % items.length
+            );
+            return true;
+          case 'Enter':
             runSlashItem(view, items[index]);
             return true;
         }
@@ -160,8 +165,10 @@ export function setSlashIndex(view: EditorView, index: number): void {
   view.dispatch(view.state.tr.setMeta(slashKey, { type: 'index', index }));
 }
 
+/** Dismiss the menu and keep the caret in the document. */
 export function dismissSlash(view: EditorView): void {
   view.dispatch(view.state.tr.setMeta(slashKey, { type: 'dismiss' }));
+  view.focus();
 }
 
 /** Delete the `/query` text, then run the chosen block command. */

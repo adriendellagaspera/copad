@@ -57,9 +57,6 @@ export const ICE_FETCH_TIMEOUT_MS =
 export const KEY_LOCAL_CACHE = nsKey('localCache');
 /** Index of rooms with a local cache, so "clear" works without `indexedDB.databases()`. */
 export const KEY_CACHED_ROOMS = nsKey('cachedRooms');
-/** Rooms the user has recently visited, powering the room switcher (anti-loss). */
-export const KEY_RECENT_ROOMS = nsKey('recentRooms');
-
 /** Whether this browser has already seen the write-gate's one-time explainer
  *  dialog (see App.svelte's write-gate section). Global, not per-room — the
  *  mechanic itself is what's being taught, not any one room's behavior. */
@@ -70,9 +67,6 @@ export const KEY_WRITE_GATE_SEEN = nsKey('writeGateSeen');
  *  not per-room — it's an environment fact, not a per-room behavior. Naturally
  *  origin-scoped by localStorage, so it re-shows once on a different deployment. */
 export const KEY_COLLAB_UNAVAILABLE_SEEN = nsKey('collabUnavailableSeen');
-
-/** How many recently-visited rooms to remember in the switcher. */
-export const RECENT_ROOMS_MAX = 12;
 
 /** IndexedDB database-name prefix — shares the app namespace (`copad:`). */
 export const CACHE_DB_PREFIX = NS_PREFIX;

@@ -7,6 +7,7 @@ import { filenameStore } from './filename.js';
 import type { Fetch } from '../network/types.js';
 import { type PCloudSession, parsePCloudSession, parsePCloudFileLinkResponse } from './parse.js';
 import { localStore } from '../persistence/local.js';
+import type { RoomId } from '../collaboration/types.js';
 import {
   STORAGE_ID,
   CLOUD_FOLDER,
@@ -18,8 +19,6 @@ import {
   PCLOUD_UPLOAD_PATH,
 } from './constants.js';
 
-const fileName = filenameStore(STORAGE_ID.pcloud);
-const filePath = () => `${CLOUD_FOLDER}/${fileName.get()}`;
 const sessionStore = localStore<PCloudSession | null>(
   PCLOUD_SESSION_KEY,
   parsePCloudSession,
@@ -37,7 +36,9 @@ const cfg = configStore(STORAGE_ID.pcloud, [
   },
 ]);
 
-export function pcloudStorage(netFetch: Fetch): { auth: StorageAuth; storage: Storage } {
+export function pcloudStorage(netFetch: Fetch, room: RoomId): { auth: StorageAuth; storage: Storage } {
+  const fileName = filenameStore(STORAGE_ID.pcloud, room);
+  const filePath = () => `${CLOUD_FOLDER}/${fileName.get()}`;
   const session = (): PCloudSession | null => sessionStore.read();
 
   const auth: StorageAuth = {

@@ -30,6 +30,9 @@
   --warn: #d97706;
   --warn-soft: #fffbe6;
   --warn-border: #fde68a;
+  --warn-text: #92400e;   /* darker than --warn: reads at ~6.8:1 on --warn-soft (AA),
+                             vs --warn's ~3.1:1. Use for banner copy; keep --warn
+                             for the dot/icon accent. */
   --danger: #dc2626;
   --danger-soft: #fee2e2;
   --selection: rgba(37, 99, 235, 0.18);
@@ -114,6 +117,7 @@
   --warn: #fbbf24;
   --warn-soft: #2b2410;
   --warn-border: #4a3c12;
+  --warn-text: #fbbf24;  /* dark mode's --warn is already AA-compliant on --warn-soft */
   --danger: #f87171;
   --danger-soft: #3a1414;
   --selection: rgba(107, 142, 251, 0.28);

@@ -1,5 +1,5 @@
 import type {
-  DisplayName, CursorColor, PeerAwarenessState, PersistTarget, RoomId, RoomName, RecentRoom,
+  DisplayName, CursorColor, PeerAwarenessState, PersistTarget, RoomId, RoomName,
   SignalingUrl, WebsocketUrl,
   StunUrl, TurnUrl, TurnUsername, TurnCredential, IceServer, IceServersUrl,
 } from './types.js';
@@ -133,28 +133,6 @@ export function parseRoomId(raw: string | null): RoomId | null {
 export function parseRoomName(raw: string | null): RoomName | null {
   const trimmed = (raw ?? '').trim();
   return trimmed ? (trimmed as RoomName) : null;
-}
-
-/** Parse the JSON-encoded recent-rooms list from localStorage into typed
- *  {@link RecentRoom}s, dropping any malformed entry. Single narrowing site. */
-export function parseRecentRooms(raw: string | null): RecentRoom[] {
-  try {
-    const list: unknown = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(list)) return [];
-    const out: RecentRoom[] = [];
-    for (const entry of list) {
-      if (typeof entry !== 'object' || entry === null) continue;
-      const o = entry as Record<string, unknown>;
-      const id = parseRoomId(typeof o['id'] === 'string' ? o['id'] : null);
-      if (!id) continue;
-      const name = parseRoomName(typeof o['name'] === 'string' ? o['name'] : null);
-      const visitedAt = typeof o['visitedAt'] === 'number' ? o['visitedAt'] : 0;
-      out.push({ id, name, visitedAt });
-    }
-    return out;
-  } catch {
-    return [];
-  }
 }
 
 /** Parse a stored string as a RoomCredential — the single cast site for RoomCredential from localStorage/URL. */

@@ -215,7 +215,9 @@
     color: var(--ok);
   }
   .seg.warn {
-    color: var(--warn);
+    /* --warn-text, not --warn: this colors the visible label text (~3:1 on
+       --surface-2 with --warn, below AA's 4.5:1 for normal text). */
+    color: var(--warn-text);
   }
   .seg.danger {
     color: var(--danger);

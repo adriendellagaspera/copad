@@ -74,9 +74,15 @@
     line-height: 1.45;
   }
   .toast-close {
+    /* >=44px hit area (WCAG 2.5.5) around a small glyph — the button grows via
+       padding, not by enlarging the ✕ itself. */
     flex-shrink: 0;
-    min-width: 0;
-    padding: 0.2rem 0.35rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
     font-size: 0.75rem;
     color: var(--text-faint);
     border: none;

@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { githubStorage } from './github.js';
 import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
+import type { RoomId } from '../collaboration/types.js';
+
+// Room stem is 'notes', matching the default filename ('notes.md') the tests below assert on.
+const TEST_ROOM = 'notes' as RoomId;
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -20,7 +24,7 @@ beforeEach(() => {
 });
 
 function setup() {
-  const { auth, storage } = githubStorage();
+  const { auth, storage } = githubStorage(TEST_ROOM);
   return { auth, storage };
 }
 
