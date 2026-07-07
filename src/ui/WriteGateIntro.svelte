@@ -33,7 +33,7 @@
   <div class="wg-actions">
     <button class="primary" onclick={onWriteSolo}>Write here anyway</button>
     <button onclick={onInvite}>Invite someone</button>
-    <button class="link" onclick={onConnectStorage}>Keep a copy for myself</button>
+    <button onclick={onConnectStorage}>Connect storage</button>
   </div>
 </Dialog>
 
@@ -55,8 +55,5 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--sp-2);
-  }
-  .wg-actions .link {
-    margin-left: auto;
   }
 </style>
