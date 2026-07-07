@@ -5,7 +5,12 @@ import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
 import { filenameStore } from './filename.js';
 import type { Fetch } from '../network/types.js';
-import { type PCloudSession, parsePCloudSession, parsePCloudFileLinkResponse } from './parse.js';
+import {
+  type PCloudSession,
+  parsePCloudSession,
+  parsePCloudFileLinkResponse,
+  parsePCloudClientId,
+} from './parse.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
 import {
@@ -18,6 +23,18 @@ import {
   PCLOUD_GETFILELINK_PATH,
   PCLOUD_UPLOAD_PATH,
 } from './constants.js';
+
+// ── Branded types ─────────────────────────────────────────────────────────────
+
+/** The pCloud OAuth token minted by the SDK's popup callback. */
+export type PCloudToken = string & { readonly _brand: 'PCloudToken' };
+
+/** The resolved API host for the session's region — one of the two constant
+ *  hosts (`PCLOUD_API_HOST` / `PCLOUD_EU_API_HOST`), branded per session. */
+export type PCloudApiHost = string & { readonly _brand: 'PCloudApiHost' };
+
+/** A configured pCloud OAuth app Client ID. */
+export type PCloudClientId = string & { readonly _brand: 'PCloudClientId' };
 
 const sessionStore = localStore<PCloudSession | null>(
   PCLOUD_SESSION_KEY,
@@ -41,20 +58,30 @@ export function pcloudStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
   const filePath = () => `${CLOUD_FOLDER}/${fileName.get()}`;
   const session = (): PCloudSession | null => sessionStore.read();
 
+  // Client ID is validated once here (trim, non-empty), mirroring the other
+  // OAuth-popup backends' config resolvers.
+  function resolvedClientId(): PCloudClientId | null {
+    return parsePCloudClientId(cfg.config('clientId'));
+  }
+
   const auth: StorageAuth = {
     isAuthenticated: () => !!session(),
 
     async login() {
-      const clientId = cfg.config('clientId');
+      const clientId = resolvedClientId();
       if (!clientId) throw new Error('Add a pCloud Client ID in Settings first.');
 
       await new Promise<void>((resolve, reject) => {
         pcloudSdk.oauth.popup(
           clientId,
+          // The SDK callback hands us raw strings with no separate response-parse
+          // step to hook into — this callback signature IS the IO boundary, so we
+          // brand both fields right here.
           (token: string, locationid?: number) => {
-            const host =
-              (locationid ?? 1) === 2 ? PCLOUD_EU_API_HOST : PCLOUD_API_HOST;
-            sessionStore.write({ token, host });
+            const host = ((locationid ?? 1) === 2
+              ? PCLOUD_EU_API_HOST
+              : PCLOUD_API_HOST) as PCloudApiHost;
+            sessionStore.write({ token: token as PCloudToken, host });
             resolve();
           },
           (err: unknown) => reject(new Error(`pCloud auth failed: ${String(err)}`))

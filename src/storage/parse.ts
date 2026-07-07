@@ -8,6 +8,7 @@ import type { Filename } from './types.js';
 import type { GitHubRepo, GitHubBranch, GitHubFileSha } from './github.js';
 import type { DropboxToken, DropboxAppKey } from './dropbox.js';
 import type { WebDavBaseUrl, WebDavAuthHeader } from './webdav.js';
+import type { PCloudToken, PCloudApiHost, PCloudClientId } from './pcloud.js';
 import { GITHUB_DEFAULT_BRANCH } from './constants.js';
 
 // ── Stored-session shapes (owned here, imported by adapters) ──────────────────
@@ -18,8 +19,8 @@ export interface WebDavConf {
 }
 
 export interface PCloudSession {
-  token: string;
-  host: string;
+  token: PCloudToken;
+  host: PCloudApiHost;
 }
 
 export interface PCloudFileLinkResponse {
@@ -50,7 +51,9 @@ export function parsePCloudSession(raw: string | null): PCloudSession | null {
     if (typeof obj !== 'object' || obj === null) return null;
     const { token, host } = obj as Record<string, unknown>;
     if (typeof token !== 'string' || typeof host !== 'string') return null;
-    return { token, host };
+    // Already validated once at the OAuth callback boundary — cast on this
+    // round-trip read from JSON.
+    return { token: token as PCloudToken, host: host as PCloudApiHost };
   } catch {
     return null;
   }
@@ -143,4 +146,12 @@ export function parseBranch(raw: string): GitHubBranch {
 export function parseDropboxAppKey(raw: string): DropboxAppKey | null {
   const s = raw.trim();
   return s ? (s as DropboxAppKey) : null;
+}
+
+// ── pCloud config parsers ──────────────────────────────────────────────────────
+
+/** Trims and brands a Client ID from Settings; null when empty (not yet configured). */
+export function parsePCloudClientId(raw: string): PCloudClientId | null {
+  const trimmed = raw.trim();
+  return trimmed ? (trimmed as PCloudClientId) : null;
 }
