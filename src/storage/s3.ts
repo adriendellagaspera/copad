@@ -1,9 +1,10 @@
-import type { Storage, CredentialField, LoginOptions, DocContent } from './types.js';
+import type { Storage, CredentialField, LoginOptions, DocContent, Filename } from './types.js';
 import { DocFormat, InputType, LoginKind, StorageAccess } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { filenameStore } from './filename.js';
 import { type S3Conf, parseS3Conf } from './parse.js';
 import { localStore } from '../persistence/local.js';
+import type { RoomId } from '../collaboration/types.js';
 import { STORAGE_ID, DEFAULT_FILENAME, S3_PREFIX, S3_KEY } from './constants.js';
 
 // S3-compatible object storage (AWS S3, Cloudflare R2, MinIO, Backblaze B2…).
@@ -15,7 +16,6 @@ import { STORAGE_ID, DEFAULT_FILENAME, S3_PREFIX, S3_KEY } from './constants.js'
 const EMPTY_SHA256 =
   'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
-const fileName = filenameStore(STORAGE_ID.s3);
 const confStore = localStore<S3Conf | null>(
   S3_KEY,
   parseS3Conf,
@@ -109,18 +109,19 @@ async function signRequest(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Object key for the current room: `<prefix>/<filename>` (prefix optional). */
-function objectKey(c: S3Conf): string {
+function objectKey(c: S3Conf, filename: Filename): string {
   const prefix = c.prefix.replace(/^\/+|\/+$/g, '');
-  return [prefix, fileName.get()].filter(Boolean).join('/');
+  return [prefix, filename].filter(Boolean).join('/');
 }
 
-function objectUrl(c: S3Conf): URL {
-  return new URL(`${c.endpoint}/${c.bucket}/${objectKey(c)}`);
+function objectUrl(c: S3Conf, filename: Filename): URL {
+  return new URL(`${c.endpoint}/${c.bucket}/${objectKey(c, filename)}`);
 }
 
 // ── Factory ───────────────────────────────────────────────────────────────────
 
-export function s3Storage(): { auth: StorageAuth; storage: Storage } {
+export function s3Storage(room: RoomId): { auth: StorageAuth; storage: Storage } {
+  const fileName = filenameStore(STORAGE_ID.s3, room);
   const conf = (): S3Conf | null => confStore.read();
 
   const auth: StorageAuth = {
@@ -145,7 +146,7 @@ export function s3Storage(): { auth: StorageAuth; storage: Storage } {
       // Validate credentials with a signed HEAD on the target object. This checks
       // object-level access (a write-only key may lack bucket-level ListBucket):
       //   403 → bad credentials / denied, 404 → good creds + object not yet there.
-      const url = objectUrl(c);
+      const url = objectUrl(c, fileName.get());
       const res = await fetch(url.toString(), {
         method: 'HEAD',
         headers: await signRequest('HEAD', url, null, c),
@@ -181,7 +182,7 @@ export function s3Storage(): { auth: StorageAuth; storage: Storage } {
       const c = conf();
       if (!c) throw new Error('S3: not connected');
 
-      const url = objectUrl(c);
+      const url = objectUrl(c, fileName.get());
       const res = await fetch(url.toString(), { headers: await signRequest('GET', url, null, c) });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error(`S3 load failed: ${res.status}`);
@@ -193,7 +194,7 @@ export function s3Storage(): { auth: StorageAuth; storage: Storage } {
       const c = conf();
       if (!c) throw new Error('S3: not connected');
 
-      const url = objectUrl(c);
+      const url = objectUrl(c, fileName.get());
       const res = await fetch(url.toString(), {
         method: 'PUT',
         headers: { ...await signRequest('PUT', url, content.bytes, c), 'Content-Type': 'application/octet-stream' },

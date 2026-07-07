@@ -3,6 +3,10 @@ import { s3Storage } from './s3.js';
 import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
 import { LoginKind } from './types.js';
+import type { RoomId } from '../collaboration/types.js';
+
+// Room stem is 'document', matching the plain default filename ('document.yjs') asserted below.
+const TEST_ROOM = 'document' as RoomId;
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -33,23 +37,23 @@ const connected = () => localStorage.setItem('storage.s3.conf', JSON.stringify(F
 
 describe('s3Storage auth', () => {
   it('is not authenticated before login', () => {
-    expect(s3Storage().auth.isAuthenticated()).toBe(false);
+    expect(s3Storage(TEST_ROOM).auth.isAuthenticated()).toBe(false);
   });
 
   it('exposes all credential fields', () => {
-    const names = s3Storage().auth.credentialFields!.map(f => f.name);
+    const names = s3Storage(TEST_ROOM).auth.credentialFields!.map(f => f.name);
     expect(names).toEqual(
       expect.arrayContaining(['endpoint', 'bucket', 'region', 'prefix', 'accessKeyId', 'secretAccessKey']),
     );
   });
 
   it('login requires the mandatory fields', async () => {
-    await expect(s3Storage().auth.login(creds({ endpoint: '', bucket: '' }))).rejects.toThrow(/required/);
+    await expect(s3Storage(TEST_ROOM).auth.login(creds({ endpoint: '', bucket: '' }))).rejects.toThrow(/required/);
   });
 
   it('login signs the validation request with SigV4 and stores the conf', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200 } as Response);
-    const { auth } = s3Storage();
+    const { auth } = s3Storage(TEST_ROOM);
     await auth.login(creds(FULL));
     expect(auth.isAuthenticated()).toBe(true);
     const headers = mockFetch.mock.calls[0][1].headers as Record<string, string>;
@@ -60,19 +64,19 @@ describe('s3Storage auth', () => {
 
   it('login throws on 403 (access denied)', async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 403 } as Response);
-    await expect(s3Storage().auth.login(creds(FULL))).rejects.toThrow('access denied');
+    await expect(s3Storage(TEST_ROOM).auth.login(creds(FULL))).rejects.toThrow('access denied');
   });
 
   it('login tolerates 405 (Method Not Allowed) as a reachable bucket', async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 405 } as Response);
-    const { auth } = s3Storage();
+    const { auth } = s3Storage(TEST_ROOM);
     await auth.login(creds(FULL));
     expect(auth.isAuthenticated()).toBe(true);
   });
 
   it('logout clears the conf', () => {
     connected();
-    const { auth } = s3Storage();
+    const { auth } = s3Storage(TEST_ROOM);
     auth.logout();
     expect(auth.isAuthenticated()).toBe(false);
   });
@@ -81,11 +85,11 @@ describe('s3Storage auth', () => {
 describe('s3Storage load/save', () => {
   let auth: StorageAuth;
   let storage: Storage;
-  beforeEach(() => { ({ auth, storage } = s3Storage()); connected(); void auth; });
+  beforeEach(() => { ({ auth, storage } = s3Storage(TEST_ROOM)); connected(); void auth; });
 
   it('throws when not connected', async () => {
     localStorage.clear();
-    await expect(s3Storage().storage.load()).rejects.toThrow('S3: not connected');
+    await expect(s3Storage(TEST_ROOM).storage.load()).rejects.toThrow('S3: not connected');
   });
 
   it('returns null on 404', async () => {
@@ -117,7 +121,7 @@ describe('s3Storage load/save', () => {
 
 describe('s3Storage misc', () => {
   it('is binary-only and reports write access', async () => {
-    const { storage } = s3Storage();
+    const { storage } = s3Storage(TEST_ROOM);
     expect(storage.contentFormat).toBe('binary');
     expect(await storage.access!()).toBe('write');
   });
