@@ -55,17 +55,18 @@ describe('startSignalingKeepalive', () => {
     stop();
   });
 
-  it('skips pinging while the tab is hidden', () => {
+  it('keeps pinging while the tab is hidden', () => {
+    // A backgrounded-but-not-discarded tab still holds a live Collab connection
+    // to its own room, so its signaling server must stay warm too.
     const stop = startSignalingKeepalive(urls('wss://sig.example'));
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
     setVisibility('hidden');
     vi.advanceTimersByTime(SIGNALING_KEEPALIVE_MS);
-    expect(mockFetch).toHaveBeenCalledTimes(1); // hidden → no ping
+    expect(mockFetch).toHaveBeenCalledTimes(2);
 
-    setVisibility('visible');
     vi.advanceTimersByTime(SIGNALING_KEEPALIVE_MS);
-    expect(mockFetch).toHaveBeenCalledTimes(2); // visible again → resumes
+    expect(mockFetch).toHaveBeenCalledTimes(3);
     stop();
   });
 
