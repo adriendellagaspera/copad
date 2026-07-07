@@ -165,8 +165,17 @@ export function setSlashIndex(view: EditorView, index: number): void {
   view.dispatch(view.state.tr.setMeta(slashKey, { type: 'index', index }));
 }
 
+/**
+ * Dismiss the menu and keep the caret in the document. Firefox blurs a
+ * contenteditable on Escape regardless of `preventDefault()` (an internal
+ * default action, not one the DOM event can cancel), so on top of the
+ * synchronous refocus we also reclaim it on the next frame in case that
+ * blur lands after this call returns.
+ */
 export function dismissSlash(view: EditorView): void {
   view.dispatch(view.state.tr.setMeta(slashKey, { type: 'dismiss' }));
+  view.focus();
+  requestAnimationFrame(() => view.focus());
 }
 
 /** Delete the `/query` text, then run the chosen block command. */
