@@ -19,10 +19,8 @@
     type PageHostname,
   } from './collaboration/config.js';
   import { fetchIceServers } from './collaboration/iceServers.js';
-  import { parseRoomId, parseRoomName, parseRoomCredential } from './collaboration/parse.js';
-  import { roomName, renameRoom } from './collaboration/roomName.svelte.js';
+  import { parseRoomId, parseRoomCredential } from './collaboration/parse.js';
   import { sessionState } from './collaboration/sessionState.svelte.js';
-  import RoomNameField from './ui/RoomNameField.svelte';
   import IdentityMenu from './ui/IdentityMenu.svelte';
   import StatusPill from './ui/StatusPill.svelte';
   import PresenceBar from './ui/PresenceBar.svelte';
@@ -658,12 +656,6 @@
     window.open(`${location.pathname}?room=${encodeURIComponent(r)}`, '_blank', 'noopener');
   }
 
-  // Rename the current room — edits the shared name (synced to every peer via
-  // the Y.Doc); the immutable room id is never touched, so a room can't be lost.
-  function renameCurrentRoom(raw: string): void {
-    renameRoom(parseRoomName(raw));
-  }
-
   // The wordmark's full reload is a deliberate, legitimate action from a mouse
   // click — but it also sits in the header's normal tab order, so it can fire
   // from a stray Enter/Space while tabbing through the page for an unrelated
@@ -678,10 +670,12 @@
 
 <div class="app">
   <!-- Not a heading: an <h1> here would compete with the document's own
-       level-1 heading, giving screen-reader heading nav two page titles.
-       One capsule, one size grammar (see app.css) — a single floating pill
-       holds every piece of session chrome. On mobile it collapses to just
-       the room name; every action moves to the bottom dock below. -->
+       level-1 heading, giving screen-reader heading nav two page titles —
+       the actual room-name heading now lives in the document itself
+       (Editor.svelte's DocTitle), not here. One capsule, one size grammar
+       (see app.css) — a single floating pill holds every piece of session
+       chrome. On mobile it's hidden entirely; every action moves to the
+       bottom dock below. -->
   <header class="capsule">
     <!-- Reload is destructive (drops focus/selection instantly) and sits in the
          header's normal tab order, so a stray Enter/Space while tabbing through
@@ -693,8 +687,6 @@
         <path d="M4 19.5V6a2 2 0 0 1 2-2h8l6 6v9.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" /><path d="M14 4v6h6" />
       </svg>
     </button>
-
-    <RoomNameField {room} name={roomName.value} onRename={renameCurrentRoom} />
 
     <button
       class="cap-btn"

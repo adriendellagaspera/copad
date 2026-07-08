@@ -12,6 +12,17 @@ export type ThemeChoice = (typeof ThemeChoice)[keyof typeof ThemeChoice];
 export const ResolvedTheme = { Light: 'light', Dark: 'dark' } as const;
 export type ResolvedTheme = (typeof ResolvedTheme)[keyof typeof ResolvedTheme];
 
+// Mirrors --surface per theme (tokens.css) — kept in sync by hand with the
+// no-flash inline script's own copy in index.html (which can't import this
+// module). Drives <meta name="theme-color">: that tag has no `media`
+// attribute there, because this app's theme choice is independent of the
+// OS's prefers-color-scheme — only a script-driven update, not a media
+// query, can track an in-app override the OS never sees.
+const THEME_COLOR: Record<ResolvedTheme, string> = {
+  [ResolvedTheme.Light]: '#ffffff',
+  [ResolvedTheme.Dark]: '#1e1e24',
+};
+
 /** Parse a stored theme choice — the single narrowing site, defaulting to 'system'. */
 function parseThemeChoice(raw: string | null): ThemeChoice {
   return raw === ThemeChoice.Light || raw === ThemeChoice.Dark || raw === ThemeChoice.System
@@ -33,6 +44,7 @@ export function createTheme() {
 
   function apply(theme: ResolvedTheme): void {
     document.documentElement.dataset.theme = theme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLOR[theme]);
   }
 
   function set(next: ThemeChoice): void {
