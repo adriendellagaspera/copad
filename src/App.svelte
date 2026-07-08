@@ -757,7 +757,6 @@
       {name}
       {color}
       colors={COLORS}
-      placement="above"
       onName={(v) => { name = v as DisplayName; }}
       onColor={(c) => { color = c; }}
     />
