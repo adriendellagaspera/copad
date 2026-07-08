@@ -119,7 +119,7 @@
     display: block;
   }
   .fixed-toolbar .toolbar {
-    height: 44px;
+    height: 50px;
     padding: 0 6px;
     gap: 2px;
     border: 1px solid var(--border);
