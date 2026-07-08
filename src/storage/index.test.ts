@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 describe('backends()', () => {
-  it('offers only filesystem and webdav by default, with dropbox, pcloud, github, gitlab, s3, sharepoint, and gdrive disabled', async () => {
+  it('offers only filesystem and webdav by default, with dropbox, pcloud, github, gitlab, s3, sharepoint, gdrive, and onedrive disabled', async () => {
     const { backends } = await import('./index.js');
     const ids = backends(TEST_ROOM).map(b => b.storage.id).sort();
     expect(ids).toEqual(['local', 'webdav']);
@@ -55,6 +55,13 @@ describe('backends()', () => {
     const { backends } = await import('./index.js');
     const ids = backends(TEST_ROOM).map(b => b.storage.id);
     expect(ids).toContain('gdrive');
+  });
+
+  it('VITE_ENABLE_ONEDRIVE=true surfaces onedrive once it is ready to test outside prod', async () => {
+    vi.stubEnv('VITE_ENABLE_ONEDRIVE', 'true');
+    const { backends } = await import('./index.js');
+    const ids = backends(TEST_ROOM).map(b => b.storage.id);
+    expect(ids).toContain('onedrive');
   });
 
   it('hides a backend disabled via VITE_ENABLE_<ID>, leaving the rest untouched', async () => {

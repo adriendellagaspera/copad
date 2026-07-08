@@ -20,6 +20,7 @@ import type {
 } from './s3.js';
 import type { GraphUserId, GraphSiteId, SharePointToken, SharePointFolder } from './sharepoint.js';
 import type { GDriveFileId, GDriveToken, GDriveClientId } from './gdrive.js';
+import type { OneDriveToken, OneDriveClientId } from './onedrive.js';
 import { GITHUB_DEFAULT_BRANCH, GITLAB_DEFAULT_BRANCH, GITLAB_DEFAULT_HOST, S3_PREFIX, SHAREPOINT_FOLDER } from './constants.js';
 
 // ── Stored-session shapes (owned here, imported by adapters) ──────────────────
@@ -311,6 +312,24 @@ export function parseGDriveCanEdit(raw: unknown): boolean {
 export function parseGDriveClientId(raw: string): GDriveClientId | null {
   const s = raw.trim();
   return s ? (s as GDriveClientId) : null;
+}
+
+// ── OneDrive (personal) API JSON boundaries ───────────────────────────────────
+
+/** OAuth token exchange response. */
+export function parseOneDriveTokenResponse(raw: unknown): { access_token: OneDriveToken } {
+  if (typeof raw !== 'object' || raw === null)
+    throw new Error('Unexpected OneDrive token response');
+  const { access_token } = raw as Record<string, unknown>;
+  if (typeof access_token !== 'string')
+    throw new Error('OneDrive token response missing access_token');
+  return { access_token: access_token as OneDriveToken };
+}
+
+/** Trims the configured OAuth Client ID — empty means "not configured". */
+export function parseOneDriveClientId(raw: string): OneDriveClientId | null {
+  const s = raw.trim();
+  return s ? (s as OneDriveClientId) : null;
 }
 
 // ── postMessage boundary ──────────────────────────────────────────────────────
