@@ -12,6 +12,7 @@ import {
   clearEmptyCodeBlockBackward,
   exitTableAtBoundary,
   tabAddsRowAtEnd,
+  insertHardBreak,
   toggleBlockType,
   checklistRuleHandler,
   BOLD_STAR_RULE,
@@ -601,6 +602,36 @@ describe('tabAddsRowAtEnd', () => {
   it('returns false outside a table entirely', () => {
     const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
     const { handled, dispatched } = runCmd(tab, doc, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('insertHardBreak', () => {
+  it('inserts a hard_break node at the caret in a plain paragraph', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('hi'))]);
+    const { handled, dispatched, next } = runCmd(insertHardBreak, doc, 2); // between "h" and "i"
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.firstChild?.childCount).toBe(3); // "h", hard_break, "i"
+    expect(next!.doc.firstChild?.child(1).type.name).toBe('hard_break');
+  });
+
+  it('inserts a hard_break inside a table cell (already valid — cellContent is inline*)', () => {
+    const types = tableNodeTypes(schema);
+    const cell = types.header_cell.create(null, schema.text('ab'));
+    const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
+    const { handled, dispatched, next } = runCmd(insertHardBreak, doc, 4); // between "a" and "b"
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    const restoredCell = next!.doc.firstChild?.firstChild?.firstChild;
+    expect(restoredCell?.childCount).toBe(3);
+    expect(restoredCell?.child(1).type.name).toBe('hard_break');
+  });
+
+  it('returns false inside a code block (falls through to native newline-in-<pre>)', () => {
+    const doc = schema.node('doc', null, [schema.node('code_block', null, schema.text('ab'))]);
+    const { handled, dispatched } = runCmd(insertHardBreak, doc, 2);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });

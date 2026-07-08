@@ -27,6 +27,21 @@ const MarkdownItClass = defaultMarkdownParser.tokenizer.constructor as new (
 const tokenizer = new MarkdownItClass('commonmark', { html: false });
 tokenizer.enable(['strikethrough', 'table']);
 
+// GFM tables serialize a cell's hard_break as literal `<br>` (see `cellText`
+// below), since a real newline can't appear inside a single-line pipe-table
+// row. Teach the tokenizer to parse it back the same way, reusing the
+// 'hardbreak' token markdown-it's own newline rule already emits elsewhere —
+// already mapped to `hard_break` below, so no parser config change is needed
+// beyond this rule. Independent of the `html` option (left off): this
+// recognizes only this one specific tag, not arbitrary HTML.
+tokenizer.inline.ruler.before('html_inline', 'gfmHardBreak', (state, silent) => {
+  const match = /^<br\s*\/?>/i.exec(state.src.slice(state.pos));
+  if (!match) return false;
+  if (!silent) state.push('hardbreak', 'br', 0);
+  state.pos += match[0].length;
+  return true;
+});
+
 const parser = new MarkdownParser(schema, tokenizer, {
   ...defaultMarkdownParser.tokens,
   s: { mark: 'strike' },
@@ -51,7 +66,7 @@ const parser = new MarkdownParser(schema, tokenizer, {
 /** GFM table cells hold inline content only; reuse the same inline serializer
  *  `docToMarkdown` uses, escaping the one character a table cell can't (`|`). */
 function cellText(node: PMNode): string {
-  return serializeInline(node).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ').trim();
+  return serializeInline(node, '<br>').replace(/\|/g, '\\|').trim();
 }
 
 const serializer = new MarkdownSerializer(

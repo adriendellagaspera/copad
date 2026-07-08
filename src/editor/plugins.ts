@@ -299,6 +299,26 @@ function preventEnterInTableCell(s: Schema): Command {
 }
 
 /**
+ * Shift-Enter inserts a hard line break in the current block — the Slack/
+ * Docs/Notion convention for "new line, not a new paragraph" — wherever the
+ * schema allows one. `hard_break` ships as part of `prosemirror-schema-basic`'s
+ * inline group, so it's already valid inside a GFM table cell's `inline*`
+ * content (see schema.ts) without any schema change; this is what actually
+ * wires it up, as the one schema-safe middle ground between swallowing Enter
+ * in a cell entirely and allowing full multi-paragraph cells (which would
+ * break lossless GFM round-trip — see the markdown codec's `cellText`).
+ * Returns `false` in a code block, where Shift-Enter falls through to the
+ * browser's native newline-in-`<pre>` handling instead, same as plain Enter
+ * already does via `newlineInCode`.
+ */
+export const insertHardBreak: Command = (state, dispatch) => {
+  const br = state.schema.nodes.hard_break;
+  if (!br || state.selection.$from.parent.type.spec.code) return false;
+  if (dispatch) dispatch(state.tr.replaceSelectionWith(br.create()).scrollIntoView());
+  return true;
+};
+
+/**
  * Enter at the very start of a table's first cell, or the very end of its
  * last cell, escapes the table instead of being swallowed like every other
  * Enter inside a cell (see {@link preventEnterInTableCell}) — otherwise a
@@ -436,6 +456,7 @@ export function buildPlugins(s: Schema): Plugin[] {
         splitListItem(s.nodes.list_item),
         splitListItem(s.nodes.task_item, { checked: false })
       ),
+      'Shift-Enter': insertHardBreak,
       'Backspace': clearEmptyCodeBlockBackward,
       'Tab': chainCommands(
         goToNextCell(1),

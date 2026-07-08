@@ -166,6 +166,24 @@ describe('markdown codec', () => {
     expect(md).toContain('| A | B |');
     expect(md).toContain('| 1 | 2 |');
   });
+
+  it('round-trips a hard line break inside a table cell as literal <br>', async () => {
+    const dst = new Y.Doc();
+    await markdownCodec.decode(
+      new TextEncoder().encode('| A |\n| --- |\n| one<br>two |\n'),
+      dst
+    );
+    const restored = readPmDoc(dst);
+    const cell = restored.firstChild?.child(1).firstChild;
+    expect(cell?.type.name).toBe('table_cell');
+    expect(cell?.childCount).toBe(3); // "one", hard_break, "two"
+    expect(cell?.child(1).type.name).toBe('hard_break');
+    expect(cell?.textContent).toBe('onetwo'); // hard_break itself carries no text
+
+    const bytes = await markdownCodec.encode(dst);
+    const md = new TextDecoder().decode(bytes);
+    expect(md).toContain('one<br>two');
+  });
 });
 
 describe('text codec', () => {
