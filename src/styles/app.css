@@ -241,7 +241,17 @@ select {
   font-size: var(--fs-300);
   color: var(--text);
   background: var(--surface);
-  transition: border-color var(--dur-fast) var(--ease),
+  /* All four properties share one duration. Split across --dur-fast and
+     --dur-mid, background/color would settle later than border/shadow at
+     the exact moment a theme switch changes all of them at once (border and
+     background/color previously had no shared trigger, since focus only
+     touches border/shadow) — that per-property desync inside one input is
+     what read as the field's text "trembling". Also gives color/background
+     their own transition at all: neither is inherited from body, so without
+     one here they'd otherwise hard-cut instantly while border eased. */
+  transition: background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
     box-shadow var(--dur-fast) var(--ease);
 }
 /* Gated on tracked input modality (src/ui/inputModality.ts), not bare
@@ -274,7 +284,12 @@ button {
   font-size: var(--fs-300);
   line-height: 1.4;
   cursor: pointer;
+  /* color shares background/border's duration (see the form-field rule
+     above for why a per-property mismatch on one element reads as
+     "trembling" at a theme switch) — color has no transition of its own
+     otherwise, since it isn't inherited from body. */
   transition: background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease),
     transform var(--dur-fast) var(--ease);
 }
@@ -597,11 +612,6 @@ button.status-link {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-}
-.appearance-row {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
 }
 .field input {
   width: 100%;

@@ -10,7 +10,7 @@
   import { parseTurnUrl, parseTurnUsername, parseTurnCredential } from './collaboration/parse.js';
   import type { TurnUrl } from './collaboration/types.js';
   import type { Theme } from './ui/theme.svelte.js';
-  import ThemeToggle from './ui/ThemeToggle.svelte';
+  import ThemeSelect from './ui/ThemeSelect.svelte';
   import { BRAND_ICONS } from './ui/brandIcons.js';
   import { GENERIC_ICONS } from './ui/genericStorageIcons.js';
   import { IMAGE_ICONS, SHAREPOINT_SITE_IMAGE, SHAREPOINT_ONEDRIVE_IMAGE } from './ui/imageIcons.js';
@@ -309,11 +309,16 @@
 
   <!-- The header's own theme toggle collapses away on mobile (see the M3
        layout in app.css) along with the rest of the capsule, so this is
-       its one guaranteed home regardless of screen size. -->
-  <div class="field appearance-row">
-    <span class="field-label">Appearance</span>
-    <ThemeToggle {theme} />
-  </div>
+       its one guaranteed home regardless of screen size — a full card, not
+       a bare row, so it reads as one more setting rather than floating
+       loose between the Editor and Local copy cards. -->
+  <section class="backend">
+    <div class="backend-head">
+      <span class="backend-name">Appearance</span>
+    </div>
+    <p class="backend-blurb">Light, dark, or follow your system setting.</p>
+    <ThemeSelect {theme} />
+  </section>
 
   <section class="backend">
     <div class="backend-head">
