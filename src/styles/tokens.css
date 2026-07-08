@@ -69,6 +69,11 @@
   --sp-6: 2rem;
   --sp-8: 3rem;
 
+  /* Mobile header-capsule content height (excludes safe-area-inset-top) — read
+     by both app.css (the fixed overlay itself) and editor.css (.content's
+     reserved top padding), so the two stay in lockstep. */
+  --mobile-header-h: 36px;
+
   /* ── Radii ── */
   --r-sm: 6px;
   --r-md: 10px;

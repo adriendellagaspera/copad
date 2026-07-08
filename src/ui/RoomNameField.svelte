@@ -78,10 +78,13 @@
     box-shadow: none;
   }
 
-  /* Mobile (M3): the header capsule collapses to a flush strip holding only
-     this field (see header.capsule's combined pointer:coarse-or-narrow rule
-     in app.css) — so it drops its own chrome too, becoming plain centered
-     text until tapped. Same trigger as the capsule collapse it lives inside. */
+  /* Mobile (M3): the header capsule becomes a floating overlay (see
+     header.capsule's combined pointer:coarse-or-narrow rule in app.css) — so
+     it drops its own chrome too, becoming plain centered text until tapped.
+     Same trigger as the capsule collapse it lives inside. The capsule itself
+     is pointer-events:none there (so a scroll/drag starting anywhere on the
+     strip falls through to the document below) — this field opts back in so
+     tapping/typing the name still works. */
   @media (pointer: coarse), (max-width: 900px) {
     .room-switcher {
       border: none;
@@ -90,6 +93,7 @@
       justify-content: center;
       width: auto;
       max-width: 100%;
+      pointer-events: auto;
     }
     .room-sigil {
       display: none;

@@ -165,12 +165,26 @@ header.capsule {
   flex: none;
 }
 
-/* Mobile: the pill collapses to a flush, chromeless strip holding only the
-   room name — every action moves to the bottom dock (.mobile-dock /
-   .fixed-toolbar.editing, see app.css below and editor.css) so the header
-   never costs more than a single ~36px line at rest, and none at all while
-   scrolled down (hide-on-scroll, see .scroll-hidden below) or once the dock
-   takes over near the keyboard.
+/* Mobile: the pill becomes a floating, translucent title strip — pinned over
+   the top of the viewport (below the status bar/notch via safe-area-inset)
+   rather than living in the document's flow — so the editor itself can run
+   all the way to the physical top of the screen (see .editor's own mobile
+   rule in editor.css) instead of leaving a reserved band of dead space.
+   Every action moves to the bottom dock (.mobile-dock / .fixed-toolbar.editing,
+   see below and editor.css); this strip holds only the room name.
+   SOTA reference: iOS/Android "large title → inline blur" (Mail, Notes,
+   Apple Music) — a frosted bar (translucent fill + backdrop-filter blur,
+   feathered out via mask-image rather than cut with a hard edge) lets the
+   very top of the document read through instead of sitting on an opaque
+   card. Because it's an overlay, not a flow sibling, hiding it on scroll
+   (see .scroll-hidden below) never resizes `.content` — no layout feedback
+   loop with the scroll position it's driven by (see Editor.svelte).
+   pointer-events: none lets a touch/drag anywhere on this strip fall through
+   to the document underneath instead of being swallowed by empty header
+   chrome — the actual room-name field opts back in with pointer-events:auto
+   (RoomNameField.svelte) so renaming still works. This is also what fixes
+   scrolling from "high up" on the screen: previously that touch landed on
+   the in-flow header and never reached `.content` at all.
    Gated on pointer:coarse OR max-width:900px. pointer:coarse is the primary
    signal (touch devices always get this layout regardless of width — an
    iPad Pro landscape shouldn't try to cram the full capsule in). The
@@ -187,36 +201,35 @@ header.capsule {
    layout already verified down to 320px, rather than silently breaking. */
 @media (pointer: coarse), (max-width: 900px) {
   header.capsule {
-    /* 36px, not a full 44px tap target — this bar holds no tappable chrome
-       of its own on mobile (every action moved to the bottom dock; renaming
-       is a tap-anywhere-in-the-text affordance, not a discrete target), so
-       it can run to the compact end of the iOS/Android nav-bar range. */
-    height: 36px;
-    padding: 0 var(--sp-2);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    /* --mobile-header-h (tokens.css) is the *content* height; safe-area-inset-top
+       pushes that content below the status bar/notch without hardcoding a
+       device-specific offset — 0 on a device with no notch. */
+    height: calc(var(--mobile-header-h) + env(safe-area-inset-top, 0px));
+    padding: env(safe-area-inset-top, 0px) var(--sp-2) 0;
     box-sizing: border-box;
-    overflow: hidden;
-    /* Undo the desktop hugging: on mobile this is a flush title strip, not a
-       floating pill — it should span the row like any other header bar, and
-       never animate a width change (there's nothing to grow/shrink toward).
-       No fill/border here — a native-toolbar title sits flush in the page
-       background rather than reading as its own card. margin-bottom is kept
-       (trimmed to --sp-1, matching .app's own mobile rhythm below) rather
-       than zeroed — .app has no flex gap of its own (see its comment), so
-       zeroing this would collide the strip straight into the
-       SyncBanner/editor with no gap at all. Height/margin/padding animate
-       instead — see .scroll-hidden below — so the desktop width transition
-       is deliberately replaced rather than left in place. */
-    margin: 0 0 var(--sp-1);
+    margin: 0;
     align-self: stretch;
     width: auto;
     max-width: none;
-    transition: height var(--dur-mid) var(--ease), margin-bottom var(--dur-mid) var(--ease),
-      padding var(--dur-mid) var(--ease), opacity var(--dur-fast) var(--ease);
     border: none;
     border-radius: 0;
-    background: transparent;
+    /* Frosted, not flat: a half-opaque tint + blur reads as glass, and the
+       mask feathers the whole thing to fully transparent by the bottom edge
+       so it blends into the document instead of ending on a hard line. */
+    background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
     box-shadow: none;
     justify-content: center;
+    z-index: var(--z-menu);
+    pointer-events: none;
+    transition: opacity var(--dur-fast) var(--ease), transform var(--dur-mid) var(--ease);
   }
   header.capsule .cap-mark,
   header.capsule .cap-btn,
@@ -228,17 +241,15 @@ header.capsule {
   header.capsule .cap-theme {
     display: none;
   }
-  /* Hide-on-scroll: collapse the whole strip out of the column so the
-     document reclaims the space, rather than leaving a blank gap behind a
-     translated bar. .content's own scroll position drives this (see
-     Editor.svelte) — scrolling down past a small threshold hides it,
-     scrolling up (or reaching the top) brings it back. */
+  /* Hide-on-scroll: slide the strip up and fade it, rather than collapsing
+     its height — an overlay has no layout to reclaim by shrinking, and
+     animating height would just resurrect the old resize-vs-scrollTop
+     feedback loop for no benefit. .content's own scroll position drives
+     this (see Editor.svelte) — scrolling down past a small threshold hides
+     it, scrolling up (or reaching the top) brings it back. */
   header.capsule.scroll-hidden {
-    height: 0;
-    margin-bottom: 0;
-    padding-top: 0;
-    padding-bottom: 0;
     opacity: 0;
+    transform: translateY(-100%);
   }
 }
 
