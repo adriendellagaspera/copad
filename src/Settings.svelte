@@ -11,6 +11,10 @@
   import type { Theme } from './ui/theme.svelte.js';
   import ThemeToggle from './ui/ThemeToggle.svelte';
 
+  import Dialog from './ui/Dialog.svelte';
+
+  type SettingsView = 'app' | 'storage';
+
   let {
     backends,
     open = $bindable(false),
@@ -72,11 +76,16 @@
   let selectValue = $state(isPreset(languageChoice) ? languageChoice : 'custom');
   let customValue = $state(isPreset(languageChoice) ? '' : languageChoice);
 
+  // Which nav destination is showing — a backend deep-link (focusId) opens
+  // straight on Storage; otherwise the lighter General register is the default.
+  let activeView = $state<SettingsView>(focusId ? 'storage' : 'app');
+
   // Re-sync when the prop changes (drawer re-opens with fresh data).
   $effect(() => {
     if (open) {
       selectValue = isPreset(languageChoice) ? languageChoice : 'custom';
       customValue = isPreset(languageChoice) ? '' : languageChoice;
+      activeView = focusId ? 'storage' : 'app';
     }
   });
 
@@ -194,210 +203,138 @@
   function close() {
     open = false;
   }
-
-  let settingsEl = $state<HTMLDivElement | undefined>();
-
-  // Same Tab-trap as Dialog.svelte: this drawer predates that component and
-  // isn't built on it, so it needs its own copy of the focus containment.
-  function trapTab(e: KeyboardEvent): void {
-    if (e.key !== 'Tab' || !settingsEl) return;
-    const f = settingsEl.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    if (f.length === 0) return;
-    const first = f[0];
-    const last = f[f.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }
-
-  $effect(() => {
-    if (!open) return;
-    const restoreTo = document.activeElement as HTMLElement | null;
-    document.body.style.overflow = 'hidden';
-    queueMicrotask(() => {
-      const el = settingsEl?.querySelector<HTMLElement>(
-        '[autofocus], input, select, button:not(.settings-close), a[href]',
-      );
-      (el ?? settingsEl)?.focus();
-    });
-    return () => {
-      document.body.style.overflow = '';
-      restoreTo?.focus?.();
-    };
-  });
-
-  // Capture phase so we see Escape before any other in-page listener (or a
-  // browser-extension content script on an autofocused input, e.g. a password
-  // manager) gets a chance to stopPropagation() or otherwise swallow the first
-  // press — matches Dialog.svelte / IdentityMenu.svelte.
-  $effect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        close();
-      }
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  });
 </script>
 
-{#if open}
-  <div class="settings-backdrop" onclick={close} role="presentation"></div>
-  <div
-    class="settings"
-    role="dialog"
-    aria-modal="true"
-    aria-label="Settings"
-    bind:this={settingsEl}
-    tabindex="-1"
-    onkeydown={trapTab}
-  >
-    <header class="settings-head">
-      <h2>Settings</h2>
-      <button class="icon-btn settings-close" onclick={close} aria-label="Close settings">✕</button>
-    </header>
-
-    <p class="settings-lead">
-      Configure your storage backends. App keys are saved in this browser and
-      reused across sessions — you only set them once.
-    </p>
-
-    <!-- The header's own theme toggle collapses away on mobile (see the M3
-         layout in app.css) along with the rest of the capsule, so this is
-         its one guaranteed home regardless of screen size. -->
-    <div class="field appearance-row">
-      <span class="field-label">Appearance</span>
-      <ThemeToggle {theme} />
+{#snippet generalView()}
+  <section class="backend">
+    <div class="backend-head">
+      <span class="backend-name">Editor</span>
     </div>
+    <p class="backend-blurb">
+      Language and spellchecking settings. The language tells the browser which
+      dictionary to use for spellcheck.
+    </p>
+    <label class="field">
+      <span class="field-label">Language</span>
+      <select
+        value={selectValue}
+        onchange={e => onSelectLanguage(e.currentTarget.value)}
+      >
+        {#each LANGUAGE_PRESETS as p (p.value)}
+          <option value={p.value}>{p.label}</option>
+        {/each}
+        <option value="custom">Other (BCP-47 tag)…</option>
+      </select>
+      {#if selectValue === 'custom'}
+        <input
+          class="custom-lang"
+          placeholder="e.g. en-GB, zh-TW, pt-BR"
+          value={customValue}
+          oninput={e => onCustomLanguage(e.currentTarget.value)}
+        />
+      {/if}
+      <small class="field-help">
+        Used by the browser's native spellchecker and screen readers.
+        "Auto" follows your browser's language setting ({navigator.language}).
+      </small>
+    </label>
+    <label class="toggle">
+      <input
+        type="checkbox"
+        checked={spellcheck}
+        onchange={e => onSpellcheckChange?.(e.currentTarget.checked)}
+      />
+      <span>Enable spellcheck</span>
+    </label>
+    <small class="field-help">
+      Uses your browser's built-in spell checker. Works best with a matching language above.
+    </small>
+  </section>
 
+  <!-- The header's own theme toggle collapses away on mobile (see the M3
+       layout in app.css) along with the rest of the capsule, so this is
+       its one guaranteed home regardless of screen size. -->
+  <div class="field appearance-row">
+    <span class="field-label">Appearance</span>
+    <ThemeToggle {theme} />
+  </div>
+
+  <section class="backend">
+    <div class="backend-head">
+      <span class="backend-name">Local copy</span>
+      <span class="badge {localCache ? 'ok' : ''}">{localCache ? 'On' : 'Off'}</span>
+    </div>
+    <p class="backend-blurb">
+      Keep a copy of your documents in this browser so they survive a reload and
+      work offline — even with no storage backend connected.
+    </p>
+    <label class="toggle">
+      <input
+        type="checkbox"
+        checked={localCache}
+        onchange={e => onCacheChange?.(e.currentTarget.checked)}
+      />
+      <span>Keep a local copy of documents</span>
+    </label>
+    <small class="field-help">
+      Stored <strong>unencrypted</strong> in this browser, regardless of any room
+      password (that only encrypts the connection). Turn this off for a shared or
+      untrusted device.
+    </small>
+    <div class="backend-actions">
+      <button onclick={clearCache} disabled={clearing}>
+        {clearing ? 'Clearing…' : 'Clear local copies'}
+      </button>
+    </div>
+  </section>
+
+  {#if onTurnChange}
     <section class="backend">
       <div class="backend-head">
-        <span class="backend-name">Editor</span>
+        <span class="backend-name">Connection (WebRTC)</span>
       </div>
       <p class="backend-blurb">
-        Language and spellchecking settings. The language tells the browser which
-        dictionary to use for spellcheck.
+        Peer-to-peer needs a TURN relay to connect across mobile carrier networks
+        (CGNAT / symmetric NAT). A free public relay is used by default; add your
+        own for reliability. Changes apply on the next reconnect.
       </p>
+      <label class="toggle">
+        <input
+          type="checkbox"
+          checked={turnFallback === FallbackTurnPolicy.OpenRelay}
+          onchange={e => (turnFallback = e.currentTarget.checked ? FallbackTurnPolicy.OpenRelay : FallbackTurnPolicy.None)}
+        />
+        <span>Use a public TURN relay when none is configured</span>
+      </label>
       <label class="field">
-        <span class="field-label">Language</span>
-        <select
-          value={selectValue}
-          onchange={e => onSelectLanguage(e.currentTarget.value)}
-        >
-          {#each LANGUAGE_PRESETS as p (p.value)}
-            <option value={p.value}>{p.label}</option>
-          {/each}
-          <option value="custom">Other (BCP-47 tag)…</option>
-        </select>
-        {#if selectValue === 'custom'}
-          <input
-            class="custom-lang"
-            placeholder="e.g. en-GB, zh-TW, pt-BR"
-            value={customValue}
-            oninput={e => onCustomLanguage(e.currentTarget.value)}
-          />
-        {/if}
-        <small class="field-help">
-          Used by the browser's native spellchecker and screen readers.
-          "Auto" follows your browser's language setting ({navigator.language}).
-        </small>
-      </label>
-      <label class="toggle">
+        <span class="field-label">TURN URL(s)</span>
         <input
-          type="checkbox"
-          checked={spellcheck}
-          onchange={e => onSpellcheckChange?.(e.currentTarget.checked)}
+          placeholder="turns:your-turn.example:5349"
+          value={rawUrl}
+          oninput={e => (rawUrl = e.currentTarget.value)}
         />
-        <span>Enable spellcheck</span>
+        <small class="field-help">Comma-separated. Overrides both the default and any deployment TURN.</small>
       </label>
-      <small class="field-help">
-        Uses your browser's built-in spell checker. Works best with a matching language above.
-      </small>
-    </section>
-
-    <section class="backend">
-      <div class="backend-head">
-        <span class="backend-name">Local copy</span>
-        <span class="badge {localCache ? 'ok' : ''}">{localCache ? 'On' : 'Off'}</span>
-      </div>
-      <p class="backend-blurb">
-        Keep a copy of your documents in this browser so they survive a reload and
-        work offline — even with no storage backend connected.
-      </p>
-      <label class="toggle">
+      <label class="field">
+        <span class="field-label">TURN username</span>
+        <input value={rawUsername} oninput={e => (rawUsername = e.currentTarget.value)} />
+      </label>
+      <label class="field">
+        <span class="field-label">TURN credential</span>
         <input
-          type="checkbox"
-          checked={localCache}
-          onchange={e => onCacheChange?.(e.currentTarget.checked)}
+          type="password"
+          value={rawCredential}
+          oninput={e => (rawCredential = e.currentTarget.value)}
         />
-        <span>Keep a local copy of documents</span>
       </label>
-      <small class="field-help">
-        Stored <strong>unencrypted</strong> in this browser, regardless of any room
-        password (that only encrypts the connection). Turn this off for a shared or
-        untrusted device.
-      </small>
       <div class="backend-actions">
-        <button onclick={clearCache} disabled={clearing}>
-          {clearing ? 'Clearing…' : 'Clear local copies'}
-        </button>
+        <button class="primary" onclick={applyTurn}>Apply &amp; reconnect</button>
       </div>
     </section>
+  {/if}
+{/snippet}
 
-    {#if onTurnChange}
-      <section class="backend">
-        <div class="backend-head">
-          <span class="backend-name">Connection (WebRTC)</span>
-        </div>
-        <p class="backend-blurb">
-          Peer-to-peer needs a TURN relay to connect across mobile carrier networks
-          (CGNAT / symmetric NAT). A free public relay is used by default; add your
-          own for reliability. Changes apply on the next reconnect.
-        </p>
-        <label class="toggle">
-          <input
-            type="checkbox"
-            checked={turnFallback === FallbackTurnPolicy.OpenRelay}
-            onchange={e => (turnFallback = e.currentTarget.checked ? FallbackTurnPolicy.OpenRelay : FallbackTurnPolicy.None)}
-          />
-          <span>Use a public TURN relay when none is configured</span>
-        </label>
-        <label class="field">
-          <span class="field-label">TURN URL(s)</span>
-          <input
-            placeholder="turns:your-turn.example:5349"
-            value={rawUrl}
-            oninput={e => (rawUrl = e.currentTarget.value)}
-          />
-          <small class="field-help">Comma-separated. Overrides both the default and any deployment TURN.</small>
-        </label>
-        <label class="field">
-          <span class="field-label">TURN username</span>
-          <input value={rawUsername} oninput={e => (rawUsername = e.currentTarget.value)} />
-        </label>
-        <label class="field">
-          <span class="field-label">TURN credential</span>
-          <input
-            type="password"
-            value={rawCredential}
-            oninput={e => (rawCredential = e.currentTarget.value)}
-          />
-        </label>
-        <div class="backend-actions">
-          <button class="primary" onclick={applyTurn}>Apply &amp; reconnect</button>
-        </div>
-      </section>
-    {/if}
-
-    {#snippet filenameField(b: StorageBackend)}
+{#snippet filenameField(b: StorageBackend)}
       {#if b.storage.setFilename}
         <label class="field">
           <span class="field-label">File name (this room)</span>
@@ -415,6 +352,12 @@
         </label>
       {/if}
     {/snippet}
+
+{#snippet storageView()}
+  <p class="settings-lead">
+    Configure your storage backends. App keys are saved in this browser and
+    reused across sessions — you only set them once.
+  </p>
 
     {#each configurable as b (b.storage.id)}
       {@const ready = withVersion(isConfigured(b.auth))}
@@ -534,5 +477,40 @@
         {/if}
       </section>
     {/each}
+{/snippet}
+
+<Dialog {open} onclose={close} title="Settings" size="lg" flush>
+  <div class="settings-body">
+    <nav class="settings-nav" aria-label="Settings sections">
+      <div class="settings-nav-group">
+        <span class="settings-nav-label">Application</span>
+        <button
+          type="button"
+          class="settings-nav-item"
+          aria-current={activeView === 'app' ? 'page' : undefined}
+          onclick={() => (activeView = 'app')}
+        >
+          General
+        </button>
+      </div>
+      <div class="settings-nav-group">
+        <span class="settings-nav-label">Accounts</span>
+        <button
+          type="button"
+          class="settings-nav-item"
+          aria-current={activeView === 'storage' ? 'page' : undefined}
+          onclick={() => (activeView = 'storage')}
+        >
+          Storage
+        </button>
+      </div>
+    </nav>
+    <div class="settings-detail">
+      {#if activeView === 'app'}
+        {@render generalView()}
+      {:else}
+        {@render storageView()}
+      {/if}
+    </div>
   </div>
-{/if}
+</Dialog>
