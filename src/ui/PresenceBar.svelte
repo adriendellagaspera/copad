@@ -1,5 +1,5 @@
 <script lang="ts">
-  import PeerIdentityPanel from './PeerIdentityPanel.svelte';
+  import Avatar from './Avatar.svelte';
   import type { PeerUser } from './types.js';
 
   let {
@@ -31,13 +31,18 @@
 >
   {#each shown as u (u.id)}
     <div class="presence-item">
-      <PeerIdentityPanel
-        name={u.name}
-        color={u.color}
-        self={u.self}
-        {size}
-        onJump={onSelect ? () => onSelect(u.id) : undefined}
-      />
+      {#if onSelect}
+        <button
+          type="button"
+          class="presence-trigger"
+          aria-label={u.self ? `Jump to your cursor` : `Jump to ${u.name}'s cursor`}
+          onclick={() => onSelect(u.id)}
+        >
+          <Avatar name={u.name} color={u.color} {size} self={u.self} />
+        </button>
+      {:else}
+        <Avatar name={u.name} color={u.color} {size} self={u.self} />
+      {/if}
     </div>
   {/each}
   {#if overflow > 0}
@@ -58,6 +63,14 @@
   }
   .presence-item:not(:first-child) {
     margin-left: var(--overlap, -8px);
+  }
+  .presence-trigger {
+    display: inline-flex;
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: var(--r-full);
+    cursor: pointer;
   }
   .presence-more {
     height: var(--s, 28px);

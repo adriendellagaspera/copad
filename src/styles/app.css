@@ -689,12 +689,13 @@ button.status-link {
   .mobile-dock.dock-hidden {
     display: none;
   }
-  /* PeerIdentityPanel's "set your name" nudge (pip-hint) is fine in the
-     roomy desktop capsule, but on the narrowest phones (~320px) it's wide
-     enough to push the settings button half off the dock's rounded edge.
-     The avatar itself stays fully clickable, and the same nudge is still
-     visible in the desktop capsule — this only trims the compact dock. */
-  .mobile-dock .pip-hint {
+  /* IdentityMenu's "set your name" nudge (identity-hint, IdentityMenu.svelte)
+     is fine in the roomy desktop capsule, but on the narrowest phones
+     (~320px) it's wide enough to push the settings button half off the
+     dock's rounded edge. The avatar itself stays fully clickable, and the
+     same nudge is still visible in the desktop capsule — this only trims
+     the compact dock. */
+  .mobile-dock .identity-hint {
     display: none;
   }
   .mobile-dock .dock-fill {

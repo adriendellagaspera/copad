@@ -149,7 +149,7 @@
     return () => dom.removeEventListener('copad:link', handler as EventListener);
   });
 
-  // Window-level Escape (matches PeerIdentityPanel/Settings): the
+  // Window-level Escape (matches IdentityMenu/Settings): the
   // input's own onkeydown only fires once it holds focus, which a slow
   // coordsAtPos or a delayed focus microtask can race — this guarantees
   // Escape always dismisses the popover regardless of where focus landed.
