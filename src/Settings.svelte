@@ -559,9 +559,9 @@
           onclick={() => (activeView = 'storage')}
         >
           Storage
-          <span class="dot-cluster" title={storageSummary}>
+          <span class="storage-status-dots" title={storageSummary}>
             {#each storageDots as rank, i (i)}
-              <span class="dot dot-{rank}"></span>
+              <span class="storage-status-dot storage-status-dot--{rank}"></span>
             {/each}
           </span>
         </button>

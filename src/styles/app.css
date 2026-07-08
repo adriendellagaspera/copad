@@ -425,28 +425,31 @@ button.status-link {
   font-weight: 600;
   box-shadow: var(--shadow-sm);
 }
-.dot-cluster {
+.storage-status-dots {
   margin-left: auto;
   display: inline-flex;
   gap: 3px;
   flex-shrink: 0;
 }
-.dot {
+/* Own name, not `.dot` — editor.css already owns that class (a legacy
+   presence indicator) at the same specificity; reusing it would let
+   whichever stylesheet loads last silently win the cascade. */
+.storage-status-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.dot-connected {
+.storage-status-dot--connected {
   background: var(--ok);
 }
-.dot-ready {
+.storage-status-dot--ready {
   background: var(--accent);
 }
-.dot-setup {
+.storage-status-dot--setup {
   background: var(--text-faint);
 }
-.dot-unavailable {
+.storage-status-dot--unavailable {
   background: var(--border-strong);
 }
 .settings-detail {
