@@ -23,10 +23,10 @@ afterEach(() => {
 });
 
 describe('backends()', () => {
-  it('offers every production-proven backend by default, but not gitlab, s3, sharepoint, or gdrive yet', async () => {
+  it('offers only filesystem and webdav by default, with dropbox, pcloud, github, gitlab, s3, sharepoint, and gdrive disabled', async () => {
     const { backends } = await import('./index.js');
     const ids = backends(TEST_ROOM).map(b => b.storage.id).sort();
-    expect(ids).toEqual(['dropbox', 'github', 'local', 'pcloud', 'webdav']);
+    expect(ids).toEqual(['local', 'webdav']);
   });
 
   it('VITE_ENABLE_GITLAB=true surfaces gitlab once it is ready to test outside prod', async () => {
@@ -58,12 +58,12 @@ describe('backends()', () => {
   });
 
   it('hides a backend disabled via VITE_ENABLE_<ID>, leaving the rest untouched', async () => {
-    vi.stubEnv('VITE_ENABLE_GITHUB', 'false');
+    vi.stubEnv('VITE_ENABLE_WEBDAV', 'false');
     const { backends } = await import('./index.js');
     const ids = backends(TEST_ROOM).map(b => b.storage.id);
-    expect(ids).not.toContain('github');
-    expect(ids).toContain('dropbox');
-    expect(ids).toHaveLength(4);
+    expect(ids).not.toContain('webdav');
+    expect(ids).toContain('local');
+    expect(ids).toHaveLength(1);
   });
 
   it('an explicit VITE_ENABLE_<ID>=true keeps a backend visible', async () => {
