@@ -406,14 +406,12 @@
    last lines of text — same combined trigger as the dock itself, not just
    the narrow-viewport breakpoint above (the dock can also be showing on a
    resized pointer:fine desktop window wider than 640px).
-   The top gets a matching (smaller) reservation: the room-name pill is a
-   fixed overlay floating over `.content` (app.css), not a flow sibling
-   pushing it down, so without this the first lines of text would start
-   right under it. This padding is part of the *document*, not the
-   viewport, so it scrolls away once the user scrolls past it. */
+   No matching top reservation: the room-name pill floats in the gap *above*
+   the card now (.editor's own margin-top below, editor.css), not over
+   `.content` itself, so the card's default top padding is already clear of
+   it. */
 @media (pointer: coarse), (max-width: 900px) {
   .content {
-    padding-top: calc(max(var(--sp-2), env(safe-area-inset-top, 0px)) + var(--mobile-header-h) + var(--sp-3));
     padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));
   }
 }
@@ -442,22 +440,26 @@
    .app centered with room to spare, so the cancelling negative margin would
    only reach .app's own (inset) edge, not the real viewport edge — border
    gone, but still visibly inset, which reads as broken, not "full-bleed".
-   The top edge cancels the same way: the room-name pill is a small fixed
-   overlay (app.css), not a flow sibling reserving a band above, so nothing
-   stops the card from reaching the literal top of the viewport too — only
-   the top corners lose their radius (the bottom keeps the "sheet" curve;
-   .app's own bottom padding still insets it there, and the mobile dock
-   floats independently). `.content`'s own top padding (below) reserves just
-   enough room for the pill so the first lines of text don't start right
-   under it. */
+   The top edge does NOT cancel the same way, on purpose: an earlier version
+   of this pulled .editor all the way to the literal top of the viewport,
+   behind the status bar/notch. That only actually works for a native app,
+   or a web app installed to the home screen in standalone mode — in an
+   ordinary browser tab the status bar is OS/browser chrome the page can't
+   draw into, no matter how closely a background color is matched (verified:
+   the mismatch persisted even with the OS and the app in the same theme).
+   So instead of chasing an illusion that only half-works, the top keeps a
+   real, deliberate gap — border-top restored (the "framed page" cue, kept
+   off the now-flush left/right edges) and the top corners keep their
+   radius, matching the bottom's "sheet" treatment. No margin-top here to
+   clear the floating room-name pill: that clearance is .app's own top
+   padding instead (app.css) — .editor just keeps its normal flow position,
+   which is already correct whether or not SyncBanner is showing above it. */
 @media (max-width: 900px) {
   .editor {
     border: none;
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
+    border-top: 1px solid var(--border);
     margin-left: calc(-1 * var(--sp-4));
     margin-right: calc(-1 * var(--sp-4));
-    margin-top: calc(-1 * var(--sp-5));
   }
 }
 
@@ -465,7 +467,6 @@
   .editor {
     margin-left: calc(-1 * var(--sp-3));
     margin-right: calc(-1 * var(--sp-3));
-    margin-top: calc(-1 * var(--sp-4));
   }
 }
 

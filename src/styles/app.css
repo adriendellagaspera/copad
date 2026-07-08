@@ -180,13 +180,14 @@ header.capsule {
    toggling visibility.
    Every action moves to the bottom dock (.mobile-dock / .fixed-toolbar.editing,
    see below and editor.css); this pill holds only the room name.
-   position:fixed + safe-area-inset-top (not a flow sibling) so `.editor` can
-   still run to the physical top of the screen (see .editor's own mobile rule
-   in editor.css) — the pill floats over the document rather than reserving a
-   band above it. pointer-events:none lets a touch/drag anywhere on the pill's
-   own small rect fall through to the document below instead of being
-   swallowed by its empty padding; the room-name field opts back in with
-   pointer-events:auto (RoomNameField.svelte) so renaming still works.
+   position:fixed + safe-area-inset-top (not a flow sibling) so it floats in
+   the gap above the card instead of reserving flow space of its own —
+   .editor's own mobile margin-top (editor.css) positions the card just
+   below it. pointer-events:none lets a touch/drag anywhere on the pill's own
+   small rect fall through to whatever's underneath (the app canvas, not the
+   document here) instead of being swallowed by its empty padding; the
+   room-name field opts back in with pointer-events:auto (RoomNameField.svelte)
+   so renaming still works.
    Gated on pointer:coarse OR max-width:900px. pointer:coarse is the primary
    signal (touch devices always get this layout regardless of width — an
    iPad Pro landscape shouldn't try to cram the full capsule in). The
@@ -574,6 +575,21 @@ button.status-link {
   .app {
     padding: var(--sp-4) var(--sp-3) var(--sp-6);
     gap: var(--sp-3);
+  }
+}
+
+/* Reserve the floating room-name pill's own footprint (see header.capsule
+   above) as .app's top padding, rather than pinning each flow child
+   (SyncBanner, .editor) to individually clear it. Padding on the shared
+   parent only ever affects whichever child ends up first — margin-top on a
+   later sibling doesn't know whether something already pushed the flow down,
+   so it stacked wrongly on top of SyncBanner's own spacing the moment it was
+   showing. One rule after the ≤720px block above so it wins the padding-top
+   longhand at every mobile width, regardless of which of the two shorthand
+   rules above set it. */
+@media (pointer: coarse), (max-width: 900px) {
+  .app {
+    padding-top: calc(max(var(--sp-2), env(safe-area-inset-top, 0px)) + var(--mobile-header-h) + var(--sp-2));
   }
 }
 
