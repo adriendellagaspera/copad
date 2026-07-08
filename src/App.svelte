@@ -748,10 +748,10 @@
   </header>
 
   <!-- Mobile-only "nav mode" dock (M3) — a fixed bottom capsule mirroring the
-       header's actions, since the header itself collapsed to just the room
-       name above. Hidden the instant the document has focus, when
-       editor.css's .fixed-toolbar takes the same slot in "format mode" —
-       the two never show at once (see sessionState.editing). -->
+       header's actions, since the header itself is hidden entirely on mobile
+       (see header.capsule, app.css). Hidden the instant the document has
+       focus, when editor.css's .fixed-toolbar takes the same slot in "format
+       mode" — the two never show at once (see sessionState.editing). -->
   <div class="mobile-dock" class:dock-hidden={sessionState.editing}>
     <IdentityMenu
       {name}
