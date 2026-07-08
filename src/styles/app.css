@@ -213,11 +213,11 @@ header.capsule {
        .content's reserved top padding (editor.css) too, so the two stay in
        lockstep. */
     height: var(--mobile-header-h);
-    padding: 0 var(--sp-3);
+    padding: 0 var(--sp-2);
     box-sizing: border-box;
     margin: 0;
     width: auto;
-    max-width: min(65vw, 260px);
+    max-width: min(50vw, 190px);
     border: 1px solid var(--border);
     border-radius: var(--r-full);
     /* Frosted, not flat: a mostly-opaque tint + blur reads as glass — the

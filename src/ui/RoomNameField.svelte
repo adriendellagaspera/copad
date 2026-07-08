@@ -104,8 +104,9 @@
     .room-name-input {
       width: auto;
       max-width: 100%;
+      font-size: 0.75rem;
       text-align: center;
-      padding: 0.3rem 0;
+      padding: 0.2rem 0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;

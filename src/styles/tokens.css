@@ -71,8 +71,10 @@
 
   /* Mobile floating room-name pill's own height (excludes its safe-area-inset-top
      offset) — read by both app.css (the pill itself) and editor.css (.content's
-     reserved top padding), so the two stay in lockstep. */
-  --mobile-header-h: 32px;
+     reserved top padding), so the two stay in lockstep. Small on purpose: it
+     holds no tappable chrome of its own (renaming is tap-anywhere-in-the-text,
+     not a discrete target), so it costs the document as little as possible. */
+  --mobile-header-h: 26px;
 
   /* ── Radii ── */
   --r-sm: 6px;
