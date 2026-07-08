@@ -3,13 +3,21 @@
   import { OpenMode, InputType, LoginKind } from './storage/types.js';
   import type { StorageBackend } from './storage/index.js';
   import { isConfigured } from './storage/auth.js';
+  import { STORAGE_ID } from './storage/constants.js';
 
   import type { TurnPrefs } from './collaboration/turn.js';
   import { FallbackTurnPolicy } from './collaboration/types.js';
   import { parseTurnUrl, parseTurnUsername, parseTurnCredential } from './collaboration/parse.js';
   import type { TurnUrl } from './collaboration/types.js';
   import type { Theme } from './ui/theme.svelte.js';
-  import ThemeToggle from './ui/ThemeToggle.svelte';
+  import ThemeSelect from './ui/ThemeSelect.svelte';
+  import { BRAND_ICONS } from './ui/brandIcons.js';
+  import { GENERIC_ICONS } from './ui/genericStorageIcons.js';
+  import { IMAGE_ICONS, SHAREPOINT_SITE_IMAGE, SHAREPOINT_ONEDRIVE_IMAGE } from './ui/imageIcons.js';
+
+  import Dialog from './ui/Dialog.svelte';
+
+  type SettingsView = 'app' | 'storage';
 
   let {
     backends,
@@ -72,11 +80,16 @@
   let selectValue = $state(isPreset(languageChoice) ? languageChoice : 'custom');
   let customValue = $state(isPreset(languageChoice) ? '' : languageChoice);
 
+  // Which nav destination is showing — a backend deep-link (focusId) opens
+  // straight on Storage; otherwise the lighter General register is the default.
+  let activeView = $state<SettingsView>(focusId ? 'storage' : 'app');
+
   // Re-sync when the prop changes (drawer re-opens with fresh data).
   $effect(() => {
     if (open) {
       selectValue = isPreset(languageChoice) ? languageChoice : 'custom';
       customValue = isPreset(languageChoice) ? '' : languageChoice;
+      activeView = focusId ? 'storage' : 'app';
     }
   });
 
@@ -130,12 +143,60 @@
     });
   }
 
-  const configurable = $derived(
-    backends.filter(b => b.auth.configFields && b.auth.configFields.length > 0)
+  // At-a-glance relay status for the Connectivity card header.
+  const turnStatus = $derived(
+    rawUrl.trim()
+      ? 'Custom relay'
+      : turnFallback === FallbackTurnPolicy.OpenRelay
+        ? 'Public relay active'
+        : 'No relay configured'
   );
-  const connectable = $derived(
-    backends.filter(b => !b.auth.configFields || b.auth.configFields.length === 0)
+
+  // Presentation-only ordering for the storage tile grid — connected backends
+  // first, then ready-to-connect, then needing setup, then unavailable. Purely
+  // a display concern local to this component; backends() itself stays in its
+  // fixed source order.
+  type StatusRank = 'connected' | 'ready' | 'setup' | 'unavailable';
+  const RANK_ORDER: Record<StatusRank, number> = { connected: 0, ready: 1, setup: 2, unavailable: 3 };
+  const RANK_LABEL: Record<StatusRank, string> = {
+    connected: 'connected',
+    ready: 'ready',
+    setup: 'needs setup',
+    unavailable: 'unavailable',
+  };
+  function statusRank(b: StorageBackend): StatusRank {
+    if (withVersion(b.auth.isAuthenticated())) return 'connected';
+    const hasConfigFields = (b.auth.configFields?.length ?? 0) > 0;
+    if (hasConfigFields) return withVersion(isConfigured(b.auth)) ? 'ready' : 'setup';
+    return b.storage.availability.ok ? 'ready' : 'unavailable';
+  }
+  const sortedBackends = $derived(
+    [...backends].sort((a, b) => RANK_ORDER[statusRank(a)] - RANK_ORDER[statusRank(b)])
   );
+  // At-a-glance dot cluster for the Storage nav item — one dot per backend,
+  // grouped in the same connected/ready/setup/unavailable order as the grid.
+  const storageDots = $derived(sortedBackends.map(b => statusRank(b)));
+  const storageSummary = $derived.by(() => {
+    const counts: Record<StatusRank, number> = { connected: 0, ready: 0, setup: 0, unavailable: 0 };
+    for (const b of backends) counts[statusRank(b)]++;
+    return (Object.keys(RANK_LABEL) as StatusRank[])
+      .filter(rank => counts[rank] > 0)
+      .map(rank => `${counts[rank]} ${RANK_LABEL[rank]}`)
+      .join(', ');
+  });
+
+  // Which tile is expanded — a backend deep-link (focusId) opens dropped
+  // straight to it; otherwise every tile starts collapsed.
+  let expandedId = $state(focusId);
+  $effect(() => {
+    if (open) expandedId = focusId;
+  });
+  function toggleExpanded(id: string) {
+    expandedId = expandedId === id ? '' : id;
+  }
+  function monogram(label: string): string {
+    return label.charAt(0).toUpperCase();
+  }
 
   // Per-backend busy/error state — keyed by backend id.
   let busy = $state<Record<string, boolean>>({});
@@ -194,210 +255,148 @@
   function close() {
     open = false;
   }
-
-  let settingsEl = $state<HTMLDivElement | undefined>();
-
-  // Same Tab-trap as Dialog.svelte: this drawer predates that component and
-  // isn't built on it, so it needs its own copy of the focus containment.
-  function trapTab(e: KeyboardEvent): void {
-    if (e.key !== 'Tab' || !settingsEl) return;
-    const f = settingsEl.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    if (f.length === 0) return;
-    const first = f[0];
-    const last = f[f.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }
-
-  $effect(() => {
-    if (!open) return;
-    const restoreTo = document.activeElement as HTMLElement | null;
-    document.body.style.overflow = 'hidden';
-    queueMicrotask(() => {
-      const el = settingsEl?.querySelector<HTMLElement>(
-        '[autofocus], input, select, button:not(.settings-close), a[href]',
-      );
-      (el ?? settingsEl)?.focus();
-    });
-    return () => {
-      document.body.style.overflow = '';
-      restoreTo?.focus?.();
-    };
-  });
-
-  // Capture phase so we see Escape before any other in-page listener (or a
-  // browser-extension content script on an autofocused input, e.g. a password
-  // manager) gets a chance to stopPropagation() or otherwise swallow the first
-  // press — matches Dialog.svelte / IdentityMenu.svelte.
-  $effect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        close();
-      }
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  });
 </script>
 
-{#if open}
-  <div class="settings-backdrop" onclick={close} role="presentation"></div>
-  <div
-    class="settings"
-    role="dialog"
-    aria-modal="true"
-    aria-label="Settings"
-    bind:this={settingsEl}
-    tabindex="-1"
-    onkeydown={trapTab}
-  >
-    <header class="settings-head">
-      <h2>Settings</h2>
-      <button class="icon-btn settings-close" onclick={close} aria-label="Close settings">✕</button>
-    </header>
+{#snippet generalView()}
+  <p class="settings-lead">
+    Editor, local copy, and connectivity — grouped here while this register stays small.
+  </p>
 
-    <p class="settings-lead">
-      Configure your storage backends. App keys are saved in this browser and
-      reused across sessions — you only set them once.
-    </p>
-
-    <!-- The header's own theme toggle collapses away on mobile (see the M3
-         layout in app.css) along with the rest of the capsule, so this is
-         its one guaranteed home regardless of screen size. -->
-    <div class="field appearance-row">
-      <span class="field-label">Appearance</span>
-      <ThemeToggle {theme} />
+  <section class="backend">
+    <div class="backend-head">
+      <span class="backend-name">Editor</span>
     </div>
+    <p class="backend-blurb">
+      Language and spellchecking settings. The language tells the browser which
+      dictionary to use for spellcheck.
+    </p>
+    <label class="field">
+      <span class="field-label">Language</span>
+      <select
+        value={selectValue}
+        onchange={e => onSelectLanguage(e.currentTarget.value)}
+      >
+        {#each LANGUAGE_PRESETS as p (p.value)}
+          <option value={p.value}>{p.label}</option>
+        {/each}
+        <option value="custom">Other (BCP-47 tag)…</option>
+      </select>
+      {#if selectValue === 'custom'}
+        <input
+          class="custom-lang"
+          placeholder="e.g. en-GB, zh-TW, pt-BR"
+          value={customValue}
+          oninput={e => onCustomLanguage(e.currentTarget.value)}
+        />
+      {/if}
+      <small class="field-help">
+        Used by the browser's native spellchecker and screen readers.
+        "Auto" follows your browser's language setting ({navigator.language}).
+      </small>
+    </label>
+    <label class="toggle">
+      <input
+        type="checkbox"
+        checked={spellcheck}
+        onchange={e => onSpellcheckChange?.(e.currentTarget.checked)}
+      />
+      <span>Enable spellcheck</span>
+    </label>
+    <small class="field-help">
+      Uses your browser's built-in spell checker. Works best with a matching language above.
+    </small>
+  </section>
 
+  <!-- The header's own theme toggle collapses away on mobile (see the M3
+       layout in app.css) along with the rest of the capsule, so this is
+       its one guaranteed home regardless of screen size — a full card, not
+       a bare row, so it reads as one more setting rather than floating
+       loose between the Editor and Local copy cards. -->
+  <section class="backend">
+    <div class="backend-head">
+      <span class="backend-name">Appearance</span>
+    </div>
+    <p class="backend-blurb">Light, dark, or follow your system setting.</p>
+    <ThemeSelect {theme} />
+  </section>
+
+  <section class="backend">
+    <div class="backend-head">
+      <span class="backend-name">Local copy</span>
+      <span class="badge {localCache ? 'ok' : ''}">{localCache ? 'On' : 'Off'}</span>
+    </div>
+    <p class="backend-blurb">
+      Keep a copy of your documents in this browser so they survive a reload and
+      work offline — even with no storage backend connected.
+    </p>
+    <label class="toggle">
+      <input
+        type="checkbox"
+        checked={localCache}
+        onchange={e => onCacheChange?.(e.currentTarget.checked)}
+      />
+      <span>Keep a local copy of documents</span>
+    </label>
+    <small class="field-help">
+      Stored <strong>unencrypted</strong> in this browser, regardless of any room
+      password (that only encrypts the connection). Turn this off for a shared or
+      untrusted device.
+    </small>
+    <div class="backend-actions">
+      <button onclick={clearCache} disabled={clearing}>
+        {clearing ? 'Clearing…' : 'Clear local copies'}
+      </button>
+    </div>
+  </section>
+
+  {#if onTurnChange}
     <section class="backend">
       <div class="backend-head">
-        <span class="backend-name">Editor</span>
+        <span class="backend-name">Connection (WebRTC)</span>
+        <span class="badge {turnStatus === 'No relay configured' ? '' : 'ok'}">{turnStatus}</span>
       </div>
       <p class="backend-blurb">
-        Language and spellchecking settings. The language tells the browser which
-        dictionary to use for spellcheck.
+        Peer-to-peer needs a TURN relay to connect across mobile carrier networks
+        (CGNAT / symmetric NAT). A free public relay is used by default; add your
+        own for reliability. Changes apply on the next reconnect.
       </p>
+      <label class="toggle">
+        <input
+          type="checkbox"
+          checked={turnFallback === FallbackTurnPolicy.OpenRelay}
+          onchange={e => (turnFallback = e.currentTarget.checked ? FallbackTurnPolicy.OpenRelay : FallbackTurnPolicy.None)}
+        />
+        <span>Use a public TURN relay when none is configured</span>
+      </label>
       <label class="field">
-        <span class="field-label">Language</span>
-        <select
-          value={selectValue}
-          onchange={e => onSelectLanguage(e.currentTarget.value)}
-        >
-          {#each LANGUAGE_PRESETS as p (p.value)}
-            <option value={p.value}>{p.label}</option>
-          {/each}
-          <option value="custom">Other (BCP-47 tag)…</option>
-        </select>
-        {#if selectValue === 'custom'}
-          <input
-            class="custom-lang"
-            placeholder="e.g. en-GB, zh-TW, pt-BR"
-            value={customValue}
-            oninput={e => onCustomLanguage(e.currentTarget.value)}
-          />
-        {/if}
-        <small class="field-help">
-          Used by the browser's native spellchecker and screen readers.
-          "Auto" follows your browser's language setting ({navigator.language}).
-        </small>
-      </label>
-      <label class="toggle">
+        <span class="field-label">TURN URL(s)</span>
         <input
-          type="checkbox"
-          checked={spellcheck}
-          onchange={e => onSpellcheckChange?.(e.currentTarget.checked)}
+          placeholder="turns:your-turn.example:5349"
+          value={rawUrl}
+          oninput={e => (rawUrl = e.currentTarget.value)}
         />
-        <span>Enable spellcheck</span>
+        <small class="field-help">Comma-separated. Overrides both the default and any deployment TURN.</small>
       </label>
-      <small class="field-help">
-        Uses your browser's built-in spell checker. Works best with a matching language above.
-      </small>
-    </section>
-
-    <section class="backend">
-      <div class="backend-head">
-        <span class="backend-name">Local copy</span>
-        <span class="badge {localCache ? 'ok' : ''}">{localCache ? 'On' : 'Off'}</span>
-      </div>
-      <p class="backend-blurb">
-        Keep a copy of your documents in this browser so they survive a reload and
-        work offline — even with no storage backend connected.
-      </p>
-      <label class="toggle">
+      <label class="field">
+        <span class="field-label">TURN username</span>
+        <input value={rawUsername} oninput={e => (rawUsername = e.currentTarget.value)} />
+      </label>
+      <label class="field">
+        <span class="field-label">TURN credential</span>
         <input
-          type="checkbox"
-          checked={localCache}
-          onchange={e => onCacheChange?.(e.currentTarget.checked)}
+          type="password"
+          value={rawCredential}
+          oninput={e => (rawCredential = e.currentTarget.value)}
         />
-        <span>Keep a local copy of documents</span>
       </label>
-      <small class="field-help">
-        Stored <strong>unencrypted</strong> in this browser, regardless of any room
-        password (that only encrypts the connection). Turn this off for a shared or
-        untrusted device.
-      </small>
       <div class="backend-actions">
-        <button onclick={clearCache} disabled={clearing}>
-          {clearing ? 'Clearing…' : 'Clear local copies'}
-        </button>
+        <button class="primary" onclick={applyTurn}>Apply &amp; reconnect</button>
       </div>
     </section>
+  {/if}
+{/snippet}
 
-    {#if onTurnChange}
-      <section class="backend">
-        <div class="backend-head">
-          <span class="backend-name">Connection (WebRTC)</span>
-        </div>
-        <p class="backend-blurb">
-          Peer-to-peer needs a TURN relay to connect across mobile carrier networks
-          (CGNAT / symmetric NAT). A free public relay is used by default; add your
-          own for reliability. Changes apply on the next reconnect.
-        </p>
-        <label class="toggle">
-          <input
-            type="checkbox"
-            checked={turnFallback === FallbackTurnPolicy.OpenRelay}
-            onchange={e => (turnFallback = e.currentTarget.checked ? FallbackTurnPolicy.OpenRelay : FallbackTurnPolicy.None)}
-          />
-          <span>Use a public TURN relay when none is configured</span>
-        </label>
-        <label class="field">
-          <span class="field-label">TURN URL(s)</span>
-          <input
-            placeholder="turns:your-turn.example:5349"
-            value={rawUrl}
-            oninput={e => (rawUrl = e.currentTarget.value)}
-          />
-          <small class="field-help">Comma-separated. Overrides both the default and any deployment TURN.</small>
-        </label>
-        <label class="field">
-          <span class="field-label">TURN username</span>
-          <input value={rawUsername} oninput={e => (rawUsername = e.currentTarget.value)} />
-        </label>
-        <label class="field">
-          <span class="field-label">TURN credential</span>
-          <input
-            type="password"
-            value={rawCredential}
-            oninput={e => (rawCredential = e.currentTarget.value)}
-          />
-        </label>
-        <div class="backend-actions">
-          <button class="primary" onclick={applyTurn}>Apply &amp; reconnect</button>
-        </div>
-      </section>
-    {/if}
-
-    {#snippet filenameField(b: StorageBackend)}
+{#snippet filenameField(b: StorageBackend)}
       {#if b.storage.setFilename}
         <label class="field">
           <span class="field-label">File name (this room)</span>
@@ -416,123 +415,192 @@
       {/if}
     {/snippet}
 
-    {#each configurable as b (b.storage.id)}
-      {@const ready = withVersion(isConfigured(b.auth))}
-      {@const authed = withVersion(b.auth.isAuthenticated())}
-      <section class="backend" class:focused={b.storage.id === focusId}>
-        <div class="backend-head">
-          <span class="backend-name">{b.storage.label}</span>
-          {#if authed}
-            <span class="badge ok">Connected</span>
-          {:else}
-            <span class="badge">{ready ? 'Ready' : 'Needs setup'}</span>
-          {/if}
-        </div>
-        {#if b.storage.blurb}<p class="backend-blurb">{b.storage.blurb}</p>{/if}
+{#snippet storageView()}
+  <p class="settings-lead">
+    Configure your storage backends. App keys are saved in this browser and
+    reused across sessions — you only set them once.
+  </p>
 
-        {#each b.auth.configFields ?? [] as f (f.name)}
-          {@const locked = b.auth.configLocked?.(f.name) ?? false}
-          <label class="field">
-            <span class="field-label">
-              {f.label}
-              {#if locked}<span class="lock" title="Set by this deployment">🔒 managed</span>{/if}
+  {#if sortedBackends.length === 0}
+    <p class="settings-empty">No storage backends available.</p>
+  {/if}
+
+  <div class="tile-grid">
+    {#each sortedBackends as b (b.storage.id)}
+      {@const hasConfigFields = (b.auth.configFields?.length ?? 0) > 0}
+      {@const ready = hasConfigFields ? withVersion(isConfigured(b.auth)) : b.storage.availability.ok}
+      {@const authed = withVersion(b.auth.isAuthenticated())}
+      {@const expanded = expandedId === b.storage.id}
+      {@const image = b.storage.id === STORAGE_ID.sharepoint
+        ? (withVersion(b.auth.config?.('siteUrl')) ? SHAREPOINT_SITE_IMAGE : SHAREPOINT_ONEDRIVE_IMAGE)
+        : IMAGE_ICONS[b.storage.id]}
+      {@const icon = BRAND_ICONS[b.storage.id]}
+      {@const generic = GENERIC_ICONS[b.storage.id]}
+      <section class="tile" class:expanded class:focused={b.storage.id === focusId}>
+        <button
+          type="button"
+          class="tile-head"
+          aria-expanded={expanded}
+          onclick={() => toggleExpanded(b.storage.id)}
+        >
+          {#if image}
+            <span class="tile-monogram" aria-hidden="true">
+              <img src={image} width="16" height="16" alt="" />
             </span>
-            <input
-              type={f.type ?? InputType.Text}
-              placeholder={f.placeholder ?? ''}
-              value={b.auth.config?.(f.name) ?? ''}
-              disabled={locked}
-              oninput={e => setConfig(b, f.name, e.currentTarget.value)}
-            />
-            {#if f.help}<small class="field-help">{f.help}</small>{/if}
-          </label>
-        {/each}
-
-        {@render filenameField(b)}
-
-        <div class="backend-actions">
-          {#if authed}
-            <button onclick={() => disconnect(b)}>Disconnect</button>
+          {:else if icon}
+            <span class="tile-monogram" class:brand-github={b.storage.id === STORAGE_ID.github} aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="#{icon.hex}"><path d={icon.path} /></svg>
+            </span>
+          {:else if generic}
+            <span class="tile-monogram" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{@html generic}</svg>
+            </span>
           {:else}
-            <button
-              class="primary"
-              onclick={() => connect(b)}
-              disabled={!ready || busy[b.storage.id]}
-            >
-              {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
-            </button>
+            <span class="tile-monogram" aria-hidden="true">{monogram(b.storage.label)}</span>
           {/if}
-          {#if errors[b.storage.id]}<p class="error">{errors[b.storage.id]}</p>{/if}
-        </div>
-      </section>
-    {/each}
-
-    {#if configurable.length === 0}
-      <p class="settings-empty">No storage backends require configuration.</p>
-    {/if}
-
-    {#each connectable as b (b.storage.id)}
-      {@const authed = withVersion(b.auth.isAuthenticated())}
-      <section class="backend" class:focused={b.storage.id === focusId}>
-        <div class="backend-head">
-          <span class="backend-name">{b.storage.label}</span>
+          <span class="tile-name">{b.storage.label}</span>
           {#if authed}
             <span class="badge ok">Connected</span>
+          {:else if hasConfigFields}
+            <span class="badge">{ready ? 'Ready' : 'Needs setup'}</span>
           {:else if !b.storage.availability.ok}
             <span class="badge unavailable">Unavailable</span>
           {:else}
             <span class="badge">Ready</span>
           {/if}
-        </div>
-        {#if b.storage.blurb}<p class="backend-blurb">{b.storage.blurb}</p>{/if}
+        </button>
 
-        {#if b.storage.availability.ok}{@render filenameField(b)}{/if}
+        {#if expanded}
+          <div class="tile-body">
+            {#if b.storage.blurb}<p class="backend-blurb">{b.storage.blurb}</p>{/if}
 
-        {#if !b.storage.availability.ok}
-          <p class="unavailable-reason">{b.storage.availability.reason}</p>
-        {:else if authed}
-          <div class="backend-actions">
-            <button onclick={() => disconnect(b)}>Disconnect</button>
-          </div>
-        {:else}
-          {#if b.auth.credentialFields}
-            <form class="creds" onsubmit={e => { e.preventDefault(); connect(b, { kind: LoginKind.Credentials, credentials: creds[b.storage.id] ?? {} }); }}>
-              {#each b.auth.credentialFields as f (f.name)}
+            {#if hasConfigFields}
+              {#each b.auth.configFields ?? [] as f (f.name)}
+                {@const locked = b.auth.configLocked?.(f.name) ?? false}
                 <label class="field">
-                  <span class="field-label">{f.label}</span>
+                  <span class="field-label">
+                    {f.label}
+                    {#if locked}<span class="lock" title="Set by this deployment">🔒 managed</span>{/if}
+                  </span>
                   <input
                     type={f.type ?? InputType.Text}
                     placeholder={f.placeholder ?? ''}
-                    value={creds[b.storage.id]?.[f.name] ?? ''}
-                    oninput={e => { creds = { ...creds, [b.storage.id]: { ...(creds[b.storage.id] ?? {}), [f.name]: e.currentTarget.value } }; }}
+                    value={b.auth.config?.(f.name) ?? ''}
+                    disabled={locked}
+                    oninput={e => setConfig(b, f.name, e.currentTarget.value)}
                   />
+                  {#if f.help}<small class="field-help">{f.help}</small>{/if}
                 </label>
               {/each}
+
+              {@render filenameField(b)}
+
               <div class="backend-actions">
-                <button class="primary" type="submit" disabled={busy[b.storage.id]}>
-                  {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
-                </button>
+                {#if authed}
+                  <button onclick={() => disconnect(b)}>Disconnect</button>
+                {:else}
+                  <button
+                    class="primary"
+                    onclick={() => connect(b)}
+                    disabled={!ready || busy[b.storage.id]}
+                  >
+                    {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
+                  </button>
+                {/if}
+                {#if errors[b.storage.id]}<p class="error">{errors[b.storage.id]}</p>{/if}
               </div>
-            </form>
-          {:else if b.storage.id === 'local'}
-            <div class="backend-actions">
-              <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
-                {busy[b.storage.id] ? 'Opening…' : 'Open file'}
-              </button>
-              <button onclick={() => connect(b, { kind: LoginKind.Open, mode: OpenMode.New })} disabled={busy[b.storage.id]}>
-                New file
-              </button>
-            </div>
-          {:else}
-            <div class="backend-actions">
-              <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
-                {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
-              </button>
-            </div>
-          {/if}
-          {#if errors[b.storage.id]}<p class="error">{errors[b.storage.id]}</p>{/if}
+            {:else}
+              {#if b.storage.availability.ok}{@render filenameField(b)}{/if}
+
+              {#if !b.storage.availability.ok}
+                <p class="unavailable-reason">{b.storage.availability.reason}</p>
+              {:else if authed}
+                <div class="backend-actions">
+                  <button onclick={() => disconnect(b)}>Disconnect</button>
+                </div>
+              {:else}
+                {#if b.auth.credentialFields}
+                  <form class="creds" onsubmit={e => { e.preventDefault(); connect(b, { kind: LoginKind.Credentials, credentials: creds[b.storage.id] ?? {} }); }}>
+                    {#each b.auth.credentialFields as f (f.name)}
+                      <label class="field">
+                        <span class="field-label">{f.label}</span>
+                        <input
+                          type={f.type ?? InputType.Text}
+                          placeholder={f.placeholder ?? ''}
+                          value={creds[b.storage.id]?.[f.name] ?? ''}
+                          oninput={e => { creds = { ...creds, [b.storage.id]: { ...(creds[b.storage.id] ?? {}), [f.name]: e.currentTarget.value } }; }}
+                        />
+                      </label>
+                    {/each}
+                    <div class="backend-actions">
+                      <button class="primary" type="submit" disabled={busy[b.storage.id]}>
+                        {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
+                      </button>
+                    </div>
+                  </form>
+                {:else if b.storage.id === 'local'}
+                  <div class="backend-actions">
+                    <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
+                      {busy[b.storage.id] ? 'Opening…' : 'Open file'}
+                    </button>
+                    <button onclick={() => connect(b, { kind: LoginKind.Open, mode: OpenMode.New })} disabled={busy[b.storage.id]}>
+                      New file
+                    </button>
+                  </div>
+                {:else}
+                  <div class="backend-actions">
+                    <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
+                      {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
+                    </button>
+                  </div>
+                {/if}
+                {#if errors[b.storage.id]}<p class="error">{errors[b.storage.id]}</p>{/if}
+              {/if}
+            {/if}
+          </div>
         {/if}
       </section>
     {/each}
   </div>
-{/if}
+{/snippet}
+
+<Dialog {open} onclose={close} title="Settings" size="lg" flush>
+  <div class="settings-body">
+    <nav class="settings-nav" aria-label="Settings sections">
+      <div class="settings-nav-group">
+        <span class="settings-nav-label">Application</span>
+        <button
+          type="button"
+          class="settings-nav-item"
+          aria-current={activeView === 'app' ? 'page' : undefined}
+          onclick={() => (activeView = 'app')}
+        >
+          General
+        </button>
+      </div>
+      <div class="settings-nav-group">
+        <span class="settings-nav-label">Accounts</span>
+        <button
+          type="button"
+          class="settings-nav-item"
+          aria-current={activeView === 'storage' ? 'page' : undefined}
+          onclick={() => (activeView = 'storage')}
+        >
+          Storage
+          <span class="storage-status-dots" title={storageSummary}>
+            {#each storageDots as rank, i (i)}
+              <span class="storage-status-dot storage-status-dot--{rank}"></span>
+            {/each}
+          </span>
+        </button>
+      </div>
+    </nav>
+    <div class="settings-detail">
+      {#if activeView === 'app'}
+        {@render generalView()}
+      {:else}
+        {@render storageView()}
+      {/if}
+    </div>
+  </div>
+</Dialog>

@@ -241,7 +241,17 @@ select {
   font-size: var(--fs-300);
   color: var(--text);
   background: var(--surface);
-  transition: border-color var(--dur-fast) var(--ease),
+  /* All four properties share one duration. Split across --dur-fast and
+     --dur-mid, background/color would settle later than border/shadow at
+     the exact moment a theme switch changes all of them at once (border and
+     background/color previously had no shared trigger, since focus only
+     touches border/shadow) — that per-property desync inside one input is
+     what read as the field's text "trembling". Also gives color/background
+     their own transition at all: neither is inherited from body, so without
+     one here they'd otherwise hard-cut instantly while border eased. */
+  transition: background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
     box-shadow var(--dur-fast) var(--ease);
 }
 /* Gated on tracked input modality (src/ui/inputModality.ts), not bare
@@ -274,7 +284,12 @@ button {
   font-size: var(--fs-300);
   line-height: 1.4;
   cursor: pointer;
+  /* color shares background/border's duration (see the form-field rule
+     above for why a per-property mismatch on one element reads as
+     "trembling" at a theme switch) — color has no transition of its own
+     otherwise, since it isn't inherited from body. */
   transition: background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease),
     transform var(--dur-fast) var(--ease);
 }
@@ -372,64 +387,93 @@ button.status-link {
   font-size: var(--fs-300);
 }
 
-/* ── Settings drawer + storage backends ── */
+/* ── Settings dialog + storage backends ── */
 
-.settings-backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay);
-  z-index: var(--z-dialog);
+.settings-body {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
 }
-.settings {
-  position: fixed;
-  top: 0;
-  right: 0;
-  z-index: calc(var(--z-dialog) + 1);
-  width: min(440px, 100vw);
-  height: 100vh;
-  height: 100dvh;
+.settings-nav {
+  background: var(--surface-2);
+  border-right: 1px solid var(--border);
+  padding: var(--sp-4) var(--sp-3);
   overflow-y: auto;
-  overscroll-behavior: contain;
-  background: var(--surface);
-  border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
-  padding: var(--sp-5) var(--sp-5) var(--sp-6);
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-  animation: settings-in var(--dur-mid) var(--ease);
-  /* tabindex="-1" fallback focus target when the panel has no focusable field */
-  outline: none;
 }
-@keyframes settings-in {
-  from {
-    transform: translateX(8px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+.settings-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
 }
-.settings-head {
+.settings-nav-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 0 var(--sp-2);
+}
+.settings-nav-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--sp-2);
+  text-align: left;
+  font: inherit;
+  font-size: var(--fs-300);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  padding: 0.45rem var(--sp-2);
+  cursor: pointer;
 }
-.settings-close {
-  /* >=44px hit area (WCAG 2.5.5) around a small glyph, overriding .icon-btn's
-     compact padding for this specific dismiss control. */
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0;
+.settings-nav-item:hover {
+  background: var(--surface-3);
 }
-.settings-head h2 {
-  margin: 0;
-  font-size: var(--fs-500);
+.settings-nav-item[aria-current='page'] {
+  background: var(--surface);
+  color: var(--text);
   font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+.storage-status-dots {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+/* Own name, not `.dot` — editor.css already owns that class (a legacy
+   presence indicator) at the same specificity; reusing it would let
+   whichever stylesheet loads last silently win the cascade. */
+.storage-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.storage-status-dot--connected {
+  background: var(--ok);
+}
+.storage-status-dot--ready {
+  background: var(--accent);
+}
+.storage-status-dot--setup {
+  background: var(--text-faint);
+}
+.storage-status-dot--unavailable {
+  background: var(--border-strong);
+}
+.settings-detail {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
 }
 .settings-lead,
 .settings-empty {
@@ -437,7 +481,7 @@ button.status-link {
   font-size: var(--fs-300);
   color: var(--text-muted);
 }
-.settings .backend {
+.settings-detail .backend {
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   padding: var(--sp-4);
@@ -445,9 +489,78 @@ button.status-link {
   flex-direction: column;
   gap: var(--sp-2);
 }
-.settings .backend.focused {
+.settings-detail .backend.focused {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
+}
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--sp-3);
+}
+.tile {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+.tile.focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.tile.expanded {
+  grid-column: 1 / -1;
+}
+.tile-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: var(--sp-3);
+  cursor: pointer;
+  color: var(--text);
+}
+.tile-head:hover {
+  background: var(--surface-3);
+}
+.tile-monogram {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+/* GitHub's mark is a fixed near-black (#181717) — correct on the light tiles
+   below, but it nearly vanishes against the dark theme's tile-monogram
+   surface. Every other brand mark here (Dropbox blue, GitLab orange, Google
+   Drive blue, pCloud's colored logo) has enough luminance to read fine on
+   either surface directly, so only GitHub needs this: swap to GitHub's own
+   dark-mode-safe white variant of the mark rather than inventing a special
+   backdrop for every logo. */
+[data-theme="dark"] .brand-github svg path {
+  fill: var(--text);
+}
+.tile-name {
+  flex: 1;
+  font-weight: 600;
+  font-size: var(--fs-300);
+}
+.tile-body {
+  border-top: 1px solid var(--border);
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
 }
 .backend-head {
   display: flex;
@@ -487,7 +600,7 @@ button.status-link {
   font-size: var(--fs-300);
   color: var(--text-muted);
 }
-.settings .field {
+.settings-detail .field {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -499,11 +612,6 @@ button.status-link {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-}
-.appearance-row {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
 }
 .field input {
   width: 100%;
@@ -646,5 +754,30 @@ button.status-link {
   }
   .mobile-dock .dock-share svg {
     display: block;
+  }
+}
+
+/* Settings nav collapses to a horizontal strip below the drawer's own
+   full-width-sheet breakpoint (src/ui/Dialog.svelte) — a 220px side rail has
+   no room left once the sheet is 100vw. */
+@media (max-width: 640px) {
+  .settings-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .settings-nav {
+    flex-direction: row;
+    align-items: center;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    padding: var(--sp-2) var(--sp-3);
+  }
+  .settings-nav-group {
+    flex-direction: row;
+    align-items: center;
+  }
+  .settings-nav-label {
+    display: none;
   }
 }

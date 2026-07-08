@@ -5,11 +5,15 @@
     open,
     onclose,
     title,
+    size = 'sm',
+    flush = false,
     children,
   }: {
     open: boolean;
     onclose: () => void;
     title: string;
+    size?: 'sm' | 'lg';
+    flush?: boolean;
     children: Snippet;
   } = $props();
 
@@ -74,6 +78,7 @@
   <div class="dialog-backdrop" onclick={onclose}>
     <div
       class="dialog"
+      class:dialog-lg={size === 'lg'}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -86,7 +91,7 @@
         <h2 id={titleId}>{title}</h2>
         <button class="ghost dialog-close" onclick={onclose} aria-label="Close dialog">✕</button>
       </div>
-      <div class="dialog-body">
+      <div class="dialog-body" class:dialog-body-flush={flush}>
         {@render children()}
       </div>
     </div>
@@ -139,6 +144,20 @@
   .dialog-body {
     padding: var(--sp-2) var(--sp-4) var(--sp-4);
   }
+  .dialog-body-flush {
+    padding: 0;
+  }
+  .dialog-lg {
+    width: min(860px, 92vw);
+    height: min(640px, 86vh);
+    display: flex;
+    flex-direction: column;
+  }
+  .dialog-lg .dialog-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
   @keyframes backdrop-in {
     from {
       opacity: 0;
@@ -166,6 +185,9 @@
       width: 100%;
       border-radius: var(--r-lg) var(--r-lg) 0 0;
       animation: sheet-in var(--dur-mid) var(--ease);
+    }
+    .dialog-lg {
+      height: 94dvh;
     }
   }
   @keyframes sheet-in {
