@@ -148,12 +148,30 @@
         : 'No relay configured'
   );
 
-  const configurable = $derived(
-    backends.filter(b => b.auth.configFields && b.auth.configFields.length > 0)
-  );
-  const connectable = $derived(
-    backends.filter(b => !b.auth.configFields || b.auth.configFields.length === 0)
-  );
+  // Presentation-only ordering for the storage tile grid — connected backends
+  // first, then ready-to-connect, then needing setup, then unavailable. Purely
+  // a display concern local to this component; backends() itself stays in its
+  // fixed source order.
+  function statusRank(b: StorageBackend): number {
+    if (withVersion(b.auth.isAuthenticated())) return 0;
+    const hasConfigFields = (b.auth.configFields?.length ?? 0) > 0;
+    if (hasConfigFields) return withVersion(isConfigured(b.auth)) ? 1 : 2;
+    return b.storage.availability.ok ? 1 : 3;
+  }
+  const sortedBackends = $derived([...backends].sort((a, b) => statusRank(a) - statusRank(b)));
+
+  // Which tile is expanded — a backend deep-link (focusId) opens dropped
+  // straight to it; otherwise every tile starts collapsed.
+  let expandedId = $state(focusId);
+  $effect(() => {
+    if (open) expandedId = focusId;
+  });
+  function toggleExpanded(id: string) {
+    expandedId = expandedId === id ? '' : id;
+  }
+  function monogram(label: string): string {
+    return label.charAt(0).toUpperCase();
+  }
 
   // Per-backend busy/error state — keyed by backend id.
   let busy = $state<Record<string, boolean>>({});
@@ -373,124 +391,128 @@
     reused across sessions — you only set them once.
   </p>
 
-    {#each configurable as b (b.storage.id)}
-      {@const ready = withVersion(isConfigured(b.auth))}
+  {#if sortedBackends.length === 0}
+    <p class="settings-empty">No storage backends available.</p>
+  {/if}
+
+  <div class="tile-grid">
+    {#each sortedBackends as b (b.storage.id)}
+      {@const hasConfigFields = (b.auth.configFields?.length ?? 0) > 0}
+      {@const ready = hasConfigFields ? withVersion(isConfigured(b.auth)) : b.storage.availability.ok}
       {@const authed = withVersion(b.auth.isAuthenticated())}
-      <section class="backend" class:focused={b.storage.id === focusId}>
-        <div class="backend-head">
-          <span class="backend-name">{b.storage.label}</span>
+      {@const expanded = expandedId === b.storage.id}
+      <section class="tile" class:expanded class:focused={b.storage.id === focusId}>
+        <button
+          type="button"
+          class="tile-head"
+          aria-expanded={expanded}
+          onclick={() => toggleExpanded(b.storage.id)}
+        >
+          <span class="tile-monogram" aria-hidden="true">{monogram(b.storage.label)}</span>
+          <span class="tile-name">{b.storage.label}</span>
           {#if authed}
             <span class="badge ok">Connected</span>
-          {:else}
+          {:else if hasConfigFields}
             <span class="badge">{ready ? 'Ready' : 'Needs setup'}</span>
-          {/if}
-        </div>
-        {#if b.storage.blurb}<p class="backend-blurb">{b.storage.blurb}</p>{/if}
-
-        {#each b.auth.configFields ?? [] as f (f.name)}
-          {@const locked = b.auth.configLocked?.(f.name) ?? false}
-          <label class="field">
-            <span class="field-label">
-              {f.label}
-              {#if locked}<span class="lock" title="Set by this deployment">🔒 managed</span>{/if}
-            </span>
-            <input
-              type={f.type ?? InputType.Text}
-              placeholder={f.placeholder ?? ''}
-              value={b.auth.config?.(f.name) ?? ''}
-              disabled={locked}
-              oninput={e => setConfig(b, f.name, e.currentTarget.value)}
-            />
-            {#if f.help}<small class="field-help">{f.help}</small>{/if}
-          </label>
-        {/each}
-
-        {@render filenameField(b)}
-
-        <div class="backend-actions">
-          {#if authed}
-            <button onclick={() => disconnect(b)}>Disconnect</button>
-          {:else}
-            <button
-              class="primary"
-              onclick={() => connect(b)}
-              disabled={!ready || busy[b.storage.id]}
-            >
-              {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
-            </button>
-          {/if}
-          {#if errors[b.storage.id]}<p class="error">{errors[b.storage.id]}</p>{/if}
-        </div>
-      </section>
-    {/each}
-
-    {#if configurable.length === 0}
-      <p class="settings-empty">No storage backends require configuration.</p>
-    {/if}
-
-    {#each connectable as b (b.storage.id)}
-      {@const authed = withVersion(b.auth.isAuthenticated())}
-      <section class="backend" class:focused={b.storage.id === focusId}>
-        <div class="backend-head">
-          <span class="backend-name">{b.storage.label}</span>
-          {#if authed}
-            <span class="badge ok">Connected</span>
           {:else if !b.storage.availability.ok}
             <span class="badge unavailable">Unavailable</span>
           {:else}
             <span class="badge">Ready</span>
           {/if}
-        </div>
-        {#if b.storage.blurb}<p class="backend-blurb">{b.storage.blurb}</p>{/if}
+        </button>
 
-        {#if b.storage.availability.ok}{@render filenameField(b)}{/if}
+        {#if expanded}
+          <div class="tile-body">
+            {#if b.storage.blurb}<p class="backend-blurb">{b.storage.blurb}</p>{/if}
 
-        {#if !b.storage.availability.ok}
-          <p class="unavailable-reason">{b.storage.availability.reason}</p>
-        {:else if authed}
-          <div class="backend-actions">
-            <button onclick={() => disconnect(b)}>Disconnect</button>
-          </div>
-        {:else}
-          {#if b.auth.credentialFields}
-            <form class="creds" onsubmit={e => { e.preventDefault(); connect(b, { kind: LoginKind.Credentials, credentials: creds[b.storage.id] ?? {} }); }}>
-              {#each b.auth.credentialFields as f (f.name)}
+            {#if hasConfigFields}
+              {#each b.auth.configFields ?? [] as f (f.name)}
+                {@const locked = b.auth.configLocked?.(f.name) ?? false}
                 <label class="field">
-                  <span class="field-label">{f.label}</span>
+                  <span class="field-label">
+                    {f.label}
+                    {#if locked}<span class="lock" title="Set by this deployment">🔒 managed</span>{/if}
+                  </span>
                   <input
                     type={f.type ?? InputType.Text}
                     placeholder={f.placeholder ?? ''}
-                    value={creds[b.storage.id]?.[f.name] ?? ''}
-                    oninput={e => { creds = { ...creds, [b.storage.id]: { ...(creds[b.storage.id] ?? {}), [f.name]: e.currentTarget.value } }; }}
+                    value={b.auth.config?.(f.name) ?? ''}
+                    disabled={locked}
+                    oninput={e => setConfig(b, f.name, e.currentTarget.value)}
                   />
+                  {#if f.help}<small class="field-help">{f.help}</small>{/if}
                 </label>
               {/each}
+
+              {@render filenameField(b)}
+
               <div class="backend-actions">
-                <button class="primary" type="submit" disabled={busy[b.storage.id]}>
-                  {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
-                </button>
+                {#if authed}
+                  <button onclick={() => disconnect(b)}>Disconnect</button>
+                {:else}
+                  <button
+                    class="primary"
+                    onclick={() => connect(b)}
+                    disabled={!ready || busy[b.storage.id]}
+                  >
+                    {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
+                  </button>
+                {/if}
+                {#if errors[b.storage.id]}<p class="error">{errors[b.storage.id]}</p>{/if}
               </div>
-            </form>
-          {:else if b.storage.id === 'local'}
-            <div class="backend-actions">
-              <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
-                {busy[b.storage.id] ? 'Opening…' : 'Open file'}
-              </button>
-              <button onclick={() => connect(b, { kind: LoginKind.Open, mode: OpenMode.New })} disabled={busy[b.storage.id]}>
-                New file
-              </button>
-            </div>
-          {:else}
-            <div class="backend-actions">
-              <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
-                {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
-              </button>
-            </div>
-          {/if}
-          {#if errors[b.storage.id]}<p class="error">{errors[b.storage.id]}</p>{/if}
+            {:else}
+              {#if b.storage.availability.ok}{@render filenameField(b)}{/if}
+
+              {#if !b.storage.availability.ok}
+                <p class="unavailable-reason">{b.storage.availability.reason}</p>
+              {:else if authed}
+                <div class="backend-actions">
+                  <button onclick={() => disconnect(b)}>Disconnect</button>
+                </div>
+              {:else}
+                {#if b.auth.credentialFields}
+                  <form class="creds" onsubmit={e => { e.preventDefault(); connect(b, { kind: LoginKind.Credentials, credentials: creds[b.storage.id] ?? {} }); }}>
+                    {#each b.auth.credentialFields as f (f.name)}
+                      <label class="field">
+                        <span class="field-label">{f.label}</span>
+                        <input
+                          type={f.type ?? InputType.Text}
+                          placeholder={f.placeholder ?? ''}
+                          value={creds[b.storage.id]?.[f.name] ?? ''}
+                          oninput={e => { creds = { ...creds, [b.storage.id]: { ...(creds[b.storage.id] ?? {}), [f.name]: e.currentTarget.value } }; }}
+                        />
+                      </label>
+                    {/each}
+                    <div class="backend-actions">
+                      <button class="primary" type="submit" disabled={busy[b.storage.id]}>
+                        {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
+                      </button>
+                    </div>
+                  </form>
+                {:else if b.storage.id === 'local'}
+                  <div class="backend-actions">
+                    <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
+                      {busy[b.storage.id] ? 'Opening…' : 'Open file'}
+                    </button>
+                    <button onclick={() => connect(b, { kind: LoginKind.Open, mode: OpenMode.New })} disabled={busy[b.storage.id]}>
+                      New file
+                    </button>
+                  </div>
+                {:else}
+                  <div class="backend-actions">
+                    <button class="primary" onclick={() => connect(b)} disabled={busy[b.storage.id]}>
+                      {busy[b.storage.id] ? 'Connecting…' : `Connect ${b.storage.label}`}
+                    </button>
+                  </div>
+                {/if}
+                {#if errors[b.storage.id]}<p class="error">{errors[b.storage.id]}</p>{/if}
+              {/if}
+            {/if}
+          </div>
         {/if}
       </section>
     {/each}
+  </div>
 {/snippet}
 
 <Dialog {open} onclose={close} title="Settings" size="lg" flush>
