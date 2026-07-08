@@ -416,37 +416,43 @@
 }
 
 /* ── Full-bleed writing surface on mobile ──
-   The bordered "paper card" reads as wasted width once the screen itself is
+   The bordered "paper card" reads as wasted space once the screen itself is
    only a few hundred px wide — SOTA mobile document editors (Notion, Bear,
    iA Writer) run the surface edge-to-edge instead. Cancels .app's own
-   horizontal padding (app.css) via a matching negative margin so .editor
-   reaches the left/right viewport edge; the floating header capsule and
-   mobile dock are unaffected (they're position:fixed / independently inset,
-   not part of this rule). The two breakpoints mirror .app's own (default
-   vs. its <=720px padding step) so the cancellation always matches exactly.
-   Only the 1px border is dropped — it's the actual "framed page" cue, and
-   looks plain wrong once it can't run down the now-flush left/right edges.
-   border-radius + box-shadow stay: the card still doesn't bleed vertically
-   (.app's own top and bottom padding), so the top/bottom edges remain
-   visible against the canvas — a hard flat cut there would look broken,
-   whereas the rounded corners + soft shadow read as a deliberate "sheet"
-   (the iOS/Android bottom-sheet convention: full width, rounded corners
-   revealing a sliver of background). The header used to float above this
-   gap on mobile; now that the room name lives inside the card as DocTitle
-   (editor/ui/DocTitle.svelte), the top needs no special-casing at all —
-   just the same borderless, rounded, shadowed edge as the bottom.
+   padding (app.css) via matching negative margins so .editor reaches every
+   viewport edge — left, right, *and now top*: with the room name living
+   inside the card as DocTitle (editor/ui/DocTitle.svelte) instead of a
+   separate header floating above it, there's nothing left reserving that
+   gap, so the document can claim it too. The two breakpoints mirror .app's
+   own (default vs. its <=720px padding step) so every cancellation always
+   matches exactly — margin-top cancels only .app's *own* top-padding
+   contribution, a fixed quantity independent of whatever precedes .editor
+   in the flow (e.g. SyncBanner), so it can't under- or over-shoot if a
+   banner happens to be showing.
+   Bottom is untouched on purpose — .app's bottom padding still insets the
+   card there, clearing the fixed mobile dock (.mobile-dock / .fixed-toolbar,
+   both anchored near the viewport's bottom edge).
+   Border and top corner radius are dropped along with the cancelled margin:
+   a rounded corner needs clearance in *both* directions to read as a curve
+   against the canvas, and top now has none in either — keeping it would
+   just get clipped by the viewport edge. Bottom keeps its radius (that gap
+   is real) — the two ends of the same "sheet" now read differently on
+   purpose, flush where the margin's gone, rounded where it hasn't.
    Width-only trigger — deliberately NOT the .fixed-toolbar/.mobile-dock's
-   `(pointer: coarse), (max-width: 900px)` combo. Reclaiming width only makes
+   `(pointer: coarse), (max-width: 900px)` combo. Reclaiming space only makes
    sense when the viewport is actually narrow; a coarse-pointer device wider
    than .app's own 960px cap (a landscape tablet, a touchscreen desktop) has
-   .app centered with room to spare, so the cancelling negative margin would
-   only reach .app's own (inset) edge, not the real viewport edge — border
-   gone, but still visibly inset, which reads as broken, not "full-bleed". */
+   .app centered with room to spare, so the cancelling negative margins would
+   only reach .app's own (inset) edges, not the real viewport edges — reads
+   as broken, not "full-bleed". */
 @media (max-width: 900px) {
   .editor {
     border: none;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
     margin-left: calc(-1 * var(--sp-4));
     margin-right: calc(-1 * var(--sp-4));
+    margin-top: calc(-1 * var(--sp-5));
   }
 }
 
@@ -454,6 +460,7 @@
   .editor {
     margin-left: calc(-1 * var(--sp-3));
     margin-right: calc(-1 * var(--sp-3));
+    margin-top: calc(-1 * var(--sp-4));
   }
 }
 
