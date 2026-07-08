@@ -37,7 +37,8 @@
   import { persistTargetKey, isPersistLeader } from './collaboration/leader.js';
   import { trackPresenceActivity } from './collaboration/presenceActivity.js';
   import { remoteCursorBuilder, remoteSelectionBuilder, refreshPresenceFade, jumpToPresence } from './editor/ui/remoteCursors.js';
-  import { bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
+  import { roomName, renameRoom, bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
+  import DocTitle from './editor/ui/DocTitle.svelte';
   import {
     sessionState,
     setSessionConn,
@@ -426,7 +427,16 @@
   <div class="fixed-toolbar" class:editing={sessionState.editing}>
     <Toolbar {view} {editorState} {toasts} />
   </div>
-  <div class="content" bind:this={editorEl}></div>
+  <!-- DocTitle renders inside `.content` (not as a sibling) so it scrolls away
+       with the rest of the document instead of costing permanent chrome —
+       ProseMirror's EditorView only ever appendChild()s its own dom onto this
+       node on mount (never clears it), so it's safe to give it existing
+       children. Order matters: DocTitle must already be in the DOM before
+       `new EditorView(editorEl!, …)` runs in onMount below, so its dom lands
+       after (visually below) this, not before. -->
+  <div class="content" bind:this={editorEl}>
+    <DocTitle {room} name={roomName.value} onRename={(raw) => renameRoom(parseRoomName(raw))} />
+  </div>
   <div class="status">
     <ShortcutBar />
     <span class="spacer"></span>
