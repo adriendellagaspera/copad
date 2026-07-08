@@ -412,6 +412,33 @@
   }
 }
 
+/* ── Full-bleed writing surface on mobile ──
+   The bordered/shadowed "paper card" reads as wasted width once the screen
+   itself is only a few hundred px wide — SOTA mobile document editors
+   (Notion, Bear, iA Writer) run the surface edge-to-edge instead, with no
+   card chrome at all. Cancels .app's own horizontal padding (app.css) via a
+   matching negative margin so .editor reaches the viewport edge; the
+   floating header capsule and mobile dock are unaffected (they're
+   position:fixed / independently inset, not part of this rule). The two
+   breakpoints mirror .app's own (default vs. its <=720px padding step) so
+   the cancellation always matches exactly. */
+@media (pointer: coarse), (max-width: 900px) {
+  .editor {
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    margin-left: calc(-1 * var(--sp-4));
+    margin-right: calc(-1 * var(--sp-4));
+  }
+}
+
+@media (max-width: 720px) {
+  .editor {
+    margin-left: calc(-1 * var(--sp-3));
+    margin-right: calc(-1 * var(--sp-3));
+  }
+}
+
 /* The document-meta footer (shortcuts/words/outline) sits in normal flow at
    the bottom of the editor card, which now overlaps the fixed mobile dock
    (.mobile-dock / .fixed-toolbar, both anchored near the viewport's bottom
