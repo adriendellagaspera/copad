@@ -36,7 +36,7 @@
   import { browserId } from './collaboration/browserId.js';
   import { persistTargetKey, isPersistLeader } from './collaboration/leader.js';
   import { trackPresenceActivity } from './collaboration/presenceActivity.js';
-  import { remoteCursorBuilder, remoteSelectionBuilder, refreshPresenceFade } from './editor/ui/remoteCursors.js';
+  import { remoteCursorBuilder, remoteSelectionBuilder, refreshPresenceFade, jumpToPresence } from './editor/ui/remoteCursors.js';
   import { bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
   import {
     sessionState,
@@ -45,6 +45,7 @@
     setSessionPresence,
     setSessionDiagnostics,
     setSessionEditing,
+    setSessionJumpToPeer,
     resetSessionState,
   } from './collaboration/sessionState.svelte.js';
 
@@ -186,6 +187,13 @@
     transport: collab.transport,
     getDiagnostics: collab.getDiagnostics ? () => collab.getDiagnostics!() : undefined,
     reconnect: collab.reconnect,
+  });
+  // Reads `view`/`users` live at call time, so it's safe to publish once here
+  // even though `view` itself isn't assigned until onMount below. The peer's
+  // own colour drives the flash ring so it reads as "them", not a generic cue.
+  setSessionJumpToPeer((clientId) => {
+    if (!view) return;
+    jumpToPresence(view.dom, clientId, users.find((u) => u.id === clientId)?.color);
   });
   $effect(() => setSessionConn(conn));
   $effect(() => setSessionSave(saveStatus));

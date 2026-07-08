@@ -2,7 +2,12 @@
   import Avatar from './Avatar.svelte';
   import type { PeerUser } from './types.js';
 
-  let { users, max = 5, size = 28 }: { users: PeerUser[]; max?: number; size?: number } = $props();
+  let {
+    users,
+    max = 5,
+    size = 28,
+    onSelect,
+  }: { users: PeerUser[]; max?: number; size?: number; onSelect?: (clientId: number) => void } = $props();
 
   const shown = $derived(users.slice(0, max));
   const overflow = $derived(Math.max(0, users.length - max));
@@ -25,7 +30,20 @@
   aria-label="{count} {count === 1 ? 'person' : 'people'} editing"
 >
   {#each shown as u (u.id)}
-    <Avatar name={u.name} color={u.color} {size} self={u.self} />
+    <div class="presence-item">
+      {#if onSelect}
+        <button
+          type="button"
+          class="presence-trigger"
+          aria-label={u.self ? `Jump to your cursor` : `Jump to ${u.name}'s cursor`}
+          onclick={() => onSelect(u.id)}
+        >
+          <Avatar name={u.name} color={u.color} {size} self={u.self} />
+        </button>
+      {:else}
+        <Avatar name={u.name} color={u.color} {size} self={u.self} />
+      {/if}
+    </div>
   {/each}
   {#if overflow > 0}
     <span class="presence-more" style="--s:{size}px" title={overflowNames} aria-label="and {overflow} more: {overflowNames}">
@@ -39,9 +57,20 @@
     display: flex;
     align-items: center;
   }
-  .presence :global(.avatar:not(:first-child)),
-  .presence-more {
+  .presence-item {
+    position: relative;
+    display: inline-flex;
+  }
+  .presence-item:not(:first-child) {
     margin-left: var(--overlap, -8px);
+  }
+  .presence-trigger {
+    display: inline-flex;
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: var(--r-full);
+    cursor: pointer;
   }
   .presence-more {
     height: var(--s, 28px);
@@ -56,5 +85,6 @@
     font-size: 0.72rem;
     font-weight: 600;
     user-select: none;
+    margin-left: var(--overlap, -8px);
   }
 </style>
