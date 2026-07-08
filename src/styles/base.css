@@ -55,6 +55,12 @@
 html {
   background: var(--bg);
   height: 100%;
+  /* Drop double-tap-to-zoom and the legacy ~300ms tap delay so taps feel native
+     on touch — but never disable pinch-zoom itself (no maximum-scale/
+     user-scalable=no in index.html's viewport meta): that's an accessibility
+     regression (WCAG 1.4.4) modern iOS/Android increasingly ignore anyway.
+     `manipulation` = pan-x pan-y pinch-zoom, i.e. exactly "no double-tap zoom". */
+  touch-action: manipulation;
 }
 
 body {
