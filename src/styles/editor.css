@@ -413,20 +413,25 @@
 }
 
 /* ── Full-bleed writing surface on mobile ──
-   The bordered/shadowed "paper card" reads as wasted width once the screen
-   itself is only a few hundred px wide — SOTA mobile document editors
-   (Notion, Bear, iA Writer) run the surface edge-to-edge instead, with no
-   card chrome at all. Cancels .app's own horizontal padding (app.css) via a
-   matching negative margin so .editor reaches the viewport edge; the
-   floating header capsule and mobile dock are unaffected (they're
-   position:fixed / independently inset, not part of this rule). The two
-   breakpoints mirror .app's own (default vs. its <=720px padding step) so
-   the cancellation always matches exactly. */
+   The bordered "paper card" reads as wasted width once the screen itself is
+   only a few hundred px wide — SOTA mobile document editors (Notion, Bear,
+   iA Writer) run the surface edge-to-edge instead. Cancels .app's own
+   horizontal padding (app.css) via a matching negative margin so .editor
+   reaches the left/right viewport edge; the floating header capsule and
+   mobile dock are unaffected (they're position:fixed / independently inset,
+   not part of this rule). The two breakpoints mirror .app's own (default
+   vs. its <=720px padding step) so the cancellation always matches exactly.
+   Only the 1px border is dropped — it's the actual "framed page" cue, and
+   looks plain wrong once it can't run down the now-flush left/right edges.
+   border-radius + box-shadow stay: the card still doesn't bleed vertically
+   (the header's gap above, .app's own bottom padding below), so the top/
+   bottom edges remain visible against the canvas — a hard flat cut there
+   would look broken, whereas the rounded corners + soft shadow read as a
+   deliberate "sheet" (the iOS/Android bottom-sheet convention: full width,
+   rounded corners revealing a sliver of background). */
 @media (pointer: coarse), (max-width: 900px) {
   .editor {
     border: none;
-    border-radius: 0;
-    box-shadow: none;
     margin-left: calc(-1 * var(--sp-4));
     margin-right: calc(-1 * var(--sp-4));
   }
