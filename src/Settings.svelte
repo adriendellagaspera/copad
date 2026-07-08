@@ -3,6 +3,7 @@
   import { OpenMode, InputType, LoginKind } from './storage/types.js';
   import type { StorageBackend } from './storage/index.js';
   import { isConfigured } from './storage/auth.js';
+  import { STORAGE_ID } from './storage/constants.js';
 
   import type { TurnPrefs } from './collaboration/turn.js';
   import { FallbackTurnPolicy } from './collaboration/types.js';
@@ -12,7 +13,7 @@
   import ThemeToggle from './ui/ThemeToggle.svelte';
   import { BRAND_ICONS } from './ui/brandIcons.js';
   import { GENERIC_ICONS } from './ui/genericStorageIcons.js';
-  import { IMAGE_ICONS } from './ui/imageIcons.js';
+  import { IMAGE_ICONS, SHAREPOINT_SITE_IMAGE, SHAREPOINT_ONEDRIVE_IMAGE } from './ui/imageIcons.js';
 
   import Dialog from './ui/Dialog.svelte';
 
@@ -425,7 +426,9 @@
       {@const ready = hasConfigFields ? withVersion(isConfigured(b.auth)) : b.storage.availability.ok}
       {@const authed = withVersion(b.auth.isAuthenticated())}
       {@const expanded = expandedId === b.storage.id}
-      {@const image = IMAGE_ICONS[b.storage.id]}
+      {@const image = b.storage.id === STORAGE_ID.sharepoint
+        ? (withVersion(b.auth.config?.('siteUrl')) ? SHAREPOINT_SITE_IMAGE : SHAREPOINT_ONEDRIVE_IMAGE)
+        : IMAGE_ICONS[b.storage.id]}
       {@const icon = BRAND_ICONS[b.storage.id]}
       {@const generic = GENERIC_ICONS[b.storage.id]}
       <section class="tile" class:expanded class:focused={b.storage.id === focusId}>
