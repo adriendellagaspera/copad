@@ -96,7 +96,9 @@
   // Shared, editable room name. It lives in a dedicated Y.Map — NOT the
   // prosemirror fragment — so it syncs to every peer and rides along in the .yjs
   // format, yet never leaks into text/markdown/html/json exports (codecs only
-  // read the fragment). The header edits it through the roomName bridge.
+  // read the fragment). DocTitle (rendered below) edits it through the
+  // roomName bridge — same bridge App.svelte used to read/write when the
+  // field lived in the header instead of the document.
   const roomMeta = collab.doc.getMap('roomMeta');
   const readRoomName = (): RoomName | null =>
     parseRoomName(typeof roomMeta.get('name') === 'string' ? (roomMeta.get('name') as string) : null);
