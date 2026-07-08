@@ -405,7 +405,10 @@
    .mobile-dock in app.css and .fixed-toolbar above) so it never covers the
    last lines of text — same combined trigger as the dock itself, not just
    the narrow-viewport breakpoint above (the dock can also be showing on a
-   resized pointer:fine desktop window wider than 640px). */
+   resized pointer:fine desktop window wider than 640px). No top counterpart
+   needed: the room name is DocTitle now (editor/ui/DocTitle.svelte), the
+   first thing inside `.content` itself, not a separate piece of chrome
+   reserving space above it. */
 @media (pointer: coarse), (max-width: 900px) {
   .content {
     padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));
@@ -413,32 +416,46 @@
 }
 
 /* ── Full-bleed writing surface on mobile ──
-   The bordered "paper card" reads as wasted width once the screen itself is
+   The bordered "paper card" reads as wasted space once the screen itself is
    only a few hundred px wide — SOTA mobile document editors (Notion, Bear,
    iA Writer) run the surface edge-to-edge instead. Cancels .app's own
-   horizontal padding (app.css) via a matching negative margin so .editor
-   reaches the left/right viewport edge; the floating header capsule and
-   mobile dock are unaffected (they're position:fixed / independently inset,
-   not part of this rule). The two breakpoints mirror .app's own (default
-   vs. its <=720px padding step) so the cancellation always matches exactly.
-   Only the 1px border is dropped — it's the actual "framed page" cue, and
-   looks plain wrong once it can't run down the now-flush left/right edges.
-   border-radius + box-shadow stay: the card still doesn't bleed vertically
-   (the header's gap above, .app's own bottom padding below), so the top/
-   bottom edges remain visible against the canvas — a hard flat cut there
-   would look broken, whereas the rounded corners + soft shadow read as a
-   deliberate "sheet" (the iOS/Android bottom-sheet convention: full width,
-   rounded corners revealing a sliver of background).
+   *horizontal* padding (app.css) via matching negative margins so .editor
+   reaches the left/right viewport edges. The two breakpoints mirror .app's
+   own (default vs. its <=720px padding step) so the cancellation always
+   matches exactly.
+   Top is NOT cancelled here with a margin, on purpose — an earlier version
+   did, reasoning it only cancels .app's own top-padding contribution and so
+   "can't under- or over-shoot if a banner happens to be showing". That
+   reasoning was wrong: margin-top shifts an element up from wherever it
+   already sits, and when SyncBanner precedes .editor in the flow, that
+   "wherever" is *below* the banner, not at .app's padding-top at all — so
+   the same negative margin ate into the banner's own margin-bottom instead,
+   collapsing the gap between them to zero. `.app`'s own top padding is 0 on
+   mobile instead (see below) — it only ever affects whichever child ends up
+   first, so the rest of the flow (banner, then editor, or editor alone)
+   keeps its ordinary relative spacing untouched either way.
+   Bottom is untouched on purpose — .app's bottom padding still insets the
+   card there, clearing the fixed mobile dock (.mobile-dock / .fixed-toolbar,
+   both anchored near the viewport's bottom edge).
+   The top corners keep their radius, same as every other corner —
+   border-radius carves *into* the box's own corner rather than extending
+   past it, so it reads fine even flush against the viewport edge (a small,
+   deliberate reveal of the canvas behind it, echoing the device's own
+   rounded screen corners) rather than getting clipped. The border stays
+   too — flush edges still need *some* visible line marking where the
+   document actually starts, or the top reads as an ambiguous color seam
+   against the canvas above rather than a deliberate edge.
    Width-only trigger — deliberately NOT the .fixed-toolbar/.mobile-dock's
-   `(pointer: coarse), (max-width: 900px)` combo. Reclaiming width only makes
+   `(pointer: coarse), (max-width: 900px)` combo. Reclaiming space only makes
    sense when the viewport is actually narrow; a coarse-pointer device wider
    than .app's own 960px cap (a landscape tablet, a touchscreen desktop) has
-   .app centered with room to spare, so the cancelling negative margin would
-   only reach .app's own (inset) edge, not the real viewport edge — border
-   gone, but still visibly inset, which reads as broken, not "full-bleed". */
+   .app centered with room to spare, so the cancelling negative margins would
+   only reach .app's own (inset) edges, not the real viewport edges — reads
+   as broken, not "full-bleed". */
 @media (max-width: 900px) {
   .editor {
     border: none;
+    border-top: 1px solid var(--border);
     margin-left: calc(-1 * var(--sp-4));
     margin-right: calc(-1 * var(--sp-4));
   }

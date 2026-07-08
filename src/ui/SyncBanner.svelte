@@ -245,6 +245,10 @@
     font-size: var(--fs-300);
     line-height: 1.4;
   }
+  /* No mobile margin-top here to clear the floating room-name pill: that
+     clearance is .app's own top padding instead (app.css), so this banner
+     — whether or not it's the first flow child — never has to guess. A
+     margin here previously stacked wrongly on top of that same padding. */
   /* Informational tiers (a saved copy, or a relaying hub) aren't "into the void" —
      drop the amber tint entirely for a plain neutral surface and a neutral icon. */
   .sync-banner.soft {
