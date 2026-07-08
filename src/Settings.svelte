@@ -10,6 +10,8 @@
   import type { TurnUrl } from './collaboration/types.js';
   import type { Theme } from './ui/theme.svelte.js';
   import ThemeToggle from './ui/ThemeToggle.svelte';
+  import { BRAND_ICONS } from './ui/brandIcons.js';
+  import { GENERIC_ICONS } from './ui/genericStorageIcons.js';
 
   import Dialog from './ui/Dialog.svelte';
 
@@ -422,6 +424,8 @@
       {@const ready = hasConfigFields ? withVersion(isConfigured(b.auth)) : b.storage.availability.ok}
       {@const authed = withVersion(b.auth.isAuthenticated())}
       {@const expanded = expandedId === b.storage.id}
+      {@const icon = BRAND_ICONS[b.storage.id]}
+      {@const generic = GENERIC_ICONS[b.storage.id]}
       <section class="tile" class:expanded class:focused={b.storage.id === focusId}>
         <button
           type="button"
@@ -429,7 +433,17 @@
           aria-expanded={expanded}
           onclick={() => toggleExpanded(b.storage.id)}
         >
-          <span class="tile-monogram" aria-hidden="true">{monogram(b.storage.label)}</span>
+          {#if icon}
+            <span class="tile-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="#{icon.hex}"><path d={icon.path} /></svg>
+            </span>
+          {:else if generic}
+            <span class="tile-monogram" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{@html generic}</svg>
+            </span>
+          {:else}
+            <span class="tile-monogram" aria-hidden="true">{monogram(b.storage.label)}</span>
+          {/if}
           <span class="tile-name">{b.storage.label}</span>
           {#if authed}
             <span class="badge ok">Connected</span>

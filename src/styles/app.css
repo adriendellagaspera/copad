@@ -525,6 +525,20 @@ button.status-link {
   color: var(--text-muted);
   flex-shrink: 0;
 }
+/* Official brand marks keep their own fixed light backdrop regardless of
+   app theme — several (GitHub's near-black mark, for one) are drawn for use
+   on a light ground and would lose contrast against a themed dark surface. */
+.tile-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm);
+  background: #fff;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 .tile-name {
   flex: 1;
   font-weight: 600;
