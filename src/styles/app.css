@@ -217,7 +217,7 @@ header.capsule {
     box-sizing: border-box;
     margin: 0;
     width: auto;
-    max-width: min(50vw, 190px);
+    max-width: min(38vw, 140px);
     border: 1px solid var(--border);
     border-radius: var(--r-full);
     /* Frosted, not flat: a mostly-opaque tint + blur reads as glass — the
