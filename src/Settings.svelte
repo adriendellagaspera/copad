@@ -152,13 +152,34 @@
   // first, then ready-to-connect, then needing setup, then unavailable. Purely
   // a display concern local to this component; backends() itself stays in its
   // fixed source order.
-  function statusRank(b: StorageBackend): number {
-    if (withVersion(b.auth.isAuthenticated())) return 0;
+  type StatusRank = 'connected' | 'ready' | 'setup' | 'unavailable';
+  const RANK_ORDER: Record<StatusRank, number> = { connected: 0, ready: 1, setup: 2, unavailable: 3 };
+  const RANK_LABEL: Record<StatusRank, string> = {
+    connected: 'connected',
+    ready: 'ready',
+    setup: 'needs setup',
+    unavailable: 'unavailable',
+  };
+  function statusRank(b: StorageBackend): StatusRank {
+    if (withVersion(b.auth.isAuthenticated())) return 'connected';
     const hasConfigFields = (b.auth.configFields?.length ?? 0) > 0;
-    if (hasConfigFields) return withVersion(isConfigured(b.auth)) ? 1 : 2;
-    return b.storage.availability.ok ? 1 : 3;
+    if (hasConfigFields) return withVersion(isConfigured(b.auth)) ? 'ready' : 'setup';
+    return b.storage.availability.ok ? 'ready' : 'unavailable';
   }
-  const sortedBackends = $derived([...backends].sort((a, b) => statusRank(a) - statusRank(b)));
+  const sortedBackends = $derived(
+    [...backends].sort((a, b) => RANK_ORDER[statusRank(a)] - RANK_ORDER[statusRank(b)])
+  );
+  // At-a-glance dot cluster for the Storage nav item — one dot per backend,
+  // grouped in the same connected/ready/setup/unavailable order as the grid.
+  const storageDots = $derived(sortedBackends.map(b => statusRank(b)));
+  const storageSummary = $derived.by(() => {
+    const counts: Record<StatusRank, number> = { connected: 0, ready: 0, setup: 0, unavailable: 0 };
+    for (const b of backends) counts[statusRank(b)]++;
+    return (Object.keys(RANK_LABEL) as StatusRank[])
+      .filter(rank => counts[rank] > 0)
+      .map(rank => `${counts[rank]} ${RANK_LABEL[rank]}`)
+      .join(', ');
+  });
 
   // Which tile is expanded — a backend deep-link (focusId) opens dropped
   // straight to it; otherwise every tile starts collapsed.
@@ -538,6 +559,11 @@
           onclick={() => (activeView = 'storage')}
         >
           Storage
+          <span class="storage-status-dots" title={storageSummary}>
+            {#each storageDots as rank, i (i)}
+              <span class="storage-status-dot storage-status-dot--{rank}"></span>
+            {/each}
+          </span>
         </button>
       </div>
     </nav>
