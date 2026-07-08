@@ -65,6 +65,43 @@ export function refreshPresenceFade(root: Element, activity: PresenceActivity): 
  *  in ms — must match the `presence-jump-flash` CSS animation's duration. */
 const JUMP_FLASH_MS = 1200;
 
+/** Pending removal timer per flashed element, so a re-trigger while one is
+ *  still in flight cancels the stale timer instead of leaving two timers
+ *  racing to touch the same element's class (see `flashOnce`). Keyed by
+ *  element, not clientId, since the cursor widget's DOM node is reused
+ *  (stable key) but a selection span isn't — a WeakMap lets stale entries
+ *  for since-replaced spans get collected instead of leaking. */
+const flashTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
+
+/**
+ * (Re)plays the flash animation on one element, correct even if it's already
+ * mid-flash from a previous, rapid click on the same peer.
+ *
+ * Re-adding a class that's already present is a no-op in the DOM — the CSS
+ * animation does not restart — so repeatedly clicking the same peer within
+ * one flash's ~1.2s lifetime used to leave the second click's flash silently
+ * dropped (or, worse, the *first* click's stale removal timer could fire
+ * mid-way through a *later* click's animation and yank the class off early).
+ * Forcing a reflow between remove and re-add guarantees the animation always
+ * restarts from frame 0, and clearing any previous timer before scheduling a
+ * new one guarantees exactly one removal ever fires per element.
+ */
+function flashOnce(el: HTMLElement, color: CursorColor | undefined): void {
+  if (color) el.style.setProperty('--jump-color', color);
+  const pending = flashTimers.get(el);
+  if (pending !== undefined) clearTimeout(pending);
+  el.classList.remove('presence-jump-flash');
+  void el.offsetWidth; // force layout so the class below is seen as a fresh add, not a no-op
+  el.classList.add('presence-jump-flash');
+  flashTimers.set(
+    el,
+    setTimeout(() => {
+      el.classList.remove('presence-jump-flash');
+      flashTimers.delete(el);
+    }, JUMP_FLASH_MS)
+  );
+}
+
 /**
  * Scrolls a peer's rendered cursor into view and briefly flashes it (plus
  * their live selection highlight, if any) in the peer's own colour — the
@@ -90,9 +127,5 @@ export function jumpToPresence(root: Element, clientId: number, color?: CursorCo
   if (!target) return;
   target.scrollIntoView({ behavior: 'smooth', block: 'center' });
   const flashed = cursor ? [cursor, ...selection] : Array.from(selection);
-  flashed.forEach((el) => {
-    if (color) el.style.setProperty('--jump-color', color);
-    el.classList.add('presence-jump-flash');
-    setTimeout(() => el.classList.remove('presence-jump-flash'), JUMP_FLASH_MS);
-  });
+  flashed.forEach((el) => flashOnce(el, color));
 }
