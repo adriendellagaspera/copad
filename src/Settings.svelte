@@ -139,6 +139,15 @@
     });
   }
 
+  // At-a-glance relay status for the Connectivity card header.
+  const turnStatus = $derived(
+    rawUrl.trim()
+      ? 'Custom relay'
+      : turnFallback === FallbackTurnPolicy.OpenRelay
+        ? 'Public relay active'
+        : 'No relay configured'
+  );
+
   const configurable = $derived(
     backends.filter(b => b.auth.configFields && b.auth.configFields.length > 0)
   );
@@ -206,6 +215,10 @@
 </script>
 
 {#snippet generalView()}
+  <p class="settings-lead">
+    Editor, local copy, and connectivity — grouped here while this register stays small.
+  </p>
+
   <section class="backend">
     <div class="backend-head">
       <span class="backend-name">Editor</span>
@@ -292,6 +305,7 @@
     <section class="backend">
       <div class="backend-head">
         <span class="backend-name">Connection (WebRTC)</span>
+        <span class="badge {turnStatus === 'No relay configured' ? '' : 'ok'}">{turnStatus}</span>
       </div>
       <p class="backend-blurb">
         Peer-to-peer needs a TURN relay to connect across mobile carrier networks
