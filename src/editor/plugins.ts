@@ -9,7 +9,7 @@ import {
 } from 'prosemirror-inputrules';
 import { undo, redo } from 'y-prosemirror';
 import { findWrapping } from 'prosemirror-transform';
-import { goToNextCell, columnResizing, tableEditing } from 'prosemirror-tables';
+import { goToNextCell, columnResizing, tableEditing, addRowAfter } from 'prosemirror-tables';
 import type { MarkType, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
 import { Selection } from 'prosemirror-state';
 import type { Command, EditorState, Plugin, Transaction } from 'prosemirror-state';
@@ -353,6 +353,40 @@ export function exitTableAtBoundary(s: Schema, dir: 1 | -1): Command {
   };
 }
 
+/**
+ * Tab in the very last cell of a table's last row adds a new row and moves
+ * into its first cell, instead of doing nothing (`goToNextCell(1)` returns
+ * `false` there — there's no next cell to go to). Matches the near-universal
+ * convention across Word, Google Docs and Notion: Tab at a table's last cell
+ * keeps you typing by growing the table, the same way Tab at the end of the
+ * last row of a spreadsheet does.
+ */
+export function tabAddsRowAtEnd(s: Schema): Command {
+  return (state, dispatch) => {
+    const { $from, empty } = state.selection;
+    if (!empty) return false;
+    const depth = $from.depth;
+    const cell = depth >= 0 ? $from.node(depth) : null;
+    if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
+    if (depth < 2) return false;
+    const row = $from.node(depth - 1);
+    const table = $from.node(depth - 2);
+    if ($from.index(depth - 1) !== row.childCount - 1 || $from.index(depth - 2) !== table.childCount - 1) {
+      return false;
+    }
+    if (!dispatch) return true;
+    const tablePos = $from.before(depth - 2);
+    return addRowAfter(state, (tr) => {
+      const grownTable = tr.doc.nodeAt(tablePos);
+      if (!grownTable) return;
+      let lastRowStart = tablePos + 1;
+      for (let i = 0; i < grownTable.childCount - 1; i += 1) lastRowStart += grownTable.child(i).nodeSize;
+      tr.setSelection(Selection.near(tr.doc.resolve(lastRowStart + 2), 1));
+      dispatch(tr.scrollIntoView());
+    });
+  };
+}
+
 export function buildPlugins(s: Schema): Plugin[] {
   return [
     keymap({
@@ -405,6 +439,7 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Backspace': clearEmptyCodeBlockBackward,
       'Tab': chainCommands(
         goToNextCell(1),
+        tabAddsRowAtEnd(s),
         sinkListItem(s.nodes.list_item),
         sinkListItem(s.nodes.task_item)
       ),

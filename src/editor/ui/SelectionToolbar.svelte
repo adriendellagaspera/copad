@@ -146,14 +146,23 @@
   // to reach a cell's contextual menu — so they always focus the bubble's
   // first button when it's visible, table caret or not. This is what a
   // keyboard user reaches for once Tab is unavailable (e.g. inside a table).
+  //
+  // Alt-Enter is a second, app-owned entry point to the same effect — F-keys
+  // are frequently remapped to hardware functions (brightness/volume) behind
+  // an Fn lock on laptops, making Shift-F10 unreliable exactly for the
+  // keyboard-first users it targets. Alt-Enter collides with nothing else
+  // bound here (plain Enter is table-boundary-escape/list-split, Mod-Enter
+  // is unused) and already reads as "give me more on the thing I'm in" —
+  // Windows Explorer's Alt-Enter for a file's Properties is the same idiom.
   $effect(() => {
     const v = view;
     if (!v) return;
     const dom = v.dom;
     const onKeydown = (e: KeyboardEvent) => {
       const isContextMenuKey = e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey);
+      const isAltEnter = e.key === 'Enter' && e.altKey;
       const isTabIntoBubble = e.key === 'Tab' && !e.shiftKey;
-      if (!isContextMenuKey && !isTabIntoBubble) return;
+      if (!isContextMenuKey && !isAltEnter && !isTabIntoBubble) return;
       if (!visible) return;
       if (isTabIntoBubble && v.state.selection.empty && isInTable(v.state)) return;
       const target = host?.querySelector<HTMLElement>(

@@ -11,6 +11,7 @@ import {
   exitCodeBlockOnBlankLine,
   clearEmptyCodeBlockBackward,
   exitTableAtBoundary,
+  tabAddsRowAtEnd,
   toggleBlockType,
   checklistRuleHandler,
   BOLD_STAR_RULE,
@@ -566,6 +567,40 @@ describe('exitTableAtBoundary', () => {
   it('returns false outside a table entirely', () => {
     const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
     const { handled, dispatched } = runCmd(up, doc, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('tabAddsRowAtEnd', () => {
+  const tab = tabAddsRowAtEnd(schema);
+
+  it('adds a new row and moves into its first cell, from the last cell of a 1×1 table', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const { handled, dispatched, next } = runCmd(tab, doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.firstChild?.childCount).toBe(2); // grew from 1 row to 2
+    expect(next!.selection.$from.parent.type.name).toMatch(/table_cell|table_header/);
+    // The new row is the caret's ancestor row, and it's the table's last child.
+    const table = next!.doc.firstChild!;
+    const row = next!.selection.$from.node(next!.selection.$from.depth - 1);
+    expect(row).toBe(table.lastChild);
+  });
+
+  it('does not fire from the last cell of a non-last row (goToNextCell already has somewhere to go)', () => {
+    const types = tableNodeTypes(schema);
+    const firstRow = types.row.create(null, [types.header_cell.create()]);
+    const secondRow = types.row.create(null, [types.cell.create()]);
+    const doc = schema.node('doc', null, [types.table.create(null, [firstRow, secondRow])]);
+    const { handled, dispatched } = runCmd(tab, doc, 3); // inside the first (non-last) row's only cell
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('returns false outside a table entirely', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
+    const { handled, dispatched } = runCmd(tab, doc, 1);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });
