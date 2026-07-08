@@ -212,7 +212,13 @@ select {
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
   font: inherit;
-  font-size: var(--fs-300);
+  /* iOS Safari auto-zooms the whole page on focus when a field's computed
+     font-size is under 16px — 13px (--fs-300) tripped it on every text input
+     in the app (most noticeably the identity panel's name field, which
+     autofocuses the instant it opens). --fs-400 sits exactly at the
+     threshold, so focusing any field here never triggers it; deliberate
+     pinch-to-zoom by the user is untouched. */
+  font-size: var(--fs-400);
   color: var(--text);
   background: var(--surface);
   /* All four properties share one duration. Split across --dur-fast and
