@@ -525,22 +525,15 @@ button.status-link {
   color: var(--text-muted);
   flex-shrink: 0;
 }
-/* Official brand marks keep their own light backdrop regardless of app theme
-   (--brand-chip-bg, tokens.css) — several (GitHub's near-black mark, for one)
-   are drawn for use on a light ground and would lose contrast against a
-   themed dark surface. Only the exact shade follows the theme (pure white in
-   light mode, a soft gray in dark mode) so it doesn't glare against the rest
-   of a dark UI. */
-.tile-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: var(--r-sm);
-  background: var(--brand-chip-bg);
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+/* GitHub's mark is a fixed near-black (#181717) — correct on the light tiles
+   below, but it nearly vanishes against the dark theme's tile-monogram
+   surface. Every other brand mark here (Dropbox blue, GitLab orange, Google
+   Drive blue, pCloud's colored logo) has enough luminance to read fine on
+   either surface directly, so only GitHub needs this: swap to GitHub's own
+   dark-mode-safe white variant of the mark rather than inventing a special
+   backdrop for every logo. */
+[data-theme="dark"] .brand-github svg path {
+  fill: var(--text);
 }
 .tile-name {
   flex: 1;

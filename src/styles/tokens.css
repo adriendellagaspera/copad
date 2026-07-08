@@ -13,11 +13,6 @@
   --border: #e6e4e0;
   --border-strong: #d3d0ca;
   --overlay: rgba(20, 18, 15, 0.32);   /* dialog backdrop */
-  /* Fixed backdrop for a full-color brand logo (Settings storage tiles) —
-     several marks (GitHub's near-black glyph) are drawn for a light ground,
-     so this stays light in both themes rather than following --surface;
-     only the exact shade shifts, softening pure white against a dark UI. */
-  --brand-chip-bg: #ffffff;
 
   /* ── Text ── */
   --text: #1d1c1a;        /* primary ink — slightly warm */
@@ -113,7 +108,6 @@
   --border: #2e2e38;
   --border-strong: #3a3a46;
   --overlay: rgba(0, 0, 0, 0.55);
-  --brand-chip-bg: #d7d7dc;
 
   --text: #ececf0;
   --text-muted: #a6a6b0;

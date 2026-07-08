@@ -439,11 +439,11 @@
           onclick={() => toggleExpanded(b.storage.id)}
         >
           {#if image}
-            <span class="tile-icon" aria-hidden="true">
+            <span class="tile-monogram" aria-hidden="true">
               <img src={image} width="16" height="16" alt="" />
             </span>
           {:else if icon}
-            <span class="tile-icon" aria-hidden="true">
+            <span class="tile-monogram" class:brand-github={b.storage.id === STORAGE_ID.github} aria-hidden="true">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="#{icon.hex}"><path d={icon.path} /></svg>
             </span>
           {:else if generic}
