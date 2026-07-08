@@ -227,25 +227,55 @@
   // scrolling back up — or returning near the top — brings it back. The
   // threshold on both the "near top" and "direction changed" checks absorbs
   // the 1-2px jitter of momentum/rubber-band scrolling on touch devices.
+  //
+  // SETTLE_MS matters more than it looks: collapsing the header is a real
+  // layout resize (its flex sibling `.editor` grows to fill the freed
+  // space), which grows `.content`'s clientHeight mid-transition. If the
+  // document is short (or the user was scrolled near the bottom), that
+  // resize shrinks the valid scroll range and the browser clamps
+  // `.content.scrollTop` back down on its own — which this listener would
+  // otherwise read as "the user scrolled up" and re-show the header
+  // immediately, undoing the hide it just did. Ignoring scroll events for
+  // one CSS-transition's worth of time after each toggle lets that
+  // self-inflicted resize settle before trusting scrollTop again.
   $effect(() => {
     const el = editorEl;
     if (!el) return;
     const NEAR_TOP = 8;
-    const DIRECTION_THRESHOLD = 8;
+    const DIRECTION_THRESHOLD = 24;
+    const SETTLE_MS = 260;
     let lastTop = el.scrollTop;
+    let hidden = false;
+    let settling = false;
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    const setHidden = (next: boolean): void => {
+      if (next === hidden) return;
+      hidden = next;
+      setSessionScrollHidden(hidden);
+      settling = true;
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        settling = false;
+        lastTop = el.scrollTop;
+      }, SETTLE_MS);
+    };
     const onScroll = () => {
+      if (settling) return;
       const top = el.scrollTop;
       if (top <= NEAR_TOP) {
-        setSessionScrollHidden(false);
+        setHidden(false);
       } else if (top > lastTop + DIRECTION_THRESHOLD) {
-        setSessionScrollHidden(true);
+        setHidden(true);
       } else if (top < lastTop - DIRECTION_THRESHOLD) {
-        setSessionScrollHidden(false);
+        setHidden(false);
       }
       lastTop = top;
     };
     el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
+    return () => {
+      clearTimeout(settleTimer);
+      el.removeEventListener('scroll', onScroll);
+    };
   });
 
   // Broadcast full typed awareness state whenever any field changes.

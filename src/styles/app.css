@@ -168,8 +168,9 @@ header.capsule {
 /* Mobile: the pill collapses to a flush, chromeless strip holding only the
    room name — every action moves to the bottom dock (.mobile-dock /
    .fixed-toolbar.editing, see app.css below and editor.css) so the header
-   never costs more than a single ~44px line at rest, and none at all once
-   the dock takes over near the keyboard.
+   never costs more than a single ~36px line at rest, and none at all while
+   scrolled down (hide-on-scroll, see .scroll-hidden below) or once the dock
+   takes over near the keyboard.
    Gated on pointer:coarse OR max-width:900px. pointer:coarse is the primary
    signal (touch devices always get this layout regardless of width — an
    iPad Pro landscape shouldn't try to cram the full capsule in). The
@@ -186,7 +187,11 @@ header.capsule {
    layout already verified down to 320px, rather than silently breaking. */
 @media (pointer: coarse), (max-width: 900px) {
   header.capsule {
-    height: 44px;
+    /* 36px, not a full 44px tap target — this bar holds no tappable chrome
+       of its own on mobile (every action moved to the bottom dock; renaming
+       is a tap-anywhere-in-the-text affordance, not a discrete target), so
+       it can run to the compact end of the iOS/Android nav-bar range. */
+    height: 36px;
     padding: 0 var(--sp-2);
     box-sizing: border-box;
     overflow: hidden;
@@ -195,13 +200,13 @@ header.capsule {
        never animate a width change (there's nothing to grow/shrink toward).
        No fill/border here — a native-toolbar title sits flush in the page
        background rather than reading as its own card. margin-bottom is kept
-       (tightened to --sp-2, matching .app's own mobile rhythm below) rather
+       (trimmed to --sp-1, matching .app's own mobile rhythm below) rather
        than zeroed — .app has no flex gap of its own (see its comment), so
        zeroing this would collide the strip straight into the
        SyncBanner/editor with no gap at all. Height/margin/padding animate
        instead — see .scroll-hidden below — so the desktop width transition
        is deliberately replaced rather than left in place. */
-    margin: 0 0 var(--sp-2);
+    margin: 0 0 var(--sp-1);
     align-self: stretch;
     width: auto;
     max-width: none;
