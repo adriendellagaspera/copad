@@ -78,15 +78,18 @@
     box-shadow: none;
   }
 
-  /* Mobile (M3): the header capsule becomes a floating overlay (see
-     header.capsule's combined pointer:coarse-or-narrow rule in app.css) — so
-     it drops its own chrome too, becoming plain centered text until tapped.
-     Same trigger as the capsule collapse it lives inside. The capsule itself
-     is pointer-events:none there (so a scroll/drag starting anywhere on the
-     strip falls through to the document below) — this field opts back in so
-     tapping/typing the name still works. */
+  /* Mobile (M3): the header capsule shrinks to a small floating pill holding
+     only this field (see header.capsule's combined pointer:coarse-or-narrow
+     rule in app.css) — so it drops its own chrome too, becoming plain
+     centered text until tapped. Same trigger as the capsule shrink it lives
+     inside. The pill itself is pointer-events:none there (so a scroll/drag
+     starting anywhere on its small footprint falls through to the document
+     below) — this field opts back in so tapping/typing the name still
+     works. Long names truncate with an ellipsis rather than wrapping or
+     growing the pill — there's no room to spare at this size. */
   @media (pointer: coarse), (max-width: 900px) {
     .room-switcher {
+      height: auto;
       border: none;
       background: transparent;
       padding-left: 0;
@@ -100,9 +103,12 @@
     }
     .room-name-input {
       width: auto;
-      max-width: 60vw;
+      max-width: 100%;
       text-align: center;
       padding: 0.3rem 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
   }
 </style>

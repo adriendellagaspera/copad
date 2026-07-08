@@ -165,26 +165,28 @@ header.capsule {
   flex: none;
 }
 
-/* Mobile: the pill becomes a floating, translucent title strip — pinned over
-   the top of the viewport (below the status bar/notch via safe-area-inset)
-   rather than living in the document's flow — so the editor itself can run
-   all the way to the physical top of the screen (see .editor's own mobile
-   rule in editor.css) instead of leaving a reserved band of dead space.
+/* Mobile: the pill shrinks to a small floating badge — same visual family as
+   `.mobile-dock` below (rounded, bordered, shadowed, frosted), just tiny and
+   pinned near the top of the viewport instead of spanning it. A full-width
+   title strip (translucent or not) was tried and rejected: even frosted, a
+   flush edge-to-edge bar reads as "just text with no container" rather than
+   a piece of UI, and it breaks the one visual language (the capsule) every
+   other piece of chrome in this app uses. A small pill keeps that identity
+   and costs only its own tiny footprint, not a full-width band — it never
+   needs to hide on scroll (there's nothing to reclaim by hiding something
+   this small), it just floats permanently, with the document blurring
+   through its own backdrop-filter as text passes underneath it (the
+   Dynamic-Island / Craft-app pattern) rather than a swipe or scroll gesture
+   toggling visibility.
    Every action moves to the bottom dock (.mobile-dock / .fixed-toolbar.editing,
-   see below and editor.css); this strip holds only the room name.
-   SOTA reference: iOS/Android "large title → inline blur" (Mail, Notes,
-   Apple Music) — a frosted bar (translucent fill + backdrop-filter blur,
-   feathered out via mask-image rather than cut with a hard edge) lets the
-   very top of the document read through instead of sitting on an opaque
-   card. Because it's an overlay, not a flow sibling, hiding it on scroll
-   (see .scroll-hidden below) never resizes `.content` — no layout feedback
-   loop with the scroll position it's driven by (see Editor.svelte).
-   pointer-events: none lets a touch/drag anywhere on this strip fall through
-   to the document underneath instead of being swallowed by empty header
-   chrome — the actual room-name field opts back in with pointer-events:auto
-   (RoomNameField.svelte) so renaming still works. This is also what fixes
-   scrolling from "high up" on the screen: previously that touch landed on
-   the in-flow header and never reached `.content` at all.
+   see below and editor.css); this pill holds only the room name.
+   position:fixed + safe-area-inset-top (not a flow sibling) so `.editor` can
+   still run to the physical top of the screen (see .editor's own mobile rule
+   in editor.css) — the pill floats over the document rather than reserving a
+   band above it. pointer-events:none lets a touch/drag anywhere on the pill's
+   own small rect fall through to the document below instead of being
+   swallowed by its empty padding; the room-name field opts back in with
+   pointer-events:auto (RoomNameField.svelte) so renaming still works.
    Gated on pointer:coarse OR max-width:900px. pointer:coarse is the primary
    signal (touch devices always get this layout regardless of width — an
    iPad Pro landscape shouldn't try to cram the full capsule in). The
@@ -202,34 +204,33 @@ header.capsule {
 @media (pointer: coarse), (max-width: 900px) {
   header.capsule {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    /* --mobile-header-h (tokens.css) is the *content* height; safe-area-inset-top
-       pushes that content below the status bar/notch without hardcoding a
-       device-specific offset — 0 on a device with no notch. */
-    height: calc(var(--mobile-header-h) + env(safe-area-inset-top, 0px));
-    padding: env(safe-area-inset-top, 0px) var(--sp-2) 0;
+    /* Same top-inset convention as .mobile-dock's bottom inset below: at
+       least --sp-2 of breathing room, but never under the status bar/notch. */
+    top: max(var(--sp-2), env(safe-area-inset-top, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    /* --mobile-header-h (tokens.css) is this pill's own height, read by
+       .content's reserved top padding (editor.css) too, so the two stay in
+       lockstep. */
+    height: var(--mobile-header-h);
+    padding: 0 var(--sp-3);
     box-sizing: border-box;
     margin: 0;
-    align-self: stretch;
     width: auto;
-    max-width: none;
-    border: none;
-    border-radius: 0;
-    /* Frosted, not flat: a half-opaque tint + blur reads as glass, and the
-       mask feathers the whole thing to fully transparent by the bottom edge
-       so it blends into the document instead of ending on a hard line. */
-    background: color-mix(in srgb, var(--surface-2) 55%, transparent);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
-    box-shadow: none;
+    max-width: min(65vw, 260px);
+    border: 1px solid var(--border);
+    border-radius: var(--r-full);
+    /* Frosted, not flat: a mostly-opaque tint + blur reads as glass — the
+       document dims/blurs through it as text scrolls underneath — while the
+       border + shadow give it the same solid "chip" presence as every other
+       capsule in this app. */
+    background: color-mix(in srgb, var(--surface) 82%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-md);
     justify-content: center;
     z-index: var(--z-menu);
     pointer-events: none;
-    transition: opacity var(--dur-fast) var(--ease), transform var(--dur-mid) var(--ease);
   }
   header.capsule .cap-mark,
   header.capsule .cap-btn,
@@ -240,16 +241,6 @@ header.capsule {
   header.capsule .session,
   header.capsule .cap-theme {
     display: none;
-  }
-  /* Hide-on-scroll: slide the strip up and fade it, rather than collapsing
-     its height — an overlay has no layout to reclaim by shrinking, and
-     animating height would just resurrect the old resize-vs-scrollTop
-     feedback loop for no benefit. .content's own scroll position drives
-     this (see Editor.svelte) — scrolling down past a small threshold hides
-     it, scrolling up (or reaching the top) brings it back. */
-  header.capsule.scroll-hidden {
-    opacity: 0;
-    transform: translateY(-100%);
   }
 }
 

@@ -682,7 +682,7 @@
        One capsule, one size grammar (see app.css) — a single floating pill
        holds every piece of session chrome. On mobile it collapses to just
        the room name; every action moves to the bottom dock below. -->
-  <header class="capsule" class:scroll-hidden={sessionState.scrollHidden}>
+  <header class="capsule">
     <!-- Reload is destructive (drops focus/selection instantly) and sits in the
          header's normal tab order, so a stray Enter/Space while tabbing through
          the page (e.g. to reach the floating selection toolbar) can trigger it

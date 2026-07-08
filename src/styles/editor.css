@@ -406,16 +406,14 @@
    last lines of text — same combined trigger as the dock itself, not just
    the narrow-viewport breakpoint above (the dock can also be showing on a
    resized pointer:fine desktop window wider than 640px).
-   The top gets the mirror-image reservation: the header capsule is now a
-   fixed overlay sitting over `.content` (app.css) rather than a flow
-   sibling pushing it down, so without this the first lines of text would
-   render right under the room name / status bar. This padding is part of
-   the *document*, not the viewport, so it scrolls away once the user
-   scrolls past it — unlike the old flow-header gap, it's never dead space
-   that persists after the header hides. */
+   The top gets a matching (smaller) reservation: the room-name pill is a
+   fixed overlay floating over `.content` (app.css), not a flow sibling
+   pushing it down, so without this the first lines of text would start
+   right under it. This padding is part of the *document*, not the
+   viewport, so it scrolls away once the user scrolls past it. */
 @media (pointer: coarse), (max-width: 900px) {
   .content {
-    padding-top: calc(var(--mobile-header-h) + env(safe-area-inset-top, 0px) + var(--sp-3));
+    padding-top: calc(max(var(--sp-2), env(safe-area-inset-top, 0px)) + var(--mobile-header-h) + var(--sp-3));
     padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));
   }
 }
@@ -444,15 +442,14 @@
    .app centered with room to spare, so the cancelling negative margin would
    only reach .app's own (inset) edge, not the real viewport edge — border
    gone, but still visibly inset, which reads as broken, not "full-bleed".
-   The top edge cancels the same way: the header capsule is now a fixed
+   The top edge cancels the same way: the room-name pill is a small fixed
    overlay (app.css), not a flow sibling reserving a band above, so nothing
    stops the card from reaching the literal top of the viewport too — only
    the top corners lose their radius (the bottom keeps the "sheet" curve;
    .app's own bottom padding still insets it there, and the mobile dock
-   floats independently). `.content`'s own top padding (below) reserves the
-   header's height so the room name still has something to float over at
-   rest — that padding scrolls away with the rest of the document instead of
-   sitting there permanently once the header hides. */
+   floats independently). `.content`'s own top padding (below) reserves just
+   enough room for the pill so the first lines of text don't start right
+   under it. */
 @media (max-width: 900px) {
   .editor {
     border: none;

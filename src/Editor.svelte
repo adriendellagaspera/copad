@@ -46,7 +46,6 @@
     setSessionDiagnostics,
     setSessionEditing,
     setSessionJumpToPeer,
-    setSessionScrollHidden,
     resetSessionState,
   } from './collaboration/sessionState.svelte.js';
 
@@ -219,35 +218,6 @@
       el.removeEventListener('focusin', onFocusIn);
       el.removeEventListener('focusout', onFocusOut);
     };
-  });
-
-  // Mobile-only signal: hide-on-scroll for the header (see the M3 layout in
-  // App.svelte / app.css). Scrolling down past a small threshold slides the
-  // header out; scrolling back up — or returning near the top — brings it
-  // back. The header is a fixed overlay, not a flow sibling (app.css), so
-  // toggling it never resizes `.content` itself — no feedback loop with the
-  // scroll position driving it, unlike an in-flow collapse would have. The
-  // threshold on both checks absorbs the 1-2px jitter of momentum/rubber-band
-  // scrolling on touch devices.
-  $effect(() => {
-    const el = editorEl;
-    if (!el) return;
-    const NEAR_TOP = 8;
-    const DIRECTION_THRESHOLD = 16;
-    let lastTop = el.scrollTop;
-    const onScroll = () => {
-      const top = el.scrollTop;
-      if (top <= NEAR_TOP) {
-        setSessionScrollHidden(false);
-      } else if (top > lastTop + DIRECTION_THRESHOLD) {
-        setSessionScrollHidden(true);
-      } else if (top < lastTop - DIRECTION_THRESHOLD) {
-        setSessionScrollHidden(false);
-      }
-      lastTop = top;
-    };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
   });
 
   // Broadcast full typed awareness state whenever any field changes.

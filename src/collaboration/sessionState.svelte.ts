@@ -36,12 +36,6 @@ let editing = $state(false);
 // ConnectionDialog, both of which sit outside the Editor block. Undefined
 // while no Editor is mounted (e.g. mid room-switch remount).
 let jumpToPeer = $state<((clientId: number) => void) | undefined>(undefined);
-// True once the document has been scrolled down past a small threshold — read
-// by the mobile header (App.svelte) to collapse itself out of the way, then
-// reappear the moment the user scrolls back up or returns to the top. See
-// Editor.svelte's scroll tracking on `.content`. Irrelevant on desktop, where
-// the header never collapses.
-let scrollHidden = $state(false);
 
 /** Reactive accessor read by the header. */
 export const sessionState = {
@@ -66,9 +60,6 @@ export const sessionState = {
   get jumpToPeer(): ((clientId: number) => void) | undefined {
     return jumpToPeer;
   },
-  get scrollHidden(): boolean {
-    return scrollHidden;
-  },
 };
 
 export function setSessionConn(value: ConnStatus): void {
@@ -90,9 +81,6 @@ export function setSessionEditing(value: boolean): void {
 export function setSessionJumpToPeer(value: ((clientId: number) => void) | undefined): void {
   jumpToPeer = value;
 }
-export function setSessionScrollHidden(value: boolean): void {
-  scrollHidden = value;
-}
 
 /** Restore defaults when the Editor unmounts (room change / teardown). */
 export function resetSessionState(): void {
@@ -103,5 +91,4 @@ export function resetSessionState(): void {
   diag = { transport: Transport.P2P };
   editing = false;
   jumpToPeer = undefined;
-  scrollHidden = false;
 }
