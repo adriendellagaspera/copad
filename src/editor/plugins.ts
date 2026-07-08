@@ -289,11 +289,67 @@ export function checklistRuleHandler(s: Schema): RuleHandler {
 /** Swallow Enter inside a table cell instead of letting `baseKeymap`'s
  *  `splitBlock` split the cell itself in two — GFM-shaped cells are
  *  single-line (`cellContent: 'inline*'`, see schema.ts), so there's no
- *  "new paragraph within the cell" to make room for. */
+ *  "new paragraph within the cell" to make room for. Only reached once
+ *  {@link exitTableAtBoundary} has already ruled out an actual escape. */
 function preventEnterInTableCell(s: Schema): Command {
   return (state) => {
     const { parent } = state.selection.$from;
     return parent.type === s.nodes.table_cell || parent.type === s.nodes.table_header;
+  };
+}
+
+/**
+ * Enter at the very start of a table's first cell, or the very end of its
+ * last cell, escapes the table instead of being swallowed like every other
+ * Enter inside a cell (see {@link preventEnterInTableCell}) — otherwise a
+ * table that opens or closes the document traps the caret with no keyboard
+ * way out (cells can't grow a new line to push past it, unlike a paragraph).
+ * Moves into whichever block already sits next to the table if there is
+ * one, or inserts a fresh paragraph there otherwise — the same "reuse a
+ * neighbour, else make one" shape as {@link exitCodeBlock}, just usable in
+ * both directions since a table (unlike a code block) can trap the caret
+ * from either end.
+ */
+export function exitTableAtBoundary(s: Schema, dir: 1 | -1): Command {
+  return (state, dispatch) => {
+    const { $from, empty } = state.selection;
+    if (!empty) return false;
+    const depth = $from.depth;
+    const cell = depth >= 0 ? $from.node(depth) : null;
+    if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
+    if (depth < 2) return false;
+    const row = $from.node(depth - 1);
+    const table = $from.node(depth - 2);
+    const cellIndex = $from.index(depth - 1);
+    const rowIndex = $from.index(depth - 2);
+
+    if (dir === -1) {
+      if ($from.parentOffset !== 0 || cellIndex !== 0 || rowIndex !== 0) return false;
+    } else {
+      if (
+        $from.parentOffset !== cell.content.size ||
+        cellIndex !== row.childCount - 1 ||
+        rowIndex !== table.childCount - 1
+      ) {
+        return false;
+      }
+    }
+
+    if (dispatch) {
+      const tr = state.tr;
+      const boundary = dir === -1 ? $from.before(depth - 2) : $from.after(depth - 2);
+      const $boundary = tr.doc.resolve(boundary);
+      const hasNeighbour = dir === -1 ? $boundary.nodeBefore : $boundary.nodeAfter;
+      if (!hasNeighbour) {
+        const para = s.nodes.paragraph.createAndFill();
+        if (!para) return false;
+        tr.insert(boundary, para);
+      }
+      const pos = hasNeighbour ? boundary + dir : boundary + 1;
+      tr.setSelection(Selection.near(tr.doc.resolve(pos), dir));
+      dispatch(tr.scrollIntoView());
+    }
+    return true;
   };
 }
 
@@ -339,6 +395,8 @@ export function buildPlugins(s: Schema): Plugin[] {
       // onto both halves, so pressing Enter on a checked item would silently
       // hand the brand-new row a pre-ticked checkbox.
       'Enter': chainCommands(
+        exitTableAtBoundary(s, -1),
+        exitTableAtBoundary(s, 1),
         preventEnterInTableCell(s),
         exitCodeBlockOnBlankLine,
         splitListItem(s.nodes.list_item),

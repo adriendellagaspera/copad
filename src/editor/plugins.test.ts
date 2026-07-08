@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import type { Command } from 'prosemirror-state';
+import { tableNodeTypes } from 'prosemirror-tables';
 import { schema } from './schema.js';
 import {
   markRuleHandler,
@@ -9,6 +10,7 @@ import {
   exitCodeBlockDown,
   exitCodeBlockOnBlankLine,
   clearEmptyCodeBlockBackward,
+  exitTableAtBoundary,
   toggleBlockType,
   checklistRuleHandler,
   BOLD_STAR_RULE,
@@ -20,6 +22,13 @@ import {
   LINK_RULE,
   CHECKLIST_RULE,
 } from './plugins.js';
+
+/** A bare 1×1 table (one header cell, no body row) — the smallest doc shape
+ *  that can trap a caret at both the first and the last cell at once. */
+function oneCellTable() {
+  const types = tableNodeTypes(schema);
+  return types.table.create(null, [types.row.create(null, [types.header_cell.create()])]);
+}
 
 /** A one-paragraph doc containing `text`, with the handler invoked as if the
  *  caret sits right after `text` (mimicking the character that just closed
@@ -488,6 +497,75 @@ describe('clearEmptyCodeBlockBackward', () => {
     const para = schema.node('paragraph', null, schema.text('x'));
     const doc = schema.node('doc', null, [codeBlock, para]);
     const { handled, dispatched } = run(doc, 4, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('exitTableAtBoundary', () => {
+  const up = exitTableAtBoundary(schema, -1);
+  const down = exitTableAtBoundary(schema, 1);
+
+  it('inserts a paragraph before a table that opens the doc, on Enter at the start of its first cell', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    // Position 3: into the table (1), into the row (1), into the cell's own content (1).
+    const { handled, dispatched, next } = runCmd(up, doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.doc.firstChild?.type.name).toBe('paragraph');
+    expect(next!.doc.child(1).type.name).toBe('table');
+    // The caret lands inside the freshly inserted paragraph, not the table.
+    expect(next!.selection.$from.parent.type.name).toBe('paragraph');
+  });
+
+  it('inserts a paragraph after a table that closes the doc, on Enter at the end of its last cell', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const { handled, dispatched, next } = runCmd(down, doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.doc.firstChild?.type.name).toBe('table');
+    expect(next!.doc.child(1).type.name).toBe('paragraph');
+    expect(next!.selection.$from.parent.type.name).toBe('paragraph');
+  });
+
+  it('moves into an existing paragraph before the table instead of inserting a new one', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const doc = schema.node('doc', null, [before, oneCellTable()]);
+    const cellStart = before.nodeSize + 3; // end of the paragraph, then into table/row/cell
+    const { handled, dispatched, next } = runCmd(up, doc, cellStart);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2); // no extra paragraph inserted
+    expect(next!.selection.$from.parent.textContent).toBe('above');
+  });
+
+  it('moves into an existing paragraph after the table instead of inserting a new one', () => {
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [oneCellTable(), after]);
+    const { handled, dispatched, next } = runCmd(down, doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.selection.$from.parent.textContent).toBe('below');
+  });
+
+  it('does not fire for Enter in the middle of a multi-cell row (not a boundary)', () => {
+    const types = tableNodeTypes(schema);
+    const row = types.row.create(null, [types.header_cell.create(), types.header_cell.create()]);
+    const table = types.table.create(null, [row]);
+    const doc = schema.node('doc', null, [table]);
+    // Position inside the *second* cell — not index 0, so the "start" exit must not fire.
+    const secondCellPos = 2 + types.header_cell.create().nodeSize;
+    const { handled, dispatched } = runCmd(up, doc, secondCellPos);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('returns false outside a table entirely', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
+    const { handled, dispatched } = runCmd(up, doc, 1);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });
