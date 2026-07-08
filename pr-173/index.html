@@ -9,8 +9,13 @@
       content="Copad is a real-time collaborative writing tool. Write together peer-to-peer, no server required, and save to your own cloud storage."
     />
     <link rel="icon" type="image/svg+xml" href="/copad/pr-173/favicon.svg" />
-    <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#16161a" media="(prefers-color-scheme: dark)" />
+    <!-- Matches --surface (tokens.css), not --bg: on mobile the editor now runs
+         edge-to-edge (see editor.css's full-bleed rules), so --surface is what
+         actually touches the top of the viewport, right up to the status bar —
+         that's the color mobile browser chrome should tint to, not the app
+         canvas color behind the (desktop-only) floating card. -->
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1e1e24" media="(prefers-color-scheme: dark)" />
     <meta name="color-scheme" content="light dark" />
     <!-- Resolve the theme before first paint to avoid a flash of the wrong theme. -->
     <script>
@@ -27,9 +32,9 @@
         }
       })();
     </script>
-    <script type="module" crossorigin src="/copad/pr-173/assets/main-mwNou6XI.js"></script>
+    <script type="module" crossorigin src="/copad/pr-173/assets/main-CXjwoemv.js"></script>
     <link rel="modulepreload" crossorigin href="/copad/pr-173/assets/lib-D54bnSvk.js">
-    <link rel="stylesheet" crossorigin href="/copad/pr-173/assets/main-D7OSgNRq.css">
+    <link rel="stylesheet" crossorigin href="/copad/pr-173/assets/main-BpIWInez.css">
   </head>
   <body>
     <div id="root"></div>
