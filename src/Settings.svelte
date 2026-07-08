@@ -3,13 +3,17 @@
   import { OpenMode, InputType, LoginKind } from './storage/types.js';
   import type { StorageBackend } from './storage/index.js';
   import { isConfigured } from './storage/auth.js';
+  import { STORAGE_ID } from './storage/constants.js';
 
   import type { TurnPrefs } from './collaboration/turn.js';
   import { FallbackTurnPolicy } from './collaboration/types.js';
   import { parseTurnUrl, parseTurnUsername, parseTurnCredential } from './collaboration/parse.js';
   import type { TurnUrl } from './collaboration/types.js';
   import type { Theme } from './ui/theme.svelte.js';
-  import ThemeToggle from './ui/ThemeToggle.svelte';
+  import ThemeSelect from './ui/ThemeSelect.svelte';
+  import { BRAND_ICONS } from './ui/brandIcons.js';
+  import { GENERIC_ICONS } from './ui/genericStorageIcons.js';
+  import { IMAGE_ICONS, SHAREPOINT_SITE_IMAGE, SHAREPOINT_ONEDRIVE_IMAGE } from './ui/imageIcons.js';
 
   import Dialog from './ui/Dialog.svelte';
 
@@ -305,11 +309,16 @@
 
   <!-- The header's own theme toggle collapses away on mobile (see the M3
        layout in app.css) along with the rest of the capsule, so this is
-       its one guaranteed home regardless of screen size. -->
-  <div class="field appearance-row">
-    <span class="field-label">Appearance</span>
-    <ThemeToggle {theme} />
-  </div>
+       its one guaranteed home regardless of screen size — a full card, not
+       a bare row, so it reads as one more setting rather than floating
+       loose between the Editor and Local copy cards. -->
+  <section class="backend">
+    <div class="backend-head">
+      <span class="backend-name">Appearance</span>
+    </div>
+    <p class="backend-blurb">Light, dark, or follow your system setting.</p>
+    <ThemeSelect {theme} />
+  </section>
 
   <section class="backend">
     <div class="backend-head">
@@ -422,6 +431,11 @@
       {@const ready = hasConfigFields ? withVersion(isConfigured(b.auth)) : b.storage.availability.ok}
       {@const authed = withVersion(b.auth.isAuthenticated())}
       {@const expanded = expandedId === b.storage.id}
+      {@const image = b.storage.id === STORAGE_ID.sharepoint
+        ? (withVersion(b.auth.config?.('siteUrl')) ? SHAREPOINT_SITE_IMAGE : SHAREPOINT_ONEDRIVE_IMAGE)
+        : IMAGE_ICONS[b.storage.id]}
+      {@const icon = BRAND_ICONS[b.storage.id]}
+      {@const generic = GENERIC_ICONS[b.storage.id]}
       <section class="tile" class:expanded class:focused={b.storage.id === focusId}>
         <button
           type="button"
@@ -429,7 +443,21 @@
           aria-expanded={expanded}
           onclick={() => toggleExpanded(b.storage.id)}
         >
-          <span class="tile-monogram" aria-hidden="true">{monogram(b.storage.label)}</span>
+          {#if image}
+            <span class="tile-monogram" aria-hidden="true">
+              <img src={image} width="16" height="16" alt="" />
+            </span>
+          {:else if icon}
+            <span class="tile-monogram" class:brand-github={b.storage.id === STORAGE_ID.github} aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="#{icon.hex}"><path d={icon.path} /></svg>
+            </span>
+          {:else if generic}
+            <span class="tile-monogram" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{@html generic}</svg>
+            </span>
+          {:else}
+            <span class="tile-monogram" aria-hidden="true">{monogram(b.storage.label)}</span>
+          {/if}
           <span class="tile-name">{b.storage.label}</span>
           {#if authed}
             <span class="badge ok">Connected</span>
