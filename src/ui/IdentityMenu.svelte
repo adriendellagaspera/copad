@@ -6,11 +6,19 @@
     name: DisplayName;
     color: CursorColor;
     colors: CursorColor[];
+    /** Which side of the trigger the popover opens toward. 'above' is for the
+     *  mobile bottom dock, where the trigger sits near the screen edge and a
+     *  'below' popover would run off-screen. */
+    placement?: 'below' | 'above';
+    /** Avatar diameter — 32 in the desktop capsule (a hair larger than the
+     *  24px presence avatars, since this is the identity entry point, not a
+     *  peer chip), 28 (Avatar's own default) in the compact mobile dock. */
+    size?: number;
     onName: (raw: string) => void;
     onColor: (color: CursorColor) => void;
   };
 
-  let { name, color, colors, onName, onColor }: Props = $props();
+  let { name, color, colors, placement = 'below', size = 28, onName, onColor }: Props = $props();
 
   let open = $state(false);
   let root = $state<HTMLDivElement | undefined>();
@@ -46,10 +54,14 @@
       if (e.key === 'Escape') closeAndReturnFocus();
     };
     window.addEventListener('mousedown', onDown);
-    window.addEventListener('keydown', onKey);
+    // Capture phase so we see Escape before any other in-page listener (or a
+    // browser-extension content script on the autofocused name input, e.g. a
+    // password manager) gets a chance to stopPropagation() or otherwise
+    // swallow the first press.
+    window.addEventListener('keydown', onKey, true);
     return () => {
       window.removeEventListener('mousedown', onDown);
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
     };
   });
 </script>
@@ -65,14 +77,14 @@
     aria-label="Your identity — click to edit"
     onclick={() => (open = !open)}
   >
-    <Avatar name={name} color={color} self />
+    <Avatar name={name} color={color} {size} self />
     {#if isDefault}<span class="identity-hint">Set name</span>{/if}
   </button>
 
   {#if open}
     <!-- role="group", not "dialog": this is a small set of related controls,
          not a modal — it has no focus trap and shouldn't announce as one. -->
-    <div class="identity-pop" role="group" aria-label="Your identity">
+    <div class="identity-pop" class:above={placement === 'above'} role="group" aria-label="Your identity">
       <label class="identity-field">
         <span>Your name</span>
         <input
@@ -112,6 +124,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
+    min-height: 0;
     border: none;
     background: transparent;
     padding: 0.1rem;
@@ -146,6 +159,11 @@
     flex-direction: column;
     gap: var(--sp-3);
     animation: identity-in var(--dur-fast) var(--ease);
+  }
+  /* Mobile dock trigger sits near the bottom edge — open upward instead. */
+  .identity-pop.above {
+    top: auto;
+    bottom: calc(100% + 6px);
   }
   @keyframes identity-in {
     from { opacity: 0; transform: translateY(-4px); }

@@ -92,6 +92,12 @@
   --z-toast: 60;
 
   color-scheme: light;
+
+  /* Lets `transition: width` animate to/from keyword sizes like
+     `fit-content` (used by the header capsule, app.css) instead of jumping
+     instantly. Progressive enhancement — unsupported browsers just keep the
+     instant snap they'd have had anyway; nothing else depends on it. */
+  interpolate-size: allow-keywords;
 }
 
 [data-theme="dark"] {

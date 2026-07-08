@@ -193,20 +193,25 @@
 </svelte:element>
 
 <style>
-  /* Neutral chip; each segment colours only its own icon + label, so two tones
-     coexist without competing background tints (Linear-style). */
+  /* Flush segment, not a boxed chip — it lives inside the header capsule
+     (or the mobile dock), which already supplies the pill; a border/fill
+     here would nest one pill inside another. Each segment colours only its
+     own icon + label, so two tones coexist without competing background
+     tints (Linear-style). */
   .chip {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    padding: 0.2rem 0.6rem;
-    border: 1px solid var(--border);
+    height: 36px;
+    min-height: 0;
+    padding: 0 10px;
     border-radius: var(--r-full);
-    background: var(--surface-2);
+    background: transparent;
     font-size: var(--fs-300);
     font-weight: 500;
     line-height: 1.4;
     white-space: nowrap;
+    transition: background var(--dur-fast, 120ms) var(--ease, ease);
   }
   .chip.clickable {
     cursor: pointer;

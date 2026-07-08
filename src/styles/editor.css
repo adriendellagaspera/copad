@@ -97,6 +97,43 @@
   }
 }
 
+/* ── Mobile bottom dock, "format mode" (M3) ──
+   Hidden at rest — it only appears while the document has focus, occupying
+   the same fixed slot as App.svelte's nav-mode dock (.mobile-dock in
+   app.css). The two are mutually exclusive via the same sessionState.editing
+   flag, so formatting controls never cost vertical space until they're
+   actually needed, and always sit right above the keyboard.
+   Same combined pointer:coarse-or-narrow trigger as header.capsule's
+   collapse in app.css — keep the two in sync; this is the dock the capsule
+   collapses *into*. */
+@media (pointer: coarse), (max-width: 900px) {
+  .fixed-toolbar {
+    display: none;
+    position: fixed;
+    left: var(--sp-2);
+    right: var(--sp-2);
+    bottom: max(var(--sp-2), env(safe-area-inset-bottom));
+    z-index: var(--z-menu);
+  }
+  .fixed-toolbar.editing {
+    display: block;
+  }
+  .fixed-toolbar .toolbar {
+    height: 44px;
+    padding: 0 6px;
+    gap: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-full);
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .fixed-toolbar .toolbar .spacer {
+    display: none;
+  }
+}
+
 /* ── Armed-formatting caret hint (desktop) ── */
 
 /* A small, non-interactive pill floating over the collapsed caret that names
@@ -204,7 +241,7 @@
   border: none;
   background: transparent;
   color: var(--text-faint);
-  border-radius: var(--r-2, 4px);
+  border-radius: var(--r-sm);
   cursor: pointer;
 }
 .status .diag-btn:hover {
@@ -364,6 +401,68 @@
   }
 }
 
+/* Reserve room for the fixed bottom dock (nav or format mode, see
+   .mobile-dock in app.css and .fixed-toolbar above) so it never covers the
+   last lines of text — same combined trigger as the dock itself, not just
+   the narrow-viewport breakpoint above (the dock can also be showing on a
+   resized pointer:fine desktop window wider than 640px). */
+@media (pointer: coarse), (max-width: 900px) {
+  .content {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));
+  }
+}
+
+/* ── Full-bleed writing surface on mobile ──
+   The bordered "paper card" reads as wasted width once the screen itself is
+   only a few hundred px wide — SOTA mobile document editors (Notion, Bear,
+   iA Writer) run the surface edge-to-edge instead. Cancels .app's own
+   horizontal padding (app.css) via a matching negative margin so .editor
+   reaches the left/right viewport edge; the floating header capsule and
+   mobile dock are unaffected (they're position:fixed / independently inset,
+   not part of this rule). The two breakpoints mirror .app's own (default
+   vs. its <=720px padding step) so the cancellation always matches exactly.
+   Only the 1px border is dropped — it's the actual "framed page" cue, and
+   looks plain wrong once it can't run down the now-flush left/right edges.
+   border-radius + box-shadow stay: the card still doesn't bleed vertically
+   (the header's gap above, .app's own bottom padding below), so the top/
+   bottom edges remain visible against the canvas — a hard flat cut there
+   would look broken, whereas the rounded corners + soft shadow read as a
+   deliberate "sheet" (the iOS/Android bottom-sheet convention: full width,
+   rounded corners revealing a sliver of background).
+   Width-only trigger — deliberately NOT the .fixed-toolbar/.mobile-dock's
+   `(pointer: coarse), (max-width: 900px)` combo. Reclaiming width only makes
+   sense when the viewport is actually narrow; a coarse-pointer device wider
+   than .app's own 960px cap (a landscape tablet, a touchscreen desktop) has
+   .app centered with room to spare, so the cancelling negative margin would
+   only reach .app's own (inset) edge, not the real viewport edge — border
+   gone, but still visibly inset, which reads as broken, not "full-bleed". */
+@media (max-width: 900px) {
+  .editor {
+    border: none;
+    margin-left: calc(-1 * var(--sp-4));
+    margin-right: calc(-1 * var(--sp-4));
+  }
+}
+
+@media (max-width: 720px) {
+  .editor {
+    margin-left: calc(-1 * var(--sp-3));
+    margin-right: calc(-1 * var(--sp-3));
+  }
+}
+
+/* The document-meta footer (shortcuts/words/outline) sits in normal flow at
+   the bottom of the editor card, which now overlaps the fixed mobile dock
+   (.mobile-dock / .fixed-toolbar, both anchored near the viewport's bottom
+   edge). Word count and outline are desktop conveniences; hiding this strip
+   whenever the dock is showing avoids the collision rather than fighting it
+   with more offsets — same combined trigger as the dock itself. */
+@media (pointer: coarse), (max-width: 900px) {
+  .status {
+    display: none;
+  }
+}
+
 @media (pointer: coarse) {
   .toolbar button {
     min-height: 38px;
@@ -421,6 +520,31 @@
   .ProseMirror-yjs-cursor > div {
     font-size: 0.8rem;
     padding: 3px 8px;
+  }
+}
+
+/* Brief highlight when a peer is picked from the presence bar (jumpToPresence
+   in remoteCursors.ts) — a double pulse in the peer's own colour (set inline
+   as --jump-color), so the just-scrolled-to cursor/selection reads as "look
+   here" rather than blending into the idle-fade opacity above. Two pulses
+   (Figma/Live Share's "flash to attention" idiom) read as a deliberate cue
+   even at a glance, where a single fade can be missed if the eye isn't
+   already on that spot when it plays. */
+.presence-jump-flash {
+  --jump-color: var(--accent);
+  position: relative;
+  z-index: 1;
+  border-radius: 3px;
+  animation: presence-jump-flash 1200ms ease-out;
+}
+@keyframes presence-jump-flash {
+  0%, 30%, 60%, 100% {
+    box-shadow: 0 0 0 0 transparent;
+    background-color: transparent;
+  }
+  12%, 42% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--jump-color) 65%, transparent);
+    background-color: color-mix(in srgb, var(--jump-color) 35%, transparent);
   }
 }
 

@@ -29,7 +29,7 @@ function storageIds<const Ids extends readonly string[]>(
 }
 
 /** The canonical id for each storage backend — the single source of truth. */
-export const STORAGE_ID = storageIds('dropbox', 'pcloud', 'webdav', 'github', 'gitlab', 's3', 'sharepoint', 'gdrive', 'local');
+export const STORAGE_ID = storageIds('dropbox', 'pcloud', 'webdav', 'github', 'gitlab', 's3', 'sharepoint', 'gdrive', 'onedrive', 'local');
 
 /**
  * A config field's name, doubling as the storage sub-key for that field. Adapter-
@@ -93,10 +93,13 @@ const envBool = (raw: string | undefined, fallback: boolean): boolean => {
  * account outside production, then flip to `true` in its own dedicated PR.
  */
 export const BACKEND_ENABLED: Record<StorageId, boolean> = {
-  [STORAGE_ID.dropbox]: envBool(import.meta.env.VITE_ENABLE_DROPBOX, true),
-  [STORAGE_ID.pcloud]: envBool(import.meta.env.VITE_ENABLE_PCLOUD, true),
+  // Disabled by default — pending review before re-enabling.
+  [STORAGE_ID.dropbox]: envBool(import.meta.env.VITE_ENABLE_DROPBOX, false),
+  // Disabled by default — pending review before re-enabling.
+  [STORAGE_ID.pcloud]: envBool(import.meta.env.VITE_ENABLE_PCLOUD, false),
   [STORAGE_ID.webdav]: envBool(import.meta.env.VITE_ENABLE_WEBDAV, true),
-  [STORAGE_ID.github]: envBool(import.meta.env.VITE_ENABLE_GITHUB, true),
+  // Disabled by default — pending review before re-enabling.
+  [STORAGE_ID.github]: envBool(import.meta.env.VITE_ENABLE_GITHUB, false),
   [STORAGE_ID.local]: envBool(import.meta.env.VITE_ENABLE_LOCAL, true),
   // Not yet connected to a real GitLab account outside production — stays
   // hidden until that's done, then flips to `true` in its own dedicated PR.
@@ -110,6 +113,10 @@ export const BACKEND_ENABLED: Record<StorageId, boolean> = {
   // Not yet connected to a real Google account outside production — stays
   // hidden until that's done, then flips to `true` in its own dedicated PR.
   [STORAGE_ID.gdrive]: envBool(import.meta.env.VITE_ENABLE_GDRIVE, false),
+  // Not yet connected to a real personal Microsoft account outside
+  // production — stays hidden until that's done, then flips to `true` in
+  // its own dedicated PR.
+  [STORAGE_ID.onedrive]: envBool(import.meta.env.VITE_ENABLE_ONEDRIVE, false),
 };
 
 // ── Cloud folder + default filenames ──────────────────────────────────────────
@@ -178,6 +185,19 @@ export const GDRIVE_UPLOAD_URL = envStr(import.meta.env.VITE_GDRIVE_UPLOAD_URL, 
 /** OAuth scope — `drive.file` limits access to files this app itself creates. */
 export const GDRIVE_SCOPE = envStr(import.meta.env.VITE_GDRIVE_SCOPE, 'https://www.googleapis.com/auth/drive.file');
 export const GDRIVE_TOKEN_KEY: StorageKey = backendKey(STORAGE_ID.gdrive, 'token');
+
+// ── OneDrive (personal — Microsoft identity platform "consumers" tenant) ────
+// The `consumers` tenant accepts only personal Microsoft accounts (rejecting
+// work/school accounts), which is what distinguishes this backend from
+// `sharepointStorage()`'s OneDrive-for-Business fallback — no usage overlap.
+
+export const ONEDRIVE_AUTH_URL = envStr(import.meta.env.VITE_ONEDRIVE_AUTH_URL, 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize');
+export const ONEDRIVE_TOKEN_URL = envStr(import.meta.env.VITE_ONEDRIVE_TOKEN_URL, 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token');
+/** AppFolder scope — valid only for personal accounts, confines access to a
+ *  dedicated `Apps/<AppName>` folder rather than the whole personal drive,
+ *  mirroring Google Drive's `drive.file`. */
+export const ONEDRIVE_SCOPE = envStr(import.meta.env.VITE_ONEDRIVE_SCOPE, 'Files.ReadWrite.AppFolder offline_access');
+export const ONEDRIVE_TOKEN_KEY: StorageKey = backendKey(STORAGE_ID.onedrive, 'token');
 
 // ── OAuth redirect ────────────────────────────────────────────────────────────
 
