@@ -188,6 +188,8 @@ header.capsule {
   header.capsule {
     height: 44px;
     padding: 0 var(--sp-2);
+    box-sizing: border-box;
+    overflow: hidden;
     /* Undo the desktop hugging: on mobile this is a flush title strip, not a
        floating pill — it should span the row like any other header bar, and
        never animate a width change (there's nothing to grow/shrink toward).
@@ -196,12 +198,15 @@ header.capsule {
        (tightened to --sp-2, matching .app's own mobile rhythm below) rather
        than zeroed — .app has no flex gap of its own (see its comment), so
        zeroing this would collide the strip straight into the
-       SyncBanner/editor with no gap at all. */
+       SyncBanner/editor with no gap at all. Height/margin/padding animate
+       instead — see .scroll-hidden below — so the desktop width transition
+       is deliberately replaced rather than left in place. */
     margin: 0 0 var(--sp-2);
     align-self: stretch;
     width: auto;
     max-width: none;
-    transition: none;
+    transition: height var(--dur-mid) var(--ease), margin-bottom var(--dur-mid) var(--ease),
+      padding var(--dur-mid) var(--ease), opacity var(--dur-fast) var(--ease);
     border: none;
     border-radius: 0;
     background: transparent;
@@ -217,6 +222,18 @@ header.capsule {
   header.capsule .session,
   header.capsule .cap-theme {
     display: none;
+  }
+  /* Hide-on-scroll: collapse the whole strip out of the column so the
+     document reclaims the space, rather than leaving a blank gap behind a
+     translated bar. .content's own scroll position drives this (see
+     Editor.svelte) — scrolling down past a small threshold hides it,
+     scrolling up (or reaching the top) brings it back. */
+  header.capsule.scroll-hidden {
+    height: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
   }
 }
 
