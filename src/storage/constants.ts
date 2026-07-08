@@ -93,7 +93,8 @@ const envBool = (raw: string | undefined, fallback: boolean): boolean => {
  * account outside production, then flip to `true` in its own dedicated PR.
  */
 export const BACKEND_ENABLED: Record<StorageId, boolean> = {
-  [STORAGE_ID.dropbox]: envBool(import.meta.env.VITE_ENABLE_DROPBOX, true),
+  // Disabled by default — pending review before re-enabling.
+  [STORAGE_ID.dropbox]: envBool(import.meta.env.VITE_ENABLE_DROPBOX, false),
   // Disabled by default — pending review before re-enabling.
   [STORAGE_ID.pcloud]: envBool(import.meta.env.VITE_ENABLE_PCLOUD, false),
   [STORAGE_ID.webdav]: envBool(import.meta.env.VITE_ENABLE_WEBDAV, true),
