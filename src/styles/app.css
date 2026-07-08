@@ -530,6 +530,20 @@ button.status-link {
   }
 }
 
+/* No top padding on mobile at all: the header no longer reserves a flow
+   band above (it's either the small desktop capsule or hidden — see
+   header.capsule), so whichever child ends up first — SyncBanner, or
+   .editor directly — should start right at the viewport's top edge (see
+   .editor's own mobile rule, editor.css, for why that clearance moved here
+   instead of living on .editor as a margin). Every subsequent sibling keeps
+   its ordinary relative spacing (SyncBanner's own margin-bottom, etc.)
+   untouched — this only ever affects the position of the first one. */
+@media (pointer: coarse), (max-width: 900px) {
+  .app {
+    padding-top: 0;
+  }
+}
+
 /* Comfortable hit targets on touch devices. */
 @media (pointer: coarse) {
   button {

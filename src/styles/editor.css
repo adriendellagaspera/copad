@@ -419,16 +419,21 @@
    The bordered "paper card" reads as wasted space once the screen itself is
    only a few hundred px wide — SOTA mobile document editors (Notion, Bear,
    iA Writer) run the surface edge-to-edge instead. Cancels .app's own
-   padding (app.css) via matching negative margins so .editor reaches every
-   viewport edge — left, right, *and now top*: with the room name living
-   inside the card as DocTitle (editor/ui/DocTitle.svelte) instead of a
-   separate header floating above it, there's nothing left reserving that
-   gap, so the document can claim it too. The two breakpoints mirror .app's
-   own (default vs. its <=720px padding step) so every cancellation always
-   matches exactly — margin-top cancels only .app's *own* top-padding
-   contribution, a fixed quantity independent of whatever precedes .editor
-   in the flow (e.g. SyncBanner), so it can't under- or over-shoot if a
-   banner happens to be showing.
+   *horizontal* padding (app.css) via matching negative margins so .editor
+   reaches the left/right viewport edges. The two breakpoints mirror .app's
+   own (default vs. its <=720px padding step) so the cancellation always
+   matches exactly.
+   Top is NOT cancelled here with a margin, on purpose — an earlier version
+   did, reasoning it only cancels .app's own top-padding contribution and so
+   "can't under- or over-shoot if a banner happens to be showing". That
+   reasoning was wrong: margin-top shifts an element up from wherever it
+   already sits, and when SyncBanner precedes .editor in the flow, that
+   "wherever" is *below* the banner, not at .app's padding-top at all — so
+   the same negative margin ate into the banner's own margin-bottom instead,
+   collapsing the gap between them to zero. `.app`'s own top padding is 0 on
+   mobile instead (see below) — it only ever affects whichever child ends up
+   first, so the rest of the flow (banner, then editor, or editor alone)
+   keeps its ordinary relative spacing untouched either way.
    Bottom is untouched on purpose — .app's bottom padding still insets the
    card there, clearing the fixed mobile dock (.mobile-dock / .fixed-toolbar,
    both anchored near the viewport's bottom edge).
@@ -453,7 +458,6 @@
     border-top: 1px solid var(--border);
     margin-left: calc(-1 * var(--sp-4));
     margin-right: calc(-1 * var(--sp-4));
-    margin-top: calc(-1 * var(--sp-5));
   }
 }
 
@@ -461,7 +465,6 @@
   .editor {
     margin-left: calc(-1 * var(--sp-3));
     margin-right: calc(-1 * var(--sp-3));
-    margin-top: calc(-1 * var(--sp-4));
   }
 }
 
