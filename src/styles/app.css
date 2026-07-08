@@ -191,19 +191,20 @@ header.capsule {
     /* Undo the desktop hugging: on mobile this is a flush title strip, not a
        floating pill — it should span the row like any other header bar, and
        never animate a width change (there's nothing to grow/shrink toward).
-       margin-bottom is kept (tightened to --sp-3, matching .app's own mobile
-       rhythm below) rather than zeroed — .app has no flex gap of its own
-       (see its comment), so zeroing this would collide the strip straight
-       into the SyncBanner/editor with no gap at all. */
-    margin: 0 0 var(--sp-3);
+       No fill/border here — a native-toolbar title sits flush in the page
+       background rather than reading as its own card. margin-bottom is kept
+       (tightened to --sp-2, matching .app's own mobile rhythm below) rather
+       than zeroed — .app has no flex gap of its own (see its comment), so
+       zeroing this would collide the strip straight into the
+       SyncBanner/editor with no gap at all. */
+    margin: 0 0 var(--sp-2);
     align-self: stretch;
     width: auto;
     max-width: none;
     transition: none;
     border: none;
-    border-bottom: 1px solid var(--border);
     border-radius: 0;
-    background: var(--surface-2);
+    background: transparent;
     box-shadow: none;
     justify-content: center;
   }
