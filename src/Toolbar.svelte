@@ -5,15 +5,22 @@
   import { isLinkActive } from './editor/linkCommands.js';
   import { docToMarkdown } from './editor/markdown.js';
   import { schema } from './editor/schema.js';
+  import TableToolbar from './editor/ui/TableToolbar.svelte';
   import type { Toasts } from './ui/toasts.svelte.js';
 
   type Props = {
     view: EditorView | null;
     editorState: EditorState | null;
     toasts: Toasts;
+    // Desktop's SelectionToolbar shows table-structure commands in their own
+    // floating panel (see TableToolbar.svelte) instead of merged into this
+    // row, so it sets this false on its embedded Toolbar. The mobile fixed
+    // dock has no such second panel, so it leaves this at the default and
+    // keeps everything in one flat row.
+    showTableStructure?: boolean;
   };
 
-  let { view, editorState, toasts }: Props = $props();
+  let { view, editorState, toasts, showTableStructure = true }: Props = $props();
 
   const bold      = $derived(editorState ? isMarkActive(editorState, schema.marks.strong) : false);
   const italic    = $derived(editorState ? isMarkActive(editorState, schema.marks.em)     : false);
@@ -78,13 +85,8 @@
     <button onclick={run(commands.horizontalRule)} title="Divider (type ---)" aria-label="Insert divider">―</button>
     <span class="sep" role="separator"></span>
     <button data-active={inTable} onclick={run(commands.insertTable)} title="Insert 3×3 table" aria-label="Insert table">▦</button>
-    {#if inTable}
-      <button onclick={run(commands.addRowAfter)}    title="Add row below"    aria-label="Add row below">+Row</button>
-      <button onclick={run(commands.addColumnAfter)} title="Add column right" aria-label="Add column right">+Col</button>
-      <button onclick={run(commands.deleteRow)}      title="Delete row"       aria-label="Delete row">−Row</button>
-      <button onclick={run(commands.deleteColumn)}   title="Delete column"    aria-label="Delete column">−Col</button>
-      <button onclick={run(commands.toggleHeaderRow)} title="Toggle header row" aria-label="Toggle header row">Hdr</button>
-      <button onclick={run(commands.deleteTable)}    title="Delete table"     aria-label="Delete table">🗑</button>
+    {#if inTable && showTableStructure}
+      <TableToolbar {view} />
     {/if}
     <span class="sep" role="separator"></span>
     <button onclick={run(commands.undo)} title="Undo (Mod+Z)" aria-label="Undo">↶</button>

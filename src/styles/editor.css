@@ -97,6 +97,47 @@
   }
 }
 
+/* ── Floating table-structure panel (desktop) ── */
+
+/* A second, separate floating card — shown *alongside* .sel-toolbar (never
+   instead of it) only while an empty caret sits in a table, anchored to the
+   table's opposite edge (see positionTablePanels in tableAnchor.ts). Reuses
+   the .toolbar button/sep styling but its own accent border + leading label
+   keep it reading as a distinct "table" control rather than a continuation
+   of the text-formatting bubble, per Notion/Docs/Word's separation of table
+   structure from text formatting. */
+.table-toolbar {
+  display: none;
+}
+
+.table-toolbar .toolbar {
+  border-bottom: none;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  flex-wrap: nowrap;
+  padding: var(--sp-1) var(--sp-2);
+}
+
+.table-toolbar-label {
+  padding: 0 var(--sp-1);
+  color: var(--accent);
+  font-size: var(--fs-300);
+  font-weight: 600;
+  white-space: nowrap;
+  user-select: none;
+}
+
+@media (pointer: fine) {
+  .table-toolbar.visible {
+    display: block;
+    position: fixed;
+    z-index: var(--z-menu);
+    /* top/left are set inline from the table's bounding box. */
+  }
+}
+
 /* ── Mobile bottom dock, "format mode" (M3) ──
    Hidden at rest — it only appears while the document has focus, occupying
    the same fixed slot as App.svelte's nav-mode dock (.mobile-dock in
