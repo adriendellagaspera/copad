@@ -522,7 +522,11 @@ button.status-link {
 @media (max-width: 720px) {
   .app {
     padding: var(--sp-4) var(--sp-3) var(--sp-6);
-    gap: var(--sp-3);
+    /* No gap here — see .app's own comment above: gap is a constant, it
+       doesn't shrink alongside SyncBanner's slide-out transition the way
+       margin-bottom does, so it left a one-frame jump the instant the
+       banner was actually removed from the DOM (the exact glitch that
+       comment describes engineering around, reintroduced by this rule). */
   }
 }
 
