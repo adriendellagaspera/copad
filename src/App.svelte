@@ -21,7 +21,7 @@
   import { fetchIceServers } from './collaboration/iceServers.js';
   import { parseRoomId, parseRoomCredential } from './collaboration/parse.js';
   import { sessionState } from './collaboration/sessionState.svelte.js';
-  import IdentityMenu from './ui/IdentityMenu.svelte';
+  import PeerIdentityPanel from './ui/PeerIdentityPanel.svelte';
   import StatusPill from './ui/StatusPill.svelte';
   import PresenceBar from './ui/PresenceBar.svelte';
   import ConnectionDialog from './ui/ConnectionDialog.svelte';
@@ -722,7 +722,8 @@
     <div class="cap-divider"></div>
 
     <div class="cap-identity">
-      <IdentityMenu
+      <PeerIdentityPanel
+        self
         {name}
         {color}
         colors={COLORS}
@@ -753,11 +754,11 @@
        editor.css's .fixed-toolbar takes the same slot in "format mode" —
        the two never show at once (see sessionState.editing). -->
   <div class="mobile-dock" class:dock-hidden={sessionState.editing}>
-    <IdentityMenu
+    <PeerIdentityPanel
+      self
       {name}
       {color}
       colors={COLORS}
-      placement="above"
       onName={(v) => { name = v as DisplayName; }}
       onColor={(c) => { color = c; }}
     />

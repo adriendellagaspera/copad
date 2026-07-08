@@ -61,6 +61,30 @@ export function refreshPresenceFade(root: Element, activity: PresenceActivity): 
   });
 }
 
+/** How close to the viewport's right edge (px) still counts as "would clip"
+ *  — a small margin rather than an exact 0, so the flip happens just before
+ *  the tag visibly touches the edge. */
+const EDGE_MARGIN_PX = 8;
+
+/**
+ * Flips a rendered cursor's name tag to hug the caret's right side instead of
+ * its left when the tag's default (left-anchored) position would run past
+ * the viewport's right edge — the concrete overflow a peer's tag hits when
+ * their caret sits near a narrow (mobile) screen's edge and `jumpToPresence`
+ * scrolls/flashes it into view. Re-evaluated on every call (not just once)
+ * since the caret's on-screen position can shift between jumps as the
+ * document is edited.
+ */
+function clampCursorTag(cursor: HTMLElement): void {
+  const tag = cursor.querySelector('div');
+  if (!tag) return;
+  cursor.classList.remove('presence-tag-right');
+  const rect = tag.getBoundingClientRect();
+  if (rect.right > window.innerWidth - EDGE_MARGIN_PX) {
+    cursor.classList.add('presence-tag-right');
+  }
+}
+
 /** How long the flash highlight (below) stays on the DOM before it's removed,
  *  in ms — must match the `presence-jump-flash` CSS animation's duration. */
 const JUMP_FLASH_MS = 1200;
@@ -126,6 +150,7 @@ export function jumpToPresence(root: Element, clientId: number, color?: CursorCo
   const target = cursor ?? selection[0];
   if (!target) return;
   target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (cursor) clampCursorTag(cursor);
   const flashed = cursor ? [cursor, ...selection] : Array.from(selection);
   flashed.forEach((el) => flashOnce(el, color));
 }

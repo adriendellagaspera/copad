@@ -520,9 +520,24 @@
   color: #fff;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
   white-space: nowrap;
+  /* Defensive cap so a long name can never run unbounded off the editor's
+     horizontally-clipped surface even without the JS clamp below — it just
+     truncates instead of continuing past the edge. */
+  max-width: min(60vw, 260px);
+  overflow: hidden;
+  text-overflow: ellipsis;
   user-select: none;
   pointer-events: none;
   box-shadow: var(--shadow-sm);
+}
+/* Set by clampCursorTag (remoteCursors.ts) when a caret sits close enough to
+   the viewport's right edge that the tag's default left-anchored growth
+   would run past it — hugs the caret's right side instead, mirroring the
+   speech-bubble tail to the opposite corner. */
+.ProseMirror-yjs-cursor.presence-tag-right > div {
+  left: auto;
+  right: -2px;
+  border-radius: var(--r-sm) var(--r-sm) 0 var(--r-sm);
 }
 
 .ProseMirror-yjs-selection {
