@@ -245,6 +245,17 @@
     font-size: var(--fs-300);
     line-height: 1.4;
   }
+  /* On mobile the header is a small floating pill, not a flow sibling
+     reserving space above (see header.capsule in app.css) — so without this,
+     this banner (the *next* flow child of .app once the header leaves the
+     flow) starts right at .app's own top padding and sits directly under the
+     pill, unreadable. Push it down by the same amount `.content` reserves
+     for the pill (editor.css) so the two never overlap. */
+  @media (pointer: coarse), (max-width: 900px) {
+    .sync-banner {
+      margin-top: calc(max(var(--sp-2), env(safe-area-inset-top, 0px)) + var(--mobile-header-h) + var(--sp-2));
+    }
+  }
   /* Informational tiers (a saved copy, or a relaying hub) aren't "into the void" —
      drop the amber tint entirely for a plain neutral surface and a neutral icon. */
   .sync-banner.soft {
