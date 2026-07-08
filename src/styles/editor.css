@@ -432,16 +432,14 @@
    Bottom is untouched on purpose — .app's bottom padding still insets the
    card there, clearing the fixed mobile dock (.mobile-dock / .fixed-toolbar,
    both anchored near the viewport's bottom edge).
-   Top corner radius is dropped along with the cancelled margin: a rounded
-   corner needs clearance in *both* directions to read as a curve against
-   the canvas, and top now has none in either — keeping it would just get
-   clipped by the viewport edge. Bottom keeps its radius (that gap is
-   real). The border stays, though — flush edges still need *some* visible
-   line marking where the document actually starts, or the top reads as an
-   ambiguous color seam against the canvas above rather than a deliberate
-   edge; --border-strong (not the softer --border used everywhere else on
-   this card) so it holds up at a flush, un-rounded corner instead of
-   reading as an accidental hairline.
+   The top corners keep their radius, same as every other corner —
+   border-radius carves *into* the box's own corner rather than extending
+   past it, so it reads fine even flush against the viewport edge (a small,
+   deliberate reveal of the canvas behind it, echoing the device's own
+   rounded screen corners) rather than getting clipped. The border stays
+   too — flush edges still need *some* visible line marking where the
+   document actually starts, or the top reads as an ambiguous color seam
+   against the canvas above rather than a deliberate edge.
    Width-only trigger — deliberately NOT the .fixed-toolbar/.mobile-dock's
    `(pointer: coarse), (max-width: 900px)` combo. Reclaiming space only makes
    sense when the viewport is actually narrow; a coarse-pointer device wider
@@ -452,9 +450,7 @@
 @media (max-width: 900px) {
   .editor {
     border: none;
-    border-top: 1px solid var(--border-strong);
-    border-top-left-radius: 0;
-    border-top-right-radius: 0;
+    border-top: 1px solid var(--border);
     margin-left: calc(-1 * var(--sp-4));
     margin-right: calc(-1 * var(--sp-4));
     margin-top: calc(-1 * var(--sp-5));
