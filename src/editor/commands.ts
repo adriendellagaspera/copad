@@ -1,8 +1,18 @@
 import { toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
 import { wrapInList } from 'prosemirror-schema-list';
 import { undo, redo } from 'y-prosemirror';
+import {
+  tableNodeTypes,
+  isInTable,
+  addRowAfter,
+  addColumnAfter,
+  deleteRow,
+  deleteColumn,
+  deleteTable,
+  toggleHeaderRow,
+} from 'prosemirror-tables';
 import type { MarkType, NodeType, Attrs } from 'prosemirror-model';
-import type { EditorState, Command } from 'prosemirror-state';
+import { TextSelection, type EditorState, type Command } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { schema } from './schema.js';
 import { toggleBlockType } from './plugins.js';
@@ -14,6 +24,44 @@ const insertHorizontalRule: Command = (state, dispatch) => {
     dispatch(
       state.tr.replaceSelectionWith(schema.nodes.horizontal_rule.create()).scrollIntoView()
     );
+  }
+  return true;
+};
+
+const TABLE_ROWS = 3;
+const TABLE_COLS = 3;
+
+/** Insert a 3×3 table (1 header row + 2 body rows) at the selection. A no-op
+ *  inside an existing table — nesting tables isn't supported. */
+const insertTable: Command = (state, dispatch) => {
+  if (isInTable(state)) return false;
+  const types = tableNodeTypes(state.schema);
+  if (!types.table || !types.row || !types.cell || !types.header_cell) return false;
+  if (dispatch) {
+    const headerCells = Array.from({ length: TABLE_COLS }, () => types.header_cell.create());
+    const bodyCells = Array.from({ length: TABLE_COLS }, () => types.cell.create());
+    const rows = [types.row.create(null, headerCells)];
+    for (let i = 1; i < TABLE_ROWS; i += 1) rows.push(types.row.create(null, bodyCells));
+    const table = types.table.create(null, rows);
+    const { tr } = state;
+    const from = tr.selection.from;
+    tr.replaceSelectionWith(table);
+    // `replaceSelectionWith` may split the surrounding paragraph to fit the
+    // table in as a sibling block, so its own post-insert selection can land
+    // in the *last* cell rather than the first — parking a fresh table's
+    // caret in the last cell instead of the first is surprising (every other
+    // editor starts you typing the first header) and, worse, leaves Tab with
+    // nowhere to go (it tabs out of the editor entirely). Re-anchor to the
+    // first header cell's content explicitly.
+    let tablePos = -1;
+    tr.doc.nodesBetween(Math.max(0, from - 1), tr.doc.content.size, (node, pos) => {
+      if (tablePos === -1 && node.type === types.table) tablePos = pos;
+    });
+    if (tablePos !== -1) {
+      // +1 into the table, +1 into the first row, +1 into the first cell.
+      tr.setSelection(TextSelection.near(tr.doc.resolve(tablePos + 3)));
+    }
+    dispatch(tr.scrollIntoView());
   }
   return true;
 };
@@ -104,6 +152,15 @@ export const commands = {
   // this exact Mod-Alt-c shortcut. See toggleBlockType in plugins.ts.
   codeBlock: toggleBlockType(schema.nodes.code_block, schema.nodes.paragraph),
   horizontalRule: insertHorizontalRule,
+  insertTable,
+  addRowAfter,
+  addColumnAfter,
+  deleteRow,
+  deleteColumn,
+  deleteTable,
+  toggleHeaderRow,
   undo,
   redo,
 } as const;
+
+export { isInTable };

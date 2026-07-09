@@ -1,6 +1,7 @@
 import { Schema } from 'prosemirror-model';
 import { schema as basicSchema } from 'prosemirror-schema-basic';
 import { addListNodes } from 'prosemirror-schema-list';
+import { tableNodes } from 'prosemirror-tables';
 
 const listNodes = addListNodes(
   basicSchema.spec.nodes,
@@ -15,6 +16,10 @@ const listNodes = addListNodes(
 // so a checklist's `<ul data-type="taskList">` wins over bullet_list's bare
 // `<ul>` rule when parsing HTML — both would otherwise match equally and
 // bullet_list, registered first, would win.
+//
+// GFM-shaped tables: cells hold inline content only (single line, no
+// multi-paragraph), matching what Markdown tables can actually express —
+// `cellContent: 'inline*'` rather than the library default of `block+`.
 const nodes = listNodes
   .append({
     task_list: {
@@ -51,7 +56,8 @@ const nodes = listNodes
         ];
       },
     },
-  });
+  })
+  .append(tableNodes({ tableGroup: 'block', cellContent: 'inline*', cellAttributes: {} }));
 
 const marks = basicSchema.spec.marks
   .addToEnd('strike', {

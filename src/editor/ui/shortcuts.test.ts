@@ -22,6 +22,7 @@ describe('editorShortcuts', () => {
       'Inline code',
       'Link',
       'Commands',
+      'Toolbar',
       'Undo',
     ]);
   });

@@ -2,6 +2,7 @@
   import type { EditorView } from 'prosemirror-view';
   import { TextSelection, type EditorState } from 'prosemirror-state';
   import Toolbar from '../../Toolbar.svelte';
+  import { isInTable } from '../commands.js';
   import type { Toasts } from '../../ui/toasts.svelte.js';
 
   type Props = {
@@ -33,6 +34,15 @@
   const focusInToolbar = (): boolean =>
     !!host && !!document.activeElement && host.contains(document.activeElement);
 
+  // The nearest <table> ancestor of a document position, if any — used to
+  // anchor the bubble to the table itself rather than the caret's own line
+  // when there's no real selection (see reposition()'s table branch).
+  const tableElementAt = (v: EditorView, pos: number): HTMLElement | null => {
+    const dom = v.domAtPos(pos).node;
+    const el = dom instanceof Element ? dom : dom.parentElement;
+    return el?.closest('table') ?? null;
+  };
+
   function reposition(): void {
     const v = view;
     const st = editorState;
@@ -41,13 +51,39 @@
       return;
     }
     const { from, to, empty } = st.selection;
-    // Show only for a real, focused selection — a collapsed caret or a blurred
-    // editor (e.g. focus moved to a dialog) hides it, unless the focus moved
-    // into the bubble itself.
-    if (empty || (!v.hasFocus() && !focusInToolbar())) {
+    // Show for a real, focused selection, or a collapsed caret inside a table
+    // — the fixed toolbar's table controls (add/delete row & column…) are
+    // otherwise unreachable by mouse on desktop, since the fixed bar itself is
+    // hidden there (see editor.css) and a bare caret has no selection to
+    // bubble over. A blurred editor (e.g. focus moved to a dialog) still
+    // hides it, unless focus moved into the bubble itself.
+    const inTable = isInTable(st);
+    if ((!v.hasFocus() && !focusInToolbar()) || (empty && !inTable)) {
       visible = false;
       return;
     }
+    const w = host?.offsetWidth ?? 0;
+    const h = host?.offsetHeight ?? 0;
+
+    // A bare caret in a table anchors to the *table's* own bounding box, not
+    // the caret's line — the caret can be on any row, and a line-anchored
+    // bubble that flips below a header row would land on top of row 2,
+    // hiding it. Anchoring to the table's outer edge instead means the
+    // bubble never overlaps a cell, and stays put while Tab/arrows move the
+    // caret between cells of the same table (no per-cell jitter).
+    const tableEl = empty && inTable ? tableElementAt(v, from) : null;
+    if (tableEl) {
+      const rect = tableEl.getBoundingClientRect();
+      let nextLeft = rect.left + rect.width / 2 - w / 2;
+      nextLeft = Math.max(GAP, Math.min(nextLeft, window.innerWidth - w - GAP));
+      let nextTop = rect.top - h - GAP;
+      if (nextTop < GAP) nextTop = rect.bottom + GAP; // flip below if no room above
+      left = nextLeft;
+      top = nextTop;
+      visible = true;
+      return;
+    }
+
     // coordsAtPos measures against the *live DOM*, which briefly disagrees
     // with `from`/`to` while a burst of transactions (e.g. rapid undo/redo)
     // is still being flushed into the view — it can throw a DOM range error
@@ -64,8 +100,6 @@
       visible = false;
       return;
     }
-    const w = host?.offsetWidth ?? 0;
-    const h = host?.offsetHeight ?? 0;
     const centre = (start.left + end.left) / 2;
     let nextLeft = centre - w / 2;
     nextLeft = Math.max(GAP, Math.min(nextLeft, window.innerWidth - w - GAP));
@@ -99,15 +133,38 @@
 
   // Tab normally leaves the contenteditable entirely (browser default, since
   // ProseMirror only claims Tab inside a list — see buildPlugins). While the
-  // bubble is showing, redirect that Tab into its first button instead, so
-  // the toolbar is reachable from the keyboard without also stealing Tab
-  // when there's nothing to tab into.
+  // bubble is showing for a real selection, redirect that Tab into its first
+  // button instead, so the toolbar is reachable from the keyboard without
+  // also stealing Tab when there's nothing to tab into. Inside a table, Tab
+  // already has an established meaning (move to the next cell, via
+  // goToNextCell in buildPlugins) — a bare caret there must NOT be
+  // hijacked into the toolbar, or Tab-to-next-cell silently breaks and
+  // pressing Tab instead yanks focus onto a button.
+  //
+  // Shift-F10 / the Menu key are the OS-standard keyboard equivalent of a
+  // right-click — the same discoverable entry point Word/Excel/Sheets use
+  // to reach a cell's contextual menu — so they always focus the bubble's
+  // first button when it's visible, table caret or not. This is what a
+  // keyboard user reaches for once Tab is unavailable (e.g. inside a table).
+  //
+  // Alt-Enter is a second, app-owned entry point to the same effect — F-keys
+  // are frequently remapped to hardware functions (brightness/volume) behind
+  // an Fn lock on laptops, making Shift-F10 unreliable exactly for the
+  // keyboard-first users it targets. Alt-Enter collides with nothing else
+  // bound here (plain Enter is table-boundary-escape/list-split, Mod-Enter
+  // is unused) and already reads as "give me more on the thing I'm in" —
+  // Windows Explorer's Alt-Enter for a file's Properties is the same idiom.
   $effect(() => {
     const v = view;
     if (!v) return;
     const dom = v.dom;
     const onKeydown = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab' || e.shiftKey || !visible) return;
+      const isContextMenuKey = e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey);
+      const isAltEnter = e.key === 'Enter' && e.altKey;
+      const isTabIntoBubble = e.key === 'Tab' && !e.shiftKey;
+      if (!isContextMenuKey && !isAltEnter && !isTabIntoBubble) return;
+      if (!visible) return;
+      if (isTabIntoBubble && v.state.selection.empty && isInTable(v.state)) return;
       const target = host?.querySelector<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
       );

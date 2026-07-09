@@ -21,6 +21,10 @@ describe('schema', () => {
     expect(schema.nodes.code_block).toBeDefined();
     expect(schema.nodes.task_list).toBeDefined();
     expect(schema.nodes.task_item).toBeDefined();
+    expect(schema.nodes.table).toBeDefined();
+    expect(schema.nodes.table_row).toBeDefined();
+    expect(schema.nodes.table_cell).toBeDefined();
+    expect(schema.nodes.table_header).toBeDefined();
   });
 
   it('can create a paragraph with text', () => {
@@ -78,5 +82,16 @@ describe('schema', () => {
     );
     expect(list.childCount).toBe(1);
     expect(list.firstChild?.type.name).toBe('task_item');
+  });
+
+  it('creates a table with a header row and a body row', () => {
+    const { table, table_row, table_cell, table_header } = schema.nodes;
+    const doc = table.create(null, [
+      table_row.create(null, [table_header.create(), table_header.create()]),
+      table_row.create(null, [table_cell.create(), table_cell.create()]),
+    ]);
+    expect(doc.childCount).toBe(2);
+    expect(doc.firstChild?.child(0).type.name).toBe('table_header');
+    expect(doc.child(1).child(0).type.name).toBe('table_cell');
   });
 });

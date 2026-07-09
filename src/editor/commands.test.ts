@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { schema } from './schema.js';
-import { commands, runCommand, activeInputMarks, activeBlockLabel, activeBlockContext } from './commands.js';
+import { commands, runCommand, activeInputMarks, isInTable, activeBlockLabel, activeBlockContext } from './commands.js';
 
 function paragraphState(text = 'hi'): EditorState {
   const para = text ? schema.node('paragraph', null, schema.text(text)) : schema.node('paragraph');
@@ -47,6 +47,53 @@ describe('block commands', () => {
       if (n.type.name === 'horizontal_rule') found = true;
     });
     expect(found).toBe(true);
+  });
+
+  it('insertTable creates a 3x3 table with a header row', () => {
+    const next = apply(paragraphState(''), commands.insertTable);
+    const table = next.doc.firstChild;
+    expect(table?.type.name).toBe('table');
+    expect(table?.childCount).toBe(3);
+    expect(table?.firstChild?.firstChild?.type.name).toBe('table_header');
+    expect(table?.child(1).firstChild?.type.name).toBe('table_cell');
+  });
+
+  it('insertTable parks the caret in the first header cell, not wherever replaceSelectionWith would default to', () => {
+    const next = apply(paragraphState(''), commands.insertTable);
+    const $from = next.selection.$from;
+    // depth 1 = table, depth 2 = row, depth 3 = the cell the caret sits in.
+    expect($from.node(1).type.name).toBe('table');
+    expect($from.node(2).type.name).toBe('table_row');
+    expect($from.node(3).type.name).toBe('table_header');
+    expect($from.index(2)).toBe(0); // first cell of the first row
+    expect($from.index(1)).toBe(0); // first row of the table
+  });
+
+  it('insertTable is a no-op inside an existing table', () => {
+    const withTable = apply(paragraphState(''), commands.insertTable);
+    // Move the cursor inside the first header cell.
+    let cellPos = -1;
+    withTable.doc.descendants((node, pos) => {
+      if (node.type.name === 'table_header' && cellPos === -1) cellPos = pos + 1;
+    });
+    let state = withTable.apply(withTable.tr.setSelection(TextSelection.create(withTable.doc, cellPos)));
+    expect(isInTable(state)).toBe(true);
+    let dispatchCalled = false;
+    commands.insertTable(state, () => {
+      dispatchCalled = true;
+    });
+    expect(dispatchCalled).toBe(false);
+  });
+
+  it('addRowAfter grows the table from 3 to 4 rows', () => {
+    const withTable = apply(paragraphState(''), commands.insertTable);
+    let cellPos = -1;
+    withTable.doc.descendants((node, pos) => {
+      if (node.type.name === 'table_cell' && cellPos === -1) cellPos = pos + 1;
+    });
+    const state = withTable.apply(withTable.tr.setSelection(TextSelection.create(withTable.doc, cellPos)));
+    const next = apply(state, commands.addRowAfter);
+    expect(next.doc.firstChild?.childCount).toBe(4);
   });
 
   it('runCommand executes against a view-like object without throwing', () => {

@@ -74,4 +74,28 @@ describe('html codec', () => {
     expect(restored.firstChild?.type.name).toBe('task_list');
     expect(restored.firstChild?.firstChild?.attrs.checked).toBe(true);
   });
+
+  it('round-trips a table through <table>/<th>/<td>', async () => {
+    const { table, table_row, table_cell, table_header } = schema.nodes;
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        table.create(null, [
+          table_row.create(null, [table_header.create(null, schema.text('A'))]),
+          table_row.create(null, [table_cell.create(null, schema.text('1'))]),
+        ]),
+      ]),
+    );
+    const bytes = await htmlCodec.encode(doc);
+    const html = new TextDecoder().decode(bytes);
+    expect(html).toContain('<table>');
+    expect(html).toContain('<th>');
+    expect(html).toContain('<td>');
+    const dst = new Y.Doc();
+    await htmlCodec.decode(bytes, dst);
+    const restored = readPmDoc(dst);
+    expect(restored.firstChild?.type.name).toBe('table');
+    expect(restored.firstChild?.firstChild?.firstChild?.type.name).toBe('table_header');
+  });
 });

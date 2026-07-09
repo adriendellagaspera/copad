@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import type { Command } from 'prosemirror-state';
+import { tableNodeTypes, CellSelection, selectedRect } from 'prosemirror-tables';
 import { schema } from './schema.js';
 import {
   markRuleHandler,
@@ -9,6 +10,16 @@ import {
   exitCodeBlockDown,
   exitCodeBlockOnBlankLine,
   clearEmptyCodeBlockBackward,
+  exitTableAtBoundary,
+  backspaceAtTableStart,
+  deleteAtTableEnd,
+  deleteWholeTableSelection,
+  tableArrowVertical,
+  tableShiftArrow,
+  tableGoalColumnKey,
+  tableGoalColumnPlugin,
+  tabAddsRowAtEnd,
+  insertHardBreak,
   toggleBlockType,
   checklistRuleHandler,
   BOLD_STAR_RULE,
@@ -20,6 +31,13 @@ import {
   LINK_RULE,
   CHECKLIST_RULE,
 } from './plugins.js';
+
+/** A bare 1×1 table (one header cell, no body row) — the smallest doc shape
+ *  that can trap a caret at both the first and the last cell at once. */
+function oneCellTable() {
+  const types = tableNodeTypes(schema);
+  return types.table.create(null, [types.row.create(null, [types.header_cell.create()])]);
+}
 
 /** A one-paragraph doc containing `text`, with the handler invoked as if the
  *  caret sits right after `text` (mimicking the character that just closed
@@ -488,6 +506,653 @@ describe('clearEmptyCodeBlockBackward', () => {
     const para = schema.node('paragraph', null, schema.text('x'));
     const doc = schema.node('doc', null, [codeBlock, para]);
     const { handled, dispatched } = run(doc, 4, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('exitTableAtBoundary', () => {
+  const up = exitTableAtBoundary(schema, -1);
+  const down = exitTableAtBoundary(schema, 1);
+
+  it('inserts a paragraph before a table that opens the doc, on Enter at the start of its first cell', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    // Position 3: into the table (1), into the row (1), into the cell's own content (1).
+    const { handled, dispatched, next } = runCmd(up, doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.doc.firstChild?.type.name).toBe('paragraph');
+    expect(next!.doc.child(1).type.name).toBe('table');
+    // The caret lands inside the freshly inserted paragraph, not the table.
+    expect(next!.selection.$from.parent.type.name).toBe('paragraph');
+  });
+
+  it('inserts a paragraph after a table that closes the doc, on Enter at the end of its last cell', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const { handled, dispatched, next } = runCmd(down, doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.doc.firstChild?.type.name).toBe('table');
+    expect(next!.doc.child(1).type.name).toBe('paragraph');
+    expect(next!.selection.$from.parent.type.name).toBe('paragraph');
+  });
+
+  it('moves into an existing paragraph before the table instead of inserting a new one', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const doc = schema.node('doc', null, [before, oneCellTable()]);
+    const cellStart = before.nodeSize + 3; // end of the paragraph, then into table/row/cell
+    const { handled, dispatched, next } = runCmd(up, doc, cellStart);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2); // no extra paragraph inserted
+    expect(next!.selection.$from.parent.textContent).toBe('above');
+  });
+
+  it('moves into an existing paragraph after the table instead of inserting a new one', () => {
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [oneCellTable(), after]);
+    const { handled, dispatched, next } = runCmd(down, doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.selection.$from.parent.textContent).toBe('below');
+  });
+
+  it('does not fire for Enter in a middle row of a multi-row table (not a boundary row)', () => {
+    const types = tableNodeTypes(schema);
+    const row1 = types.row.create(null, [types.header_cell.create()]);
+    const row2 = types.row.create(null, [types.cell.create()]);
+    const row3 = types.row.create(null, [types.cell.create()]);
+    const table = types.table.create(null, [row1, row2, row3]);
+    const doc = schema.node('doc', null, [table]);
+    // Position inside row2's cell — neither the top nor the bottom row.
+    const row2CellPos = 2 + row1.nodeSize + 2;
+    const { handled: upHandled, dispatched: upDispatched } = runCmd(up, doc, row2CellPos);
+    expect(upHandled).toBe(false);
+    expect(upDispatched).toBe(false);
+    const { handled: downHandled, dispatched: downDispatched } = runCmd(down, doc, row2CellPos);
+    expect(downHandled).toBe(false);
+    expect(downDispatched).toBe(false);
+  });
+
+  it('escapes upward from ANY column of the top row, not just the first cell — matching tableArrowVertical\'s escape branch', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const doc = schema.node('doc', null, [before, threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(up, doc, cellContentPos(doc, 'B1'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2); // no extra paragraph inserted
+    expect(next!.selection.$from.parent.textContent).toBe('above');
+  });
+
+  it('escapes downward from ANY column of the bottom row, not just the last cell', () => {
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [threeByThreeTable(), after]);
+    // cellContentPos lands at the cell's content *start*; end of "B3" (2 chars) is +2.
+    const { handled, dispatched, next } = runCmd(down, doc, cellContentPos(doc, 'B3') + 2);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.selection.$from.parent.textContent).toBe('below');
+  });
+
+  it('a 1-row table (top row === bottom row) escapes upward from Enter at the start, and downward from Enter at the end, without double-firing', () => {
+    const types = tableNodeTypes(schema);
+    const row = types.row.create(null, [types.header_cell.create(null, schema.text('a')), types.header_cell.create(null, schema.text('b'))]);
+    const table = types.table.create(null, [row]);
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [before, table, after]);
+    const firstCellStart = before.nodeSize + 3;
+    const { handled: upHandled, next: upNext } = runCmd(up, doc, firstCellStart);
+    expect(upHandled).toBe(true);
+    expect(upNext!.doc.childCount).toBe(3); // no paragraph inserted, still 3 top-level nodes
+    expect(upNext!.selection.$from.parent.textContent).toBe('above');
+
+    const secondCell = table.child(0).child(1);
+    const lastCellEnd = before.nodeSize + 1 + 1 + table.child(0).child(0).nodeSize + 1 + secondCell.content.size;
+    const { handled: downHandled, next: downNext } = runCmd(down, doc, lastCellEnd);
+    expect(downHandled).toBe(true);
+    expect(downNext!.doc.childCount).toBe(3);
+    expect(downNext!.selection.$from.parent.textContent).toBe('below');
+  });
+
+  it('returns false outside a table entirely', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
+    const { handled, dispatched } = runCmd(up, doc, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('backspaceAtTableStart', () => {
+  const bs = backspaceAtTableStart(schema);
+
+  it('deletes an empty paragraph directly above the table', () => {
+    const empty = schema.node('paragraph');
+    const doc = schema.node('doc', null, [empty, oneCellTable()]);
+    const cellStart = empty.nodeSize + 3; // end of the empty paragraph, then into table/row/cell
+    const { handled, dispatched, next } = runCmd(bs, doc, cellStart);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(1); // the empty paragraph is gone
+    expect(next!.doc.firstChild?.type.name).toBe('table');
+  });
+
+  it('moves the caret to the end of a non-empty paragraph above the table, without deleting or merging it', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const doc = schema.node('doc', null, [before, oneCellTable()]);
+    const cellStart = before.nodeSize + 3;
+    const { handled, dispatched, next } = runCmd(bs, doc, cellStart);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2); // nothing deleted
+    expect(next!.selection.$from.parent.textContent).toBe('above');
+    expect(next!.selection.$from.parent.type.name).toBe('paragraph');
+  });
+
+  it('returns false when nothing precedes the table at all', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const { handled, dispatched } = runCmd(bs, doc, 3);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('does not fire from a non-start position inside the cell', () => {
+    const empty = schema.node('paragraph');
+    const cell = tableNodeTypes(schema).header_cell.create(null, schema.text('ab'));
+    const doc = schema.node('doc', null, [
+      empty,
+      tableNodeTypes(schema).table.create(null, [tableNodeTypes(schema).row.create(null, [cell])]),
+    ]);
+    const midCellPos = empty.nodeSize + 4; // between "a" and "b" — cell offset 1, not 0
+    const { handled, dispatched } = runCmd(bs, doc, midCellPos);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('returns false outside a table entirely', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
+    const { handled, dispatched } = runCmd(bs, doc, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('fires from ANY column of the top row, not just the first cell — same generalization as exitTableAtBoundary/tableArrowVertical', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const doc = schema.node('doc', null, [before, threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(bs, doc, cellContentPos(doc, 'B1'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2); // nothing deleted, no merge
+    expect(next!.selection.$from.parent.textContent).toBe('above');
+  });
+
+  it('does not fire from a row other than the top row', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const doc = schema.node('doc', null, [before, threeByThreeTable()]);
+    const { handled, dispatched } = runCmd(bs, doc, cellContentPos(doc, 'B2'));
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('deleteAtTableEnd (forward-Delete mirror of backspaceAtTableStart)', () => {
+  const del = deleteAtTableEnd(schema);
+
+  it('deletes an empty paragraph directly after the table', () => {
+    const empty = schema.node('paragraph');
+    const doc = schema.node('doc', null, [oneCellTable(), empty]);
+    // Position 3: into the table (1), into the row (1), to the end of the (empty) cell content (1).
+    const { handled, dispatched, next } = runCmd(del, doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(1); // the empty paragraph is gone
+    expect(next!.doc.firstChild?.type.name).toBe('table');
+  });
+
+  it('moves the caret to the start of a non-empty paragraph after the table, without deleting or merging it', () => {
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [oneCellTable(), after]);
+    const { handled, dispatched, next } = runCmd(del, doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2); // nothing deleted
+    expect(next!.selection.$from.parent.textContent).toBe('below');
+    expect(next!.selection.$from.parent.type.name).toBe('paragraph');
+    expect(next!.selection.$from.parentOffset).toBe(0);
+  });
+
+  it('returns false when nothing follows the table at all', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const { handled, dispatched } = runCmd(del, doc, 3);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('does not fire from a non-end position inside the cell', () => {
+    const after = schema.node('paragraph');
+    const cell = tableNodeTypes(schema).header_cell.create(null, schema.text('ab'));
+    const doc = schema.node('doc', null, [
+      tableNodeTypes(schema).table.create(null, [tableNodeTypes(schema).row.create(null, [cell])]),
+      after,
+    ]);
+    const midCellPos = 3; // between "a" and "b" — cell offset 1, not the content size (2)
+    const { handled, dispatched } = runCmd(del, doc, midCellPos);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('fires from ANY column of the bottom row, not just the last cell', () => {
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [threeByThreeTable(), after]);
+    const { handled, dispatched, next } = runCmd(del, doc, cellContentPos(doc, 'B3') + 2);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.selection.$from.parent.textContent).toBe('below');
+  });
+
+  it('does not fire from a row other than the bottom row', () => {
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [threeByThreeTable(), after]);
+    const { handled, dispatched } = runCmd(del, doc, cellContentPos(doc, 'B2') + 2);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('returns false outside a table entirely', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
+    const { handled, dispatched } = runCmd(del, doc, 2);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('deleteWholeTableSelection', () => {
+  function twoByTwoTable() {
+    const types = tableNodeTypes(schema);
+    return types.table.create(null, [
+      types.row.create(null, [types.header_cell.create(null, schema.text('a')), types.header_cell.create(null, schema.text('b'))]),
+      types.row.create(null, [types.cell.create(null, schema.text('c')), types.cell.create(null, schema.text('d'))]),
+    ]);
+  }
+
+  // CellSelection.create wants the position of the cell *node itself*
+  // (row-level, just before the cell opens) — not a position inside its
+  // content — so `.node(-1)` from the resolved pos is the table.
+  function firstAndLastCellPos(doc: ReturnType<typeof schema.node>): { first: number; last: number } {
+    let first = -1;
+    let last = -1;
+    doc.descendants((node, pos) => {
+      if (node.type === schema.nodes.table_cell || node.type === schema.nodes.table_header) {
+        if (first === -1) first = pos;
+        last = pos;
+      }
+    });
+    return { first, last };
+  }
+
+  it('deletes the whole table when a CellSelection covers every cell', () => {
+    const doc = schema.node('doc', null, [twoByTwoTable()]);
+    const { first, last } = firstAndLastCellPos(doc);
+    let state = EditorState.create({ schema, doc });
+    state = state.apply(state.tr.setSelection(CellSelection.create(doc, first, last)));
+
+    let dispatched = false;
+    let next: ReturnType<typeof state.apply> | null = null;
+    const handled = deleteWholeTableSelection(state, (tr) => {
+      dispatched = true;
+      next = state.apply(tr);
+    });
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    // The table itself is gone; ProseMirror backfills an empty paragraph
+    // since `doc`'s content model requires at least one block.
+    expect(next!.doc.childCount).toBe(1);
+    expect(next!.doc.firstChild?.type.name).toBe('paragraph');
+  });
+
+  it('leaves the table (and clears nothing itself) when the CellSelection covers only some cells', () => {
+    const doc = schema.node('doc', null, [twoByTwoTable()]);
+    const { first } = firstAndLastCellPos(doc);
+    let state = EditorState.create({ schema, doc });
+    // Anchor and head both the first cell — a single-cell CellSelection, not the whole table.
+    state = state.apply(state.tr.setSelection(CellSelection.create(doc, first, first)));
+
+    let dispatched = false;
+    const handled = deleteWholeTableSelection(state, () => {
+      dispatched = true;
+    });
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('returns false for a plain collapsed caret in a 1×1 table (dimensions alone are not enough)', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const { handled, dispatched } = runCmd(deleteWholeTableSelection, doc, 3);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+/** A 3×3 table (one header row + two body rows) with a distinct one-letter
+ *  label per cell — A1/B1/C1 (header row), A2/B2/C2, A3/B3/C3 — so tests can
+ *  tell exactly which cell the caret/selection ended up in. */
+function threeByThreeTable() {
+  const types = tableNodeTypes(schema);
+  const headerRow = types.row.create(null, [
+    types.header_cell.create(null, schema.text('A1')),
+    types.header_cell.create(null, schema.text('B1')),
+    types.header_cell.create(null, schema.text('C1')),
+  ]);
+  const row2 = types.row.create(null, [
+    types.cell.create(null, schema.text('A2')),
+    types.cell.create(null, schema.text('B2')),
+    types.cell.create(null, schema.text('C2')),
+  ]);
+  const row3 = types.row.create(null, [
+    types.cell.create(null, schema.text('A3')),
+    types.cell.create(null, schema.text('B3')),
+    types.cell.create(null, schema.text('C3')),
+  ]);
+  return types.table.create(null, [headerRow, row2, row3]);
+}
+
+/** The content-start position (offset 0, where the caret sits after a
+ *  click+Home) of the cell whose text is exactly `label`, in a doc built
+ *  from {@link threeByThreeTable}. */
+function cellContentPos(doc: ReturnType<typeof schema.node>, label: string): number {
+  let pos = -1;
+  doc.descendants((node, nodePos) => {
+    if ((node.type === schema.nodes.table_cell || node.type === schema.nodes.table_header) && node.textContent === label) {
+      pos = nodePos + 1;
+    }
+  });
+  if (pos === -1) throw new Error(`cell "${label}" not found`);
+  return pos;
+}
+
+describe('tableArrowVertical', () => {
+  const up = tableArrowVertical(-1);
+  const down = tableArrowVertical(1);
+
+  it('ArrowUp moves to the same-column cell in the row above (not the reading-order previous cell)', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(up, doc, cellContentPos(doc, 'B2'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.selection.$from.parent.textContent).toBe('B1');
+  });
+
+  it('ArrowDown moves to the same-column cell in the row below', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(down, doc, cellContentPos(doc, 'B2'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.selection.$from.parent.textContent).toBe('B3');
+  });
+
+  it('ArrowUp from any column of the top row moves into an existing paragraph above, not just the first column', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const doc = schema.node('doc', null, [before, threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(up, doc, cellContentPos(doc, 'B1'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2); // nothing inserted
+    expect(next!.selection.$from.parent.textContent).toBe('above');
+  });
+
+  it('ArrowDown from any column of the bottom row moves into an existing paragraph below', () => {
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [threeByThreeTable(), after]);
+    const { handled, dispatched, next } = runCmd(down, doc, cellContentPos(doc, 'B3'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.selection.$from.parent.textContent).toBe('below');
+  });
+
+  it('ArrowUp from the top row swallows the key (handled, but nothing dispatched) when the table opens the doc — Arrow keys are pure navigation, never create content (unlike Enter), and must not fall through to prosemirror-tables\' own broken vertical-arrow handler', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(up, doc, cellContentPos(doc, 'B1'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(false);
+    expect(next).toBeNull();
+  });
+
+  it('ArrowDown from the bottom row (NOT the rightmost column) swallows the key rather than falling through to a worse handler when the table closes the doc', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(down, doc, cellContentPos(doc, 'B3'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(false);
+    expect(next).toBeNull();
+  });
+
+  it('returns false outside a table entirely', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
+    const { handled, dispatched } = runCmd(up, doc, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('preserves the column when the "neighbour" at a boundary is another table, not a paragraph (two tables with nothing between them)', () => {
+    const types = tableNodeTypes(schema);
+    const secondTable = types.table.create(null, [
+      types.row.create(null, [
+        types.header_cell.create(null, schema.text('X1')),
+        types.header_cell.create(null, schema.text('Y1')),
+        types.header_cell.create(null, schema.text('Z1')),
+      ]),
+    ]);
+    const doc = schema.node('doc', null, [threeByThreeTable(), secondTable]);
+    // Leave from B3 (column index 1, bottom row of the first table).
+    const { handled, dispatched, next } = runCmd(down, doc, cellContentPos(doc, 'B3'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    // Must land in the second table's column-1 cell (Y1), not silently reset to column 0 (X1).
+    expect(next!.selection.$from.parent.textContent).toBe('Y1');
+  });
+});
+
+describe('tableGoalColumnKey (remembered column across an escape/re-entry round trip)', () => {
+  function stateWithGoalColumnPlugin(doc: ReturnType<typeof schema.node>, pos: number): EditorState {
+    return EditorState.create({
+      schema,
+      doc,
+      selection: TextSelection.create(doc, pos),
+      plugins: [tableGoalColumnPlugin()],
+    });
+  }
+
+  it('records the column of the cell just left when moving to another cell', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const state = stateWithGoalColumnPlugin(doc, cellContentPos(doc, 'C2')); // column index 2
+    let next: EditorState | null = null;
+    tableArrowVertical(1)(state, (tr) => {
+      next = state.apply(tr);
+    });
+    expect(tableGoalColumnKey.getState(next!)).toBe(2);
+  });
+
+  it('records the column being left when escaping the table entirely', () => {
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [threeByThreeTable(), after]);
+    const state = stateWithGoalColumnPlugin(doc, cellContentPos(doc, 'A3')); // column index 0, bottom row
+    let next: EditorState | null = null;
+    tableArrowVertical(1)(state, (tr) => {
+      next = state.apply(tr);
+    });
+    expect(tableGoalColumnKey.getState(next!)).toBe(0);
+  });
+
+  it('is cleared by an unrelated selection change (e.g. a click, or any transaction not from these commands)', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    let state = stateWithGoalColumnPlugin(doc, cellContentPos(doc, 'C2'));
+    tableArrowVertical(1)(state, (tr) => {
+      state = state.apply(tr);
+    });
+    expect(tableGoalColumnKey.getState(state)).toBe(2);
+
+    // An ordinary selection-changing transaction (a click, arrow-left, etc.)
+    // with no meta of its own must clear the remembered column.
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1)));
+    expect(tableGoalColumnKey.getState(state)).toBeNull();
+  });
+
+  it('is left untouched by a transaction with no selection change at all', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    let state = stateWithGoalColumnPlugin(doc, cellContentPos(doc, 'C2'));
+    tableArrowVertical(1)(state, (tr) => {
+      state = state.apply(tr);
+    });
+    expect(tableGoalColumnKey.getState(state)).toBe(2);
+
+    // A transaction that doesn't touch the selection (e.g. a stray meta-only
+    // transaction) shouldn't reset the remembered column.
+    state = state.apply(state.tr.setMeta('unrelated', true));
+    expect(tableGoalColumnKey.getState(state)).toBe(2);
+  });
+});
+
+describe('tableShiftArrow', () => {
+  function stateAt(doc: ReturnType<typeof schema.node>, pos: number): EditorState {
+    return EditorState.create({ schema, doc, selection: TextSelection.create(doc, pos) });
+  }
+
+  it('Shift-ArrowDown starts a CellSelection covering the cell and the one below it', () => {
+    const cmd = tableShiftArrow('vert', 1);
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const state = stateAt(doc, cellContentPos(doc, 'B2'));
+    let next: EditorState | null = null;
+    const handled = cmd(state, (tr) => {
+      next = state.apply(tr);
+    });
+    expect(handled).toBe(true);
+    const sel = next!.selection;
+    expect(sel).toBeInstanceOf(CellSelection);
+    const rect = selectedRect(next!);
+    expect(rect.bottom - rect.top).toBe(2); // spans 2 rows
+    expect(rect.right - rect.left).toBe(1); // spans 1 column
+  });
+
+  it('Shift-ArrowRight starts a CellSelection covering the cell and the one to its right', () => {
+    const cmd = tableShiftArrow('horiz', 1);
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const state = stateAt(doc, cellContentPos(doc, 'B2'));
+    let next: EditorState | null = null;
+    const handled = cmd(state, (tr) => {
+      next = state.apply(tr);
+    });
+    expect(handled).toBe(true);
+    const rect = selectedRect(next!);
+    expect(rect.right - rect.left).toBe(2); // spans 2 columns
+    expect(rect.bottom - rect.top).toBe(1); // spans 1 row
+  });
+
+  it('extends an existing CellSelection further in the given axis rather than restarting it', () => {
+    const cmd = tableShiftArrow('vert', 1);
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const anchorPos = cellContentPos(doc, 'B1');
+    const headPos = cellContentPos(doc, 'B2');
+    let state = EditorState.create({ schema, doc });
+    state = state.apply(state.tr.setSelection(CellSelection.create(doc, anchorPos - 1, headPos - 1)));
+
+    let next: EditorState | null = null;
+    const handled = cmd(state, (tr) => {
+      next = state.apply(tr);
+    });
+    expect(handled).toBe(true);
+    const rect = selectedRect(next!);
+    expect(rect.bottom - rect.top).toBe(3); // now spans all 3 rows (B1, B2, B3)
+  });
+
+  it('returns false at the table edge (no further cell in that axis/direction)', () => {
+    const cmd = tableShiftArrow('vert', -1);
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const state = stateAt(doc, cellContentPos(doc, 'B1'));
+    let dispatched = false;
+    const handled = cmd(state, () => {
+      dispatched = true;
+    });
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('returns false outside a table entirely', () => {
+    const cmd = tableShiftArrow('vert', 1);
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
+    const state = stateAt(doc, 1);
+    let dispatched = false;
+    const handled = cmd(state, () => {
+      dispatched = true;
+    });
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('tabAddsRowAtEnd', () => {
+  const tab = tabAddsRowAtEnd(schema);
+
+  it('adds a new row and moves into its first cell, from the last cell of a 1×1 table', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const { handled, dispatched, next } = runCmd(tab, doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.firstChild?.childCount).toBe(2); // grew from 1 row to 2
+    expect(next!.selection.$from.parent.type.name).toMatch(/table_cell|table_header/);
+    // The new row is the caret's ancestor row, and it's the table's last child.
+    const table = next!.doc.firstChild!;
+    const row = next!.selection.$from.node(next!.selection.$from.depth - 1);
+    expect(row).toBe(table.lastChild);
+  });
+
+  it('does not fire from the last cell of a non-last row (goToNextCell already has somewhere to go)', () => {
+    const types = tableNodeTypes(schema);
+    const firstRow = types.row.create(null, [types.header_cell.create()]);
+    const secondRow = types.row.create(null, [types.cell.create()]);
+    const doc = schema.node('doc', null, [types.table.create(null, [firstRow, secondRow])]);
+    const { handled, dispatched } = runCmd(tab, doc, 3); // inside the first (non-last) row's only cell
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('returns false outside a table entirely', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
+    const { handled, dispatched } = runCmd(tab, doc, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('insertHardBreak', () => {
+  it('inserts a hard_break node at the caret in a plain paragraph', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('hi'))]);
+    const { handled, dispatched, next } = runCmd(insertHardBreak, doc, 2); // between "h" and "i"
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.firstChild?.childCount).toBe(3); // "h", hard_break, "i"
+    expect(next!.doc.firstChild?.child(1).type.name).toBe('hard_break');
+  });
+
+  it('inserts a hard_break inside a table cell (already valid — cellContent is inline*)', () => {
+    const types = tableNodeTypes(schema);
+    const cell = types.header_cell.create(null, schema.text('ab'));
+    const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
+    const { handled, dispatched, next } = runCmd(insertHardBreak, doc, 4); // between "a" and "b"
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    const restoredCell = next!.doc.firstChild?.firstChild?.firstChild;
+    expect(restoredCell?.childCount).toBe(3);
+    expect(restoredCell?.child(1).type.name).toBe('hard_break');
+  });
+
+  it('returns false inside a code block (falls through to native newline-in-<pre>)', () => {
+    const doc = schema.node('doc', null, [schema.node('code_block', null, schema.text('ab'))]);
+    const { handled, dispatched } = runCmd(insertHardBreak, doc, 2);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });
