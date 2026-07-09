@@ -33,3 +33,17 @@ export const keyboardInset = {
     return inset;
   },
 };
+
+/** Drop the inset to 0 immediately, without waiting on a `visualViewport`
+ *  event. On dismiss, some mobile browsers don't fire `resize` until the
+ *  keyboard's own close animation has *finished* — so a value driven purely
+ *  by that event sits frozen at the open-keyboard height for the whole
+ *  animation, then snaps to 0 the instant it fires. Editor.svelte calls this
+ *  on `focusout` (the moment we know the keyboard is going away) so the CSS
+ *  `bottom` transition can start sliding the bar down right away instead of
+ *  waiting on the browser; if the keyboard was actually still open (e.g.
+ *  focus moved to another field), the next `resize`/`scroll` event corrects
+ *  the value again. */
+export function collapseKeyboardInset(): void {
+  inset = 0;
+}

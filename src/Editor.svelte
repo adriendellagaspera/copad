@@ -9,7 +9,7 @@
   import { slashMenuPlugin } from './editor/ui/slashMenu.js';
   import { placeholderPlugin } from './editor/ui/placeholder.js';
   import { lineBlockHintPlugin } from './editor/ui/lineBlockHint.js';
-  import { keyboardInset } from './ui/keyboardInset.svelte.js';
+  import { keyboardInset, collapseKeyboardInset } from './ui/keyboardInset.svelte.js';
   import Toolbar from './Toolbar.svelte';
   import SelectionToolbar from './editor/ui/SelectionToolbar.svelte';
   import CaretFormatHint from './editor/ui/CaretFormatHint.svelte';
@@ -215,7 +215,12 @@
     const el = editorEl;
     if (!el) return;
     const onFocusIn = () => setSessionEditing(true);
-    const onFocusOut = () => setSessionEditing(false);
+    const onFocusOut = () => {
+      setSessionEditing(false);
+      // Don't wait on visualViewport's own (often-delayed) resize event to
+      // learn the keyboard is closing — see collapseKeyboardInset's doc.
+      collapseKeyboardInset();
+    };
     el.addEventListener('focusin', onFocusIn);
     el.addEventListener('focusout', onFocusOut);
     return () => {
