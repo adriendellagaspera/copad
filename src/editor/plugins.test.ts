@@ -15,6 +15,8 @@ import {
   deleteWholeTableSelection,
   tableArrowVertical,
   tableShiftArrow,
+  tableGoalColumnKey,
+  tableGoalColumnPlugin,
   tabAddsRowAtEnd,
   insertHardBreak,
   toggleBlockType,
@@ -777,6 +779,65 @@ describe('tableArrowVertical', () => {
     const { handled, dispatched } = runCmd(up, doc, 1);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
+  });
+});
+
+describe('tableGoalColumnKey (remembered column across an escape/re-entry round trip)', () => {
+  function stateWithGoalColumnPlugin(doc: ReturnType<typeof schema.node>, pos: number): EditorState {
+    return EditorState.create({
+      schema,
+      doc,
+      selection: TextSelection.create(doc, pos),
+      plugins: [tableGoalColumnPlugin()],
+    });
+  }
+
+  it('records the column of the cell just left when moving to another cell', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const state = stateWithGoalColumnPlugin(doc, cellContentPos(doc, 'C2')); // column index 2
+    let next: EditorState | null = null;
+    tableArrowVertical(1)(state, (tr) => {
+      next = state.apply(tr);
+    });
+    expect(tableGoalColumnKey.getState(next!)).toBe(2);
+  });
+
+  it('records the column being left when escaping the table entirely', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const state = stateWithGoalColumnPlugin(doc, cellContentPos(doc, 'A3')); // column index 0, bottom row
+    let next: EditorState | null = null;
+    tableArrowVertical(1)(state, (tr) => {
+      next = state.apply(tr);
+    });
+    expect(tableGoalColumnKey.getState(next!)).toBe(0);
+  });
+
+  it('is cleared by an unrelated selection change (e.g. a click, or any transaction not from these commands)', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    let state = stateWithGoalColumnPlugin(doc, cellContentPos(doc, 'C2'));
+    tableArrowVertical(1)(state, (tr) => {
+      state = state.apply(tr);
+    });
+    expect(tableGoalColumnKey.getState(state)).toBe(2);
+
+    // An ordinary selection-changing transaction (a click, arrow-left, etc.)
+    // with no meta of its own must clear the remembered column.
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1)));
+    expect(tableGoalColumnKey.getState(state)).toBeNull();
+  });
+
+  it('is left untouched by a transaction with no selection change at all', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    let state = stateWithGoalColumnPlugin(doc, cellContentPos(doc, 'C2'));
+    tableArrowVertical(1)(state, (tr) => {
+      state = state.apply(tr);
+    });
+    expect(tableGoalColumnKey.getState(state)).toBe(2);
+
+    // A transaction that doesn't touch the selection (e.g. a stray meta-only
+    // transaction) shouldn't reset the remembered column.
+    state = state.apply(state.tr.setMeta('unrelated', true));
+    expect(tableGoalColumnKey.getState(state)).toBe(2);
   });
 });
 

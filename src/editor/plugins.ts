@@ -19,10 +19,11 @@ import {
   deleteTable,
   cellAround,
   nextCell,
+  TableMap,
 } from 'prosemirror-tables';
 import type { MarkType, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
-import { Selection, TextSelection } from 'prosemirror-state';
-import type { Command, EditorState, Plugin, Transaction } from 'prosemirror-state';
+import { Selection, TextSelection, PluginKey, Plugin } from 'prosemirror-state';
+import type { Command, EditorState, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
 import { taskItemCheckboxPlugin } from './taskList.js';
 
@@ -451,6 +452,38 @@ export const deleteWholeTableSelection: Command = (state, dispatch) => {
 };
 
 /**
+ * Remembers which table column a vertical Arrow move last left from, so
+ * arrowing back into the table from the paragraph above/below (see
+ * {@link tableArrowFromOutside}) returns to that same column instead of
+ * always landing in a fixed corner cell. A freshly-created escape
+ * paragraph is empty, so its caret always renders at the block's own left
+ * edge regardless of which column was left — there's no x-position of its
+ * own to read the target column back out of. This is the same "goal
+ * column" idea code editors use to preserve a horizontal position across
+ * differently-shaped lines, applied across a table boundary instead.
+ * Cleared by any selection change that didn't come through
+ * {@link tableArrowVertical}/{@link tableArrowFromOutside} themselves — a
+ * click, a horizontal arrow, typing — so stale memory never leaks into an
+ * unrelated later vertical move.
+ */
+export const tableGoalColumnKey = new PluginKey<number | null>('tableGoalColumn');
+
+export function tableGoalColumnPlugin(): Plugin {
+  return new Plugin({
+    key: tableGoalColumnKey,
+    state: {
+      init: () => null,
+      apply(tr, value) {
+        const meta = tr.getMeta(tableGoalColumnKey);
+        if (meta !== undefined) return meta;
+        if (tr.selectionSet) return null;
+        return value;
+      },
+    },
+  });
+}
+
+/**
  * ArrowUp/ArrowDown move between cells vertically (same column, row above
  * or below) — prosemirror-tables' own vertical-arrow heuristic
  * (`atEndOfCell`) assumes the library's default `block+` cell content
@@ -469,6 +502,8 @@ export const deleteWholeTableSelection: Command = (state, dispatch) => {
  * neighbour, else make one" way {@link exitTableAtBoundary} does for
  * Enter — regardless of *which* column, matching Word/Docs/Excel (arrowing
  * up from anywhere in the top row exits above, not just the first cell).
+ * Records the column being left in {@link tableGoalColumnKey} either way,
+ * so a later escape-then-return round trip lands back in the same column.
  */
 export function tableArrowVertical(dir: 1 | -1): Command {
   return (state, dispatch) => {
@@ -476,9 +511,20 @@ export function tableArrowVertical(dir: 1 | -1): Command {
     if (!(selection instanceof TextSelection) || !selection.empty) return false;
     const $cell = cellAround(selection.$head);
     if (!$cell) return false;
+    const table = $cell.node(-1);
+    const map = TableMap.get(table);
+    const tableStart = $cell.start(-1);
+    const colIndex = map.findCell($cell.pos - tableStart).left;
     const $next = nextCell($cell, 'vert', dir);
     if ($next) {
-      if (dispatch) dispatch(state.tr.setSelection(Selection.near($next, 1)).scrollIntoView());
+      if (dispatch) {
+        dispatch(
+          state.tr
+            .setSelection(Selection.near($next, 1))
+            .setMeta(tableGoalColumnKey, colIndex)
+            .scrollIntoView()
+        );
+      }
       return true;
     }
     if (dispatch) {
@@ -493,7 +539,46 @@ export function tableArrowVertical(dir: 1 | -1): Command {
       }
       const pos = hasNeighbour ? boundary + dir : boundary + 1;
       tr.setSelection(Selection.near(tr.doc.resolve(pos), dir));
+      tr.setMeta(tableGoalColumnKey, colIndex);
       dispatch(tr.scrollIntoView());
+    }
+    return true;
+  };
+}
+
+/**
+ * ArrowUp/ArrowDown from a plain textblock directly adjacent to a table —
+ * the counterpart to {@link tableArrowVertical}'s escape branch, entering
+ * the table instead of leaving it. Without this, entering is left to the
+ * browser's native Up/Down fallback, which (same underlying cause as
+ * `tableArrowVertical`'s doc comment — no real spatial reasoning across a
+ * table's row boundaries) consistently lands in the table's last cell
+ * regardless of where the caret actually was. Reads
+ * {@link tableGoalColumnKey}'s remembered column when set (the common
+ * case: arrowing back into a table just escaped from), defaulting to the
+ * first column otherwise.
+ */
+export function tableArrowFromOutside(dir: 1 | -1): Command {
+  return (state, dispatch, view) => {
+    if (!view) return false;
+    const { selection } = state;
+    if (!(selection instanceof TextSelection) || !selection.empty) return false;
+    const $head = selection.$head;
+    if (cellAround($head)) return false;
+    if (!view.endOfTextblock(dir < 0 ? 'up' : 'down')) return false;
+    const depth = $head.depth;
+    const boundary = dir < 0 ? $head.before(depth) : $head.after(depth);
+    const $boundary = state.doc.resolve(boundary);
+    const table = dir < 0 ? $boundary.nodeBefore : $boundary.nodeAfter;
+    if (!table || table.type !== state.schema.nodes.table) return false;
+    const map = TableMap.get(table);
+    const tableStart = (dir < 0 ? boundary - table.nodeSize : boundary) + 1;
+    const targetRow = dir < 0 ? map.height - 1 : 0;
+    const goalColumn = tableGoalColumnKey.getState(state);
+    const col = goalColumn != null ? Math.min(goalColumn, map.width - 1) : 0;
+    const cellPos = tableStart + map.positionAt(targetRow, col, table);
+    if (dispatch) {
+      dispatch(state.tr.setSelection(Selection.near(state.doc.resolve(cellPos + 1), 1)).scrollIntoView());
     }
     return true;
   };
@@ -604,8 +689,8 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-y': redo,
       'Mod-Shift-z': redo,
       'Escape': escapeCodeBlock,
-      'ArrowUp': tableArrowVertical(-1),
-      'ArrowDown': chainCommands(exitCodeBlockDown, tableArrowVertical(1)),
+      'ArrowUp': chainCommands(tableArrowVertical(-1), tableArrowFromOutside(-1)),
+      'ArrowDown': chainCommands(exitCodeBlockDown, tableArrowVertical(1), tableArrowFromOutside(1)),
       'Shift-ArrowUp': tableShiftArrow('vert', -1),
       'Shift-ArrowDown': tableShiftArrow('vert', 1),
       'Shift-ArrowLeft': tableShiftArrow('horiz', -1),
@@ -668,5 +753,6 @@ export function buildPlugins(s: Schema): Plugin[] {
     columnResizing(),
     tableEditing(),
     taskItemCheckboxPlugin,
+    tableGoalColumnPlugin(),
   ];
 }
