@@ -9,7 +9,15 @@ import {
 } from 'prosemirror-inputrules';
 import { undo, redo } from 'y-prosemirror';
 import { findWrapping } from 'prosemirror-transform';
-import { goToNextCell, columnResizing, tableEditing, addRowAfter } from 'prosemirror-tables';
+import {
+  goToNextCell,
+  columnResizing,
+  tableEditing,
+  addRowAfter,
+  CellSelection,
+  selectedRect,
+  deleteTable,
+} from 'prosemirror-tables';
 import type { MarkType, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
 import { Selection } from 'prosemirror-state';
 import type { Command, EditorState, Plugin, Transaction } from 'prosemirror-state';
@@ -419,6 +427,28 @@ export function backspaceAtTableStart(s: Schema): Command {
 }
 
 /**
+ * Backspace or Delete with the *entire* table selected — a `CellSelection`
+ * spanning every row and column — deletes the whole table. This is the
+ * confirmed convention in both Word and Google Docs: selecting the whole
+ * table (its move-handle/four-arrow icon, or dragging across every cell)
+ * and pressing Backspace or Delete removes the table outright, while
+ * selecting only *some* cells clears just their content — which
+ * prosemirror-tables' own default `deleteSelection` handling already does
+ * correctly and this leaves untouched. Requires an actual `CellSelection`,
+ * not just a bare collapsed caret: a 1×1 table's only cell technically
+ * "covers the whole table" by dimension alone, but a single keystroke with
+ * nothing selected must never destroy a table (same restraint as
+ * {@link backspaceAtTableStart}).
+ */
+export const deleteWholeTableSelection: Command = (state, dispatch) => {
+  if (!(state.selection instanceof CellSelection)) return false;
+  const rect = selectedRect(state);
+  const wholeTable = rect.left === 0 && rect.top === 0 && rect.right === rect.map.width && rect.bottom === rect.map.height;
+  if (!wholeTable) return false;
+  return deleteTable(state, dispatch);
+};
+
+/**
  * Tab in the very last cell of a table's last row adds a new row and moves
  * into its first cell, instead of doing nothing (`goToNextCell(1)` returns
  * `false` there — there's no next cell to go to). Matches the near-universal
@@ -502,7 +532,8 @@ export function buildPlugins(s: Schema): Plugin[] {
         splitListItem(s.nodes.task_item, { checked: false })
       ),
       'Shift-Enter': insertHardBreak,
-      'Backspace': chainCommands(backspaceAtTableStart(s), clearEmptyCodeBlockBackward),
+      'Backspace': chainCommands(deleteWholeTableSelection, backspaceAtTableStart(s), clearEmptyCodeBlockBackward),
+      'Delete': deleteWholeTableSelection,
       'Tab': chainCommands(
         goToNextCell(1),
         tabAddsRowAtEnd(s),

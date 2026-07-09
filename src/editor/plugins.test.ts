@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import type { Command } from 'prosemirror-state';
-import { tableNodeTypes } from 'prosemirror-tables';
+import { tableNodeTypes, CellSelection } from 'prosemirror-tables';
 import { schema } from './schema.js';
 import {
   markRuleHandler,
@@ -12,6 +12,7 @@ import {
   clearEmptyCodeBlockBackward,
   exitTableAtBoundary,
   backspaceAtTableStart,
+  deleteWholeTableSelection,
   tabAddsRowAtEnd,
   insertHardBreak,
   toggleBlockType,
@@ -623,6 +624,73 @@ describe('backspaceAtTableStart', () => {
   it('returns false outside a table entirely', () => {
     const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
     const { handled, dispatched } = runCmd(bs, doc, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('deleteWholeTableSelection', () => {
+  function twoByTwoTable() {
+    const types = tableNodeTypes(schema);
+    return types.table.create(null, [
+      types.row.create(null, [types.header_cell.create(null, schema.text('a')), types.header_cell.create(null, schema.text('b'))]),
+      types.row.create(null, [types.cell.create(null, schema.text('c')), types.cell.create(null, schema.text('d'))]),
+    ]);
+  }
+
+  // CellSelection.create wants the position of the cell *node itself*
+  // (row-level, just before the cell opens) — not a position inside its
+  // content — so `.node(-1)` from the resolved pos is the table.
+  function firstAndLastCellPos(doc: ReturnType<typeof schema.node>): { first: number; last: number } {
+    let first = -1;
+    let last = -1;
+    doc.descendants((node, pos) => {
+      if (node.type === schema.nodes.table_cell || node.type === schema.nodes.table_header) {
+        if (first === -1) first = pos;
+        last = pos;
+      }
+    });
+    return { first, last };
+  }
+
+  it('deletes the whole table when a CellSelection covers every cell', () => {
+    const doc = schema.node('doc', null, [twoByTwoTable()]);
+    const { first, last } = firstAndLastCellPos(doc);
+    let state = EditorState.create({ schema, doc });
+    state = state.apply(state.tr.setSelection(CellSelection.create(doc, first, last)));
+
+    let dispatched = false;
+    let next: ReturnType<typeof state.apply> | null = null;
+    const handled = deleteWholeTableSelection(state, (tr) => {
+      dispatched = true;
+      next = state.apply(tr);
+    });
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    // The table itself is gone; ProseMirror backfills an empty paragraph
+    // since `doc`'s content model requires at least one block.
+    expect(next!.doc.childCount).toBe(1);
+    expect(next!.doc.firstChild?.type.name).toBe('paragraph');
+  });
+
+  it('leaves the table (and clears nothing itself) when the CellSelection covers only some cells', () => {
+    const doc = schema.node('doc', null, [twoByTwoTable()]);
+    const { first } = firstAndLastCellPos(doc);
+    let state = EditorState.create({ schema, doc });
+    // Anchor and head both the first cell — a single-cell CellSelection, not the whole table.
+    state = state.apply(state.tr.setSelection(CellSelection.create(doc, first, first)));
+
+    let dispatched = false;
+    const handled = deleteWholeTableSelection(state, () => {
+      dispatched = true;
+    });
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('returns false for a plain collapsed caret in a 1×1 table (dimensions alone are not enough)', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const { handled, dispatched } = runCmd(deleteWholeTableSelection, doc, 3);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });
