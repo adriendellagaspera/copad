@@ -112,8 +112,18 @@
     position: fixed;
     left: var(--sp-2);
     right: var(--sp-2);
-    bottom: max(var(--sp-2), env(safe-area-inset-bottom));
+    /* --kb-inset (keyboardInset.svelte.ts) rises the bar above an open
+       on-screen keyboard, which shrinks the visual viewport without moving
+       this fixed-to-layout-viewport element on its own. On dismiss, several
+       mobile browsers don't fire visualViewport's resize until the
+       keyboard's own close animation finishes, so the value can jump
+       straight from open-height to 0 in one tick (collapseKeyboardInset in
+       Editor.svelte's focusout handler pulls that jump earlier, but it's
+       still a single jump) — this transition turns that jump into a slide
+       instead of a teleport. */
+    bottom: calc(max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px));
     z-index: var(--z-menu);
+    transition: bottom 0.22s ease-out;
   }
   .fixed-toolbar.editing {
     display: block;

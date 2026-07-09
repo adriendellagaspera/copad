@@ -9,6 +9,7 @@
   import { slashMenuPlugin } from './editor/ui/slashMenu.js';
   import { placeholderPlugin } from './editor/ui/placeholder.js';
   import { lineBlockHintPlugin } from './editor/ui/lineBlockHint.js';
+  import { keyboardInset, collapseKeyboardInset } from './ui/keyboardInset.svelte.js';
   import Toolbar from './Toolbar.svelte';
   import SelectionToolbar from './editor/ui/SelectionToolbar.svelte';
   import CaretFormatHint from './editor/ui/CaretFormatHint.svelte';
@@ -214,7 +215,12 @@
     const el = editorEl;
     if (!el) return;
     const onFocusIn = () => setSessionEditing(true);
-    const onFocusOut = () => setSessionEditing(false);
+    const onFocusOut = () => {
+      setSessionEditing(false);
+      // Don't wait on visualViewport's own (often-delayed) resize event to
+      // learn the keyboard is closing — see collapseKeyboardInset's doc.
+      collapseKeyboardInset();
+    };
     el.addEventListener('focusin', onFocusIn);
     el.addEventListener('focusout', onFocusOut);
     return () => {
@@ -426,7 +432,11 @@
        occupying the same fixed slot as App.svelte's nav-mode dock, shown only
        while the document has focus (see setSessionEditing above) so it never
        costs vertical space at rest and always sits right above the keyboard. -->
-  <div class="fixed-toolbar" class:editing={sessionState.editing}>
+  <div
+    class="fixed-toolbar"
+    class:editing={sessionState.editing}
+    style="--kb-inset: {keyboardInset.px}px"
+  >
     <Toolbar {view} {editorState} {toasts} />
   </div>
   <!-- DocTitle renders inside `.content` (not as a sibling) so it scrolls away
