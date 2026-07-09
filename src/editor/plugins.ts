@@ -19,7 +19,6 @@ import {
   deleteColumn,
   toggleHeaderRow,
   CellSelection,
-  selectedRect,
   deleteTable,
   cellAround,
   nextCell,
@@ -496,25 +495,36 @@ export function deleteAtTableEnd(s: Schema): Command {
 }
 
 /**
- * Backspace or Delete with the *entire* table selected — a `CellSelection`
- * spanning every row and column — deletes the whole table. This is the
- * confirmed convention in both Word and Google Docs: selecting the whole
- * table (its move-handle/four-arrow icon, or dragging across every cell)
- * and pressing Backspace or Delete removes the table outright, while
- * selecting only *some* cells clears just their content — which
+ * Backspace or Delete with a `CellSelection` that spans one or more *entire*
+ * rows, one or more entire columns, or the entire table, deletes exactly
+ * that — the confirmed convention in both Word and Google Docs: selecting
+ * whole rows/columns (dragging down a row's left margin, or across a
+ * column's top edge) or the whole table (its move-handle/four-arrow icon)
+ * and pressing Backspace or Delete removes them outright, while selecting
+ * only *some* cells within a row/column clears just their content — which
  * prosemirror-tables' own default `deleteSelection` handling already does
  * correctly and this leaves untouched. Requires an actual `CellSelection`,
  * not just a bare collapsed caret: a 1×1 table's only cell technically
- * "covers the whole table" by dimension alone, but a single keystroke with
- * nothing selected must never destroy a table (same restraint as
- * {@link backspaceAtTableStart}).
+ * "covers its whole row and column" by dimension alone, but a single
+ * keystroke with nothing selected must never destroy a table (same
+ * restraint as {@link backspaceAtTableStart}).
+ *
+ * `isRowSelection`/`isColSelection` (prosemirror-tables) are true whenever
+ * the selection spans the full width/height respectively — one row, several
+ * rows, or (when both are true at once) every row *and* every column, i.e.
+ * the whole table. `deleteRow`/`deleteColumn` already remove every row/
+ * column the selection's rect covers (not just a single one) and already
+ * refuse (returning `false`) when that would empty the table in that axis —
+ * so the whole-table case has to be checked first and routed to
+ * `deleteTable` instead, or it would hit that refusal and silently no-op.
  */
-export const deleteWholeTableSelection: Command = (state, dispatch) => {
-  if (!(state.selection instanceof CellSelection)) return false;
-  const rect = selectedRect(state);
-  const wholeTable = rect.left === 0 && rect.top === 0 && rect.right === rect.map.width && rect.bottom === rect.map.height;
-  if (!wholeTable) return false;
-  return deleteTable(state, dispatch);
+export const deleteTableSelection: Command = (state, dispatch) => {
+  const sel = state.selection;
+  if (!(sel instanceof CellSelection)) return false;
+  if (sel.isRowSelection() && sel.isColSelection()) return deleteTable(state, dispatch);
+  if (sel.isRowSelection()) return deleteRow(state, dispatch);
+  if (sel.isColSelection()) return deleteColumn(state, dispatch);
+  return false;
 };
 
 /**
@@ -828,8 +838,8 @@ export function buildPlugins(s: Schema): Plugin[] {
         splitListItem(s.nodes.task_item, { checked: false })
       ),
       'Shift-Enter': insertHardBreak,
-      'Backspace': chainCommands(deleteWholeTableSelection, backspaceAtTableStart(s), clearEmptyCodeBlockBackward),
-      'Delete': chainCommands(deleteWholeTableSelection, deleteAtTableEnd(s)),
+      'Backspace': chainCommands(deleteTableSelection, backspaceAtTableStart(s), clearEmptyCodeBlockBackward),
+      'Delete': chainCommands(deleteTableSelection, deleteAtTableEnd(s)),
       'Tab': chainCommands(
         goToNextCell(1),
         tabAddsRowAtEnd(s),
@@ -861,7 +871,7 @@ export function buildPlugins(s: Schema): Plugin[] {
       // modifier changes direction" shape. No bare shortcut for deleting
       // the whole table: that's a single keystroke destroying much more
       // than one row, so it stays behind the deliberate "select every cell
-      // first" gesture (deleteWholeTableSelection) or the toolbar's own
+      // first" gesture (deleteTableSelection) or the toolbar's own
       // trash-icon button.
       'Alt-R': addRowAfter,
       'Alt-C': addColumnAfter,
