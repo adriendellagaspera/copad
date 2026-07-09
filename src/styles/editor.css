@@ -114,10 +114,13 @@
     right: var(--sp-2);
     /* --kb-inset (keyboardInset.svelte.ts) rises the bar above an open
        on-screen keyboard, which shrinks the visual viewport without moving
-       this fixed-to-layout-viewport element on its own. */
+       this fixed-to-layout-viewport element on its own. No transition here:
+       the keyboard's own show/hide animation already moves visualViewport
+       progressively, so tracking it 1:1 reads as smooth — an added CSS
+       transition just chases that motion with its own easing on top,
+       which reads as lag, most noticeably on close. */
     bottom: calc(max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px));
     z-index: var(--z-menu);
-    transition: bottom 0.15s ease-out;
   }
   .fixed-toolbar.editing {
     display: block;
