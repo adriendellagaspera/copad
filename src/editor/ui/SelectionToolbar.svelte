@@ -72,31 +72,30 @@
     const tw = hostText?.offsetWidth ?? 0;
     const th = hostText?.offsetHeight ?? 0;
 
-    // A bare caret in a table anchors both panels to the *table's* own
-    // bounding box, not the caret's line — the caret can be on any row, and a
-    // line-anchored panel that flips below a header row would land on top of
-    // row 2, hiding it. Anchoring to the table's outer edge instead means
-    // neither panel ever overlaps a cell, and both stay put while Tab/arrows
-    // move the caret between cells of the same table (no per-cell jitter).
-    // The table-structure panel only ever shows in this case — a real
-    // selection (in or out of a table) shows the text bubble alone.
+    // A bare caret in a table anchors the table-structure panel to the
+    // *table's* own bounding box, not the caret's line — the caret can be on
+    // any row, and a line-anchored panel that flips below a header row would
+    // land on top of row 2, hiding it. Anchoring to the table's outer edge
+    // instead means the panel never overlaps a cell, and stays put while
+    // Tab/arrows move the caret between cells of the same table (no
+    // per-cell jitter). The text-formatting bubble never shows for a bare
+    // caret — table or not — matching normal (outside-table) behaviour: it
+    // only ever appears for a real, non-empty selection (see below).
     const tableEl = empty && inTable ? tableElementAt(v, from) : null;
     if (tableEl) {
       const bw = hostTable?.offsetWidth ?? 0;
       const bh = hostTable?.offsetHeight ?? 0;
       const rect = tableEl.getBoundingClientRect();
-      const { text, table } = positionTablePanels(
+      const { table } = positionTablePanels(
         rect,
         { width: tw, height: th },
         { width: bw, height: bh },
         { width: window.innerWidth, height: window.innerHeight },
         GAP,
       );
-      top = text.top;
-      left = text.left;
       tableTop = table.top;
       tableLeft = table.left;
-      textVisible = true;
+      textVisible = false;
       tableVisible = true;
       return;
     }
@@ -152,15 +151,18 @@
 
   const FOCUSABLE_SEL = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
-  // The combined tab ring across BOTH floating panels — text bubble first,
-  // then the table-structure panel. Used both to find the first button to
-  // focus (Shift-F10/ContextMenu) and to wrap Tab/Shift-Tab across the pair
-  // once focus is inside either one (see attachClosedLoop below), so once a
-  // keyboard user reaches either panel every button in both is reachable
-  // without inventing a second shortcut.
+  // The combined tab ring across whichever floating panel(s) are actually
+  // showing — text bubble first, then the table-structure panel. Used both
+  // to find the first button to focus (Shift-F10/ContextMenu) and to wrap
+  // Tab/Shift-Tab across the pair once focus is inside either one (see
+  // attachClosedLoop below). Gated on textVisible/tableVisible (not just
+  // whether the host div exists — it always does, just display:none'd when
+  // hidden): a bare caret in a table shows the table panel alone, and its
+  // hidden sibling's buttons must not be offered as focus targets, or
+  // Shift-F10 would try to focus an unfocusable (display:none) button.
   const focusableEls = (): HTMLElement[] => [
-    ...(hostText ? Array.from(hostText.querySelectorAll<HTMLElement>(FOCUSABLE_SEL)) : []),
-    ...(hostTable ? Array.from(hostTable.querySelectorAll<HTMLElement>(FOCUSABLE_SEL)) : []),
+    ...(textVisible && hostText ? Array.from(hostText.querySelectorAll<HTMLElement>(FOCUSABLE_SEL)) : []),
+    ...(tableVisible && hostTable ? Array.from(hostTable.querySelectorAll<HTMLElement>(FOCUSABLE_SEL)) : []),
   ];
 
   // Tab normally leaves the contenteditable entirely (browser default, since
