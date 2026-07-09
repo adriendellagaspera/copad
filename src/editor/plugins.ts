@@ -17,9 +17,11 @@ import {
   CellSelection,
   selectedRect,
   deleteTable,
+  cellAround,
+  nextCell,
 } from 'prosemirror-tables';
 import type { MarkType, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
-import { Selection } from 'prosemirror-state';
+import { Selection, TextSelection } from 'prosemirror-state';
 import type { Command, EditorState, Plugin, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
 import { taskItemCheckboxPlugin } from './taskList.js';
@@ -449,6 +451,90 @@ export const deleteWholeTableSelection: Command = (state, dispatch) => {
 };
 
 /**
+ * ArrowUp/ArrowDown move between cells vertically (same column, row above
+ * or below) — prosemirror-tables' own vertical-arrow heuristic
+ * (`atEndOfCell`) assumes the library's default `block+` cell content
+ * model (cell → paragraph → inline), one depth level deeper than our
+ * `cellContent: 'inline*'` cells (see schema.ts, a deliberate GFM-shaped
+ * choice: no wrapping paragraph). Its ancestor walk looks for a
+ * `cell`/`header_cell` node exactly one level above the caret's textblock,
+ * which for our flatter schema is the *row*, not a cell — so the check
+ * never resolves, silently falls through to the browser's native Up/Down
+ * handling, which (crossing a table's row boundaries) ends up reading as
+ * "the same as Left/Right" instead of true vertical movement. Since a
+ * cell here is *always* exactly one line — wrapping is impossible — there
+ * is no visual-line ambiguity to resolve in the first place; go straight
+ * to `nextCell` via `TableMap`. At the table's top/bottom edge (no row
+ * further in this column), escapes the table the same "reuse a
+ * neighbour, else make one" way {@link exitTableAtBoundary} does for
+ * Enter — regardless of *which* column, matching Word/Docs/Excel (arrowing
+ * up from anywhere in the top row exits above, not just the first cell).
+ */
+export function tableArrowVertical(dir: 1 | -1): Command {
+  return (state, dispatch) => {
+    const { selection } = state;
+    if (!(selection instanceof TextSelection) || !selection.empty) return false;
+    const $cell = cellAround(selection.$head);
+    if (!$cell) return false;
+    const $next = nextCell($cell, 'vert', dir);
+    if ($next) {
+      if (dispatch) dispatch(state.tr.setSelection(Selection.near($next, 1)).scrollIntoView());
+      return true;
+    }
+    if (dispatch) {
+      const tr = state.tr;
+      const boundary = dir === -1 ? $cell.before(-1) : $cell.after(-1);
+      const $boundary = tr.doc.resolve(boundary);
+      const hasNeighbour = dir === -1 ? $boundary.nodeBefore : $boundary.nodeAfter;
+      if (!hasNeighbour) {
+        const para = state.schema.nodes.paragraph.createAndFill();
+        if (!para) return false;
+        tr.insert(boundary, para);
+      }
+      const pos = hasNeighbour ? boundary + dir : boundary + 1;
+      tr.setSelection(Selection.near(tr.doc.resolve(pos), dir));
+      dispatch(tr.scrollIntoView());
+    }
+    return true;
+  };
+}
+
+/**
+ * Shift-Arrow(Up/Down/Left/Right) extends (or starts) a `CellSelection` —
+ * the mouse-drag equivalent for keyboard users. prosemirror-tables' own
+ * `shiftArrow` is gated behind the same `atEndOfCell` check described on
+ * {@link tableArrowVertical} (broken for our flatter, wrapper-paragraph-
+ * less cells), so it never fires for us on any axis; without it, Shift-
+ * Arrow falls through to the browser's own native cross-cell selection
+ * extension, which is unreliable (observed flaky even for the horizontal
+ * axis in testing — sometimes extending a `CellSelection`, sometimes
+ * doing nothing). `nextCell` via `TableMap` sidesteps `atEndOfCell`
+ * entirely and is deterministic on every axis, mirroring the library's
+ * own `shiftArrow` shape.
+ */
+export function tableShiftArrow(axis: 'horiz' | 'vert', dir: 1 | -1): Command {
+  return (state, dispatch) => {
+    const sel = state.selection;
+    let anchorCell;
+    let headCell;
+    if (sel instanceof CellSelection) {
+      anchorCell = sel.$anchorCell;
+      headCell = sel.$headCell;
+    } else {
+      if (!(sel instanceof TextSelection) || !sel.empty) return false;
+      const $cell = cellAround(sel.$head);
+      if (!$cell) return false;
+      anchorCell = $cell;
+      headCell = $cell;
+    }
+    const $next = nextCell(headCell, axis, dir);
+    if (!$next) return false;
+    if (dispatch) dispatch(state.tr.setSelection(new CellSelection(anchorCell, $next)));
+    return true;
+  };
+}
+
+/**
  * Tab in the very last cell of a table's last row adds a new row and moves
  * into its first cell, instead of doing nothing (`goToNextCell(1)` returns
  * `false` there — there's no next cell to go to). Matches the near-universal
@@ -518,7 +604,12 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-y': redo,
       'Mod-Shift-z': redo,
       'Escape': escapeCodeBlock,
-      'ArrowDown': exitCodeBlockDown,
+      'ArrowUp': tableArrowVertical(-1),
+      'ArrowDown': chainCommands(exitCodeBlockDown, tableArrowVertical(1)),
+      'Shift-ArrowUp': tableShiftArrow('vert', -1),
+      'Shift-ArrowDown': tableShiftArrow('vert', 1),
+      'Shift-ArrowLeft': tableShiftArrow('horiz', -1),
+      'Shift-ArrowRight': tableShiftArrow('horiz', 1),
       // The task_item split passes an explicit `checked: false` for the new
       // item — splitListItem otherwise copies the *original* item's attrs
       // onto both halves, so pressing Enter on a checked item would silently

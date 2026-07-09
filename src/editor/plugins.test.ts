@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import type { Command } from 'prosemirror-state';
-import { tableNodeTypes, CellSelection } from 'prosemirror-tables';
+import { tableNodeTypes, CellSelection, selectedRect } from 'prosemirror-tables';
 import { schema } from './schema.js';
 import {
   markRuleHandler,
@@ -13,6 +13,8 @@ import {
   exitTableAtBoundary,
   backspaceAtTableStart,
   deleteWholeTableSelection,
+  tableArrowVertical,
+  tableShiftArrow,
   tabAddsRowAtEnd,
   insertHardBreak,
   toggleBlockType,
@@ -691,6 +693,165 @@ describe('deleteWholeTableSelection', () => {
   it('returns false for a plain collapsed caret in a 1×1 table (dimensions alone are not enough)', () => {
     const doc = schema.node('doc', null, [oneCellTable()]);
     const { handled, dispatched } = runCmd(deleteWholeTableSelection, doc, 3);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+/** A 3×3 table (one header row + two body rows) with a distinct one-letter
+ *  label per cell — A1/B1/C1 (header row), A2/B2/C2, A3/B3/C3 — so tests can
+ *  tell exactly which cell the caret/selection ended up in. */
+function threeByThreeTable() {
+  const types = tableNodeTypes(schema);
+  const headerRow = types.row.create(null, [
+    types.header_cell.create(null, schema.text('A1')),
+    types.header_cell.create(null, schema.text('B1')),
+    types.header_cell.create(null, schema.text('C1')),
+  ]);
+  const row2 = types.row.create(null, [
+    types.cell.create(null, schema.text('A2')),
+    types.cell.create(null, schema.text('B2')),
+    types.cell.create(null, schema.text('C2')),
+  ]);
+  const row3 = types.row.create(null, [
+    types.cell.create(null, schema.text('A3')),
+    types.cell.create(null, schema.text('B3')),
+    types.cell.create(null, schema.text('C3')),
+  ]);
+  return types.table.create(null, [headerRow, row2, row3]);
+}
+
+/** The content-start position (offset 0, where the caret sits after a
+ *  click+Home) of the cell whose text is exactly `label`, in a doc built
+ *  from {@link threeByThreeTable}. */
+function cellContentPos(doc: ReturnType<typeof schema.node>, label: string): number {
+  let pos = -1;
+  doc.descendants((node, nodePos) => {
+    if ((node.type === schema.nodes.table_cell || node.type === schema.nodes.table_header) && node.textContent === label) {
+      pos = nodePos + 1;
+    }
+  });
+  if (pos === -1) throw new Error(`cell "${label}" not found`);
+  return pos;
+}
+
+describe('tableArrowVertical', () => {
+  const up = tableArrowVertical(-1);
+  const down = tableArrowVertical(1);
+
+  it('ArrowUp moves to the same-column cell in the row above (not the reading-order previous cell)', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(up, doc, cellContentPos(doc, 'B2'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.selection.$from.parent.textContent).toBe('B1');
+  });
+
+  it('ArrowDown moves to the same-column cell in the row below', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(down, doc, cellContentPos(doc, 'B2'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.selection.$from.parent.textContent).toBe('B3');
+  });
+
+  it('ArrowUp from any column of the top row escapes above the table, not just the first column', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(up, doc, cellContentPos(doc, 'B1'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.firstChild?.type.name).toBe('paragraph');
+    expect(next!.selection.$from.parent.type.name).toBe('paragraph');
+  });
+
+  it('ArrowDown from any column of the bottom row escapes below the table', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(down, doc, cellContentPos(doc, 'B3'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.lastChild?.type.name).toBe('paragraph');
+  });
+
+  it('returns false outside a table entirely', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
+    const { handled, dispatched } = runCmd(up, doc, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('tableShiftArrow', () => {
+  function stateAt(doc: ReturnType<typeof schema.node>, pos: number): EditorState {
+    return EditorState.create({ schema, doc, selection: TextSelection.create(doc, pos) });
+  }
+
+  it('Shift-ArrowDown starts a CellSelection covering the cell and the one below it', () => {
+    const cmd = tableShiftArrow('vert', 1);
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const state = stateAt(doc, cellContentPos(doc, 'B2'));
+    let next: EditorState | null = null;
+    const handled = cmd(state, (tr) => {
+      next = state.apply(tr);
+    });
+    expect(handled).toBe(true);
+    const sel = next!.selection;
+    expect(sel).toBeInstanceOf(CellSelection);
+    const rect = selectedRect(next!);
+    expect(rect.bottom - rect.top).toBe(2); // spans 2 rows
+    expect(rect.right - rect.left).toBe(1); // spans 1 column
+  });
+
+  it('Shift-ArrowRight starts a CellSelection covering the cell and the one to its right', () => {
+    const cmd = tableShiftArrow('horiz', 1);
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const state = stateAt(doc, cellContentPos(doc, 'B2'));
+    let next: EditorState | null = null;
+    const handled = cmd(state, (tr) => {
+      next = state.apply(tr);
+    });
+    expect(handled).toBe(true);
+    const rect = selectedRect(next!);
+    expect(rect.right - rect.left).toBe(2); // spans 2 columns
+    expect(rect.bottom - rect.top).toBe(1); // spans 1 row
+  });
+
+  it('extends an existing CellSelection further in the given axis rather than restarting it', () => {
+    const cmd = tableShiftArrow('vert', 1);
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const anchorPos = cellContentPos(doc, 'B1');
+    const headPos = cellContentPos(doc, 'B2');
+    let state = EditorState.create({ schema, doc });
+    state = state.apply(state.tr.setSelection(CellSelection.create(doc, anchorPos - 1, headPos - 1)));
+
+    let next: EditorState | null = null;
+    const handled = cmd(state, (tr) => {
+      next = state.apply(tr);
+    });
+    expect(handled).toBe(true);
+    const rect = selectedRect(next!);
+    expect(rect.bottom - rect.top).toBe(3); // now spans all 3 rows (B1, B2, B3)
+  });
+
+  it('returns false at the table edge (no further cell in that axis/direction)', () => {
+    const cmd = tableShiftArrow('vert', -1);
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const state = stateAt(doc, cellContentPos(doc, 'B1'));
+    let dispatched = false;
+    const handled = cmd(state, () => {
+      dispatched = true;
+    });
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('returns false outside a table entirely', () => {
+    const cmd = tableShiftArrow('vert', 1);
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
+    const state = stateAt(doc, 1);
+    let dispatched = false;
+    const handled = cmd(state, () => {
+      dispatched = true;
+    });
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });
