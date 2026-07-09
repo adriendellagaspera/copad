@@ -265,6 +265,8 @@ export const LINK_RULE = /(?:^|\s)(\[([^\]]+)\]\(([^)\s]+)\))$/;
  *  the bullet-list rule above already fires on `- ` alone, so a dash-prefixed
  *  trigger could never be typed before that rule pre-empts it. */
 export const CHECKLIST_RULE = /^\s*\[([ xX]?)\]\s$/;
+/** Horizontal rule: bare `---`, `***` or `___` on their own line. */
+export const HORIZONTAL_RULE_RULE = /^(?:---|___|\*\*\*)$/;
 
 /**
  * Handles both checklist shapes a plain `wrappingInputRule` can't tell apart:
@@ -298,6 +300,25 @@ export function checklistRuleHandler(s: Schema): RuleHandler {
     if (!wrapping) return null;
     tr.wrap(range, wrapping);
     return tr;
+  };
+}
+
+/**
+ * Handles `---`/`___`/`***` closing into a horizontal rule. Every other
+ * block-creating rule above (`textblockTypeInputRule`, `wrappingInputRule`)
+ * already no-ops harmlessly inside a table cell — verified live — because
+ * `setBlockType`/`wrapIn` check whether the target type actually fits at the
+ * position before doing anything. This one doesn't have that guard:
+ * `replaceRangeWith` just tries to fit a `horizontal_rule` (a `block`,
+ * invalid inside a cell's `inline*` content) wherever it can, and
+ * ProseMirror's transform machinery obliges by splitting the table itself in
+ * two to make room — corrupting it (the split-off piece is missing columns)
+ * with no way to rejoin by deleting the rule afterward. Guard explicitly.
+ */
+export function horizontalRuleHandler(s: Schema): RuleHandler {
+  return (state, _match, start, end) => {
+    if (cellAround(state.doc.resolve(start))) return null;
+    return state.tr.replaceRangeWith(start, end, s.nodes.horizontal_rule.create());
   };
 }
 
@@ -861,10 +882,7 @@ export function buildPlugins(s: Schema): Plugin[] {
         new InputRule(CHECKLIST_RULE, checklistRuleHandler(s)),
         wrappingInputRule(/^\s*([-+*])\s$/, s.nodes.bullet_list),
         wrappingInputRule(/^(\d+)\.\s$/, s.nodes.ordered_list),
-        // `---`, `***` or `___` on their own line → horizontal rule.
-        new InputRule(/^(?:---|___|\*\*\*)$/, (state, _match, start, end) => {
-          return state.tr.replaceRangeWith(start, end, s.nodes.horizontal_rule.create());
-        }),
+        new InputRule(HORIZONTAL_RULE_RULE, horizontalRuleHandler(s)),
         // Inline mark syntax — bold before italic so `**x**` can't be read as
         // a dangling `*x*` (see markRuleHandler's delimiter-length math).
         new InputRule(BOLD_STAR_RULE, markRuleHandler(s.marks.strong)),

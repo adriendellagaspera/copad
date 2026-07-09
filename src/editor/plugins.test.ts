@@ -22,6 +22,7 @@ import {
   insertHardBreak,
   toggleBlockType,
   checklistRuleHandler,
+  horizontalRuleHandler,
   BOLD_STAR_RULE,
   BOLD_UNDERSCORE_RULE,
   ITALIC_STAR_RULE,
@@ -30,6 +31,7 @@ import {
   CODE_RULE,
   LINK_RULE,
   CHECKLIST_RULE,
+  HORIZONTAL_RULE_RULE,
 } from './plugins.js';
 
 /** A bare 1×1 table (one header cell, no body row) — the smallest doc shape
@@ -45,7 +47,11 @@ function oneCellTable() {
 function run(
   text: string,
   regexp: RegExp,
-  handler: ReturnType<typeof markRuleHandler> | ReturnType<typeof linkRuleHandler> | ReturnType<typeof checklistRuleHandler>
+  handler:
+    | ReturnType<typeof markRuleHandler>
+    | ReturnType<typeof linkRuleHandler>
+    | ReturnType<typeof checklistRuleHandler>
+    | ReturnType<typeof horizontalRuleHandler>
 ) {
   const para = schema.node('paragraph', null, schema.text(text));
   const doc = schema.node('doc', null, [para]);
@@ -1274,5 +1280,34 @@ describe('checklist input rule', () => {
     expect(next.doc.firstChild?.child(0).attrs.checked).toBe(false);
     expect(next.doc.firstChild?.child(1).attrs.checked).toBe(true);
     expect(next.doc.firstChild?.child(1).textContent).toBe('two');
+  });
+});
+
+describe('horizontal rule input rule', () => {
+  it('matches bare ---, ___ and *** triggers', () => {
+    expect(HORIZONTAL_RULE_RULE.test('---')).toBe(true);
+    expect(HORIZONTAL_RULE_RULE.test('___')).toBe(true);
+    expect(HORIZONTAL_RULE_RULE.test('***')).toBe(true);
+  });
+
+  it("doesn't match a dash run of a different length (not the exact 3-character trigger)", () => {
+    expect(HORIZONTAL_RULE_RULE.test('--')).toBe(false);
+    expect(HORIZONTAL_RULE_RULE.test('----')).toBe(false);
+  });
+
+  it('replaces the trigger text with a horizontal_rule node in a plain paragraph', () => {
+    const next = run('---', HORIZONTAL_RULE_RULE, horizontalRuleHandler(schema));
+    expect(next?.doc.childCount).toBe(1);
+    expect(next?.doc.firstChild?.type.name).toBe('horizontal_rule');
+  });
+
+  it('no-ops inside a table cell instead of splitting the table in two — a bare replaceRangeWith has no fit-check, unlike textblockTypeInputRule/wrappingInputRule, so without this guard ProseMirror splits the table itself to make room for the block-level hr, corrupting it', () => {
+    const types = tableNodeTypes(schema);
+    const cell = types.header_cell.create(null, schema.text('---'));
+    const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
+    const state = EditorState.create({ schema, doc });
+    const match = HORIZONTAL_RULE_RULE.exec('---') as RegExpMatchArray;
+    const tr = horizontalRuleHandler(schema)(state, match, 3, 6); // 3 = start of cell content, 6 = after "---"
+    expect(tr).toBeNull();
   });
 });
