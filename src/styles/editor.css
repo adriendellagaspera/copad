@@ -112,8 +112,12 @@
     position: fixed;
     left: var(--sp-2);
     right: var(--sp-2);
-    bottom: max(var(--sp-2), env(safe-area-inset-bottom));
+    /* --kb-inset (keyboardInset.svelte.ts) rises the bar above an open
+       on-screen keyboard, which shrinks the visual viewport without moving
+       this fixed-to-layout-viewport element on its own. */
+    bottom: calc(max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px));
     z-index: var(--z-menu);
+    transition: bottom 0.15s ease-out;
   }
   .fixed-toolbar.editing {
     display: block;
