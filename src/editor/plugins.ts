@@ -21,7 +21,7 @@ import {
   nextCell,
   TableMap,
 } from 'prosemirror-tables';
-import type { MarkType, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
+import type { MarkType, Node as PMNode, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
 import { Selection, TextSelection, PluginKey, Plugin } from 'prosemirror-state';
 import type { Command, EditorState, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
@@ -525,6 +525,27 @@ export function tableGoalColumnPlugin(): Plugin {
 }
 
 /**
+ * The content-start position of the cell at `(targetRow, col)` in `table`,
+ * given the doc position of the boundary a vertical Arrow move is crossing
+ * — shared between {@link tableArrowVertical} (escaping into a
+ * *neighbouring table* sitting directly against this one, no paragraph in
+ * between) and {@link tableArrowFromOutside} (entering from a plain
+ * textblock). Without this shared column math, two adjacent tables would
+ * silently lose the remembered goal column the moment the "neighbour" is a
+ * table instead of a paragraph — `Selection.near` has no notion of
+ * "same column", so it would just land wherever document order first
+ * offers a valid selection (the first cell), the same inconsistency
+ * {@link tableGoalColumnKey} exists to avoid everywhere else.
+ */
+function adjacentTableCellPos(table: PMNode, boundary: number, dir: 1 | -1, col: number): number {
+  const map = TableMap.get(table);
+  const tableStart = (dir === -1 ? boundary - table.nodeSize : boundary) + 1;
+  const targetRow = dir === -1 ? map.height - 1 : 0;
+  const clampedCol = Math.min(col, map.width - 1);
+  return tableStart + map.positionAt(targetRow, clampedCol, table);
+}
+
+/**
  * ArrowUp/ArrowDown move between cells vertically (same column, row above
  * or below) — prosemirror-tables' own vertical-arrow heuristic
  * (`atEndOfCell`) assumes the library's default `block+` cell content
@@ -587,13 +608,20 @@ export function tableArrowVertical(dir: 1 | -1): Command {
     // should have.
     if (!hasNeighbour) return true;
     if (dispatch) {
-      const pos = boundary + dir;
-      dispatch(
-        state.tr
-          .setSelection(Selection.near(state.doc.resolve(pos), dir))
-          .setMeta(tableGoalColumnKey, colIndex)
-          .scrollIntoView()
-      );
+      const tr = state.tr;
+      // A neighbouring *table* (two tables with no paragraph between them)
+      // needs the same column-aware entry as tableArrowFromOutside — a bare
+      // Selection.near has no notion of "same column" and would always land
+      // in the first cell, silently dropping the goal column right at the
+      // one boundary shape this file otherwise takes care to preserve it
+      // across.
+      const pos = hasNeighbour.type === table.type.schema.nodes.table
+        ? adjacentTableCellPos(hasNeighbour, boundary, dir, colIndex) + 1
+        : boundary + dir;
+      tr.setSelection(Selection.near(tr.doc.resolve(pos), dir))
+        .setMeta(tableGoalColumnKey, colIndex)
+        .scrollIntoView();
+      dispatch(tr);
     }
     return true;
   };
@@ -624,12 +652,9 @@ export function tableArrowFromOutside(dir: 1 | -1): Command {
     const $boundary = state.doc.resolve(boundary);
     const table = dir < 0 ? $boundary.nodeBefore : $boundary.nodeAfter;
     if (!table || table.type !== state.schema.nodes.table) return false;
-    const map = TableMap.get(table);
-    const tableStart = (dir < 0 ? boundary - table.nodeSize : boundary) + 1;
-    const targetRow = dir < 0 ? map.height - 1 : 0;
     const goalColumn = tableGoalColumnKey.getState(state);
-    const col = goalColumn != null ? Math.min(goalColumn, map.width - 1) : 0;
-    const cellPos = tableStart + map.positionAt(targetRow, col, table);
+    const col = goalColumn ?? 0;
+    const cellPos = adjacentTableCellPos(table, boundary, dir < 0 ? -1 : 1, col);
     if (dispatch) {
       dispatch(state.tr.setSelection(Selection.near(state.doc.resolve(cellPos + 1), 1)).scrollIntoView());
     }

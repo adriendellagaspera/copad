@@ -937,6 +937,24 @@ describe('tableArrowVertical', () => {
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });
+
+  it('preserves the column when the "neighbour" at a boundary is another table, not a paragraph (two tables with nothing between them)', () => {
+    const types = tableNodeTypes(schema);
+    const secondTable = types.table.create(null, [
+      types.row.create(null, [
+        types.header_cell.create(null, schema.text('X1')),
+        types.header_cell.create(null, schema.text('Y1')),
+        types.header_cell.create(null, schema.text('Z1')),
+      ]),
+    ]);
+    const doc = schema.node('doc', null, [threeByThreeTable(), secondTable]);
+    // Leave from B3 (column index 1, bottom row of the first table).
+    const { handled, dispatched, next } = runCmd(down, doc, cellContentPos(doc, 'B3'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    // Must land in the second table's column-1 cell (Y1), not silently reset to column 0 (X1).
+    expect(next!.selection.$from.parent.textContent).toBe('Y1');
+  });
 });
 
 describe('tableGoalColumnKey (remembered column across an escape/re-entry round trip)', () => {
