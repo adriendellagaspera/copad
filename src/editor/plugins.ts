@@ -330,16 +330,21 @@ export const insertHardBreak: Command = (state, dispatch) => {
 };
 
 /**
- * Enter at the very start of a table's first cell, or the very end of its
- * last cell, escapes the table instead of being swallowed like every other
- * Enter inside a cell (see {@link preventEnterInTableCell}) — otherwise a
- * table that opens or closes the document traps the caret with no keyboard
- * way out (cells can't grow a new line to push past it, unlike a paragraph).
- * Moves into whichever block already sits next to the table if there is
- * one, or inserts a fresh paragraph there otherwise — the same "reuse a
- * neighbour, else make one" shape as {@link exitCodeBlock}, just usable in
- * both directions since a table (unlike a code block) can trap the caret
- * from either end.
+ * Enter at the very start of any cell in a table's top row, or the very end
+ * of any cell in its bottom row, escapes the table instead of being
+ * swallowed like every other Enter inside a cell (see
+ * {@link preventEnterInTableCell}) — otherwise a table that opens or closes
+ * the document traps the caret with no keyboard way out (cells can't grow a
+ * new line to push past it, unlike a paragraph). Keyed off `rowIndex` only
+ * (top/bottom), not `cellIndex`, matching {@link tableArrowVertical}'s
+ * escape branch — arrowing up from anywhere in the top row already exits
+ * above (the Word/Docs/Excel convention), so Enter doing the same only from
+ * the literal corner cell would be an inconsistency a keyboard user could
+ * easily notice. Moves into whichever block already sits next to the table
+ * if there is one, or inserts a fresh paragraph there otherwise — the same
+ * "reuse a neighbour, else make one" shape as {@link exitCodeBlock}, just
+ * usable in both directions since a table (unlike a code block) can trap
+ * the caret from either end.
  */
 export function exitTableAtBoundary(s: Schema, dir: 1 | -1): Command {
   return (state, dispatch) => {
@@ -349,21 +354,13 @@ export function exitTableAtBoundary(s: Schema, dir: 1 | -1): Command {
     const cell = depth >= 0 ? $from.node(depth) : null;
     if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
     if (depth < 2) return false;
-    const row = $from.node(depth - 1);
     const table = $from.node(depth - 2);
-    const cellIndex = $from.index(depth - 1);
     const rowIndex = $from.index(depth - 2);
 
     if (dir === -1) {
-      if ($from.parentOffset !== 0 || cellIndex !== 0 || rowIndex !== 0) return false;
+      if ($from.parentOffset !== 0 || rowIndex !== 0) return false;
     } else {
-      if (
-        $from.parentOffset !== cell.content.size ||
-        cellIndex !== row.childCount - 1 ||
-        rowIndex !== table.childCount - 1
-      ) {
-        return false;
-      }
+      if ($from.parentOffset !== cell.content.size || rowIndex !== table.childCount - 1) return false;
     }
 
     if (dispatch) {
@@ -385,21 +382,22 @@ export function exitTableAtBoundary(s: Schema, dir: 1 | -1): Command {
 }
 
 /**
- * Backspace at the very start of a table's first cell — the mirror image of
- * {@link exitTableAtBoundary}'s dir=-1 case, but for Backspace instead of
- * Enter. A table is `isolating` (prosemirror-tables' own schema), which is
- * exactly right for preventing `baseKeymap`'s default `joinBackward` from
- * welding a preceding paragraph's text into table structure — but it also
- * means Backspace there silently does nothing at all, with no way to reach
- * or remove whatever sits just above the table without first clicking
- * directly on it. If the preceding block is empty, delete it outright — the
- * concrete case a user actually wants Backspace for here (an unwanted blank
- * line pinned directly above the table, otherwise removable only by
- * precisely clicking that one-line target). If it has content, move the
- * caret to its end instead of merging anything — putting the caret exactly
- * "in front of" the table, from which a second, ordinary Backspace behaves
- * normally. No-op with nothing before the table at all (matches the default
- * behavior at the very start of the document).
+ * Backspace at the very start of any cell in a table's top row — the mirror
+ * image of {@link exitTableAtBoundary}'s dir=-1 case, but for Backspace
+ * instead of Enter, and (like {@link tableArrowVertical}) not limited to
+ * the literal first cell. A table is `isolating` (prosemirror-tables' own
+ * schema), which is exactly right for preventing `baseKeymap`'s default
+ * `joinBackward` from welding a preceding paragraph's text into table
+ * structure — but it also means Backspace there silently does nothing at
+ * all, with no way to reach or remove whatever sits just above the table
+ * without first clicking directly on it. If the preceding block is empty,
+ * delete it outright — the concrete case a user actually wants Backspace
+ * for here (an unwanted blank line pinned directly above the table,
+ * otherwise removable only by precisely clicking that one-line target). If
+ * it has content, move the caret to its end instead of merging anything —
+ * putting the caret exactly "in front of" the table, from which a second,
+ * ordinary Backspace behaves normally. No-op with nothing before the table
+ * at all (matches the default behavior at the very start of the document).
  */
 export function backspaceAtTableStart(s: Schema): Command {
   return (state, dispatch) => {
@@ -409,7 +407,7 @@ export function backspaceAtTableStart(s: Schema): Command {
     const cell = depth >= 0 ? $from.node(depth) : null;
     if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
     if (depth < 2) return false;
-    if ($from.index(depth - 1) !== 0 || $from.index(depth - 2) !== 0) return false;
+    if ($from.index(depth - 2) !== 0) return false;
 
     const before = $from.before(depth - 2);
     const $before = state.doc.resolve(before);
@@ -537,7 +535,14 @@ export function tableArrowVertical(dir: 1 | -1): Command {
     const boundary = dir === -1 ? $cell.before(-1) : $cell.after(-1);
     const $boundary = state.doc.resolve(boundary);
     const hasNeighbour = dir === -1 ? $boundary.nodeBefore : $boundary.nodeAfter;
-    if (!hasNeighbour) return false;
+    // Nothing to escape into (the table opens/closes the doc): swallow the
+    // event rather than return false — falling through would hand the key
+    // to prosemirror-tables' own vertical-arrow handler (registered later,
+    // by tableEditing()), which is broken for this schema (see this
+    // function's doc comment) and ends up mimicking horizontal movement
+    // instead of doing nothing, the one behavior a boundary arrow-press
+    // should have.
+    if (!hasNeighbour) return true;
     if (dispatch) {
       const pos = boundary + dir;
       dispatch(

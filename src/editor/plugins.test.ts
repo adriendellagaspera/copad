@@ -559,16 +559,63 @@ describe('exitTableAtBoundary', () => {
     expect(next!.selection.$from.parent.textContent).toBe('below');
   });
 
-  it('does not fire for Enter in the middle of a multi-cell row (not a boundary)', () => {
+  it('does not fire for Enter in a middle row of a multi-row table (not a boundary row)', () => {
     const types = tableNodeTypes(schema);
-    const row = types.row.create(null, [types.header_cell.create(), types.header_cell.create()]);
-    const table = types.table.create(null, [row]);
+    const row1 = types.row.create(null, [types.header_cell.create()]);
+    const row2 = types.row.create(null, [types.cell.create()]);
+    const row3 = types.row.create(null, [types.cell.create()]);
+    const table = types.table.create(null, [row1, row2, row3]);
     const doc = schema.node('doc', null, [table]);
-    // Position inside the *second* cell — not index 0, so the "start" exit must not fire.
-    const secondCellPos = 2 + types.header_cell.create().nodeSize;
-    const { handled, dispatched } = runCmd(up, doc, secondCellPos);
-    expect(handled).toBe(false);
-    expect(dispatched).toBe(false);
+    // Position inside row2's cell — neither the top nor the bottom row.
+    const row2CellPos = 2 + row1.nodeSize + 2;
+    const { handled: upHandled, dispatched: upDispatched } = runCmd(up, doc, row2CellPos);
+    expect(upHandled).toBe(false);
+    expect(upDispatched).toBe(false);
+    const { handled: downHandled, dispatched: downDispatched } = runCmd(down, doc, row2CellPos);
+    expect(downHandled).toBe(false);
+    expect(downDispatched).toBe(false);
+  });
+
+  it('escapes upward from ANY column of the top row, not just the first cell — matching tableArrowVertical\'s escape branch', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const doc = schema.node('doc', null, [before, threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(up, doc, cellContentPos(doc, 'B1'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2); // no extra paragraph inserted
+    expect(next!.selection.$from.parent.textContent).toBe('above');
+  });
+
+  it('escapes downward from ANY column of the bottom row, not just the last cell', () => {
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [threeByThreeTable(), after]);
+    // cellContentPos lands at the cell's content *start*; end of "B3" (2 chars) is +2.
+    const { handled, dispatched, next } = runCmd(down, doc, cellContentPos(doc, 'B3') + 2);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.selection.$from.parent.textContent).toBe('below');
+  });
+
+  it('a 1-row table (top row === bottom row) escapes upward from Enter at the start, and downward from Enter at the end, without double-firing', () => {
+    const types = tableNodeTypes(schema);
+    const row = types.row.create(null, [types.header_cell.create(null, schema.text('a')), types.header_cell.create(null, schema.text('b'))]);
+    const table = types.table.create(null, [row]);
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [before, table, after]);
+    const firstCellStart = before.nodeSize + 3;
+    const { handled: upHandled, next: upNext } = runCmd(up, doc, firstCellStart);
+    expect(upHandled).toBe(true);
+    expect(upNext!.doc.childCount).toBe(3); // no paragraph inserted, still 3 top-level nodes
+    expect(upNext!.selection.$from.parent.textContent).toBe('above');
+
+    const secondCell = table.child(0).child(1);
+    const lastCellEnd = before.nodeSize + 1 + 1 + table.child(0).child(0).nodeSize + 1 + secondCell.content.size;
+    const { handled: downHandled, next: downNext } = runCmd(down, doc, lastCellEnd);
+    expect(downHandled).toBe(true);
+    expect(downNext!.doc.childCount).toBe(3);
+    expect(downNext!.selection.$from.parent.textContent).toBe('below');
   });
 
   it('returns false outside a table entirely', () => {
@@ -628,6 +675,24 @@ describe('backspaceAtTableStart', () => {
   it('returns false outside a table entirely', () => {
     const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
     const { handled, dispatched } = runCmd(bs, doc, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('fires from ANY column of the top row, not just the first cell — same generalization as exitTableAtBoundary/tableArrowVertical', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const doc = schema.node('doc', null, [before, threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(bs, doc, cellContentPos(doc, 'B1'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2); // nothing deleted, no merge
+    expect(next!.selection.$from.parent.textContent).toBe('above');
+  });
+
+  it('does not fire from a row other than the top row', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const doc = schema.node('doc', null, [before, threeByThreeTable()]);
+    const { handled, dispatched } = runCmd(bs, doc, cellContentPos(doc, 'B2'));
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });
@@ -777,18 +842,18 @@ describe('tableArrowVertical', () => {
     expect(next!.selection.$from.parent.textContent).toBe('below');
   });
 
-  it('ArrowUp from the top row does nothing when the table opens the doc — Arrow keys are pure navigation, never create content (unlike Enter)', () => {
+  it('ArrowUp from the top row swallows the key (handled, but nothing dispatched) when the table opens the doc — Arrow keys are pure navigation, never create content (unlike Enter), and must not fall through to prosemirror-tables\' own broken vertical-arrow handler', () => {
     const doc = schema.node('doc', null, [threeByThreeTable()]);
     const { handled, dispatched, next } = runCmd(up, doc, cellContentPos(doc, 'B1'));
-    expect(handled).toBe(false);
+    expect(handled).toBe(true);
     expect(dispatched).toBe(false);
     expect(next).toBeNull();
   });
 
-  it('ArrowDown from the bottom row does nothing when the table closes the doc', () => {
+  it('ArrowDown from the bottom row (NOT the rightmost column) swallows the key rather than falling through to a worse handler when the table closes the doc', () => {
     const doc = schema.node('doc', null, [threeByThreeTable()]);
     const { handled, dispatched, next } = runCmd(down, doc, cellContentPos(doc, 'B3'));
-    expect(handled).toBe(false);
+    expect(handled).toBe(true);
     expect(dispatched).toBe(false);
     expect(next).toBeNull();
   });
