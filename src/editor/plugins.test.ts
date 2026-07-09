@@ -757,21 +757,40 @@ describe('tableArrowVertical', () => {
     expect(next!.selection.$from.parent.textContent).toBe('B3');
   });
 
-  it('ArrowUp from any column of the top row escapes above the table, not just the first column', () => {
-    const doc = schema.node('doc', null, [threeByThreeTable()]);
+  it('ArrowUp from any column of the top row moves into an existing paragraph above, not just the first column', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const doc = schema.node('doc', null, [before, threeByThreeTable()]);
     const { handled, dispatched, next } = runCmd(up, doc, cellContentPos(doc, 'B1'));
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
-    expect(next!.doc.firstChild?.type.name).toBe('paragraph');
-    expect(next!.selection.$from.parent.type.name).toBe('paragraph');
+    expect(next!.doc.childCount).toBe(2); // nothing inserted
+    expect(next!.selection.$from.parent.textContent).toBe('above');
   });
 
-  it('ArrowDown from any column of the bottom row escapes below the table', () => {
-    const doc = schema.node('doc', null, [threeByThreeTable()]);
+  it('ArrowDown from any column of the bottom row moves into an existing paragraph below', () => {
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [threeByThreeTable(), after]);
     const { handled, dispatched, next } = runCmd(down, doc, cellContentPos(doc, 'B3'));
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
-    expect(next!.doc.lastChild?.type.name).toBe('paragraph');
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.selection.$from.parent.textContent).toBe('below');
+  });
+
+  it('ArrowUp from the top row does nothing when the table opens the doc — Arrow keys are pure navigation, never create content (unlike Enter)', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(up, doc, cellContentPos(doc, 'B1'));
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+    expect(next).toBeNull();
+  });
+
+  it('ArrowDown from the bottom row does nothing when the table closes the doc', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(down, doc, cellContentPos(doc, 'B3'));
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+    expect(next).toBeNull();
   });
 
   it('returns false outside a table entirely', () => {
@@ -803,7 +822,8 @@ describe('tableGoalColumnKey (remembered column across an escape/re-entry round 
   });
 
   it('records the column being left when escaping the table entirely', () => {
-    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [threeByThreeTable(), after]);
     const state = stateWithGoalColumnPlugin(doc, cellContentPos(doc, 'A3')); // column index 0, bottom row
     let next: EditorState | null = null;
     tableArrowVertical(1)(state, (tr) => {

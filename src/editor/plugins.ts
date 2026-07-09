@@ -497,13 +497,20 @@ export function tableGoalColumnPlugin(): Plugin {
  * "the same as Left/Right" instead of true vertical movement. Since a
  * cell here is *always* exactly one line — wrapping is impossible — there
  * is no visual-line ambiguity to resolve in the first place; go straight
- * to `nextCell` via `TableMap`. At the table's top/bottom edge (no row
- * further in this column), escapes the table the same "reuse a
- * neighbour, else make one" way {@link exitTableAtBoundary} does for
- * Enter — regardless of *which* column, matching Word/Docs/Excel (arrowing
- * up from anywhere in the top row exits above, not just the first cell).
- * Records the column being left in {@link tableGoalColumnKey} either way,
- * so a later escape-then-return round trip lands back in the same column.
+ * to `nextCell` via `TableMap`. At the table's top/bottom edge, moves into
+ * whatever block already sits next to the table (regardless of *which*
+ * column, matching Word/Docs/Excel — arrowing up from anywhere in the top
+ * row exits above, not just the first cell) — but, unlike
+ * {@link exitTableAtBoundary}'s Enter handling, never *creates* one: Enter
+ * is inherently an insert gesture, so conjuring a paragraph there is
+ * expected, but Arrow keys are pure navigation everywhere else in the
+ * editor (arrowing past the start/end of the document just stops) and
+ * silently mutating the document on a plain caret move would be exactly
+ * the kind of surprise that convention exists to avoid. With nothing to
+ * move into, this simply does nothing, same as arrowing at the document's
+ * own start/end. Records the column being left in
+ * {@link tableGoalColumnKey} whenever it does move, so a later
+ * escape-then-return round trip lands back in the same column.
  */
 export function tableArrowVertical(dir: 1 | -1): Command {
   return (state, dispatch) => {
@@ -527,20 +534,18 @@ export function tableArrowVertical(dir: 1 | -1): Command {
       }
       return true;
     }
+    const boundary = dir === -1 ? $cell.before(-1) : $cell.after(-1);
+    const $boundary = state.doc.resolve(boundary);
+    const hasNeighbour = dir === -1 ? $boundary.nodeBefore : $boundary.nodeAfter;
+    if (!hasNeighbour) return false;
     if (dispatch) {
-      const tr = state.tr;
-      const boundary = dir === -1 ? $cell.before(-1) : $cell.after(-1);
-      const $boundary = tr.doc.resolve(boundary);
-      const hasNeighbour = dir === -1 ? $boundary.nodeBefore : $boundary.nodeAfter;
-      if (!hasNeighbour) {
-        const para = state.schema.nodes.paragraph.createAndFill();
-        if (!para) return false;
-        tr.insert(boundary, para);
-      }
-      const pos = hasNeighbour ? boundary + dir : boundary + 1;
-      tr.setSelection(Selection.near(tr.doc.resolve(pos), dir));
-      tr.setMeta(tableGoalColumnKey, colIndex);
-      dispatch(tr.scrollIntoView());
+      const pos = boundary + dir;
+      dispatch(
+        state.tr
+          .setSelection(Selection.near(state.doc.resolve(pos), dir))
+          .setMeta(tableGoalColumnKey, colIndex)
+          .scrollIntoView()
+      );
     }
     return true;
   };
