@@ -374,6 +374,51 @@ export function exitTableAtBoundary(s: Schema, dir: 1 | -1): Command {
 }
 
 /**
+ * Backspace at the very start of a table's first cell — the mirror image of
+ * {@link exitTableAtBoundary}'s dir=-1 case, but for Backspace instead of
+ * Enter. A table is `isolating` (prosemirror-tables' own schema), which is
+ * exactly right for preventing `baseKeymap`'s default `joinBackward` from
+ * welding a preceding paragraph's text into table structure — but it also
+ * means Backspace there silently does nothing at all, with no way to reach
+ * or remove whatever sits just above the table without first clicking
+ * directly on it. If the preceding block is empty, delete it outright — the
+ * concrete case a user actually wants Backspace for here (an unwanted blank
+ * line pinned directly above the table, otherwise removable only by
+ * precisely clicking that one-line target). If it has content, move the
+ * caret to its end instead of merging anything — putting the caret exactly
+ * "in front of" the table, from which a second, ordinary Backspace behaves
+ * normally. No-op with nothing before the table at all (matches the default
+ * behavior at the very start of the document).
+ */
+export function backspaceAtTableStart(s: Schema): Command {
+  return (state, dispatch) => {
+    const { $from, empty } = state.selection;
+    if (!empty || $from.parentOffset !== 0) return false;
+    const depth = $from.depth;
+    const cell = depth >= 0 ? $from.node(depth) : null;
+    if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
+    if (depth < 2) return false;
+    if ($from.index(depth - 1) !== 0 || $from.index(depth - 2) !== 0) return false;
+
+    const before = $from.before(depth - 2);
+    const $before = state.doc.resolve(before);
+    const prev = $before.nodeBefore;
+    if (!prev) return false;
+
+    if (dispatch) {
+      const tr = state.tr;
+      if (prev.isTextblock && prev.content.size === 0) {
+        tr.delete(before - prev.nodeSize, before);
+      } else {
+        tr.setSelection(Selection.near(tr.doc.resolve(before), -1));
+      }
+      dispatch(tr.scrollIntoView());
+    }
+    return true;
+  };
+}
+
+/**
  * Tab in the very last cell of a table's last row adds a new row and moves
  * into its first cell, instead of doing nothing (`goToNextCell(1)` returns
  * `false` there — there's no next cell to go to). Matches the near-universal
@@ -457,7 +502,7 @@ export function buildPlugins(s: Schema): Plugin[] {
         splitListItem(s.nodes.task_item, { checked: false })
       ),
       'Shift-Enter': insertHardBreak,
-      'Backspace': clearEmptyCodeBlockBackward,
+      'Backspace': chainCommands(backspaceAtTableStart(s), clearEmptyCodeBlockBackward),
       'Tab': chainCommands(
         goToNextCell(1),
         tabAddsRowAtEnd(s),

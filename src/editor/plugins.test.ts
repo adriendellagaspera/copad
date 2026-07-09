@@ -11,6 +11,7 @@ import {
   exitCodeBlockOnBlankLine,
   clearEmptyCodeBlockBackward,
   exitTableAtBoundary,
+  backspaceAtTableStart,
   tabAddsRowAtEnd,
   insertHardBreak,
   toggleBlockType,
@@ -568,6 +569,60 @@ describe('exitTableAtBoundary', () => {
   it('returns false outside a table entirely', () => {
     const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
     const { handled, dispatched } = runCmd(up, doc, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('backspaceAtTableStart', () => {
+  const bs = backspaceAtTableStart(schema);
+
+  it('deletes an empty paragraph directly above the table', () => {
+    const empty = schema.node('paragraph');
+    const doc = schema.node('doc', null, [empty, oneCellTable()]);
+    const cellStart = empty.nodeSize + 3; // end of the empty paragraph, then into table/row/cell
+    const { handled, dispatched, next } = runCmd(bs, doc, cellStart);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(1); // the empty paragraph is gone
+    expect(next!.doc.firstChild?.type.name).toBe('table');
+  });
+
+  it('moves the caret to the end of a non-empty paragraph above the table, without deleting or merging it', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const doc = schema.node('doc', null, [before, oneCellTable()]);
+    const cellStart = before.nodeSize + 3;
+    const { handled, dispatched, next } = runCmd(bs, doc, cellStart);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2); // nothing deleted
+    expect(next!.selection.$from.parent.textContent).toBe('above');
+    expect(next!.selection.$from.parent.type.name).toBe('paragraph');
+  });
+
+  it('returns false when nothing precedes the table at all', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const { handled, dispatched } = runCmd(bs, doc, 3);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('does not fire from a non-start position inside the cell', () => {
+    const empty = schema.node('paragraph');
+    const cell = tableNodeTypes(schema).header_cell.create(null, schema.text('ab'));
+    const doc = schema.node('doc', null, [
+      empty,
+      tableNodeTypes(schema).table.create(null, [tableNodeTypes(schema).row.create(null, [cell])]),
+    ]);
+    const midCellPos = empty.nodeSize + 4; // between "a" and "b" — cell offset 1, not 0
+    const { handled, dispatched } = runCmd(bs, doc, midCellPos);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('returns false outside a table entirely', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
+    const { handled, dispatched } = runCmd(bs, doc, 1);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });
