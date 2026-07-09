@@ -428,6 +428,49 @@ export function backspaceAtTableStart(s: Schema): Command {
 }
 
 /**
+ * Forward-Delete at the very end of any cell in a table's bottom row — the
+ * mirror image of {@link backspaceAtTableStart}, but for Delete instead of
+ * Backspace, reaching forward past the table's `isolating` boundary instead
+ * of backward. Without this, Delete at the end of the last cell silently
+ * does nothing (`baseKeymap`'s default `joinForward` is blocked the same way
+ * `joinBackward` is), with no way to reach or remove a stray blank paragraph
+ * sitting directly after the table short of clicking it directly. If the
+ * following block is empty, delete it outright; if it has content, move the
+ * caret to its start instead of merging anything — putting the caret
+ * exactly "behind" the table, from which a second, ordinary Delete behaves
+ * normally. No-op with nothing after the table at all.
+ */
+export function deleteAtTableEnd(s: Schema): Command {
+  return (state, dispatch) => {
+    const { $from, empty } = state.selection;
+    if (!empty) return false;
+    const depth = $from.depth;
+    const cell = depth >= 0 ? $from.node(depth) : null;
+    if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
+    if (depth < 2) return false;
+    if ($from.parentOffset !== cell.content.size) return false;
+    const table = $from.node(depth - 2);
+    if ($from.index(depth - 2) !== table.childCount - 1) return false;
+
+    const after = $from.after(depth - 2);
+    const $after = state.doc.resolve(after);
+    const next = $after.nodeAfter;
+    if (!next) return false;
+
+    if (dispatch) {
+      const tr = state.tr;
+      if (next.isTextblock && next.content.size === 0) {
+        tr.delete(after, after + next.nodeSize);
+      } else {
+        tr.setSelection(Selection.near(tr.doc.resolve(after), 1));
+      }
+      dispatch(tr.scrollIntoView());
+    }
+    return true;
+  };
+}
+
+/**
  * Backspace or Delete with the *entire* table selected — a `CellSelection`
  * spanning every row and column — deletes the whole table. This is the
  * confirmed convention in both Word and Google Docs: selecting the whole
@@ -719,7 +762,7 @@ export function buildPlugins(s: Schema): Plugin[] {
       ),
       'Shift-Enter': insertHardBreak,
       'Backspace': chainCommands(deleteWholeTableSelection, backspaceAtTableStart(s), clearEmptyCodeBlockBackward),
-      'Delete': deleteWholeTableSelection,
+      'Delete': chainCommands(deleteWholeTableSelection, deleteAtTableEnd(s)),
       'Tab': chainCommands(
         goToNextCell(1),
         tabAddsRowAtEnd(s),

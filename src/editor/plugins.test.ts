@@ -12,6 +12,7 @@ import {
   clearEmptyCodeBlockBackward,
   exitTableAtBoundary,
   backspaceAtTableStart,
+  deleteAtTableEnd,
   deleteWholeTableSelection,
   tableArrowVertical,
   tableShiftArrow,
@@ -693,6 +694,78 @@ describe('backspaceAtTableStart', () => {
     const before = schema.node('paragraph', null, schema.text('above'));
     const doc = schema.node('doc', null, [before, threeByThreeTable()]);
     const { handled, dispatched } = runCmd(bs, doc, cellContentPos(doc, 'B2'));
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+});
+
+describe('deleteAtTableEnd (forward-Delete mirror of backspaceAtTableStart)', () => {
+  const del = deleteAtTableEnd(schema);
+
+  it('deletes an empty paragraph directly after the table', () => {
+    const empty = schema.node('paragraph');
+    const doc = schema.node('doc', null, [oneCellTable(), empty]);
+    // Position 3: into the table (1), into the row (1), to the end of the (empty) cell content (1).
+    const { handled, dispatched, next } = runCmd(del, doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(1); // the empty paragraph is gone
+    expect(next!.doc.firstChild?.type.name).toBe('table');
+  });
+
+  it('moves the caret to the start of a non-empty paragraph after the table, without deleting or merging it', () => {
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [oneCellTable(), after]);
+    const { handled, dispatched, next } = runCmd(del, doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2); // nothing deleted
+    expect(next!.selection.$from.parent.textContent).toBe('below');
+    expect(next!.selection.$from.parent.type.name).toBe('paragraph');
+    expect(next!.selection.$from.parentOffset).toBe(0);
+  });
+
+  it('returns false when nothing follows the table at all', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const { handled, dispatched } = runCmd(del, doc, 3);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('does not fire from a non-end position inside the cell', () => {
+    const after = schema.node('paragraph');
+    const cell = tableNodeTypes(schema).header_cell.create(null, schema.text('ab'));
+    const doc = schema.node('doc', null, [
+      tableNodeTypes(schema).table.create(null, [tableNodeTypes(schema).row.create(null, [cell])]),
+      after,
+    ]);
+    const midCellPos = 3; // between "a" and "b" — cell offset 1, not the content size (2)
+    const { handled, dispatched } = runCmd(del, doc, midCellPos);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('fires from ANY column of the bottom row, not just the last cell', () => {
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [threeByThreeTable(), after]);
+    const { handled, dispatched, next } = runCmd(del, doc, cellContentPos(doc, 'B3') + 2);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.childCount).toBe(2);
+    expect(next!.selection.$from.parent.textContent).toBe('below');
+  });
+
+  it('does not fire from a row other than the bottom row', () => {
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const doc = schema.node('doc', null, [threeByThreeTable(), after]);
+    const { handled, dispatched } = runCmd(del, doc, cellContentPos(doc, 'B2') + 2);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('returns false outside a table entirely', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
+    const { handled, dispatched } = runCmd(del, doc, 2);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });
