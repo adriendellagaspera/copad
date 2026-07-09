@@ -450,7 +450,7 @@
     <DocTitle {room} name={roomName.value} onRename={(raw) => renameRoom(parseRoomName(raw))} />
   </div>
   <div class="status">
-    <ShortcutBar />
+    <ShortcutBar {editorState} />
     <span class="spacer"></span>
     <WordCount {editorState} />
     <Outline {view} {editorState} />

@@ -14,6 +14,10 @@ import {
   columnResizing,
   tableEditing,
   addRowAfter,
+  deleteRow,
+  addColumnAfter,
+  deleteColumn,
+  toggleHeaderRow,
   CellSelection,
   selectedRect,
   deleteTable,
@@ -700,10 +704,26 @@ export function tableShiftArrow(axis: 'horiz' | 'vert', dir: 1 | -1): Command {
 /**
  * Tab in the very last cell of a table's last row adds a new row and moves
  * into its first cell, instead of doing nothing (`goToNextCell(1)` returns
- * `false` there — there's no next cell to go to). Matches the near-universal
- * convention across Word, Google Docs and Notion: Tab at a table's last cell
- * keeps you typing by growing the table, the same way Tab at the end of the
- * last row of a spreadsheet does.
+ * `false` there — there's no next cell to go to). Matches Google Docs
+ * exactly (confirmed against Google's own support docs): Tab at the last
+ * cell keeps you typing by growing the table, the same way Tab at the end
+ * of the last row of a spreadsheet does — and, also matching Docs,
+ * repeating it keeps adding rows one at a time.
+ *
+ * That last part is also the one documented irritant of this exact
+ * convention (see e.g. long-running "stop Tab from adding a row" threads
+ * for Word): tabbing through an already-empty last row for any other
+ * reason (habit, a stray extra press) piles up empty rows with no way to
+ * ask for one back short of the mouse. Since an empty row is already
+ * available to type into, growing the table further only makes sense once
+ * that row actually has content — so this only fires when the *current*
+ * last row isn't entirely empty, a small deliberate deviation from strict
+ * Docs parity in favor of not compounding an accidental keystroke. Still
+ * swallows the key when it declines to grow the table (returns `true` with
+ * nothing dispatched) rather than returning `false` — falling through to
+ * the browser's own default Tab handling here would tab focus *out of the
+ * editor entirely*, undoing the very thing Tab-adds-row exists to prevent
+ * (Tab always meaning something inside a table, never an escape hatch).
  */
 export function tabAddsRowAtEnd(s: Schema): Command {
   return (state, dispatch) => {
@@ -718,6 +738,7 @@ export function tabAddsRowAtEnd(s: Schema): Command {
     if ($from.index(depth - 1) !== row.childCount - 1 || $from.index(depth - 2) !== table.childCount - 1) {
       return false;
     }
+    if (!row.textContent) return true;
     if (!dispatch) return true;
     const tablePos = $from.before(depth - 2);
     return addRowAfter(state, (tr) => {
@@ -799,6 +820,33 @@ export function buildPlugins(s: Schema): Plugin[] {
         liftListItem(s.nodes.list_item),
         liftListItem(s.nodes.task_item)
       ),
+      // Direct keyboard access to table-structure edits — reaching the
+      // floating table panel first (Shift-F10, then Tab to the right
+      // button) works, but is real friction for a common, repeated action
+      // like removing a row. These are plain prosemirror-tables commands,
+      // which already no-op outside a table, bound straight to the keymap
+      // (the same reliability class as Tab/Enter/Arrow here — unlike a
+      // DOM-level keydown listener racing a browser/OS-level binding, see
+      // the removed Alt-Enter toolbar shortcut this replaced). Row/column
+      // add share a letter mnemonic (R/C, capitalized rather than written
+      // as an explicit Shift- modifier — prosemirror-keymap matches a
+      // letter binding against the literal character `event.key` produces,
+      // which is already uppercase once Shift is held, so `Alt-Shift-r`
+      // silently never matches; `Alt-R` is the documented way to require
+      // Shift on a letter key); delete reuses Backspace — a layout-
+      // independent key, unlike Shift-punctuation such as `-`, which
+      // produces a different character across keyboard layouts — with Mod
+      // toggling which axis, mirroring Tab/Shift-Tab's own "same key, one
+      // modifier changes direction" shape. No bare shortcut for deleting
+      // the whole table: that's a single keystroke destroying much more
+      // than one row, so it stays behind the deliberate "select every cell
+      // first" gesture (deleteWholeTableSelection) or the toolbar's own
+      // trash-icon button.
+      'Alt-R': addRowAfter,
+      'Alt-C': addColumnAfter,
+      'Alt-Shift-Backspace': deleteRow,
+      'Mod-Alt-Shift-Backspace': deleteColumn,
+      'Alt-H': toggleHeaderRow,
     }),
     keymap(baseKeymap),
     inputRules({

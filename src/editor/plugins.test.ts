@@ -1097,9 +1097,14 @@ describe('tableShiftArrow', () => {
 describe('tabAddsRowAtEnd', () => {
   const tab = tabAddsRowAtEnd(schema);
 
-  it('adds a new row and moves into its first cell, from the last cell of a 1×1 table', () => {
-    const doc = schema.node('doc', null, [oneCellTable()]);
-    const { handled, dispatched, next } = runCmd(tab, doc, 3);
+  function oneCellTableWithText(text: string) {
+    const types = tableNodeTypes(schema);
+    return types.table.create(null, [types.row.create(null, [types.header_cell.create(null, schema.text(text))])]);
+  }
+
+  it('adds a new row and moves into its first cell, from the last cell of a 1×1 table with content', () => {
+    const doc = schema.node('doc', null, [oneCellTableWithText('hi')]);
+    const { handled, dispatched, next } = runCmd(tab, doc, 4); // end of "hi"
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
     expect(next!.doc.firstChild?.childCount).toBe(2); // grew from 1 row to 2
@@ -1108,6 +1113,14 @@ describe('tabAddsRowAtEnd', () => {
     const table = next!.doc.firstChild!;
     const row = next!.selection.$from.node(next!.selection.$from.depth - 1);
     expect(row).toBe(table.lastChild);
+  });
+
+  it('swallows Tab without growing the table when the current last row is entirely empty — an empty row is already available to type into, so growing further would just pile up more empty rows on a stray Tab press. Still handled (not falling through to the browser default, which would tab focus out of the editor entirely)', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const { handled, dispatched, next } = runCmd(tab, doc, 3);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(false);
+    expect(next).toBeNull();
   });
 
   it('does not fire from the last cell of a non-last row (goToNextCell already has somewhere to go)', () => {

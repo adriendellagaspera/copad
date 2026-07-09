@@ -180,22 +180,25 @@
   // This is what a keyboard user reaches for once Tab is unavailable (e.g.
   // inside a table).
   //
-  // Alt-Enter is a second, app-owned entry point to the same effect — F-keys
-  // are frequently remapped to hardware functions (brightness/volume) behind
-  // an Fn lock on laptops, making Shift-F10 unreliable exactly for the
-  // keyboard-first users it targets. Alt-Enter collides with nothing else
-  // bound here (plain Enter is table-boundary-escape/list-split, Mod-Enter
-  // is unused) and already reads as "give me more on the thing I'm in" —
-  // Windows Explorer's Alt-Enter for a file's Properties is the same idiom.
+  // Alt-Enter was tried here as a second, app-owned entry point (reasoning
+  // that F-keys get remapped to hardware functions behind an Fn lock on
+  // laptops) but turned out *less* reliable than Shift-F10 in practice —
+  // confirmed dead on a real machine, almost certainly captured by the OS
+  // or window manager before it ever reaches the page (a common WM binding
+  // for toggling window fullscreen). Removed rather than kept as a
+  // silently-broken option; direct per-action shortcuts for the table
+  // panel's own commands (Alt-Shift-R/C/Backspace/H, see buildPlugins)
+  // cover the same need without going through this DOM-level listener at
+  // all, and are exactly as reliable as any other ProseMirror keymap
+  // binding (Tab, Enter, Arrows, …) rather than racing OS/browser chrome.
   $effect(() => {
     const v = view;
     if (!v) return;
     const dom = v.dom;
     const onKeydown = (e: KeyboardEvent) => {
       const isContextMenuKey = e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey);
-      const isAltEnter = e.key === 'Enter' && e.altKey;
       const isTabIntoBubble = e.key === 'Tab' && !e.shiftKey;
-      if (!isContextMenuKey && !isAltEnter && !isTabIntoBubble) return;
+      if (!isContextMenuKey && !isTabIntoBubble) return;
       if (!textVisible && !tableVisible) return;
       if (isTabIntoBubble && v.state.selection.empty && isInTable(v.state)) return;
       const target = focusableEls()[0];

@@ -3,10 +3,20 @@
   // (gated by a pointer:fine media query in editor.css) — touch devices have no
   // physical keyboard, so the footer there keeps just the document meta.
   //
+  // Contextual: the strip is too narrow to show every shortcut in the app at
+  // once, so it swaps in the table-specific set (see shortcuts.ts's
+  // tableShortcuts) while the caret is in a table, instead of trying to
+  // append to the default list.
+  //
   // Presentation only: the shortcut data (OS-resolved) lives in shortcuts.ts.
-  import { editorShortcuts } from './shortcuts.js';
+  import type { EditorState } from 'prosemirror-state';
+  import { contextualShortcuts } from './shortcuts.js';
+  import { isInTable } from '../commands.js';
 
-  const shortcuts = editorShortcuts();
+  type Props = { editorState: EditorState | null };
+  let { editorState }: Props = $props();
+
+  const shortcuts = $derived(contextualShortcuts(!!editorState && isInTable(editorState)));
 </script>
 
 <div class="shortcut-bar" aria-hidden="true">
