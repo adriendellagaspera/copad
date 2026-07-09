@@ -212,7 +212,13 @@ select {
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
   font: inherit;
-  font-size: var(--fs-300);
+  /* iOS Safari auto-zooms the whole page on focus when a field's computed
+     font-size is under 16px — 13px (--fs-300) tripped it on every text input
+     in the app (most noticeably the identity panel's name field, which
+     autofocuses the instant it opens). --fs-400 sits exactly at the
+     threshold, so focusing any field here never triggers it; deliberate
+     pinch-to-zoom by the user is untouched. */
+  font-size: var(--fs-400);
   color: var(--text);
   background: var(--surface);
   /* All four properties share one duration. Split across --dur-fast and
@@ -662,7 +668,7 @@ button.status-link {
 /* ── Mobile bottom dock, "nav mode" (M3) ──
    Mirrors editor.css's .fixed-toolbar "format mode" in the same fixed slot —
    the two are mutually exclusive via sessionState.editing, so there is never
-   more than one 44px bar of chrome at the bottom, and none until the header
+   more than one 50px bar of chrome at the bottom, and none until the header
    capsule collapses (see the combined pointer:coarse-or-narrow rule on
    header.capsule above — kept in sync with this one). A wide desktop window
    never sees this: it keeps every action in the capsule. */
@@ -674,17 +680,27 @@ button.status-link {
     display: flex;
     align-items: center;
     gap: 2px;
-    height: 44px;
+    height: 50px;
     position: fixed;
     left: var(--sp-2);
     right: var(--sp-2);
-    bottom: max(var(--sp-2), env(safe-area-inset-bottom));
+    /* --kb-inset (keyboardInset.svelte.ts) rises the dock above an open
+       on-screen keyboard, which shrinks the visual viewport without moving
+       this fixed-to-layout-viewport element on its own. On dismiss, several
+       mobile browsers don't fire visualViewport's resize until the
+       keyboard's own close animation finishes, so the value can jump
+       straight from open-height to 0 in one tick (collapseKeyboardInset in
+       Editor.svelte's focusout handler pulls that jump earlier, but it's
+       still a single jump) — this transition turns that jump into a slide
+       instead of a teleport. */
+    bottom: calc(max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px));
     z-index: var(--z-menu);
     padding: 0 6px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--r-full);
     box-shadow: var(--shadow-md);
+    transition: bottom 0.22s ease-out;
   }
   .mobile-dock.dock-hidden {
     display: none;
@@ -703,9 +719,9 @@ button.status-link {
     min-width: 0;
   }
   .mobile-dock .dock-btn {
-    width: 32px;
-    height: 32px;
-    min-height: 32px;
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
     flex: none;
     padding: 0;
     border: none;
@@ -727,17 +743,17 @@ button.status-link {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    height: 32px;
-    min-height: 32px;
+    height: 38px;
+    min-height: 38px;
     flex: none;
     margin: 0 4px;
-    padding: 0 10px;
+    padding: 0 12px;
     border: none;
     border-radius: var(--r-full);
     background: var(--accent);
     color: var(--accent-contrast);
     font: inherit;
-    font-size: 0.78rem;
+    font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
   }

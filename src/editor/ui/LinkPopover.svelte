@@ -229,7 +229,10 @@
   }
   .link-popover input {
     width: 100%;
-    font-size: var(--fs-300);
+    /* Not --fs-300: this field autofocuses the instant the popover opens, and
+       iOS Safari auto-zooms the page when a focused field's font-size is
+       under 16px (see app.css's global input rule for the same fix). */
+    font-size: var(--fs-400);
   }
   .link-popover input.invalid {
     border-color: var(--danger);

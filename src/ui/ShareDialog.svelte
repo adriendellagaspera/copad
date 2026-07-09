@@ -339,7 +339,11 @@
   .share-row input {
     flex: 1;
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    /* Not a smaller size: this field select-alls on focus (see onfocus above),
+       so any tap counts as a focus, and iOS Safari auto-zooms the page when a
+       focused field's font-size is under 16px (see app.css's global input
+       rule for the same fix). */
+    font-size: var(--fs-400);
   }
   .share-row button {
     flex-shrink: 0;

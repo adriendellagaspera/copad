@@ -21,6 +21,7 @@
   import { fetchIceServers } from './collaboration/iceServers.js';
   import { parseRoomId, parseRoomCredential } from './collaboration/parse.js';
   import { sessionState } from './collaboration/sessionState.svelte.js';
+  import { keyboardInset } from './ui/keyboardInset.svelte.js';
   import IdentityMenu from './ui/IdentityMenu.svelte';
   import StatusPill from './ui/StatusPill.svelte';
   import PresenceBar from './ui/PresenceBar.svelte';
@@ -748,16 +749,19 @@
   </header>
 
   <!-- Mobile-only "nav mode" dock (M3) — a fixed bottom capsule mirroring the
-       header's actions, since the header itself collapsed to just the room
-       name above. Hidden the instant the document has focus, when
-       editor.css's .fixed-toolbar takes the same slot in "format mode" —
-       the two never show at once (see sessionState.editing). -->
-  <div class="mobile-dock" class:dock-hidden={sessionState.editing}>
+       header's actions, since the header itself is hidden entirely on mobile
+       (see header.capsule, app.css). Hidden the instant the document has
+       focus, when editor.css's .fixed-toolbar takes the same slot in "format
+       mode" — the two never show at once (see sessionState.editing). -->
+  <div
+    class="mobile-dock"
+    class:dock-hidden={sessionState.editing}
+    style="--kb-inset: {keyboardInset.px}px"
+  >
     <IdentityMenu
       {name}
       {color}
       colors={COLORS}
-      placement="above"
       onName={(v) => { name = v as DisplayName; }}
       onColor={(c) => { color = c; }}
     />
