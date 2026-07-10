@@ -4,7 +4,7 @@
 // module — like commands.ts / slashMenu.ts. Mirrors the keymap in
 // src/editor/plugins.ts; keep the two in sync.
 
-import { type KeyCap, keyCap, modKey, parseOS, type OS } from '../../ui/platform.js';
+import { type KeyCap, keyCap, modKey, altKey, parseOS, type OS } from '../../ui/platform.js';
 
 /** The human label for a shortcut's action (e.g. "Bold"). Branded so display
  *  copy can't be confused with another string; branded only by {@link shortcutLabel}. */
@@ -27,6 +27,7 @@ export interface Shortcut {
  */
 export function editorShortcuts(os: OS = parseOS()): Shortcut[] {
   const mod = modKey(os);
+  const alt = altKey(os);
   return [
     { keys: [mod, keyCap('B')], label: shortcutLabel('Bold') },
     { keys: [mod, keyCap('I')], label: shortcutLabel('Italic') },
@@ -35,7 +36,7 @@ export function editorShortcuts(os: OS = parseOS()): Shortcut[] {
     { keys: [mod, keyCap('Shift'), keyCap('C')], label: shortcutLabel('Inline code') },
     { keys: [mod, keyCap('K')], label: shortcutLabel('Link') },
     { keys: [keyCap('/')], label: shortcutLabel('Commands') },
-    { keys: [keyCap('Alt'), keyCap('Shift'), keyCap('\\')], label: shortcutLabel('Toolbar') },
+    { keys: [alt, keyCap('Shift'), keyCap('\\')], label: shortcutLabel('Toolbar') },
     { keys: [mod, keyCap('Z')], label: shortcutLabel('Undo') },
   ];
 }
@@ -64,14 +65,15 @@ export function editorShortcuts(os: OS = parseOS()): Shortcut[] {
  */
 export function tableShortcuts(os: OS = parseOS()): Shortcut[] {
   const mod = modKey(os);
+  const alt = altKey(os);
   return [
     { keys: [keyCap('Tab')], label: shortcutLabel('Next cell') },
-    { keys: [keyCap('Alt'), keyCap('Shift'), keyCap('R')], label: shortcutLabel('Add row') },
-    { keys: [keyCap('Alt'), keyCap('Shift'), keyCap('⌫')], label: shortcutLabel('Delete row') },
-    { keys: [keyCap('Alt'), keyCap('Shift'), keyCap('C')], label: shortcutLabel('Add column') },
-    { keys: [mod, keyCap('Alt'), keyCap('Shift'), keyCap('⌫')], label: shortcutLabel('Delete column') },
-    { keys: [keyCap('Alt'), keyCap('Shift'), keyCap('H')], label: shortcutLabel('Toggle header') },
-    { keys: [keyCap('Alt'), keyCap('Shift'), keyCap('\\')], label: shortcutLabel('Table toolbar') },
+    { keys: [alt, keyCap('Shift'), keyCap('R')], label: shortcutLabel('Add row') },
+    { keys: [alt, keyCap('Shift'), keyCap('⌫')], label: shortcutLabel('Delete row') },
+    { keys: [alt, keyCap('Shift'), keyCap('C')], label: shortcutLabel('Add column') },
+    { keys: [mod, alt, keyCap('Shift'), keyCap('⌫')], label: shortcutLabel('Delete column') },
+    { keys: [alt, keyCap('Shift'), keyCap('H')], label: shortcutLabel('Toggle header') },
+    { keys: [alt, keyCap('Shift'), keyCap('\\')], label: shortcutLabel('Table toolbar') },
   ];
 }
 

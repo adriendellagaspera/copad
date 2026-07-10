@@ -7,7 +7,7 @@
 // `platform`, then the UA string.
 
 /** Operating-system family. Only the distinction the UI needs is modelled —
- *  Apple platforms use the ⌘ modifier, everything else uses Ctrl. */
+ *  Apple platforms use the ⌘/⌥ modifiers, everything else uses Ctrl/Alt. */
 export const OS = { Apple: 'apple', Other: 'other' } as const;
 export type OS = (typeof OS)[keyof typeof OS];
 
@@ -49,4 +49,16 @@ export function keyCap(literal: string): KeyCap {
  *  The single cast site that brands a modifier glyph. */
 export function modKey(os: OS = parseOS()): KeyCap {
   return (os === OS.Apple ? '⌘' : 'Ctrl') as KeyCap;
+}
+
+/** The OS-resolved secondary modifier cap: ⌥ (Option) on Apple platforms,
+ *  Alt elsewhere — the literal word "Alt" doesn't exist on a Mac keyboard
+ *  (labelled ⌥/Option), so every displayed shortcut needs this, not a bare
+ *  `keyCap('Alt')`, the same way `modKey` already resolves `Mod`. Browsers
+ *  still report the Option key as `event.altKey`/`event.key === 'Alt'` in
+ *  the DOM `KeyboardEvent` API regardless (that naming is unrelated to what
+ *  a user sees on their keyboard or in this UI), so nothing about how keys
+ *  are actually matched changes — only how a combo is displayed. */
+export function altKey(os: OS = parseOS()): KeyCap {
+  return (os === OS.Apple ? '⌥' : 'Alt') as KeyCap;
 }
