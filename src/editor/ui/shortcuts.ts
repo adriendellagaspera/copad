@@ -35,7 +35,7 @@ export function editorShortcuts(os: OS = parseOS()): Shortcut[] {
     { keys: [mod, keyCap('Shift'), keyCap('C')], label: shortcutLabel('Inline code') },
     { keys: [mod, keyCap('K')], label: shortcutLabel('Link') },
     { keys: [keyCap('/')], label: shortcutLabel('Commands') },
-    { keys: [keyCap('Alt'), keyCap('Shift'), keyCap('M')], label: shortcutLabel('Toolbar') },
+    { keys: [keyCap('Alt'), keyCap('Shift'), keyCap('T')], label: shortcutLabel('Toolbar') },
     { keys: [mod, keyCap('Z')], label: shortcutLabel('Undo') },
   ];
 }
@@ -51,10 +51,10 @@ export function editorShortcuts(os: OS = parseOS()): Shortcut[] {
  * the `/` slash menu, so without this strip they'd have no discoverable
  * hint anywhere in the app.
  *
- * The panel's entry point is shown here as `Alt-Shift-M`, not `Shift-F10` —
+ * The panel's entry point is shown here as `Alt-Shift-T`, not `Shift-F10` —
  * both work (see `SelectionToolbar.svelte`'s keydown handler), but
  * `Shift-F10` alone needs `Fn` on most Mac laptop keyboards (F-keys are
- * remapped to hardware functions there by default), while `Alt-Shift-M`
+ * remapped to hardware functions there by default), while `Alt-Shift-T`
  * needs no `Fn` hunting on any platform. One hint fits the strip; this is
  * the one that works everywhere without a caveat.
  */
@@ -67,7 +67,7 @@ export function tableShortcuts(os: OS = parseOS()): Shortcut[] {
     { keys: [keyCap('Alt'), keyCap('Shift'), keyCap('C')], label: shortcutLabel('Add column') },
     { keys: [mod, keyCap('Alt'), keyCap('Shift'), keyCap('⌫')], label: shortcutLabel('Delete column') },
     { keys: [keyCap('Alt'), keyCap('Shift'), keyCap('H')], label: shortcutLabel('Toggle header') },
-    { keys: [keyCap('Alt'), keyCap('Shift'), keyCap('M')], label: shortcutLabel('Table toolbar') },
+    { keys: [keyCap('Alt'), keyCap('Shift'), keyCap('T')], label: shortcutLabel('Table toolbar') },
   ];
 }
 

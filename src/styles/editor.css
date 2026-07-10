@@ -109,17 +109,21 @@
 /* A second, separate floating card — shown *alongside* .sel-toolbar (never
    instead of it) only while an empty caret sits in a table, anchored to the
    table's opposite edge (see positionTablePanels in tableAnchor.ts). Reuses
-   the .toolbar button/sep styling but its own accent border + leading label
-   keep it reading as a distinct "table" control rather than a continuation
-   of the text-formatting bubble, per Notion/Docs/Word's separation of table
-   structure from text formatting. */
+   the .toolbar button/sep styling; a leading accent-colored label ("▦
+   Table") is what marks it as a distinct "table" control rather than a
+   continuation of the text-formatting bubble, per Notion/Docs/Word's
+   separation of table structure from text formatting — the border itself
+   stays the same neutral `var(--border)` every other floating panel in the
+   app uses (.sel-toolbar included) at rest, reserving the accent color for
+   the focus state below rather than wearing it permanently regardless of
+   focus, which read as inconsistent with the rest of the design system. */
 .table-toolbar {
   display: none;
 }
 
 .table-toolbar .toolbar {
   border-bottom: none;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--surface);
   box-shadow: var(--shadow-md);
@@ -127,16 +131,13 @@
   padding: var(--sp-1) var(--sp-2);
 }
 
-/* The panel's own border is already accent-colored at rest, and the global
-   keyboard-focus ring (base.css) is drawn in that same accent hue at partial
-   opacity — stacked on top of an already-accent-bordered panel, a focused
-   button's ring was nearly invisible, so pressing Shift-F10 (or its
-   Alt-Shift-M alternative) looked like nothing happened even though focus
-   had genuinely moved into the panel. :focus-within thickens the border and
-   adds a visible glow the instant any button inside actually has focus —
-   distinct from the at-rest state, not just a subtler version of it. */
+/* Accent border + glow only once a button inside actually has focus (via
+   Shift-F10/Alt-Shift-T or a click) — distinct from the neutral at-rest
+   state above, so pressing the shortcut is visibly confirmed instead of
+   the panel looking unchanged before and after. */
 .table-toolbar .toolbar:focus-within {
   border-width: 2px;
+  border-color: var(--accent);
   box-shadow: var(--shadow-md), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
