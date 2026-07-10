@@ -68,13 +68,20 @@
 }
 
 .sel-toolbar .toolbar {
-  /* Override the fixed-bar chrome: a self-contained card, single row. */
+  /* Override the fixed-bar chrome: a self-contained card. Wraps (rather than
+     the single forced row this used to be) once the full button set is
+     wider than the viewport has room for — a `position: fixed` box has no
+     ambient width to shrink into on its own, so `max-width` is what actually
+     triggers the wrap; a narrow desktop window (~<820px, the bubble's full
+     natural width) would otherwise overflow the viewport's right edge with
+     no way to reach the clipped buttons. */
   border-bottom: none;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--surface);
   box-shadow: var(--shadow-md);
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  max-width: calc(100vw - 16px);
   padding: var(--sp-1) var(--sp-2);
 }
 

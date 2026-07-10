@@ -4,7 +4,7 @@
   import Toolbar from '../../Toolbar.svelte';
   import TableToolbar from './TableToolbar.svelte';
   import { isInTable } from '../commands.js';
-  import { tableElementAt, positionTablePanels } from './tableAnchor.js';
+  import { tableElementAt, positionTablePanel } from './tableAnchor.js';
   import type { Toasts } from '../../ui/toasts.svelte.js';
 
   type Props = {
@@ -86,15 +86,14 @@
       const bw = hostTable?.offsetWidth ?? 0;
       const bh = hostTable?.offsetHeight ?? 0;
       const rect = tableEl.getBoundingClientRect();
-      const { table } = positionTablePanels(
+      const panel = positionTablePanel(
         rect,
-        { width: tw, height: th },
         { width: bw, height: bh },
         { width: window.innerWidth, height: window.innerHeight },
         GAP,
       );
-      tableTop = table.top;
-      tableLeft = table.left;
+      tableTop = panel.top;
+      tableLeft = panel.left;
       textVisible = false;
       tableVisible = true;
       return;
@@ -114,6 +113,14 @@
       start = v.coordsAtPos(from);
       end = v.coordsAtPos(to);
     } catch {
+      textVisible = false;
+      return;
+    }
+    // If the selection itself has scrolled entirely out of the viewport
+    // (its own scroller, or the window), hide the bubble instead of
+    // tracking it off-screen — otherwise it drifts over unrelated chrome
+    // (or beyond the viewport edge) while still reporting "visible".
+    if (end.bottom < 0 || start.top > window.innerHeight) {
       textVisible = false;
       return;
     }

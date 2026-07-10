@@ -20,36 +20,31 @@ export function tableElementAt(view: EditorView, pos: number): HTMLElement | nul
 }
 
 /**
- * Positions the two floating panels shown for a bare caret inside a table:
- * the text-formatting bubble and the table-structure panel. They're anchored
- * to *opposite* edges of the table's bounding box — whichever edge has room
- * for the text bubble, the table panel takes the other — so the two can
- * never occupy the same vertical band regardless of either panel's width,
- * without needing to measure/react to the other panel's actual position.
- * Horizontal position is independently centred on the table and clamped to
- * the viewport for each panel.
+ * Positions the table-structure panel shown for a bare caret inside a table
+ * — anchored below the table if it fits there, else above. Both axes are
+ * clamped into the viewport (`[gap, viewport − panelSize − gap]`): a table
+ * taller than the viewport, or scrolled so its edge crosses the viewport
+ * boundary, would otherwise place the panel using `table.bottom`/`table.top`
+ * verbatim — arbitrarily far off-screen and mouse-unreachable, the exact
+ * failure this clamp exists to prevent. The panel may end up overlapping the
+ * table itself in that case (there's no "outside" space to put it in), which
+ * is the same trade-off spreadsheet apps make for an oversized selection's
+ * floating toolbar — better than vanishing off-screen entirely.
  */
-export function positionTablePanels(
+export function positionTablePanel(
   table: Rect,
-  textSize: PanelSize,
-  tablePanelSize: PanelSize,
+  panelSize: PanelSize,
   viewport: Viewport,
   gap: number,
-): { text: PanelPosition; table: PanelPosition } {
-  const clampLeft = (width: number): number => {
-    const centered = table.left + table.width / 2 - width / 2;
-    return Math.max(gap, Math.min(centered, viewport.width - width - gap));
-  };
+): PanelPosition {
+  const left = Math.max(
+    gap,
+    Math.min(table.left + table.width / 2 - panelSize.width / 2, viewport.width - panelSize.width - gap),
+  );
 
-  const textAbove = table.top - gap >= textSize.height;
+  const fitsBelow = table.bottom + gap + panelSize.height <= viewport.height - gap;
+  const preferredTop = fitsBelow ? table.bottom + gap : table.top - panelSize.height - gap;
+  const top = Math.max(gap, Math.min(preferredTop, viewport.height - panelSize.height - gap));
 
-  const text: PanelPosition = textAbove
-    ? { top: table.top - textSize.height - gap, left: clampLeft(textSize.width) }
-    : { top: table.bottom + gap, left: clampLeft(textSize.width) };
-
-  const tablePanel: PanelPosition = textAbove
-    ? { top: table.bottom + gap, left: clampLeft(tablePanelSize.width) }
-    : { top: table.top - tablePanelSize.height - gap, left: clampLeft(tablePanelSize.width) };
-
-  return { text, table: tablePanel };
+  return { top, left };
 }

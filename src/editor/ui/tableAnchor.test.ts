@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { schema } from '../schema.js';
-import { tableElementAt, positionTablePanels, type Rect } from './tableAnchor.js';
+import { tableElementAt, positionTablePanel, type Rect } from './tableAnchor.js';
 
 const VIEWPORT = { width: 1000, height: 800 };
 const GAP = 8;
@@ -62,45 +62,49 @@ describe('tableElementAt', () => {
   });
 });
 
-describe('positionTablePanels', () => {
+describe('positionTablePanel', () => {
   const table: Rect = { top: 300, left: 400, right: 600, bottom: 360, width: 200, height: 60 };
-  const textSize = { width: 300, height: 40 };
-  const tablePanelSize = { width: 220, height: 36 };
+  const panelSize = { width: 220, height: 36 };
 
-  it('anchors the text bubble above and the table panel below when there is room above', () => {
-    const { text, table: panel } = positionTablePanels(table, textSize, tablePanelSize, VIEWPORT, GAP);
-    expect(text.top).toBe(table.top - textSize.height - GAP);
+  it('anchors below the table when it fits there', () => {
+    const panel = positionTablePanel(table, panelSize, VIEWPORT, GAP);
     expect(panel.top).toBe(table.bottom + GAP);
-    // Both horizontally centred on the table.
-    expect(text.left).toBeCloseTo(table.left + table.width / 2 - textSize.width / 2);
-    expect(panel.left).toBeCloseTo(table.left + table.width / 2 - tablePanelSize.width / 2);
+    expect(panel.left).toBeCloseTo(table.left + table.width / 2 - panelSize.width / 2);
   });
 
-  it('flips the text bubble below and the table panel above when there is no room above', () => {
-    const nearTop: Rect = { ...table, top: 10, bottom: 70 };
-    const { text, table: panel } = positionTablePanels(nearTop, textSize, tablePanelSize, VIEWPORT, GAP);
-    expect(text.top).toBe(nearTop.bottom + GAP);
-    expect(panel.top).toBe(nearTop.top - tablePanelSize.height - GAP);
-  });
-
-  it('always keeps the two panels on opposite edges of the table', () => {
-    for (const t of [table, { ...table, top: 10, bottom: 70 }, { ...table, top: 795, bottom: 799 }]) {
-      const { text, table: panel } = positionTablePanels(t, textSize, tablePanelSize, VIEWPORT, GAP);
-      const textAbove = text.top + textSize.height <= t.top;
-      const panelAbove = panel.top + tablePanelSize.height <= t.top;
-      expect(textAbove).not.toBe(panelAbove);
-    }
+  it('flips above when there is no room below', () => {
+    const nearBottom: Rect = { ...table, top: 780, bottom: 799 };
+    const panel = positionTablePanel(nearBottom, panelSize, VIEWPORT, GAP);
+    expect(panel.top).toBe(nearBottom.top - panelSize.height - GAP);
   });
 
   it('clamps horizontal position to stay within the viewport', () => {
     const nearLeftEdge: Rect = { ...table, left: -50, right: 150, width: 200 };
-    const { text, table: panel } = positionTablePanels(nearLeftEdge, textSize, tablePanelSize, VIEWPORT, GAP);
-    expect(text.left).toBeGreaterThanOrEqual(GAP);
-    expect(panel.left).toBeGreaterThanOrEqual(GAP);
+    const left = positionTablePanel(nearLeftEdge, panelSize, VIEWPORT, GAP).left;
+    expect(left).toBeGreaterThanOrEqual(GAP);
 
     const nearRightEdge: Rect = { ...table, left: 900, right: 1100, width: 200 };
-    const { text: text2, table: panel2 } = positionTablePanels(nearRightEdge, textSize, tablePanelSize, VIEWPORT, GAP);
-    expect(text2.left).toBeLessThanOrEqual(VIEWPORT.width - textSize.width - GAP);
-    expect(panel2.left).toBeLessThanOrEqual(VIEWPORT.width - tablePanelSize.width - GAP);
+    const right = positionTablePanel(nearRightEdge, panelSize, VIEWPORT, GAP).left;
+    expect(right).toBeLessThanOrEqual(VIEWPORT.width - panelSize.width - GAP);
+  });
+
+  it('clamps the top into the viewport for a table taller than the viewport — never off-screen below', () => {
+    // A table spanning well past the bottom of the viewport (e.g. scrolled,
+    // or simply many rows): naively placing the panel at table.bottom + gap
+    // would land it far below the visible area, unreachable by mouse.
+    const tallTable: Rect = { top: 100, left: 400, right: 600, bottom: 1200, width: 200, height: 1100 };
+    const panel = positionTablePanel(tallTable, panelSize, VIEWPORT, GAP);
+    expect(panel.top).toBeGreaterThanOrEqual(GAP);
+    expect(panel.top).toBeLessThanOrEqual(VIEWPORT.height - panelSize.height - GAP);
+  });
+
+  it('clamps the top into the viewport when the table has scrolled above the top edge — never off-screen above', () => {
+    // table.top negative (scrolled past the viewport's top) with a short
+    // table: neither "below" (off past the bottom, if bottom is also
+    // negative) nor a naive "above" placement should ever escape upward.
+    const scrolledPastTop: Rect = { top: -900, left: 400, right: 600, bottom: -840, width: 200, height: 60 };
+    const panel = positionTablePanel(scrolledPastTop, panelSize, VIEWPORT, GAP);
+    expect(panel.top).toBeGreaterThanOrEqual(GAP);
+    expect(panel.top).toBeLessThanOrEqual(VIEWPORT.height - panelSize.height - GAP);
   });
 });
