@@ -301,9 +301,14 @@
         }, 2_500);
       })
       .catch((e: Error) => {
+        // Toast only on the transition *into* failure — every debounced flush
+        // re-throwing the same persistent error would otherwise drip a fresh
+        // toast on every edit, redundant with StatusPill's durable "Save
+        // failed" state (which already covers a failure that keeps failing).
+        const wasAlreadyFailing = saveStatus === SaveStatus.Error;
         saveStatus = SaveStatus.Error;
         console.warn('Copad: autosave failed', e);
-        toasts.error(`Couldn't save to ${label}: ${e.message}`);
+        if (!wasAlreadyFailing) toasts.error(`Couldn't save to ${label}: ${e.message}`);
       });
   };
 

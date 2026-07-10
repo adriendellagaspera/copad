@@ -49,6 +49,7 @@
       pwInput = storedPw ?? '';
       confirmingRemove = false;
       copiedButton = null;
+      secConfirm = null;
     }
   });
 
@@ -80,7 +81,7 @@
     storedPw = null;
     pwInput = '';
     onSecurityChange?.();
-    toasts.success('Secure link created — anyone with the link can read this document');
+    flashSecConfirm('Secure link created — anyone with the link can read this document');
   }
 
   async function applyPassword(): Promise<void> {
@@ -95,7 +96,7 @@
     linkKey = undefined;
     storedPw = cred;
     onSecurityChange?.();
-    toasts.success(pw ? 'Document password applied' : 'Document password removed');
+    flashSecConfirm(pw ? 'Document password applied' : 'Document password removed');
   }
 
   async function removeEncryption(): Promise<void> {
@@ -109,7 +110,7 @@
     pwInput = '';
     confirmingRemove = false;
     onSecurityChange?.();
-    toasts.info('Encryption removed from this document');
+    flashSecConfirm('Encryption removed from this document');
   }
 
   // Removing encryption breaks collaborators' current link/password, so the
@@ -126,6 +127,20 @@
     }
     confirmingRemove = true;
     confirmRemoveTimer = setTimeout(() => (confirmingRemove = false), 4000);
+  }
+
+  // Security-change confirmations render inline instead of as a toast: this
+  // dialog deliberately stays open after these actions (unlike copyTo, which
+  // closes it), and on mobile it's a bottom sheet — a fixed-position toast
+  // would land on top of its own lower content (e.g. the very button just
+  // clicked). See issue #132.
+  let secConfirm = $state<string | null>(null);
+  let secConfirmTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function flashSecConfirm(text: string): void {
+    clearTimeout(secConfirmTimer);
+    secConfirm = text;
+    secConfirmTimer = setTimeout(() => (secConfirm = null), 4000);
   }
 
   // Which link's "Copy link" button is showing its transient "Copied ✓" state.
@@ -239,6 +254,10 @@
       Document privacy
       {#if encrypted}<span class="lock" title="End-to-end encrypted">🔒 Encrypted</span>{/if}
     </h3>
+
+    {#if secConfirm}
+      <p class="sec-confirm" role="status">✓ {secConfirm}</p>
+    {/if}
 
     {#if envOnly}
       <p class="sec-note">This deployment encrypts every document with a shared key.</p>
@@ -404,6 +423,15 @@
     font-size: var(--fs-300);
     font-weight: 500;
     color: var(--ok, var(--accent));
+  }
+  .sec-confirm {
+    margin: 0 0 var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-2, 6px);
+    background: var(--ok-soft, var(--surface-3));
+    color: var(--ok, var(--text));
+    font-size: var(--fs-300);
+    font-weight: 500;
   }
   .sec-note {
     margin: 0 0 var(--sp-3);

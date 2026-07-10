@@ -7,7 +7,14 @@
 
 <div class="toasts" aria-live="polite" aria-atomic="false">
   {#each toasts.items as t (t.id)}
-    <div class="toast {t.kind}" role={t.kind === ToastKind.Error ? 'alert' : 'status'}>
+    <div
+      class="toast {t.kind}"
+      role={t.kind === ToastKind.Error ? 'alert' : 'status'}
+      onmouseenter={() => toasts.pause(t.id)}
+      onmouseleave={() => toasts.resume(t.id)}
+      onfocusin={() => toasts.pause(t.id)}
+      onfocusout={() => toasts.resume(t.id)}
+    >
       <span class="toast-icon" aria-hidden="true">
         {#if t.kind === ToastKind.Error}✕{:else if t.kind === ToastKind.Success}✓{:else}i{/if}
       </span>
@@ -22,15 +29,34 @@
 <style>
   .toasts {
     position: fixed;
-    bottom: var(--sp-4);
     left: 50%;
     transform: translateX(-50%);
+    /* Lifted clear of the fixed mobile dock/toolbar by default — same offset
+       editor.css reserves for it (.content's padding-bottom) — since that
+       chrome can show at this width even on a pointer:fine device (a resized
+       desktop window). The wide-desktop override below replaces this. */
+    bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));
     display: flex;
     flex-direction: column-reverse;
     gap: var(--sp-2);
     z-index: var(--z-toast);
     width: min(420px, calc(100vw - 2 * var(--sp-4)));
     pointer-events: none;
+  }
+  /* Desktop: anchor bottom-right (Sonner/Linear convention) instead of
+     bottom-center. The editor's status/shortcut bar sits in normal flow near
+     the bottom of a centered, capped-width card — bottom-center toasts used
+     to land squarely on it; the corner of the viewport clears it. Matches
+     editor.css's own dock-reservation trigger so the two never disagree
+     about when the fixed dock/toolbar (and thus this centered fallback) is
+     showing. */
+  @media (pointer: fine) and (min-width: 901px) {
+    .toasts {
+      left: auto;
+      right: var(--sp-4);
+      transform: none;
+      bottom: var(--sp-4);
+    }
   }
   .toast {
     pointer-events: auto;

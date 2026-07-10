@@ -46,7 +46,7 @@
       await navigator.clipboard.writeText(md);
       toasts.success('Copied as Markdown');
     } catch {
-      toasts.info('Copy failed — your browser blocked clipboard access');
+      toasts.error('Copy failed — your browser blocked clipboard access');
     }
   }
 </script>
