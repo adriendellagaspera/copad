@@ -78,6 +78,12 @@
   let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, writeLocked = false, writeGateEligible = false, onWriteSolo }: Props =
     $props();
 
+  // Plain (non-reactive) tracking var — detects the writeLocked true→false
+  // transition in the effect below without refocusing on every unrelated
+  // re-render. See that effect's doc comment. untrack: intentionally read
+  // once (the gate's state at mount), not a live reactive binding.
+  let wasWriteLocked = untrack(() => writeLocked);
+
   const SAVE_DEBOUNCE = 3_000;
 
   // Collab session — created once for the lifetime of this component.
@@ -330,9 +336,22 @@
   // Toggle editability when the write-gate opens/closes. ProseMirror re-reads the
   // `editable` prop on each state update, so re-setting it (setProps triggers one)
   // is what actually flips contentEditable — the gate lifts the moment a peer joins.
+  //
+  // Also focuses the view the moment the gate transitions from locked to
+  // unlocked: the yield-on-write listener below already covers "click or type
+  // *in the editor* while the gate is up" (focus lands there naturally, as
+  // part of that click/keydown), but the WriteGateIntro dialog's own "Write
+  // here anyway" button lifts the gate from *outside* the editor entirely —
+  // without this, dismissing that dialog left the view unfocused and the
+  // very next keystrokes went nowhere, a bad first impression in the single
+  // most common fresh-room scenario. `wasWriteLocked` (a plain, non-reactive
+  // tracking variable) detects the true→false transition rather than
+  // refocusing on every unrelated re-render.
   $effect(() => {
     const locked = writeLocked;
     if (view) view.setProps({ editable: () => role === SessionRole.Writer && !locked });
+    if (wasWriteLocked && !locked) view?.focus();
+    wasWriteLocked = locked;
   });
 
   // Yield-on-write: the writing gesture itself — clicking or typing in the body —

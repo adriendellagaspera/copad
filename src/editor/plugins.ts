@@ -405,6 +405,37 @@ export const insertHardBreak: Command = (state, dispatch) => {
 };
 
 /**
+ * Tab in a plain paragraph — nowhere left in the chain to sink a list item
+ * or move to another table cell — inserts a literal tab character instead
+ * of falling through to the browser's default tab-out-of-the-editor
+ * behavior. Tab must always mean something inside the editor (the same
+ * restraint already applied to a table's own Tab handling, see
+ * {@link tabAddsRowAtEnd}'s doc comment): a document editor that lets a
+ * stray Tab press silently yank focus onto page chrome is a keyboard trap,
+ * not a keyboard shortcut. Always handled, so it's the final entry in the
+ * 'Tab' keymap chain.
+ */
+export const insertTabCharacter: Command = (state, dispatch) => {
+  if (dispatch) dispatch(state.tr.insertText('\t').scrollIntoView());
+  return true;
+};
+
+/**
+ * Shift-Tab's mirror: removes a single tab character immediately before the
+ * caret if one is there (undoing {@link insertTabCharacter}'s indent), and
+ * swallows the key either way — never falling through to the browser's
+ * reverse-tab-order default, which would be exactly the same focus-escape
+ * `insertTabCharacter` exists to prevent, just in the other direction.
+ */
+export const removeTabCharacterBefore: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection;
+  if (empty && $from.parentOffset > 0 && $from.parent.textBetween($from.parentOffset - 1, $from.parentOffset) === '\t') {
+    if (dispatch) dispatch(state.tr.delete($from.pos - 1, $from.pos).scrollIntoView());
+  }
+  return true;
+};
+
+/**
  * Enter at the very start of any cell in a table's top row, or the very end
  * of any cell in its bottom row, escapes the table instead of being
  * swallowed like every other Enter inside a cell (see
@@ -946,12 +977,14 @@ export function buildPlugins(s: Schema): Plugin[] {
         goToNextCell(1),
         tabAddsRowAtEnd(s),
         sinkListItem(s.nodes.list_item),
-        sinkListItem(s.nodes.task_item)
+        sinkListItem(s.nodes.task_item),
+        insertTabCharacter
       ),
       'Shift-Tab': chainCommands(
         goToNextCell(-1),
         liftListItem(s.nodes.list_item),
-        liftListItem(s.nodes.task_item)
+        liftListItem(s.nodes.task_item),
+        removeTabCharacterBefore
       ),
       // Direct keyboard access to table-structure edits — reaching the
       // floating table panel first (Shift-F10, then Tab to the right

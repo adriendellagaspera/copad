@@ -21,6 +21,8 @@ import {
   tableGoalColumnPlugin,
   tabAddsRowAtEnd,
   insertHardBreak,
+  insertTabCharacter,
+  removeTabCharacterBefore,
   toggleBlockType,
   checklistRuleHandler,
   horizontalRuleHandler,
@@ -1232,6 +1234,39 @@ describe('insertHardBreak', () => {
     const { handled, dispatched } = runCmd(insertHardBreak, doc, 2);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
+  });
+});
+
+describe('insertTabCharacter / removeTabCharacterBefore', () => {
+  it('inserts a literal tab character at the caret — Tab must never fall through to the browser default and escape the editor', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('hi'))]);
+    const { handled, dispatched, next } = runCmd(insertTabCharacter, doc, 2); // between "h" and "i"
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.textContent).toBe('h\ti');
+  });
+
+  it('always returns true, even with an empty document (nothing to insert into would still be handled)', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph')]);
+    const { handled, dispatched } = runCmd(insertTabCharacter, doc, 1);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+  });
+
+  it('removeTabCharacterBefore deletes a tab immediately before the caret', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('h\ti'))]);
+    const { handled, dispatched, next } = runCmd(removeTabCharacterBefore, doc, 3); // right after the tab
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.doc.textContent).toBe('hi');
+  });
+
+  it('removeTabCharacterBefore swallows the key (handled, but nothing dispatched) when there is no tab to remove — never falls through to the browser\'s reverse-tab-order default', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('hi'))]);
+    const { handled, dispatched, next } = runCmd(removeTabCharacterBefore, doc, 2);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(false);
+    expect(next).toBeNull();
   });
 });
 
