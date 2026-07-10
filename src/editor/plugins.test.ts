@@ -1093,10 +1093,13 @@ describe('tableShiftArrow', () => {
     return EditorState.create({ schema, doc, selection: TextSelection.create(doc, pos) });
   }
 
-  it('Shift-ArrowDown starts a CellSelection covering the cell and the one below it', () => {
+  it('Shift-ArrowDown from the cell edge starts a CellSelection covering the cell and the one below it', () => {
     const cmd = tableShiftArrow('vert', 1);
     const doc = schema.node('doc', null, [threeByThreeTable()]);
-    const state = stateAt(doc, cellContentPos(doc, 'B2'));
+    // Caret at the cell's content *end* (dir 1): only there does Shift-Arrow
+    // cross into the next cell — mid-content it extends the text selection,
+    // same gate as tableArrowVertical/Horizontal.
+    const state = stateAt(doc, cellContentEnd(doc, 'B2'));
     let next: EditorState | null = null;
     const handled = cmd(state, (tr) => {
       next = state.apply(tr);
@@ -1109,10 +1112,10 @@ describe('tableShiftArrow', () => {
     expect(rect.right - rect.left).toBe(1); // spans 1 column
   });
 
-  it('Shift-ArrowRight starts a CellSelection covering the cell and the one to its right', () => {
+  it('Shift-ArrowRight from the cell edge starts a CellSelection covering the cell and the one to its right', () => {
     const cmd = tableShiftArrow('horiz', 1);
     const doc = schema.node('doc', null, [threeByThreeTable()]);
-    const state = stateAt(doc, cellContentPos(doc, 'B2'));
+    const state = stateAt(doc, cellContentEnd(doc, 'B2'));
     let next: EditorState | null = null;
     const handled = cmd(state, (tr) => {
       next = state.apply(tr);
@@ -1121,6 +1124,27 @@ describe('tableShiftArrow', () => {
     const rect = selectedRect(next!);
     expect(rect.right - rect.left).toBe(2); // spans 2 columns
     expect(rect.bottom - rect.top).toBe(1); // spans 1 row
+  });
+
+  it('does NOT hijack Shift-Arrow into a CellSelection from mid-cell content', () => {
+    // Regression: a bare caret mid-content used to jump straight to a
+    // whole-cell selection, making it impossible to extend an ordinary text
+    // selection within a multi-block cell. Now Shift-Arrow only crosses cells
+    // at the cell's own content edge — anywhere else it returns false so the
+    // browser extends the text selection natively inside the cell.
+    const right = tableShiftArrow('horiz', 1);
+    const down = tableShiftArrow('vert', 1);
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    // Start of "B2" — not the content end, so neither axis should fire.
+    const state = stateAt(doc, cellContentPos(doc, 'B2'));
+    for (const cmd of [right, down]) {
+      let dispatched = false;
+      const handled = cmd(state, () => {
+        dispatched = true;
+      });
+      expect(handled).toBe(false);
+      expect(dispatched).toBe(false);
+    }
   });
 
   it('extends an existing CellSelection further in the given axis rather than restarting it', () => {

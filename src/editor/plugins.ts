@@ -18,6 +18,7 @@ import {
   addColumnAfter as addColumnAfterRaw,
   deleteColumn as deleteColumnRaw,
   toggleHeaderRow as toggleHeaderRowRaw,
+  deleteTable as deleteTableRaw,
   CellSelection,
   cellAround,
   nextCell,
@@ -819,6 +820,20 @@ export function tableArrowFromOutside(dir: 1 | -1): Command {
  * doing nothing). `nextCell` via `TableMap` sidesteps `atEndOfCell`
  * entirely and is deterministic on every axis, mirroring the library's
  * own `shiftArrow` shape.
+ *
+ * From a bare caret, a cross-cell `CellSelection` only starts once that
+ * caret sits at the cell's own content edge in the direction of travel —
+ * the same `cellContentRange` gate the plain Arrow commands use to tell
+ * "at the true edge of the *cell*" apart from "mid-content". Without it, a
+ * Shift-Arrow from anywhere inside a cell jumps straight to a whole-cell
+ * selection, making it impossible to extend an ordinary text selection
+ * *within* a cell's now-multi-block content (see schema.ts). Anywhere but
+ * the edge we return false, so the browser extends the text selection
+ * inside the cell natively (cells are `isolating`, so it can't leak out) —
+ * exactly as {@link tableArrowVertical}/{@link tableArrowHorizontal} defer
+ * to native movement until the caret reaches the cell edge. An existing
+ * `CellSelection` always extends, no gate: it's already a cell-range
+ * gesture, so every further Shift-Arrow grows it.
  */
 export function tableShiftArrow(axis: 'horiz' | 'vert', dir: 1 | -1): Command {
   return (state, dispatch) => {
@@ -832,6 +847,8 @@ export function tableShiftArrow(axis: 'horiz' | 'vert', dir: 1 | -1): Command {
       if (!(sel instanceof TextSelection) || !sel.empty) return false;
       const $cell = cellAround(sel.$head);
       if (!$cell) return false;
+      const { start, end } = cellContentRange($cell);
+      if (dir === -1 ? sel.$head.pos !== start : sel.$head.pos !== end) return false;
       anchorCell = $cell;
       headCell = $cell;
     }
@@ -868,6 +885,11 @@ export const addColumnAfter = freshUndoStep(addColumnAfterRaw);
 export const deleteRow = freshUndoStep(deleteRowRaw);
 export const deleteColumn = freshUndoStep(deleteColumnRaw);
 export const toggleHeaderRow = freshUndoStep(toggleHeaderRowRaw);
+// Deleting the whole table (the panel's trash button) is a discrete
+// structural edit too — same `freshUndoStep` guarantee as its siblings, so
+// it never merges backward into a just-typed edit within the UndoManager's
+// coalescing window.
+export const deleteTable = freshUndoStep(deleteTableRaw);
 
 /**
  * Tab in the very last cell of a table's last row adds a new row and moves

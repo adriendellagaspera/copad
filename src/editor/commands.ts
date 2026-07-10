@@ -1,6 +1,6 @@
 import { toggleMark, setBlockType } from 'prosemirror-commands';
 import { undo, redo } from 'y-prosemirror';
-import { tableNodeTypes, isInTable, deleteTable } from 'prosemirror-tables';
+import { tableNodeTypes, isInTable } from 'prosemirror-tables';
 import type { MarkType, NodeType, Attrs } from 'prosemirror-model';
 import { TextSelection, type EditorState, type Command } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
@@ -14,6 +14,7 @@ import {
   addColumnAfter,
   deleteRow,
   deleteColumn,
+  deleteTable,
   toggleHeaderRow,
   keepCellTypableAfterHr,
 } from './plugins.js';
