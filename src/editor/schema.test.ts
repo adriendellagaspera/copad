@@ -11,6 +11,17 @@ describe('schema', () => {
     expect(schema.marks.underline).toBeDefined();
   });
 
+  it('every mark is non-inclusive, so typing after a closed mark exits it instead of continuing inside', () => {
+    // prosemirror-schema-basic's strong/em/code default to inclusive: true;
+    // link already ships inclusive: false. Every mark here must match link's
+    // behaviour (CommonMark/Word/Docs/Notion: closing a mark always exits
+    // it) — otherwise typing right after e.g. `**bold**` or `` `code` ``
+    // silently continues inside the mark.
+    for (const name of ['strong', 'em', 'code', 'strike', 'underline', 'link']) {
+      expect(schema.marks[name].spec.inclusive, `${name}.spec.inclusive`).toBe(false);
+    }
+  });
+
   it('has all required nodes', () => {
     expect(schema.nodes.paragraph).toBeDefined();
     expect(schema.nodes.heading).toBeDefined();

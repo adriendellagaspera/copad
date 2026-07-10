@@ -7,17 +7,17 @@ import {
   textblockTypeInputRule,
   InputRule,
 } from 'prosemirror-inputrules';
-import { undo, redo } from 'y-prosemirror';
+import { undo, redo, yUndoPluginKey } from 'y-prosemirror';
 import { findWrapping } from 'prosemirror-transform';
 import {
   goToNextCell,
   columnResizing,
   tableEditing,
-  addRowAfter,
-  deleteRow,
-  addColumnAfter,
-  deleteColumn,
-  toggleHeaderRow,
+  addRowAfter as addRowAfterRaw,
+  deleteRow as deleteRowRaw,
+  addColumnAfter as addColumnAfterRaw,
+  deleteColumn as deleteColumnRaw,
+  toggleHeaderRow as toggleHeaderRowRaw,
   CellSelection,
   cellAround,
   nextCell,
@@ -749,6 +749,33 @@ export function tableShiftArrow(axis: 'horiz' | 'vert', dir: 1 | -1): Command {
     return true;
   };
 }
+
+/**
+ * Wraps a table-structure command so its transaction always starts a fresh
+ * undo step, never silently merging backward into whatever happened just
+ * before it. Undo/redo here goes through Yjs's `UndoManager` (see
+ * `yUndoPlugin` in Editor.svelte), which coalesces consecutive changes
+ * within a short time window (~500ms) the same way it coalesces keystrokes
+ * into word-ish chunks — right for typing, but wrong for a discrete,
+ * repeatable structural edit: mashing "add row" five times quickly and then
+ * undoing once must undo exactly one row, not silently merge five additions
+ * (or five deletions) into a single step. `stopCapturing()` resets that
+ * merge window immediately before the command's own transaction is
+ * captured, so it can never merge with whatever preceded it — a no-op
+ * outside a real collab session (no `yUndoPlugin` installed, e.g. in tests).
+ */
+function freshUndoStep(cmd: Command): Command {
+  return (state, dispatch, view) => {
+    if (dispatch) yUndoPluginKey.getState(state)?.undoManager.stopCapturing();
+    return cmd(state, dispatch, view);
+  };
+}
+
+export const addRowAfter = freshUndoStep(addRowAfterRaw);
+export const addColumnAfter = freshUndoStep(addColumnAfterRaw);
+export const deleteRow = freshUndoStep(deleteRowRaw);
+export const deleteColumn = freshUndoStep(deleteColumnRaw);
+export const toggleHeaderRow = freshUndoStep(toggleHeaderRowRaw);
 
 /**
  * Tab in the very last cell of a table's last row adds a new row and moves

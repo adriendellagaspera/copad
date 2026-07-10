@@ -1,20 +1,21 @@
 import { toggleMark, setBlockType } from 'prosemirror-commands';
 import { undo, redo } from 'y-prosemirror';
-import {
-  tableNodeTypes,
-  isInTable,
-  addRowAfter,
-  addColumnAfter,
-  deleteRow,
-  deleteColumn,
-  deleteTable,
-  toggleHeaderRow,
-} from 'prosemirror-tables';
+import { tableNodeTypes, isInTable, deleteTable } from 'prosemirror-tables';
 import type { MarkType, NodeType, Attrs } from 'prosemirror-model';
 import { TextSelection, type EditorState, type Command } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { schema } from './schema.js';
-import { toggleBlockType, toggleHeading, toggleList, toggleWrap } from './plugins.js';
+import {
+  toggleBlockType,
+  toggleHeading,
+  toggleList,
+  toggleWrap,
+  addRowAfter,
+  addColumnAfter,
+  deleteRow,
+  deleteColumn,
+  toggleHeaderRow,
+} from './plugins.js';
 
 /** Insert a horizontal rule at the selection. A no-op inside a table — a
  *  horizontal rule is a `block`, invalid in a cell's inline content, and

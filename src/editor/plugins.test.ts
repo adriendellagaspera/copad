@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { EditorState, TextSelection } from 'prosemirror-state';
+import { EditorState, TextSelection, Plugin } from 'prosemirror-state';
 import type { Command } from 'prosemirror-state';
 import { tableNodeTypes, CellSelection, selectedRect } from 'prosemirror-tables';
+import { yUndoPluginKey } from 'y-prosemirror';
 import { schema } from './schema.js';
 import {
   markRuleHandler,
@@ -22,6 +23,7 @@ import {
   toggleBlockType,
   checklistRuleHandler,
   horizontalRuleHandler,
+  addRowAfter,
   BOLD_STAR_RULE,
   BOLD_UNDERSCORE_RULE,
   ITALIC_STAR_RULE,
@@ -1084,6 +1086,59 @@ describe('tabAddsRowAtEnd', () => {
     const { handled, dispatched } = runCmd(tab, doc, 1);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
+  });
+});
+
+describe('structural table commands never merge into a prior undo step', () => {
+  /** A state with a stand-in yUndoPlugin registered at the real y-prosemirror
+   *  `yUndoPluginKey` — enough for `getState()` to find it and read a fake
+   *  `undoManager.stopCapturing`, without spinning up a real Y.Doc/sync. */
+  function stateWithFakeUndoManager(
+    doc: ReturnType<typeof schema.node>,
+    pos: number,
+    stopCapturing: () => void
+  ): EditorState {
+    const fakeUndoPlugin = new Plugin({
+      key: yUndoPluginKey,
+      state: {
+        init: () => ({ undoManager: { stopCapturing }, prevSel: null, hasUndoOps: false, hasRedoOps: false }),
+        apply: (_tr, value) => value,
+      },
+    });
+    return EditorState.create({
+      schema,
+      doc,
+      selection: TextSelection.create(doc, pos),
+      plugins: [fakeUndoPlugin],
+    });
+  }
+
+  it('calls stopCapturing on the yUndoPlugin UndoManager before dispatching addRowAfter', () => {
+    let calls = 0;
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const state = stateWithFakeUndoManager(doc, 3, () => { calls += 1; });
+    let dispatched = false;
+    const handled = addRowAfter(state, () => { dispatched = true; });
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(calls).toBe(1);
+  });
+
+  it('does not call stopCapturing on a dry run (no dispatch)', () => {
+    let calls = 0;
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const state = stateWithFakeUndoManager(doc, 3, () => { calls += 1; });
+    const handled = addRowAfter(state, undefined);
+    expect(handled).toBe(true);
+    expect(calls).toBe(0);
+  });
+
+  it('is a safe no-op when no yUndoPlugin is installed (e.g. outside a real collab session)', () => {
+    const doc = schema.node('doc', null, [oneCellTable()]);
+    const state = EditorState.create({ schema, doc, selection: TextSelection.create(doc, 3) });
+    let dispatched = false;
+    expect(() => addRowAfter(state, () => { dispatched = true; })).not.toThrow();
+    expect(dispatched).toBe(true);
   });
 });
 

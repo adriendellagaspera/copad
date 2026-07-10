@@ -59,8 +59,23 @@ const nodes = listNodes
   })
   .append(tableNodes({ tableGroup: 'block', cellContent: 'inline*', cellAttributes: {} }));
 
+// `strong`/`em`/`code` (from prosemirror-schema-basic) default to
+// `inclusive: true` — typing right after a closed mark (e.g. `**bold**`
+// closing, or the toolbar/shortcut toggling a mark off) continues *inside*
+// it, since an inclusive mark's boundary still "belongs" to it for typing
+// purposes (removeStoredMark only ever suppresses the NEXT insertText call
+// through the editor's own API; it can't override how the browser's native
+// contenteditable caret sits relative to an inclusive mark's DOM wrapper,
+// which is what governs raw typed input). `link` already ships with
+// `inclusive: false` — matching CommonMark/Word/Docs/Notion, where closing a
+// mark always exits it — so strike/underline (added here) get it too, and
+// strong/em/code are overridden to match.
 const marks = basicSchema.spec.marks
+  .update('strong', { ...basicSchema.spec.marks.get('strong'), inclusive: false })
+  .update('em', { ...basicSchema.spec.marks.get('em'), inclusive: false })
+  .update('code', { ...basicSchema.spec.marks.get('code'), inclusive: false })
   .addToEnd('strike', {
+    inclusive: false,
     parseDOM: [
       { tag: 's' },
       { tag: 'del' },
@@ -71,6 +86,7 @@ const marks = basicSchema.spec.marks
     },
   })
   .addToEnd('underline', {
+    inclusive: false,
     parseDOM: [{ tag: 'u' }, { style: 'text-decoration=underline' }],
     toDOM() {
       return ['u', 0];
