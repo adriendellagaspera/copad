@@ -15,22 +15,25 @@ import {
   deleteRow,
   deleteColumn,
   toggleHeaderRow,
+  keepCellTypableAfterHr,
 } from './plugins.js';
 
-/** Insert a horizontal rule at the selection. A no-op inside a table — a
- *  horizontal rule is a `block`, invalid in a cell's inline content, and
- *  `replaceSelectionWith` would otherwise split the table itself to fit it
- *  in, corrupting it (the same failure the `---` input rule guards against
- *  in plugins.ts; this is the command reached from the slash menu and the
- *  toolbar divider button, which needs the identical guard `insertTable`
- *  already has). */
+/** Insert a horizontal rule at the selection — including inside a table
+ *  cell, which now holds real block content (see schema.ts): confirmed
+ *  `replaceSelectionWith` splits the enclosing paragraph and inserts the
+ *  rule as a sibling within the cell, leaving the table's own structure
+ *  untouched, exactly as it already does for a plain paragraph outside any
+ *  table. This is the command reached from the slash menu and the toolbar
+ *  divider button — `insertTable`'s own no-nested-table guard is unrelated
+ *  and stays. `keepCellTypableAfterHr` covers the one follow-up fixup a
+ *  cell needs when the rule lands as its last child (see plugins.ts). */
 const insertHorizontalRule: Command = (state, dispatch) => {
   if (!schema.nodes.horizontal_rule) return false;
-  if (isInTable(state)) return false;
   if (dispatch) {
-    dispatch(
-      state.tr.replaceSelectionWith(schema.nodes.horizontal_rule.create()).scrollIntoView()
-    );
+    const { from } = state.selection;
+    const tr = state.tr.replaceSelectionWith(schema.nodes.horizontal_rule.create());
+    keepCellTypableAfterHr(tr, schema, tr.mapping.map(from));
+    dispatch(tr.scrollIntoView());
   }
   return true;
 };
@@ -45,8 +48,13 @@ const insertTable: Command = (state, dispatch) => {
   const types = tableNodeTypes(state.schema);
   if (!types.table || !types.row || !types.cell || !types.header_cell) return false;
   if (dispatch) {
-    const headerCells = Array.from({ length: TABLE_COLS }, () => types.header_cell.create());
-    const bodyCells = Array.from({ length: TABLE_COLS }, () => types.cell.create());
+    // createAndFill (not create) — cells now hold real block content
+    // (`block+`, see schema.ts), so an empty cell needs a default child (an
+    // empty paragraph) to stay schema-valid; a bare `.create()` would (since
+    // it skips content validation) silently produce a structurally invalid,
+    // childless cell with no textblock to land a selection in at all.
+    const headerCells = Array.from({ length: TABLE_COLS }, () => types.header_cell.createAndFill()!);
+    const bodyCells = Array.from({ length: TABLE_COLS }, () => types.cell.createAndFill()!);
     const rows = [types.row.create(null, headerCells)];
     for (let i = 1; i < TABLE_ROWS; i += 1) rows.push(types.row.create(null, bodyCells));
     const table = types.table.create(null, rows);

@@ -354,45 +354,61 @@ export function checklistRuleHandler(s: Schema): RuleHandler {
 }
 
 /**
- * Handles `---`/`___`/`***` closing into a horizontal rule. Every other
- * block-creating rule above (`textblockTypeInputRule`, `wrappingInputRule`)
- * already no-ops harmlessly inside a table cell — verified live — because
- * `setBlockType`/`wrapIn` check whether the target type actually fits at the
- * position before doing anything. This one doesn't have that guard:
- * `replaceRangeWith` just tries to fit a `horizontal_rule` (a `block`,
- * invalid inside a cell's `inline*` content) wherever it can, and
- * ProseMirror's transform machinery obliges by splitting the table itself in
- * two to make room — corrupting it (the split-off piece is missing columns)
- * with no way to rejoin by deleting the rule afterward. Guard explicitly.
+ * If a horizontal rule just landed as the *last* child of a table cell
+ * (confirmed live: this happens whenever a cell's trailing content closes
+ * into an hr — including a cell whose entire content was just the `---`
+ * trigger, leaving the rule as its only child), ProseMirror's own
+ * NodeSelection-around-the-rule lands right at the cell's outer edge —
+ * typing further doesn't insert locally the way it does for an hr *outside*
+ * any table (where it just replaces the selected node); instead it's been
+ * observed to jump to the *next* cell entirely, silently losing whatever
+ * was typed from the cell it visually looks like you're still in. Appending
+ * an empty paragraph after the rule keeps a normal typable position inside
+ * the same cell, the same shape {@link exitTableAtBoundary} used to give an
+ * escape route — except this one never leaves the cell at all. A no-op
+ * outside any table, or when the rule isn't actually the cell's last child
+ * (e.g. `a---b`, which already keeps its own trailing "b" paragraph).
+ */
+export function keepCellTypableAfterHr(tr: Transaction, s: Schema, mappedPos: number): void {
+  const $pos = tr.doc.resolve(mappedPos);
+  const $cell = cellAround($pos);
+  const cellNode = $cell?.nodeAfter;
+  if (!$cell || !cellNode || cellNode.lastChild?.type !== s.nodes.horizontal_rule) return;
+  const para = s.nodes.paragraph.createAndFill();
+  if (!para) return;
+  const insertAt = $cell.pos + 1 + cellNode.content.size;
+  tr.insert(insertAt, para);
+  // Without this, the transaction's own NodeSelection (still wrapping the
+  // rule from before this fresh paragraph existed) is what the caret
+  // inherits — confirmed live that typing against that stale selection
+  // jumps to a different cell entirely rather than landing in the new
+  // paragraph right next to it.
+  tr.setSelection(Selection.near(tr.doc.resolve(insertAt + 1), 1));
+}
+
+/**
+ * Handles `---`/`___`/`***` closing into a horizontal rule. `horizontal_rule`
+ * is a valid sibling wherever ordinary block content is (including inside a
+ * table cell, which now holds real block content — see schema.ts):
+ * `replaceRangeWith` splits the enclosing paragraph in two and inserts the
+ * rule between the halves, exactly as it already does for a plain paragraph
+ * outside any table — confirmed this stays schema-valid and doesn't disturb
+ * the table's own structure (still one row, one cell, same column count).
+ * See {@link keepCellTypableAfterHr} for the one follow-up fixup this needs.
  */
 export function horizontalRuleHandler(s: Schema): RuleHandler {
   return (state, _match, start, end) => {
-    if (cellAround(state.doc.resolve(start))) return null;
-    return state.tr.replaceRangeWith(start, end, s.nodes.horizontal_rule.create());
-  };
-}
-
-/** Swallow Enter inside a table cell instead of letting `baseKeymap`'s
- *  `splitBlock` split the cell itself in two — GFM-shaped cells are
- *  single-line (`cellContent: 'inline*'`, see schema.ts), so there's no
- *  "new paragraph within the cell" to make room for. Only reached once
- *  {@link exitTableAtBoundary} has already ruled out an actual escape. */
-function preventEnterInTableCell(s: Schema): Command {
-  return (state) => {
-    const { parent } = state.selection.$from;
-    return parent.type === s.nodes.table_cell || parent.type === s.nodes.table_header;
+    const tr = state.tr.replaceRangeWith(start, end, s.nodes.horizontal_rule.create());
+    keepCellTypableAfterHr(tr, s, tr.mapping.map(start));
+    return tr;
   };
 }
 
 /**
  * Shift-Enter inserts a hard line break in the current block — the Slack/
  * Docs/Notion convention for "new line, not a new paragraph" — wherever the
- * schema allows one. `hard_break` ships as part of `prosemirror-schema-basic`'s
- * inline group, so it's already valid inside a GFM table cell's `inline*`
- * content (see schema.ts) without any schema change; this is what actually
- * wires it up, as the one schema-safe middle ground between swallowing Enter
- * in a cell entirely and allowing full multi-paragraph cells (which would
- * break lossless GFM round-trip — see the markdown codec's `cellText`).
+ * schema allows one, table cell or not (`hard_break` ships as part of
+ * `prosemirror-schema-basic`'s inline group, valid inside any textblock).
  * Returns `false` in a code block, where Shift-Enter falls through to the
  * browser's native newline-in-`<pre>` handling instead, same as plain Enter
  * already does via `newlineInCode`.
@@ -436,86 +452,38 @@ export const removeTabCharacterBefore: Command = (state, dispatch) => {
 };
 
 /**
- * Enter at the very start of any cell in a table's top row, or the very end
- * of any cell in its bottom row, escapes the table instead of being
- * swallowed like every other Enter inside a cell (see
- * {@link preventEnterInTableCell}) — otherwise a table that opens or closes
- * the document traps the caret with no keyboard way out (cells can't grow a
- * new line to push past it, unlike a paragraph). Keyed off `rowIndex` only
- * (top/bottom), not `cellIndex`, matching {@link tableArrowVertical}'s
- * escape branch — arrowing up from anywhere in the top row already exits
- * above (the Word/Docs/Excel convention), so Enter doing the same only from
- * the literal corner cell would be an inconsistency a keyboard user could
- * easily notice. Moves into whichever block already sits next to the table
- * if there is one, or inserts a fresh paragraph there otherwise — the same
- * "reuse a neighbour, else make one" shape as {@link exitCodeBlock}, just
- * usable in both directions since a table (unlike a code block) can trap
- * the caret from either end.
+ * Backspace at the very start of a table's top row (any column, any block
+ * within the top-left cell) — reaching before the table's `isolating`
+ * boundary (prosemirror-tables' own schema), which is exactly right for
+ * preventing `baseKeymap`'s default `joinBackward` from welding a preceding
+ * paragraph's text into table structure — but also means Backspace there
+ * silently does nothing at all, with no way to reach or remove whatever
+ * sits just above the table without first clicking directly on it. If the
+ * preceding block is empty, delete it outright — the concrete case a user
+ * actually wants Backspace for here (an unwanted blank line pinned directly
+ * above the table, otherwise removable only by precisely clicking that
+ * one-line target). If it has content, move the caret to its end instead of
+ * merging anything — putting the caret exactly "in front of" the table,
+ * from which a second, ordinary Backspace behaves normally. No-op with
+ * nothing before the table at all (matches the default behavior at the
+ * very start of the document). Uses {@link cellAround}/
+ * {@link cellContentRange} rather than a fixed depth offset, since a cell
+ * can now hold several blocks (see schema.ts) — "the very start of the
+ * cell" is the start of its full content span, not just of whichever inner
+ * block the caret happens to be in.
  */
-export function exitTableAtBoundary(s: Schema, dir: 1 | -1): Command {
+export function backspaceAtTableStart(): Command {
   return (state, dispatch) => {
     const { $from, empty } = state.selection;
     if (!empty) return false;
-    const depth = $from.depth;
-    const cell = depth >= 0 ? $from.node(depth) : null;
-    if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
-    if (depth < 2) return false;
-    const table = $from.node(depth - 2);
-    const rowIndex = $from.index(depth - 2);
+    const $cell = cellAround($from);
+    if (!$cell) return false;
+    const { start } = cellContentRange($cell);
+    if ($from.pos !== start) return false;
+    const rowDepth = $cell.depth;
+    if ($cell.index(rowDepth - 1) !== 0) return false;
 
-    if (dir === -1) {
-      if ($from.parentOffset !== 0 || rowIndex !== 0) return false;
-    } else {
-      if ($from.parentOffset !== cell.content.size || rowIndex !== table.childCount - 1) return false;
-    }
-
-    if (dispatch) {
-      const tr = state.tr;
-      const boundary = dir === -1 ? $from.before(depth - 2) : $from.after(depth - 2);
-      const $boundary = tr.doc.resolve(boundary);
-      const hasNeighbour = dir === -1 ? $boundary.nodeBefore : $boundary.nodeAfter;
-      if (!hasNeighbour) {
-        const para = s.nodes.paragraph.createAndFill();
-        if (!para) return false;
-        tr.insert(boundary, para);
-      }
-      const pos = hasNeighbour ? boundary + dir : boundary + 1;
-      tr.setSelection(Selection.near(tr.doc.resolve(pos), dir));
-      dispatch(tr.scrollIntoView());
-    }
-    return true;
-  };
-}
-
-/**
- * Backspace at the very start of any cell in a table's top row — the mirror
- * image of {@link exitTableAtBoundary}'s dir=-1 case, but for Backspace
- * instead of Enter, and (like {@link tableArrowVertical}) not limited to
- * the literal first cell. A table is `isolating` (prosemirror-tables' own
- * schema), which is exactly right for preventing `baseKeymap`'s default
- * `joinBackward` from welding a preceding paragraph's text into table
- * structure — but it also means Backspace there silently does nothing at
- * all, with no way to reach or remove whatever sits just above the table
- * without first clicking directly on it. If the preceding block is empty,
- * delete it outright — the concrete case a user actually wants Backspace
- * for here (an unwanted blank line pinned directly above the table,
- * otherwise removable only by precisely clicking that one-line target). If
- * it has content, move the caret to its end instead of merging anything —
- * putting the caret exactly "in front of" the table, from which a second,
- * ordinary Backspace behaves normally. No-op with nothing before the table
- * at all (matches the default behavior at the very start of the document).
- */
-export function backspaceAtTableStart(s: Schema): Command {
-  return (state, dispatch) => {
-    const { $from, empty } = state.selection;
-    if (!empty || $from.parentOffset !== 0) return false;
-    const depth = $from.depth;
-    const cell = depth >= 0 ? $from.node(depth) : null;
-    if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
-    if (depth < 2) return false;
-    if ($from.index(depth - 2) !== 0) return false;
-
-    const before = $from.before(depth - 2);
+    const before = $cell.before(rowDepth - 1);
     const $before = state.doc.resolve(before);
     const prev = $before.nodeBefore;
     if (!prev) return false;
@@ -534,11 +502,11 @@ export function backspaceAtTableStart(s: Schema): Command {
 }
 
 /**
- * Forward-Delete at the very end of any cell in a table's bottom row — the
- * mirror image of {@link backspaceAtTableStart}, but for Delete instead of
- * Backspace, reaching forward past the table's `isolating` boundary instead
- * of backward. Without this, Delete at the end of the last cell silently
- * does nothing (`baseKeymap`'s default `joinForward` is blocked the same way
+ * Forward-Delete at the very end of a table's bottom row — the mirror image
+ * of {@link backspaceAtTableStart}, but for Delete instead of Backspace,
+ * reaching forward past the table's `isolating` boundary instead of
+ * backward. Without this, Delete at the end of the last cell silently does
+ * nothing (`baseKeymap`'s default `joinForward` is blocked the same way
  * `joinBackward` is), with no way to reach or remove a stray blank paragraph
  * sitting directly after the table short of clicking it directly. If the
  * following block is empty, delete it outright; if it has content, move the
@@ -546,19 +514,19 @@ export function backspaceAtTableStart(s: Schema): Command {
  * exactly "behind" the table, from which a second, ordinary Delete behaves
  * normally. No-op with nothing after the table at all.
  */
-export function deleteAtTableEnd(s: Schema): Command {
+export function deleteAtTableEnd(): Command {
   return (state, dispatch) => {
     const { $from, empty } = state.selection;
     if (!empty) return false;
-    const depth = $from.depth;
-    const cell = depth >= 0 ? $from.node(depth) : null;
-    if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
-    if (depth < 2) return false;
-    if ($from.parentOffset !== cell.content.size) return false;
-    const table = $from.node(depth - 2);
-    if ($from.index(depth - 2) !== table.childCount - 1) return false;
+    const $cell = cellAround($from);
+    if (!$cell) return false;
+    const { end } = cellContentRange($cell);
+    if ($from.pos !== end) return false;
+    const rowDepth = $cell.depth;
+    const table = $cell.node(rowDepth - 1);
+    if ($cell.index(rowDepth - 1) !== table.childCount - 1) return false;
 
-    const after = $from.after(depth - 2);
+    const after = $cell.after(rowDepth - 1);
     const $after = state.doc.resolve(after);
     const next = $after.nodeAfter;
     if (!next) return false;
@@ -630,40 +598,64 @@ function adjacentTableCellPos(table: PMNode, boundary: number, dir: 1 | -1, col:
 }
 
 /**
+ * The full content span of the cell `cellAround` found — from just after
+ * the cell node opens to just before it closes — spanning every nested
+ * block inside it, not just the caret's own immediate textblock. Comparing
+ * a position against `start`/`end` is how {@link tableArrowVertical} and
+ * {@link tableArrowHorizontal} tell "at the true edge of the *cell*" apart
+ * from "at the edge of one paragraph among several in the same cell" now
+ * that cells hold real block content (see schema.ts).
+ */
+function cellContentRange($cell: ResolvedPos): { start: number; end: number } {
+  const node = $cell.nodeAfter;
+  const start = $cell.pos + 1;
+  return { start, end: start + (node ? node.content.size : 0) };
+}
+
+/**
  * ArrowUp/ArrowDown move between cells vertically (same column, row above
- * or below) — prosemirror-tables' own vertical-arrow heuristic
- * (`atEndOfCell`) assumes the library's default `block+` cell content
- * model (cell → paragraph → inline), one depth level deeper than our
- * `cellContent: 'inline*'` cells (see schema.ts, a deliberate GFM-shaped
- * choice: no wrapping paragraph). Its ancestor walk looks for a
- * `cell`/`header_cell` node exactly one level above the caret's textblock,
- * which for our flatter schema is the *row*, not a cell — so the check
- * never resolves, silently falls through to the browser's native Up/Down
- * handling, which (crossing a table's row boundaries) ends up reading as
- * "the same as Left/Right" instead of true vertical movement. Since a
- * cell here is *always* exactly one line — wrapping is impossible — there
- * is no visual-line ambiguity to resolve in the first place; go straight
- * to `nextCell` via `TableMap`. At the table's top/bottom edge, moves into
- * whatever block already sits next to the table (regardless of *which*
- * column, matching Word/Docs/Excel — arrowing up from anywhere in the top
- * row exits above, not just the first cell) — but, unlike
- * {@link exitTableAtBoundary}'s Enter handling, never *creates* one: Enter
- * is inherently an insert gesture, so conjuring a paragraph there is
- * expected, but Arrow keys are pure navigation everywhere else in the
- * editor (arrowing past the start/end of the document just stops) and
- * silently mutating the document on a plain caret move would be exactly
- * the kind of surprise that convention exists to avoid. With nothing to
- * move into, this simply does nothing, same as arrowing at the document's
- * own start/end. Records the column being left in
- * {@link tableGoalColumnKey} whenever it does move, so a later
+ * or below) — but only once the caret has nowhere further to go *within*
+ * the current cell: table cells hold real block content (paragraphs,
+ * lists, headings — see schema.ts), so a cell can now span several lines,
+ * and ArrowDown from its first paragraph must move to its second paragraph
+ * before ever reaching the row below. `cellContentRange` gives the cell's
+ * full content span (every nested block, not just the caret's own
+ * immediate textblock); only a caret sitting exactly at that span's start
+ * (dir -1) or end (dir 1) counts as "at the cell's true edge" — anywhere
+ * else falls through (`return false`) to ordinary vertical caret movement,
+ * which already handles moving between lines/blocks within one cell
+ * correctly (cells are `isolating`, so it can't leak out of the cell by
+ * itself). This intentionally doesn't chase the *visual* last line of a
+ * wrapped paragraph the way prosemirror-tables' own (unexported)
+ * `atEndOfCell` does via `view.endOfTextblock` — a structural check alone
+ * is exactly right for the overwhelmingly common case (single short line,
+ * or the caret literally at the last character) and needs no live
+ * `EditorView` to test; the one narrow gap is a caret on the *bottom*
+ * visual line of a wrapped paragraph but not at its very last character,
+ * which falls through to native handling instead of escaping the cell —
+ * a minor imprecision, not a correctness bug.
+ *
+ * At the table's top/bottom edge, moves into whatever block already sits
+ * next to the table (regardless of *which* column, matching Word/Docs/
+ * Excel — arrowing up from anywhere in the top row exits above, not just
+ * the first cell) — but never *creates* one: Arrow keys are pure
+ * navigation everywhere else in the editor (arrowing past the start/end of
+ * the document just stops) and silently mutating the document on a plain
+ * caret move would be exactly the kind of surprise that convention exists
+ * to avoid. With nothing to move into, this simply does nothing, same as
+ * arrowing at the document's own start/end. Records the column being left
+ * in {@link tableGoalColumnKey} whenever it does move, so a later
  * escape-then-return round trip lands back in the same column.
  */
 export function tableArrowVertical(dir: 1 | -1): Command {
   return (state, dispatch) => {
     const { selection } = state;
     if (!(selection instanceof TextSelection) || !selection.empty) return false;
-    const $cell = cellAround(selection.$head);
+    const $head = selection.$head;
+    const $cell = cellAround($head);
     if (!$cell) return false;
+    const { start, end } = cellContentRange($cell);
+    if (dir === -1 ? $head.pos !== start : $head.pos !== end) return false;
     const table = $cell.node(-1);
     const map = TableMap.get(table);
     const tableStart = $cell.start(-1);
@@ -686,8 +678,7 @@ export function tableArrowVertical(dir: 1 | -1): Command {
     // Nothing to escape into (the table opens/closes the doc): swallow the
     // event rather than return false — falling through would hand the key
     // to prosemirror-tables' own vertical-arrow handler (registered later,
-    // by tableEditing()), which is broken for this schema (see this
-    // function's doc comment) and ends up mimicking horizontal movement
+    // by tableEditing()), which would otherwise mimic horizontal movement
     // instead of doing nothing, the one behavior a boundary arrow-press
     // should have.
     if (!hasNeighbour) return true;
@@ -715,12 +706,15 @@ export function tableArrowVertical(dir: 1 | -1): Command {
  * ArrowLeft/ArrowRight at the table's outer horizontal boundary — the very
  * start of the first cell (top-left), or the very end of the last cell
  * (bottom-right) — escapes instead of leaving the browser's native caret
- * movement to improvise there. Ordinary cell-to-cell movement (anywhere
- * that isn't this literal corner) already works correctly without any help
- * here — cells are flat inline content, so the browser's own native
- * left/right caret traversal already hops from one cell's end into the
- * next's start. Only the outer corners are actually broken: with no
- * further position for the *browser's* native caret to move to, the
+ * movement to improvise there. Ordinary cell-to-cell movement, and ordinary
+ * movement *between blocks within one cell* now that cells hold real block
+ * content (see schema.ts), already work correctly without any help here —
+ * moving from the end of one paragraph to the start of the next is native
+ * document-flow behavior everywhere, table cell or not (cells are
+ * `isolating`, so it can't leak past the cell either way). Only the true
+ * outer corners of the whole cell — `cellContentRange`'s `start`/`end`, not
+ * just the caret's own immediate textblock's edge — are actually broken:
+ * with no further position for the *browser's* native caret to move to, the
  * fallback behaviour (browser- and position-dependent, not anything this
  * app codes) has been observed to either wrap the caret back to the first
  * cell (ArrowRight, no neighbour) or escape the ProseMirror view entirely
@@ -728,8 +722,7 @@ export function tableArrowVertical(dir: 1 | -1): Command {
  * (ArrowRight, WITH a neighbouring paragraph) — both confirmed live. Same
  * shape and same restraint as {@link tableArrowVertical}: moves into an
  * existing neighbouring block if there is one, otherwise swallows the key
- * and does nothing (arrows are pure navigation, never an insert gesture —
- * unlike Enter, see {@link exitTableAtBoundary}).
+ * and does nothing (arrows are pure navigation, never an insert gesture).
  */
 export function tableArrowHorizontal(dir: 1 | -1): Command {
   return (state, dispatch) => {
@@ -738,7 +731,8 @@ export function tableArrowHorizontal(dir: 1 | -1): Command {
     const $head = selection.$head;
     const $cell = cellAround($head);
     if (!$cell) return false;
-    if (dir === -1 ? $head.parentOffset !== 0 : $head.parentOffset !== $head.parent.content.size) return false;
+    const { start, end } = cellContentRange($cell);
+    if (dir === -1 ? $head.pos !== start : $head.pos !== end) return false;
     const table = $cell.node(-1);
     const map = TableMap.get(table);
     const tableStart = $cell.start(-1);
@@ -878,22 +872,23 @@ export const toggleHeaderRow = freshUndoStep(toggleHeaderRowRaw);
  * editor entirely*, undoing the very thing Tab-adds-row exists to prevent
  * (Tab always meaning something inside a table, never an escape hatch).
  */
-export function tabAddsRowAtEnd(s: Schema): Command {
+export function tabAddsRowAtEnd(): Command {
   return (state, dispatch) => {
     const { $from, empty } = state.selection;
     if (!empty) return false;
-    const depth = $from.depth;
-    const cell = depth >= 0 ? $from.node(depth) : null;
-    if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
-    if (depth < 2) return false;
-    const row = $from.node(depth - 1);
-    const table = $from.node(depth - 2);
-    if ($from.index(depth - 1) !== row.childCount - 1 || $from.index(depth - 2) !== table.childCount - 1) {
+    const $cell = cellAround($from);
+    if (!$cell) return false;
+    const { end } = cellContentRange($cell);
+    if ($from.pos !== end) return false;
+    const rowDepth = $cell.depth;
+    const row = $cell.node(rowDepth);
+    const table = $cell.node(rowDepth - 1);
+    if ($cell.index(rowDepth) !== row.childCount - 1 || $cell.index(rowDepth - 1) !== table.childCount - 1) {
       return false;
     }
     if (!row.textContent) return true;
     if (!dispatch) return true;
-    const tablePos = $from.before(depth - 2);
+    const tablePos = $cell.before(rowDepth - 1);
     return addRowAfter(state, (tr) => {
       const grownTable = tr.doc.nodeAt(tablePos);
       if (!grownTable) return;
@@ -955,11 +950,14 @@ export function buildPlugins(s: Schema): Plugin[] {
       // The task_item split passes an explicit `checked: false` for the new
       // item — splitListItem otherwise copies the *original* item's attrs
       // onto both halves, so pressing Enter on a checked item would silently
-      // hand the brand-new row a pre-ticked checkbox.
+      // hand the brand-new row a pre-ticked checkbox. Enter inside a table
+      // cell now falls all the way through to baseKeymap's own splitBlock
+      // (registered separately, later, see below) — cells hold real block
+      // content (schema.ts), so Enter there behaves like ordinary paragraph
+      // splitting everywhere else, matching Notion/Docs (no more swallow-or-
+      // escape special case: Arrow keys already handle leaving the table,
+      // see tableArrowVertical/tableArrowHorizontal above).
       'Enter': chainCommands(
-        exitTableAtBoundary(s, -1),
-        exitTableAtBoundary(s, 1),
-        preventEnterInTableCell(s),
         exitCodeBlockOnBlankLine,
         splitListItem(s.nodes.list_item),
         splitListItem(s.nodes.task_item, { checked: false })
@@ -971,11 +969,11 @@ export function buildPlugins(s: Schema): Plugin[] {
       // Deleting whole rows/columns is a deliberate, separate action reached
       // via Alt-Shift-Backspace / Mod-Alt-Shift-Backspace or the table
       // panel's own buttons, never a bare Backspace over a cell range.
-      'Backspace': chainCommands(backspaceAtTableStart(s), clearEmptyCodeBlockBackward),
-      'Delete': deleteAtTableEnd(s),
+      'Backspace': chainCommands(backspaceAtTableStart(), clearEmptyCodeBlockBackward),
+      'Delete': deleteAtTableEnd(),
       'Tab': chainCommands(
         goToNextCell(1),
-        tabAddsRowAtEnd(s),
+        tabAddsRowAtEnd(),
         sinkListItem(s.nodes.list_item),
         sinkListItem(s.nodes.task_item),
         insertTabCharacter

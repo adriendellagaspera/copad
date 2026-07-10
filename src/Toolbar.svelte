@@ -38,6 +38,31 @@
   const codeblock = $derived(editorState ? isNodeActive(editorState, schema.nodes.code_block)   : false);
   const inTable   = $derived(editorState ? isInTable(editorState) : false);
 
+  // Block-type commands: table cells hold real block content now (see
+  // schema.ts), so most of these apply there too — a blanket "hide all of
+  // this in any table" is no longer right. Each button decides its own
+  // visibility from a dry run of its own command (called with no dispatch,
+  // the standard ProseMirror way to ask "would this apply here?" without
+  // mutating anything) — the same mechanism that already governs whether a
+  // button lights up as *active*, just answering "applicable" instead of
+  // "already on". This also naturally covers other already-existing dead
+  // spots (e.g. inside a code block) with no separate flag needed.
+  // insertTable is the one command that keeps a real, permanent exclusion —
+  // nesting tables isn't supported — but that already lives in the command
+  // itself (isInTable), so its own dry run already reflects it.
+  const canH1        = $derived(editorState ? commands.h1(editorState) : false);
+  const canH2        = $derived(editorState ? commands.h2(editorState) : false);
+  const canH3        = $derived(editorState ? commands.h3(editorState) : false);
+  const canBullet    = $derived(editorState ? commands.bullet(editorState) : false);
+  const canOrdered   = $derived(editorState ? commands.ordered(editorState) : false);
+  const canChecklist = $derived(editorState ? commands.taskList(editorState) : false);
+  const canQuote     = $derived(editorState ? commands.blockquote(editorState) : false);
+  const canCodeblock = $derived(editorState ? commands.codeBlock(editorState) : false);
+  const canDivider   = $derived(editorState ? commands.horizontalRule(editorState) : false);
+  const canInsertTable = $derived(editorState ? commands.insertTable(editorState) : false);
+  const showHeadings = $derived(canH1 || canH2 || canH3);
+  const showBlocks   = $derived(canBullet || canOrdered || canChecklist || canQuote || canCodeblock || canDivider);
+
   const run = (cmd: (typeof commands)[keyof typeof commands]) => () => {
     if (view) runCommand(view, cmd);
   };
@@ -72,25 +97,23 @@
     <button data-active={link}   aria-pressed={link}   onclick={openLink}             title="Link (Mod+K, or [text](url))" aria-label="Link">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M15 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1" /></svg>
     </button>
-    {#if !inTable}
-      <!-- Block-type commands: none of these fit a table cell's inline*-only
-           content (see schema.ts), so clicking one there would silently do
-           nothing. Hidden rather than disabled — contextual like ShortcutBar. -->
+    {#if showHeadings}
       <span class="sep" role="separator"></span>
-      <button data-active={h1} aria-pressed={h1} onclick={run(commands.h1)} title="Heading 1 (Mod+Alt+1, or # + space)">H1</button>
-      <button data-active={h2} aria-pressed={h2} onclick={run(commands.h2)} title="Heading 2 (Mod+Alt+2, or ## + space)">H2</button>
-      <button data-active={h3} aria-pressed={h3} onclick={run(commands.h3)} title="Heading 3 (Mod+Alt+3, or ### + space)">H3</button>
+      {#if canH1}<button data-active={h1} aria-pressed={h1} onclick={run(commands.h1)} title="Heading 1 (Mod+Alt+1, or # + space)">H1</button>{/if}
+      {#if canH2}<button data-active={h2} aria-pressed={h2} onclick={run(commands.h2)} title="Heading 2 (Mod+Alt+2, or ## + space)">H2</button>{/if}
+      {#if canH3}<button data-active={h3} aria-pressed={h3} onclick={run(commands.h3)} title="Heading 3 (Mod+Alt+3, or ### + space)">H3</button>{/if}
+    {/if}
+    {#if showBlocks}
       <span class="sep" role="separator"></span>
-      <button data-active={bullet}    aria-pressed={bullet}    onclick={run(commands.bullet)}         title="Bullet list (Mod+Shift+8, or - + space)">• List</button>
-      <button data-active={ordered}   aria-pressed={ordered}   onclick={run(commands.ordered)}        title="Ordered list (Mod+Shift+7, or 1. + space)">1. List</button>
-      <button data-active={checklist} aria-pressed={checklist} onclick={run(commands.taskList)}       title="Checklist (Mod+Shift+6, or [] + space)" aria-label="Checklist">☑</button>
-      <button data-active={quote}     aria-pressed={quote}     onclick={run(commands.blockquote)}     title="Blockquote (Mod+Shift+9, or > + space)" aria-label="Blockquote">❝</button>
-      <button data-active={codeblock} aria-pressed={codeblock} onclick={run(commands.codeBlock)}      title="Code block (Mod+Alt+C, or ``` )">Code</button>
-      <button onclick={run(commands.horizontalRule)} title="Divider (type ---)" aria-label="Insert divider">―</button>
+      {#if canBullet}<button data-active={bullet} aria-pressed={bullet} onclick={run(commands.bullet)} title="Bullet list (Mod+Shift+8, or - + space)">• List</button>{/if}
+      {#if canOrdered}<button data-active={ordered} aria-pressed={ordered} onclick={run(commands.ordered)} title="Ordered list (Mod+Shift+7, or 1. + space)">1. List</button>{/if}
+      {#if canChecklist}<button data-active={checklist} aria-pressed={checklist} onclick={run(commands.taskList)} title="Checklist (Mod+Shift+6, or [] + space)" aria-label="Checklist">☑</button>{/if}
+      {#if canQuote}<button data-active={quote} aria-pressed={quote} onclick={run(commands.blockquote)} title="Blockquote (Mod+Shift+9, or > + space)" aria-label="Blockquote">❝</button>{/if}
+      {#if canCodeblock}<button data-active={codeblock} aria-pressed={codeblock} onclick={run(commands.codeBlock)} title="Code block (Mod+Alt+C, or ``` )">Code</button>{/if}
+      {#if canDivider}<button onclick={run(commands.horizontalRule)} title="Divider (type ---)" aria-label="Insert divider">―</button>{/if}
+    {/if}
+    {#if canInsertTable}
       <span class="sep" role="separator"></span>
-      <!-- insertTable itself already no-ops inside a table (see commands.ts) —
-           hidden here too since a dead button is exactly what this block
-           exists to avoid. -->
       <button onclick={run(commands.insertTable)} title="Insert 3×3 table" aria-label="Insert table">▦</button>
     {/if}
     {#if inTable && showTableStructure}

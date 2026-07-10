@@ -50,16 +50,23 @@ describe('block commands', () => {
     expect(found).toBe(true);
   });
 
-  it('horizontalRule is a no-op inside a table cell (an hr would corrupt the table)', () => {
+  it('horizontalRule splits the enclosing paragraph inside a table cell, same as outside any table — cells hold real block content now (see schema.ts), and the old guard blocking this was removed once that stopped corrupting the table', () => {
     const types = tableNodeTypes(schema);
-    const cell = types.header_cell.create(null, schema.text('x'));
+    const cell = types.header_cell.create(null, [schema.nodes.paragraph.create(null, schema.text('x'))]);
     const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
     let state = EditorState.create({ schema, doc });
-    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 3))); // inside the cell
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 4))); // inside the cell's paragraph
     let dispatched = false;
-    const handled = commands.horizontalRule(state, () => { dispatched = true; });
-    expect(handled).toBe(false);
-    expect(dispatched).toBe(false);
+    let next: typeof state | null = null;
+    const handled = commands.horizontalRule(state, (tr) => {
+      dispatched = true;
+      next = state.apply(tr);
+    });
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    const table = next!.doc.firstChild!;
+    expect(table.type.name).toBe('table');
+    expect(table.childCount).toBe(1); // still one row, table wasn't corrupted
   });
 
   it('insertTable creates a 3x3 table with a header row', () => {

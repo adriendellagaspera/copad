@@ -9,10 +9,11 @@ const VIEWPORT = { width: 1000, height: 800 };
 const GAP = 8;
 
 function tableDoc(): ReturnType<typeof schema.node> {
-  // cellContent is 'inline*' (see schema.ts) — cells hold inline content
-  // directly, no wrapping paragraph.
-  const cell = (text: string) => schema.node('table_cell', null, schema.text(text));
-  const headerCell = (text: string) => schema.node('table_header', null, schema.text(text));
+  // cellContent is 'block+' (see schema.ts) — cells hold real block content,
+  // so each cell's text lives inside a wrapping paragraph.
+  const para = (text: string) => schema.node('paragraph', null, schema.text(text));
+  const cell = (text: string) => schema.node('table_cell', null, [para(text)]);
+  const headerCell = (text: string) => schema.node('table_header', null, [para(text)]);
   const headerRow = schema.node('table_row', null, [headerCell('A'), headerCell('B')]);
   const bodyRow = schema.node('table_row', null, [cell('1'), cell('2')]);
   const table = schema.node('table', null, [headerRow, bodyRow]);

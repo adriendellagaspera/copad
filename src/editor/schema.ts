@@ -17,9 +17,15 @@ const listNodes = addListNodes(
 // `<ul>` rule when parsing HTML — both would otherwise match equally and
 // bullet_list, registered first, would win.
 //
-// GFM-shaped tables: cells hold inline content only (single line, no
-// multi-paragraph), matching what Markdown tables can actually express —
-// `cellContent: 'inline*'` rather than the library default of `block+`.
+// Table cells hold real block content — paragraphs, lists, headings,
+// quotes, code blocks, dividers — matching Notion/Docs, not the earlier
+// GFM-shaped `inline*` (single line, no nesting). Nested tables are the one
+// thing still excluded: `tableGroup: 'tableBlock'` (a group of its own,
+// distinct from the ordinary `'block'` group `cellContent` draws from) keeps
+// `table` out of what a cell can contain, without touching every other node
+// spec's own `group: 'block'`. `doc`'s top-level content is widened below to
+// admit both groups, since a bare `'block+'` no longer covers tables once
+// they've moved to their own group.
 const nodes = listNodes
   .append({
     task_list: {
@@ -57,7 +63,8 @@ const nodes = listNodes
       },
     },
   })
-  .append(tableNodes({ tableGroup: 'block', cellContent: 'inline*', cellAttributes: {} }));
+  .append(tableNodes({ tableGroup: 'tableBlock', cellContent: 'block+', cellAttributes: {} }))
+  .update('doc', { content: '(block | tableBlock)+' });
 
 // `strong`/`em`/`code` (from prosemirror-schema-basic) default to
 // `inclusive: true` — typing right after a closed mark (e.g. `**bold**`
