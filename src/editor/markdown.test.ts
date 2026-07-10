@@ -64,10 +64,12 @@ describe('docToMarkdown', () => {
   });
 
   it('serializes a table as a GFM pipe table', () => {
-    const { table, table_row, table_cell, table_header } = schema.nodes;
+    const { table, table_row, table_cell, table_header, paragraph } = schema.nodes;
+    const cell = (text: string) => table_cell.create(null, [paragraph.create(null, schema.text(text))]);
+    const header = (text: string) => table_header.create(null, [paragraph.create(null, schema.text(text))]);
     const t = table.create(null, [
-      table_row.create(null, [table_header.create(null, schema.text('A')), table_header.create(null, schema.text('B'))]),
-      table_row.create(null, [table_cell.create(null, schema.text('1')), table_cell.create(null, schema.text('2'))]),
+      table_row.create(null, [header('A'), header('B')]),
+      table_row.create(null, [cell('1'), cell('2')]),
     ]);
     const out = md(t);
     expect(out).toContain('| A | B |');
@@ -76,10 +78,12 @@ describe('docToMarkdown', () => {
   });
 
   it('serializes a hard break inside a table cell as literal <br>, not a real newline', () => {
-    const { table, table_row, table_cell, hard_break } = schema.nodes;
+    const { table, table_row, table_cell, paragraph, hard_break } = schema.nodes;
     const t = table.create(null, [
       table_row.create(null, [
-        table_cell.create(null, [schema.text('one'), hard_break.create(), schema.text('two')]),
+        table_cell.create(null, [
+          paragraph.create(null, [schema.text('one'), hard_break.create(), schema.text('two')]),
+        ]),
       ]),
     ]);
     const out = md(t);

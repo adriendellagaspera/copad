@@ -8,23 +8,33 @@ import { Fragment } from 'prosemirror-model';
 import type { Node as PMNode } from 'prosemirror-model';
 import { schema } from '../editor/schema.js';
 import { taskItemChecked } from '../editor/parse.js';
-import { serializeInline } from '../editor/markdown.js';
 import { writePmDoc, readPmDoc } from './pm.js';
+import { isTableSimple, simpleTableToMarkdownLines } from '../editor/markdown.js';
+import { richTableToHtml, parseHtmlTable } from './tableMarkdown.js';
 import type { Codec } from './types.js';
 import { extensionOf } from './types.js';
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
+const hasDom = (): boolean =>
+  typeof window !== 'undefined' && typeof window.DOMParser !== 'undefined' && typeof document !== 'undefined';
+
 // Reuse the markdown-it engine behind the default parser, but turn on the GFM
 // extras the CommonMark preset ships disabled: strikethrough (`~~…~~`, mapped
 // to our `strike` mark below) and tables (`table`, a built-in markdown-it rule
-// gated by preset — see rules_block/table.mjs).
+// gated by preset — see rules_block/table.mjs). `html: true` recognizes raw
+// HTML *blocks* (a line starting with a known block-level tag, per CommonMark
+// — never inline text that merely contains `<`/`>`, a separate markdown-it
+// rule `html_inline` this leaves off) — needed for `richTableToHtml`'s
+// fallback below, since GFM pipe-table syntax can't express a cell holding a
+// list, heading, or more than one paragraph. See the `html_block` handler
+// further down for what happens to a parsed block.
 const MarkdownItClass = defaultMarkdownParser.tokenizer.constructor as new (
   preset: string,
   options: Record<string, unknown>,
 ) => typeof defaultMarkdownParser.tokenizer;
-const tokenizer = new MarkdownItClass('commonmark', { html: false });
+const tokenizer = new MarkdownItClass('commonmark', { html: true });
 tokenizer.enable(['strikethrough', 'table']);
 
 // GFM tables serialize a cell's hard_break as literal `<br>` (see `cellText`
@@ -47,9 +57,10 @@ const parser = new MarkdownParser(schema, tokenizer, {
   s: { mark: 'strike' },
   // GFM tables. `thead`/`tbody` are pure structural wrappers our schema
   // doesn't model (a `table` node is directly `table_row+`); `th`/`td` map
-  // straight onto cells with inline content (no wrapping paragraph — this is
-  // also what markdown-it hands us: a bare `inline` token per cell, matching
-  // our `cellContent: 'inline*'` schema choice in schema.ts).
+  // onto cells — the actual inline content gets wrapped in a paragraph by
+  // the td_open/th_open/td_close/th_close handlers patched in below, since
+  // `cellContent` is `block+` now (see schema.ts), not the bare inline
+  // content markdown-it hands back for a GFM pipe-table cell.
   table: { block: 'table' },
   thead: { ignore: true },
   tbody: { ignore: true },
@@ -58,17 +69,82 @@ const parser = new MarkdownParser(schema, tokenizer, {
   td: { block: 'table_cell' },
 });
 
+// MarkdownParser's public `tokens` config only supports the declarative
+// {block}/{node}/{mark}/{ignore} shapes (see tokenHandlers in
+// prosemirror-markdown's source) — none of which can open a *nested*
+// paragraph inside a cell, or splice an already-built node (the rich-table
+// case below) into the tree. `tokenHandlers` itself is a plain, public (if
+// undocumented/untyped) property MarkdownParser reads fresh on every
+// `.parse()` call, so patching it after construction is the supported
+// extension point once the declarative shapes run out — not a private/
+// internal hack, just one without its own TS types to import.
+type ParserInternals = {
+  tokenHandlers: Record<string, (state: MarkdownParseState, tok: { content: string }) => void>;
+};
+type MarkdownParseState = {
+  openNode(type: PMNode['type'], attrs?: Record<string, unknown>): void;
+  closeNode(): PMNode | null;
+  addText(text: string): void;
+  push(node: PMNode): void;
+};
+const parserInternals = parser as unknown as ParserInternals;
+
+parserInternals.tokenHandlers['td_open'] = (state) => {
+  state.openNode(schema.nodes.table_cell);
+  state.openNode(schema.nodes.paragraph);
+};
+parserInternals.tokenHandlers['td_close'] = (state) => {
+  state.closeNode(); // paragraph
+  state.closeNode(); // table_cell
+};
+parserInternals.tokenHandlers['th_open'] = (state) => {
+  state.openNode(schema.nodes.table_header);
+  state.openNode(schema.nodes.paragraph);
+};
+parserInternals.tokenHandlers['th_close'] = (state) => {
+  state.closeNode(); // paragraph
+  state.closeNode(); // table_header
+};
+
+// `html: true` above (needed for the rich-table fallback below) also turns
+// on `html_inline` recognition for any inline text that merely looks like a
+// tag (e.g. "a <b> in a sentence") — MarkdownParser has no default handler
+// for it and throws on an unmapped token type, so it needs one explicitly:
+// treated as literal text, the same experience `html: false` gave before
+// (the raw characters, not specially escaped or interpreted). The `<br>`
+// rule above still runs *before* html_inline in the ruler chain, so a real
+// `<br>` continues to become a hard_break, never reaching this handler.
+parserInternals.tokenHandlers['html_inline'] = (state, tok) => {
+  state.addText(tok.content);
+};
+
+// `html_block` — a raw HTML block at block position (see `html: true`
+// above) — is how `richTableToHtml`'s fallback round-trips: if the block's
+// content actually contains a `<table>`, parse it back into a real `table`
+// node (requires a DOM; falls through to the plain-text branch below in a
+// non-browser context, e.g. these codec tests run under plain Node — an
+// honest degrade, not a silent data loss, since the raw markup stays
+// visible as text). Anything else (some unrelated raw HTML the user typed,
+// or a table block encountered with no DOM available) is preserved as a
+// plain paragraph of literal text rather than dropped.
+parserInternals.tokenHandlers['html_block'] = (state, tok) => {
+  if (hasDom()) {
+    const table = parseHtmlTable(tok.content);
+    if (table) {
+      state.push(table);
+      return;
+    }
+  }
+  state.openNode(schema.nodes.paragraph);
+  state.addText(tok.content.replace(/\n+$/, ''));
+  state.closeNode();
+};
+
 // The default serializer covers our basic+list nodes and em/strong/code/link;
 // teach it our `strike` mark to match the parser above, drop `underline`
 // silently (Markdown has no native underline syntax — same as CommonMark
 // itself: the mark just doesn't survive a round-trip through this format),
 // and add checklist + GFM table node serializers.
-/** GFM table cells hold inline content only; reuse the same inline serializer
- *  `docToMarkdown` uses, escaping the one character a table cell can't (`|`). */
-function cellText(node: PMNode): string {
-  return serializeInline(node, '<br>').replace(/\|/g, '\\|').trim();
-}
-
 const serializer = new MarkdownSerializer(
   {
     ...defaultMarkdownSerializer.nodes,
@@ -79,18 +155,14 @@ const serializer = new MarkdownSerializer(
       state.renderContent(node);
     },
     table(state, node) {
-      const rows: string[][] = [];
-      node.forEach((row) => {
-        const cells: string[] = [];
-        row.forEach((cell) => cells.push(cellText(cell)));
-        rows.push(cells);
-      });
-      const colCount = rows[0]?.length ?? 0;
-      const lines = [
-        `| ${(rows[0] ?? []).join(' | ')} |`,
-        `| ${Array(colCount).fill('---').join(' | ')} |`,
-        ...rows.slice(1).map((cells) => `| ${cells.join(' | ')} |`),
-      ];
+      // A table with rich (multi-block) cell content — a list, heading, or
+      // more than one paragraph in some cell — has no GFM pipe-table
+      // equivalent; fall back to an embedded raw HTML block (valid,
+      // lossless Markdown — see `richTableToHtml`'s doc comment). Every
+      // *simple* table (every cell just a single paragraph — true for
+      // every table before cells held real block content, and still the
+      // overwhelmingly common case) keeps the unchanged pipe-table output.
+      const lines = isTableSimple(node) ? simpleTableToMarkdownLines(node) : [richTableToHtml(node)];
       lines.forEach((line) => {
         state.write(line);
         state.ensureNewLine();
