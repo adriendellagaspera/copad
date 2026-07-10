@@ -991,26 +991,46 @@ export function buildPlugins(s: Schema): Plugin[] {
       // which already no-op outside a table, bound straight to the keymap
       // (the same reliability class as Tab/Enter/Arrow here — unlike a
       // DOM-level keydown listener racing a browser/OS-level binding, see
-      // the removed Alt-Enter toolbar shortcut this replaced). Row/column
-      // add share a letter mnemonic (R/C, capitalized rather than written
-      // as an explicit Shift- modifier — prosemirror-keymap matches a
-      // letter binding against the literal character `event.key` produces,
-      // which is already uppercase once Shift is held, so `Alt-Shift-r`
-      // silently never matches; `Alt-R` is the documented way to require
-      // Shift on a letter key); delete reuses Backspace — a layout-
+      // the removed Alt-Enter toolbar shortcut this replaced).
+      //
+      // Row/column add share a letter mnemonic (R/C) written as an
+      // EXPLICIT `Alt-Shift-<lowercase letter>`, not the capitalized
+      // `Alt-R` shorthand it might look equivalent to — the two are NOT
+      // interchangeable. `prosemirror-keymap` (`w3c-keyname`) matches
+      // primarily against the literal character `event.key` produces; for
+      // a single shifted letter it also retries via `event.keyCode`
+      // whenever that differs in case from `event.key` (its own built-in
+      // fallback for exactly this class of platform quirk) — and that
+      // retry always reconstructs the binding as `Shift-Alt-<lowercase>`,
+      // never as `Alt-<UPPERCASE>`. On Windows/Linux this fallback fires
+      // too (browsers report the shifted, uppercase letter in `event.key`
+      // even there) and happens to still resolve either way — but on
+      // macOS, Option+Shift+<letter> can compose into an entirely
+      // unrelated accented/special character in `event.key` depending on
+      // keyboard layout (confirmed live for at least one real combination
+      // this session), at which point `Alt-R` has nothing left to match:
+      // the direct comparison fails against the composed character, and
+      // the fallback path — the only thing that could still save it — only
+      // ever reconstructs the `Shift-Alt-r` shape. Verified directly
+      // against `prosemirror-keymap`'s own `keydownHandler`: `Alt-R` matches
+      // a plain `event.key === 'R'` but not a composed character, while
+      // `Alt-Shift-r` matches both. Delete reuses Backspace — a layout-
       // independent key, unlike Shift-punctuation such as `-`, which
       // produces a different character across keyboard layouts — with Mod
       // toggling which axis, mirroring Tab/Shift-Tab's own "same key, one
-      // modifier changes direction" shape. No bare shortcut for deleting
-      // the whole table: that's a single keystroke destroying much more
-      // than one row, so it stays behind the toolbar panel's own trash-icon
-      // button (a bare Backspace over a cell selection only *clears* content,
-      // matching Word/Docs — see the Backspace binding above).
-      'Alt-R': addRowAfter,
-      'Alt-C': addColumnAfter,
+      // modifier changes direction" shape (Backspace isn't a printable
+      // character, so it isn't subject to any of the above — `Alt-Shift-
+      // Backspace` matches directly on every platform without needing the
+      // fallback at all). No bare shortcut for deleting the whole table:
+      // that's a single keystroke destroying much more than one row, so it
+      // stays behind the toolbar panel's own trash-icon button (a bare
+      // Backspace over a cell selection only *clears* content, matching
+      // Word/Docs — see the Backspace binding above).
+      'Alt-Shift-r': addRowAfter,
+      'Alt-Shift-c': addColumnAfter,
       'Alt-Shift-Backspace': deleteRow,
       'Mod-Alt-Shift-Backspace': deleteColumn,
-      'Alt-H': toggleHeaderRow,
+      'Alt-Shift-h': toggleHeaderRow,
     }),
     keymap(baseKeymap),
     inputRules({

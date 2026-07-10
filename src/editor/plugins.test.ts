@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection, Plugin } from 'prosemirror-state';
-import type { Command } from 'prosemirror-state';
+import type { Command, Transaction } from 'prosemirror-state';
 import { tableNodeTypes, CellSelection, selectedRect } from 'prosemirror-tables';
 import { yUndoPluginKey } from 'y-prosemirror';
 import { baseKeymap, chainCommands } from 'prosemirror-commands';
@@ -37,6 +37,7 @@ import {
   LINK_RULE,
   CHECKLIST_RULE,
   HORIZONTAL_RULE_RULE,
+  buildPlugins,
 } from './plugins.js';
 
 /** A bare 1×1 table (one header cell, no body row) — the smallest doc shape
@@ -1495,5 +1496,78 @@ describe('horizontal rule input rule', () => {
     expect(restoredCell.child(0).type.name).toBe('horizontal_rule');
     expect(restoredCell.child(1).type.name).toBe('paragraph');
     expect(restoredCell.child(1).content.size).toBe(0);
+  });
+});
+
+describe('table-structure keymap survives macOS Option-key character composition', () => {
+  // On macOS, Option(+Shift)+<letter> can compose into an entirely
+  // unrelated accented/special character in `event.key`, depending on
+  // keyboard layout — confirmed live for at least one real combination.
+  // prosemirror-keymap's own event.keyCode-based fallback (see
+  // keydownHandler in prosemirror-keymap) rescues a binding *only* when it
+  // was registered in the `Shift-Alt-<lowercase>` shape (what that
+  // fallback always reconstructs) — never the `Alt-<UPPERCASE>` shorthand,
+  // which relies on `event.key` already being the correctly-cased letter
+  // and has nothing left to fall back on once that's a composed,
+  // unrelated character instead. This regression test simulates that
+  // composition directly against the real keymap `buildPlugins` wires, to
+  // catch a future table-shortcut binding written the fragile way.
+  function findHandleKeyDown(): (view: unknown, event: KeyboardEvent) => boolean {
+    const plugin = buildPlugins(schema).find((p) => p.props.handleKeyDown);
+    if (!plugin?.props.handleKeyDown) throw new Error('no keymap plugin with handleKeyDown found');
+    return plugin.props.handleKeyDown as (view: unknown, event: KeyboardEvent) => boolean;
+  }
+
+  function fakeEvent(init: { key: string; keyCode: number; altKey?: boolean; shiftKey?: boolean; metaKey?: boolean }): KeyboardEvent {
+    return { ...init, altKey: !!init.altKey, shiftKey: !!init.shiftKey, metaKey: !!init.metaKey, ctrlKey: false } as KeyboardEvent;
+  }
+
+  function stateWithOneCellTable(): { view: { state: EditorState; dispatch: (tr: Transaction) => void } } {
+    const types = tableNodeTypes(schema);
+    const cell = types.header_cell.create(null, [schema.nodes.paragraph.create()]);
+    const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
+    let state = EditorState.create({ schema, doc, selection: TextSelection.create(doc, 3) });
+    const view = {
+      get state() { return state; },
+      dispatch(tr: Transaction) { state = state.apply(tr); },
+    };
+    return { view };
+  }
+
+  it('Alt-Shift-r (add row) fires even when event.key is a composed character, keyed off event.keyCode', () => {
+    const handleKeyDown = findHandleKeyDown();
+    const { view } = stateWithOneCellTable();
+    const rowsBefore = view.state.doc.firstChild!.childCount;
+    const handled = handleKeyDown(view, fakeEvent({ key: '‰', keyCode: 82, altKey: true, shiftKey: true }));
+    expect(handled).toBe(true);
+    expect(view.state.doc.firstChild!.childCount).toBe(rowsBefore + 1);
+  });
+
+  it('Alt-Shift-c (add column) fires even when event.key is a composed character', () => {
+    const handleKeyDown = findHandleKeyDown();
+    const { view } = stateWithOneCellTable();
+    const colsBefore = view.state.doc.firstChild!.firstChild!.childCount;
+    const handled = handleKeyDown(view, fakeEvent({ key: 'ç', keyCode: 67, altKey: true, shiftKey: true }));
+    expect(handled).toBe(true);
+    expect(view.state.doc.firstChild!.firstChild!.childCount).toBe(colsBefore + 1);
+  });
+
+  it('Alt-Shift-h (toggle header row) fires even when event.key is a composed character', () => {
+    const handleKeyDown = findHandleKeyDown();
+    const { view } = stateWithOneCellTable();
+    const wasHeader = view.state.doc.firstChild!.firstChild!.firstChild!.type.name === 'table_header';
+    const handled = handleKeyDown(view, fakeEvent({ key: '˙', keyCode: 72, altKey: true, shiftKey: true }));
+    expect(handled).toBe(true);
+    const isHeaderNow = view.state.doc.firstChild!.firstChild!.firstChild!.type.name === 'table_header';
+    expect(isHeaderNow).toBe(!wasHeader);
+  });
+
+  it('still fires normally when event.key correctly reports the shifted letter (Windows/Linux, or macOS with no composition)', () => {
+    const handleKeyDown = findHandleKeyDown();
+    const { view } = stateWithOneCellTable();
+    const rowsBefore = view.state.doc.firstChild!.childCount;
+    const handled = handleKeyDown(view, fakeEvent({ key: 'R', keyCode: 82, altKey: true, shiftKey: true }));
+    expect(handled).toBe(true);
+    expect(view.state.doc.firstChild!.childCount).toBe(rowsBefore + 1);
   });
 });
