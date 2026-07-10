@@ -187,40 +187,44 @@
   // to reach a cell's contextual menu — so they always focus the first
   // button across both panels when either is visible, table caret or not.
   // This is what a keyboard user reaches for once Tab is unavailable (e.g.
-  // inside a table). Alt-Shift-T is a second, app-owned entry point for the
+  // inside a table). Alt-Shift-\ is a second, app-owned entry point for the
   // same action — most Mac laptop keyboards have no dedicated Menu key and
   // remap F-keys to hardware functions (volume, brightness…) behind an Fn
   // lock, so Shift-F10 alone needs Fn+Shift+F10 there, a real irritant.
   //
-  // Alt-Enter was tried here previously for the same reason but turned out
-  // *less* reliable than Shift-F10 in practice — confirmed dead on a real
-  // machine, almost certainly captured by the OS or window manager before
-  // it ever reaches the page (a common WM binding for toggling window
-  // fullscreen) — and was removed rather than kept as a silently-broken
-  // option. Alt-Shift-T avoids that specific collision and, more
-  // importantly, is matched on `e.code` ('KeyT', the physical key) rather
-  // than `e.key` — macOS composes many Option-modified letters into
-  // accented/special characters at the OS level depending on keyboard
-  // layout, which would otherwise risk the exact same silent-failure shape
-  // Alt-Enter had. Direct per-action shortcuts for the table panel's own
-  // commands (Alt-Shift-R/C/Backspace/H, see buildPlugins) remain the most
-  // reliable option of all — plain ProseMirror keymap bindings, never
-  // racing OS/browser chrome — for anyone who wants to skip the panel
-  // entirely.
+  // Two letter-based alternatives were tried here before this one and both
+  // turned out to already mean something else: a plain Alt-Enter was
+  // captured by the OS/window manager before reaching the page (a common WM
+  // binding for toggling fullscreen), and Alt-Shift-T reopens the last
+  // closed browser tab on at least one real setup (confirmed live) — a
+  // browser-level binding this app's keydown listener never even gets a
+  // chance to see. Punctuation instead of a letter sidesteps that whole
+  // class of tab/window mnemonic collisions (T for tab, W for close, N for
+  // new, …), at the cost of being less mnemonic itself. Matched on `e.code`
+  // ('Backslash', the physical key) rather than `e.key` for the same reason
+  // as before — macOS composes many Option-modified characters at the OS
+  // level depending on keyboard layout, which risks the identical silent-
+  // failure shape as the two rejected attempts above. Direct per-action
+  // shortcuts for the table panel's own commands (Alt-Shift-R/C/Backspace/H,
+  // see buildPlugins) remain the most reliable option of all — plain
+  // ProseMirror keymap bindings, never racing OS/browser chrome — for
+  // anyone who wants to skip the panel entirely.
   $effect(() => {
     const v = view;
     if (!v) return;
     const dom = v.dom;
     const onKeydown = (e: KeyboardEvent) => {
-      // Alt-Shift-T ("T" for Table): uses e.code (the physical key, 'KeyT')
-      // rather than e.key — macOS composes Option-modified letters into
+      // Alt-Shift-\: uses e.code (the physical key, 'Backslash') rather
+      // than e.key — macOS composes Option-modified characters into
       // accented/special characters at the OS level for many combinations,
-      // so e.key can silently stop matching a literal 't' depending on
-      // keyboard layout, the same class of failure that sank the earlier
-      // Alt-Enter attempt below. e.code reports the physical key regardless
-      // of what character, if any, the OS composed from it.
+      // the same class of failure that sank the earlier Alt-Enter and
+      // Alt-Shift-T attempts (see the doc comment above). e.code reports
+      // the physical key regardless of what character, if any, the OS
+      // composed from it.
       const isContextMenuKey =
-        e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey) || (e.code === 'KeyT' && e.altKey && e.shiftKey);
+        e.key === 'ContextMenu' ||
+        (e.key === 'F10' && e.shiftKey) ||
+        (e.code === 'Backslash' && e.altKey && e.shiftKey);
       const isTabIntoBubble = e.key === 'Tab' && !e.shiftKey;
       if (!isContextMenuKey && !isTabIntoBubble) return;
       if (!textVisible && !tableVisible) return;
