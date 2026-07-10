@@ -127,6 +127,19 @@
   padding: var(--sp-1) var(--sp-2);
 }
 
+/* The panel's own border is already accent-colored at rest, and the global
+   keyboard-focus ring (base.css) is drawn in that same accent hue at partial
+   opacity — stacked on top of an already-accent-bordered panel, a focused
+   button's ring was nearly invisible, so pressing Shift-F10 (or its
+   Alt-Shift-M alternative) looked like nothing happened even though focus
+   had genuinely moved into the panel. :focus-within thickens the border and
+   adds a visible glow the instant any button inside actually has focus —
+   distinct from the at-rest state, not just a subtler version of it. */
+.table-toolbar .toolbar:focus-within {
+  border-width: 2px;
+  box-shadow: var(--shadow-md), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
 .table-toolbar-label {
   padding: 0 var(--sp-1);
   color: var(--accent);
