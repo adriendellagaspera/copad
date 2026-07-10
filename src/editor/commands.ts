@@ -1,5 +1,4 @@
-import { toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
-import { wrapInList } from 'prosemirror-schema-list';
+import { toggleMark, setBlockType } from 'prosemirror-commands';
 import { undo, redo } from 'y-prosemirror';
 import {
   tableNodeTypes,
@@ -15,7 +14,7 @@ import type { MarkType, NodeType, Attrs } from 'prosemirror-model';
 import { TextSelection, type EditorState, type Command } from 'prosemirror-state';
 import type { EditorView } from 'prosemirror-view';
 import { schema } from './schema.js';
-import { toggleBlockType } from './plugins.js';
+import { toggleBlockType, toggleHeading, toggleList, toggleWrap } from './plugins.js';
 
 /** Insert a horizontal rule at the selection. A no-op inside a table — a
  *  horizontal rule is a `block`, invalid in a cell's inline content, and
@@ -135,7 +134,15 @@ export function isNodeActive(
   attrs?: Attrs
 ): boolean {
   const { $from, to } = state.selection;
-  return to <= $from.end() && $from.parent.hasMarkup(type, attrs);
+  if (to > $from.end($from.depth)) return false;
+  // Walk ancestors, not just the immediate textblock: a list or blockquote
+  // is a *wrapping* node, so `$from.parent` (the inner paragraph) never
+  // matches it — without this, the bullet/ordered/checklist/quote toolbar
+  // buttons could never light up as active.
+  for (let d = $from.depth; d >= 0; d--) {
+    if ($from.node(d).hasMarkup(type, attrs)) return true;
+  }
+  return false;
 }
 
 /** Pre-bound commands used by the Toolbar. */
@@ -145,14 +152,17 @@ export const commands = {
   code: toggleMark(schema.marks.code),
   strike: toggleMark(schema.marks.strike),
   underline: toggleMark(schema.marks.underline),
-  h1: setBlockType(schema.nodes.heading, { level: 1 }),
-  h2: setBlockType(schema.nodes.heading, { level: 2 }),
-  h3: setBlockType(schema.nodes.heading, { level: 3 }),
+  // Toggles (see plugins.ts): re-invoking the active one reverts to a plain
+  // paragraph, so every block button doubles as its own "off" and there's
+  // always a path back to body text.
+  h1: toggleHeading(schema.nodes.heading, schema.nodes.paragraph, 1),
+  h2: toggleHeading(schema.nodes.heading, schema.nodes.paragraph, 2),
+  h3: toggleHeading(schema.nodes.heading, schema.nodes.paragraph, 3),
   paragraph: setBlockType(schema.nodes.paragraph),
-  blockquote: wrapIn(schema.nodes.blockquote),
-  bullet: wrapInList(schema.nodes.bullet_list),
-  ordered: wrapInList(schema.nodes.ordered_list),
-  taskList: wrapInList(schema.nodes.task_list),
+  blockquote: toggleWrap(schema.nodes.blockquote),
+  bullet: toggleList(schema.nodes.bullet_list, schema.nodes.list_item),
+  ordered: toggleList(schema.nodes.ordered_list, schema.nodes.list_item),
+  taskList: toggleList(schema.nodes.task_list, schema.nodes.task_item),
   // A toggle, not a one-way setBlockType: invoking it from inside a code
   // block converts it back to a paragraph — the same command that opens a
   // code block is how you remove one, matching Tiptap's toggleCodeBlock on

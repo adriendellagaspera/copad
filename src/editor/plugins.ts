@@ -1,5 +1,5 @@
 import { keymap } from 'prosemirror-keymap';
-import { baseKeymap, chainCommands, toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
+import { baseKeymap, chainCommands, toggleMark, setBlockType, wrapIn, lift } from 'prosemirror-commands';
 import { splitListItem, liftListItem, sinkListItem, wrapInList } from 'prosemirror-schema-list';
 import {
   inputRules,
@@ -23,7 +23,7 @@ import {
   nextCell,
   TableMap,
 } from 'prosemirror-tables';
-import type { MarkType, Node as PMNode, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
+import type { Attrs, MarkType, Node as PMNode, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
 import { Selection, TextSelection, PluginKey, Plugin } from 'prosemirror-state';
 import type { Command, EditorState, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
@@ -186,6 +186,50 @@ export function toggleBlockType(type: NodeType, paragraph: NodeType): Command {
     const active = to <= $from.end() && $from.parent.hasMarkup(type);
     return (active ? setParagraph : setType)(state, dispatch, view);
   };
+}
+
+/** True when some ancestor of the caret (up to the doc) is a `type` node with
+ *  matching `attrs` — the wrapping-node counterpart to `hasMarkup`, which only
+ *  ever sees the immediate textblock. Used both to light a toolbar button and
+ *  to decide a toggle's direction. */
+function ancestorHasType(state: EditorState, type: NodeType, attrs?: Attrs | null): boolean {
+  const { $from, to } = state.selection;
+  if (to > $from.end($from.depth)) return false;
+  for (let d = $from.depth; d >= 0; d--) {
+    if ($from.node(d).hasMarkup(type, attrs ?? null)) return true;
+  }
+  return false;
+}
+
+/** Heading toggle: turn the line into a heading at `level`, or back to a plain
+ *  paragraph if it already *is* that exact level — so re-pressing Mod-Alt-1 (or
+ *  re-clicking H1) reverts to body text, the Docs/Notion convention. Switching
+ *  between levels still just re-levels (H2 → H1), it only toggles off when the
+ *  level already matches. */
+export function toggleHeading(headingType: NodeType, paragraphType: NodeType, level: number): Command {
+  return (state, dispatch, view) => {
+    const active = ancestorHasType(state, headingType, { level });
+    return (active ? setBlockType(paragraphType) : setBlockType(headingType, { level }))(state, dispatch, view);
+  };
+}
+
+/** List toggle: wrap the block in `listType`, or lift it back out to a plain
+ *  paragraph if it already lives in that list type — so the list shortcut/
+ *  button is a real toggle (Docs/Notion), not a one-way trip. */
+export function toggleList(listType: NodeType, itemType: NodeType): Command {
+  const wrap = wrapInList(listType);
+  const off = liftListItem(itemType);
+  return (state, dispatch, view) =>
+    (ancestorHasType(state, listType) ? off : wrap)(state, dispatch, view);
+}
+
+/** Wrap toggle (blockquote): wrap the block, or lift it out if already wrapped
+ *  — stops the "re-invoke nests another blockquote forever, no way back out"
+ *  trap and gives a keyboard/button path to un-quote. */
+export function toggleWrap(wrapType: NodeType): Command {
+  const wrap = wrapIn(wrapType);
+  return (state, dispatch, view) =>
+    (ancestorHasType(state, wrapType) ? lift : wrap)(state, dispatch, view);
 }
 
 type RuleHandler = (
@@ -777,18 +821,21 @@ export function buildPlugins(s: Schema): Plugin[] {
       },
       // Block-type shortcuts — the Google Docs / Notion convention (Mod-Alt-0
       // is "normal text", Mod-Alt-1..3 the heading levels), so the floating
-      // toolbar is never the only way to reach these while writing.
+      // toolbar is never the only way to reach these while writing. All are
+      // toggles: re-pressing the active one reverts to a plain paragraph, so
+      // there's always a keyboard path back to body text (matches Docs/Notion,
+      // and stops blockquote nesting forever on repeated Mod-Shift-9).
       'Mod-Alt-0': setBlockType(s.nodes.paragraph),
-      'Mod-Alt-1': setBlockType(s.nodes.heading, { level: 1 }),
-      'Mod-Alt-2': setBlockType(s.nodes.heading, { level: 2 }),
-      'Mod-Alt-3': setBlockType(s.nodes.heading, { level: 3 }),
+      'Mod-Alt-1': toggleHeading(s.nodes.heading, s.nodes.paragraph, 1),
+      'Mod-Alt-2': toggleHeading(s.nodes.heading, s.nodes.paragraph, 2),
+      'Mod-Alt-3': toggleHeading(s.nodes.heading, s.nodes.paragraph, 3),
       'Mod-Alt-c': toggleBlockType(s.nodes.code_block, s.nodes.paragraph),
       // 6 slots in next to 7/8/9 (ordered/bullet/quote) for the one other
       // list-shaped block type — checklist.
-      'Mod-Shift-6': wrapInList(s.nodes.task_list),
-      'Mod-Shift-7': wrapInList(s.nodes.ordered_list),
-      'Mod-Shift-8': wrapInList(s.nodes.bullet_list),
-      'Mod-Shift-9': wrapIn(s.nodes.blockquote),
+      'Mod-Shift-6': toggleList(s.nodes.task_list, s.nodes.task_item),
+      'Mod-Shift-7': toggleList(s.nodes.ordered_list, s.nodes.list_item),
+      'Mod-Shift-8': toggleList(s.nodes.bullet_list, s.nodes.list_item),
+      'Mod-Shift-9': toggleWrap(s.nodes.blockquote),
       'Mod-z': undo,
       'Mod-y': redo,
       'Mod-Shift-z': redo,

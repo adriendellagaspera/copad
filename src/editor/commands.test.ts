@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { tableNodeTypes } from 'prosemirror-tables';
 import { schema } from './schema.js';
-import { commands, runCommand, activeInputMarks, isInTable, activeBlockLabel, activeBlockContext } from './commands.js';
+import { commands, runCommand, activeInputMarks, isInTable, isNodeActive, activeBlockLabel, activeBlockContext } from './commands.js';
 
 function paragraphState(text = 'hi'): EditorState {
   const para = text ? schema.node('paragraph', null, schema.text(text)) : schema.node('paragraph');
@@ -107,6 +107,42 @@ describe('block commands', () => {
     const state = withTable.apply(withTable.tr.setSelection(TextSelection.create(withTable.doc, cellPos)));
     const next = apply(state, commands.addRowAfter);
     expect(next.doc.firstChild?.childCount).toBe(4);
+  });
+
+  it('h1 toggles back to a paragraph when the block is already a level-1 heading', () => {
+    const asH1 = apply(paragraphState('title'), commands.h1);
+    expect(asH1.doc.firstChild?.type.name).toBe('heading');
+    const back = apply(asH1, commands.h1);
+    expect(back.doc.firstChild?.type.name).toBe('paragraph');
+    expect(back.doc.firstChild?.textContent).toBe('title');
+  });
+
+  it('bullet toggles the block back to a paragraph when it is already a bullet list', () => {
+    const asList = apply(paragraphState('item'), commands.bullet);
+    expect(asList.doc.firstChild?.type.name).toBe('bullet_list');
+    const back = apply(asList, commands.bullet);
+    expect(back.doc.firstChild?.type.name).toBe('paragraph');
+    expect(back.doc.firstChild?.textContent).toBe('item');
+  });
+
+  it('blockquote lifts back out instead of nesting a second blockquote on re-invoke', () => {
+    const quoted = apply(paragraphState('q'), commands.blockquote);
+    expect(quoted.doc.firstChild?.type.name).toBe('blockquote');
+    const back = apply(quoted, commands.blockquote);
+    // Lifted out — not a blockquote-in-a-blockquote (the old infinite-nest bug).
+    expect(back.doc.firstChild?.type.name).toBe('paragraph');
+    expect(back.doc.firstChild?.textContent).toBe('q');
+  });
+
+  it('isNodeActive detects a wrapping list/blockquote ancestor, not just the immediate textblock', () => {
+    const asList = apply(paragraphState('x'), commands.bullet);
+    expect(isNodeActive(asList, schema.nodes.bullet_list)).toBe(true);
+    expect(isNodeActive(asList, schema.nodes.ordered_list)).toBe(false);
+    const quoted = apply(paragraphState('y'), commands.blockquote);
+    expect(isNodeActive(quoted, schema.nodes.blockquote)).toBe(true);
+    const h2 = apply(paragraphState('z'), commands.h2);
+    expect(isNodeActive(h2, schema.nodes.heading, { level: 2 })).toBe(true);
+    expect(isNodeActive(h2, schema.nodes.heading, { level: 1 })).toBe(false);
   });
 
   it('runCommand executes against a view-like object without throwing', () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { schema } from './schema.js';
-import { normalizeHref, isValidHref, setLink, currentLinkHref, removeLink } from './linkCommands.js';
+import { normalizeHref, isValidHref, setLink, currentLinkHref, removeLink, linkAround } from './linkCommands.js';
 
 function stateWith(text: string): EditorState {
   const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text(text))]);
@@ -82,5 +82,25 @@ describe('link commands', () => {
     state = selectAll(state);
     removeLink(state, (tr) => (state = state.apply(tr)));
     expect(currentLinkHref(state)).toBeNull();
+  });
+});
+
+describe('linkAround (whole-link range from a bare caret mid-link)', () => {
+  it('returns the full link span + href from a caret resting in the MIDDLE of the link (not just its trailing edge)', () => {
+    // "hello" linked; place a collapsed caret between "he" and "llo" (pos 3).
+    let state = selectAll(stateWith('hello'));
+    setLink('example.com')(state, (tr) => (state = state.apply(tr)));
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 3)));
+    const found = linkAround(state);
+    expect(found).not.toBeNull();
+    expect(found!.href).toBe('https://example.com');
+    // The whole "hello" run: from 1 to 6, not the zero-width caret at 3.
+    expect(found!.from).toBe(1);
+    expect(found!.to).toBe(6);
+  });
+
+  it('returns null for a caret that is not on any link', () => {
+    const state = stateWith('plain text');
+    expect(linkAround(state)).toBeNull();
   });
 });
