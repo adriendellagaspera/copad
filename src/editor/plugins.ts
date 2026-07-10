@@ -19,7 +19,6 @@ import {
   deleteColumn,
   toggleHeaderRow,
   CellSelection,
-  deleteTable,
   cellAround,
   nextCell,
   TableMap,
@@ -238,7 +237,15 @@ export function linkRuleHandler(markType: MarkType): RuleHandler {
     const matchEnd = matchStart + whole.length;
     tr.delete(matchStart, matchEnd);
     tr.insertText(text, matchStart);
-    tr.addMark(matchStart, matchStart + text.length, markType.create({ href }));
+    const textEnd = matchStart + text.length;
+    tr.addMark(matchStart, textEnd, markType.create({ href }));
+    // Park the caret explicitly right after the link text. Without this the
+    // mapped selection biases *past* the insertion, which lands it in the
+    // next cell when the rule fires inside a table (the cell boundary sits
+    // one position beyond the text) — silently scattering further typing
+    // into the wrong cell. An explicit in-cell caret keeps it put, in a
+    // table or a paragraph alike.
+    tr.setSelection(TextSelection.create(tr.doc, textEnd));
     tr.removeStoredMark(markType);
     return tr;
   };
@@ -493,39 +500,6 @@ export function deleteAtTableEnd(s: Schema): Command {
     return true;
   };
 }
-
-/**
- * Backspace or Delete with a `CellSelection` that spans one or more *entire*
- * rows, one or more entire columns, or the entire table, deletes exactly
- * that — the confirmed convention in both Word and Google Docs: selecting
- * whole rows/columns (dragging down a row's left margin, or across a
- * column's top edge) or the whole table (its move-handle/four-arrow icon)
- * and pressing Backspace or Delete removes them outright, while selecting
- * only *some* cells within a row/column clears just their content — which
- * prosemirror-tables' own default `deleteSelection` handling already does
- * correctly and this leaves untouched. Requires an actual `CellSelection`,
- * not just a bare collapsed caret: a 1×1 table's only cell technically
- * "covers its whole row and column" by dimension alone, but a single
- * keystroke with nothing selected must never destroy a table (same
- * restraint as {@link backspaceAtTableStart}).
- *
- * `isRowSelection`/`isColSelection` (prosemirror-tables) are true whenever
- * the selection spans the full width/height respectively — one row, several
- * rows, or (when both are true at once) every row *and* every column, i.e.
- * the whole table. `deleteRow`/`deleteColumn` already remove every row/
- * column the selection's rect covers (not just a single one) and already
- * refuse (returning `false`) when that would empty the table in that axis —
- * so the whole-table case has to be checked first and routed to
- * `deleteTable` instead, or it would hit that refusal and silently no-op.
- */
-export const deleteTableSelection: Command = (state, dispatch) => {
-  const sel = state.selection;
-  if (!(sel instanceof CellSelection)) return false;
-  if (sel.isRowSelection() && sel.isColSelection()) return deleteTable(state, dispatch);
-  if (sel.isRowSelection()) return deleteRow(state, dispatch);
-  if (sel.isColSelection()) return deleteColumn(state, dispatch);
-  return false;
-};
 
 /**
  * Remembers which table column a vertical Arrow move last left from, so
@@ -838,8 +812,14 @@ export function buildPlugins(s: Schema): Plugin[] {
         splitListItem(s.nodes.task_item, { checked: false })
       ),
       'Shift-Enter': insertHardBreak,
-      'Backspace': chainCommands(deleteTableSelection, backspaceAtTableStart(s), clearEmptyCodeBlockBackward),
-      'Delete': chainCommands(deleteTableSelection, deleteAtTableEnd(s)),
+      // A CellSelection + Backspace/Delete falls through to baseKeymap's
+      // `deleteSelection`, which clears the selected cells' *content* and
+      // leaves the table structure intact — the Word/Docs/Notion convention.
+      // Deleting whole rows/columns is a deliberate, separate action reached
+      // via Alt-Shift-Backspace / Mod-Alt-Shift-Backspace or the table
+      // panel's own buttons, never a bare Backspace over a cell range.
+      'Backspace': chainCommands(backspaceAtTableStart(s), clearEmptyCodeBlockBackward),
+      'Delete': deleteAtTableEnd(s),
       'Tab': chainCommands(
         goToNextCell(1),
         tabAddsRowAtEnd(s),
@@ -870,9 +850,9 @@ export function buildPlugins(s: Schema): Plugin[] {
       // toggling which axis, mirroring Tab/Shift-Tab's own "same key, one
       // modifier changes direction" shape. No bare shortcut for deleting
       // the whole table: that's a single keystroke destroying much more
-      // than one row, so it stays behind the deliberate "select every cell
-      // first" gesture (deleteTableSelection) or the toolbar's own
-      // trash-icon button.
+      // than one row, so it stays behind the toolbar panel's own trash-icon
+      // button (a bare Backspace over a cell selection only *clears* content,
+      // matching Word/Docs — see the Backspace binding above).
       'Alt-R': addRowAfter,
       'Alt-C': addColumnAfter,
       'Alt-Shift-Backspace': deleteRow,

@@ -13,7 +13,6 @@ import {
   exitTableAtBoundary,
   backspaceAtTableStart,
   deleteAtTableEnd,
-  deleteTableSelection,
   tableArrowVertical,
   tableShiftArrow,
   tableGoalColumnKey,
@@ -130,6 +129,14 @@ describe('link input rule', () => {
   it('normalizes a bare host into an https:// link', () => {
     const next = run('[site](example.com)', LINK_RULE, linkRuleHandler(schema.marks.link));
     expect(next?.doc.firstChild?.firstChild?.marks[0]?.attrs.href).toBe('https://example.com');
+  });
+
+  it('parks the caret right after the inserted link text (not beyond it) — an unset selection biases past the insertion and, inside a table, lands in the NEXT cell', () => {
+    const next = run('[hi](https://example.com)', LINK_RULE, linkRuleHandler(schema.marks.link));
+    // "hi" occupies positions 1..3; the caret must sit at 3, immediately after
+    // the link text, so subsequent typing continues in the same block/cell.
+    expect(next?.selection.from).toBe(3);
+    expect(next?.selection.empty).toBe(true);
   });
 
   it('rejects an invalid href and leaves the text untouched', () => {
@@ -772,150 +779,6 @@ describe('deleteAtTableEnd (forward-Delete mirror of backspaceAtTableStart)', ()
   it('returns false outside a table entirely', () => {
     const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
     const { handled, dispatched } = runCmd(del, doc, 2);
-    expect(handled).toBe(false);
-    expect(dispatched).toBe(false);
-  });
-});
-
-describe('deleteTableSelection', () => {
-  function twoByTwoTable() {
-    const types = tableNodeTypes(schema);
-    return types.table.create(null, [
-      types.row.create(null, [types.header_cell.create(null, schema.text('a')), types.header_cell.create(null, schema.text('b'))]),
-      types.row.create(null, [types.cell.create(null, schema.text('c')), types.cell.create(null, schema.text('d'))]),
-    ]);
-  }
-
-  // CellSelection.create wants the position of the cell *node itself*
-  // (row-level, just before the cell opens) — not a position inside its
-  // content — so `.node(-1)` from the resolved pos is the table.
-  function firstAndLastCellPos(doc: ReturnType<typeof schema.node>): { first: number; last: number } {
-    let first = -1;
-    let last = -1;
-    doc.descendants((node, pos) => {
-      if (node.type === schema.nodes.table_cell || node.type === schema.nodes.table_header) {
-        if (first === -1) first = pos;
-        last = pos;
-      }
-    });
-    return { first, last };
-  }
-
-  /** The node position (not content position — see firstAndLastCellPos) of
-   *  the cell whose text is exactly `text`. */
-  function cellNodePos(doc: ReturnType<typeof schema.node>, text: string): number {
-    let pos = -1;
-    doc.descendants((node, nodePos) => {
-      if ((node.type === schema.nodes.table_cell || node.type === schema.nodes.table_header) && node.textContent === text) {
-        pos = nodePos;
-      }
-    });
-    if (pos === -1) throw new Error(`cell "${text}" not found`);
-    return pos;
-  }
-
-
-  it('deletes the whole table when a CellSelection covers every cell', () => {
-    const doc = schema.node('doc', null, [twoByTwoTable()]);
-    const { first, last } = firstAndLastCellPos(doc);
-    let state = EditorState.create({ schema, doc });
-    state = state.apply(state.tr.setSelection(CellSelection.create(doc, first, last)));
-
-    let dispatched = false;
-    let next: ReturnType<typeof state.apply> | null = null;
-    const handled = deleteTableSelection(state, (tr) => {
-      dispatched = true;
-      next = state.apply(tr);
-    });
-    expect(handled).toBe(true);
-    expect(dispatched).toBe(true);
-    // The table itself is gone; ProseMirror backfills an empty paragraph
-    // since `doc`'s content model requires at least one block.
-    expect(next!.doc.childCount).toBe(1);
-    expect(next!.doc.firstChild?.type.name).toBe('paragraph');
-  });
-
-  it('leaves the table (and clears nothing itself) when the CellSelection covers only some cells', () => {
-    const doc = schema.node('doc', null, [twoByTwoTable()]);
-    const { first } = firstAndLastCellPos(doc);
-    let state = EditorState.create({ schema, doc });
-    // Anchor and head both the first cell — a single-cell CellSelection, not the whole table.
-    state = state.apply(state.tr.setSelection(CellSelection.create(doc, first, first)));
-
-    let dispatched = false;
-    const handled = deleteTableSelection(state, () => {
-      dispatched = true;
-    });
-    expect(handled).toBe(false);
-    expect(dispatched).toBe(false);
-  });
-
-  it('returns false for a plain collapsed caret in a 1×1 table (dimensions alone are not enough)', () => {
-    const doc = schema.node('doc', null, [oneCellTable()]);
-    const { handled, dispatched } = runCmd(deleteTableSelection, doc, 3);
-    expect(handled).toBe(false);
-    expect(dispatched).toBe(false);
-  });
-
-  it('deletes just that row when a CellSelection spans every column of one row', () => {
-    const doc = schema.node('doc', null, [twoByTwoTable()]);
-    const c = cellNodePos(doc, 'c');
-    const d = cellNodePos(doc, 'd');
-    let state = EditorState.create({ schema, doc });
-    state = state.apply(state.tr.setSelection(CellSelection.create(doc, c, d)));
-
-    let dispatched = false;
-    let next: ReturnType<typeof state.apply> | null = null;
-    const handled = deleteTableSelection(state, (tr) => {
-      dispatched = true;
-      next = state.apply(tr);
-    });
-    expect(handled).toBe(true);
-    expect(dispatched).toBe(true);
-    // The table survives with just the header row (a, b) left.
-    const table = next!.doc.firstChild!;
-    expect(table.type.name).toBe('table');
-    expect(table.childCount).toBe(1);
-    expect(table.textContent).toBe('ab');
-  });
-
-  it('deletes just that column when a CellSelection spans every row of one column', () => {
-    const doc = schema.node('doc', null, [twoByTwoTable()]);
-    const b = cellNodePos(doc, 'b');
-    const d = cellNodePos(doc, 'd');
-    let state = EditorState.create({ schema, doc });
-    state = state.apply(state.tr.setSelection(CellSelection.create(doc, b, d)));
-
-    let dispatched = false;
-    let next: ReturnType<typeof state.apply> | null = null;
-    const handled = deleteTableSelection(state, (tr) => {
-      dispatched = true;
-      next = state.apply(tr);
-    });
-    expect(handled).toBe(true);
-    expect(dispatched).toBe(true);
-    const table = next!.doc.firstChild!;
-    expect(table.type.name).toBe('table');
-    expect(table.child(0).childCount).toBe(1);
-    expect(table.child(1).childCount).toBe(1);
-    expect(table.textContent).toBe('ac');
-  });
-
-  it('leaves the cells untouched when only some (not all) cells of a row are selected — not a full row span', () => {
-    // A 3-row table: selecting 2 of row 2's 3 cells (A2, B2) spans neither
-    // the full width (not a row selection) nor the full height (only one of
-    // three rows) — unlike a single-row table, where isColSelection() would
-    // trivially be true for any selection since there's only one row to span.
-    const doc = schema.node('doc', null, [threeByThreeTable()]);
-    const a2 = cellNodePos(doc, 'A2');
-    const b2 = cellNodePos(doc, 'B2');
-    let state = EditorState.create({ schema, doc });
-    state = state.apply(state.tr.setSelection(CellSelection.create(doc, a2, b2)));
-
-    let dispatched = false;
-    const handled = deleteTableSelection(state, () => {
-      dispatched = true;
-    });
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });

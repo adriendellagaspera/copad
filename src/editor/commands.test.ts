@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
+import { tableNodeTypes } from 'prosemirror-tables';
 import { schema } from './schema.js';
 import { commands, runCommand, activeInputMarks, isInTable, activeBlockLabel, activeBlockContext } from './commands.js';
 
@@ -47,6 +48,18 @@ describe('block commands', () => {
       if (n.type.name === 'horizontal_rule') found = true;
     });
     expect(found).toBe(true);
+  });
+
+  it('horizontalRule is a no-op inside a table cell (an hr would corrupt the table)', () => {
+    const types = tableNodeTypes(schema);
+    const cell = types.header_cell.create(null, schema.text('x'));
+    const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
+    let state = EditorState.create({ schema, doc });
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 3))); // inside the cell
+    let dispatched = false;
+    const handled = commands.horizontalRule(state, () => { dispatched = true; });
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
   });
 
   it('insertTable creates a 3x3 table with a header row', () => {

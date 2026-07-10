@@ -17,9 +17,16 @@ import type { EditorView } from 'prosemirror-view';
 import { schema } from './schema.js';
 import { toggleBlockType } from './plugins.js';
 
-/** Insert a horizontal rule at the selection. */
+/** Insert a horizontal rule at the selection. A no-op inside a table — a
+ *  horizontal rule is a `block`, invalid in a cell's inline content, and
+ *  `replaceSelectionWith` would otherwise split the table itself to fit it
+ *  in, corrupting it (the same failure the `---` input rule guards against
+ *  in plugins.ts; this is the command reached from the slash menu and the
+ *  toolbar divider button, which needs the identical guard `insertTable`
+ *  already has). */
 const insertHorizontalRule: Command = (state, dispatch) => {
   if (!schema.nodes.horizontal_rule) return false;
+  if (isInTable(state)) return false;
   if (dispatch) {
     dispatch(
       state.tr.replaceSelectionWith(schema.nodes.horizontal_rule.create()).scrollIntoView()
