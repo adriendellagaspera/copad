@@ -15,6 +15,7 @@ import {
   backspaceAtTableStart,
   deleteAtTableEnd,
   tableArrowVertical,
+  tableArrowHorizontal,
   tableShiftArrow,
   tableGoalColumnKey,
   tableGoalColumnPlugin,
@@ -902,6 +903,68 @@ describe('tableArrowVertical', () => {
     expect(dispatched).toBe(true);
     // Must land in the second table's column-1 cell (Y1), not silently reset to column 0 (X1).
     expect(next!.selection.$from.parent.textContent).toBe('Y1');
+  });
+});
+
+describe('tableArrowHorizontal', () => {
+  const left = tableArrowHorizontal(-1);
+  const right = tableArrowHorizontal(1);
+
+  it('returns false in the middle of a row — ordinary cell-to-cell movement is left to native caret handling', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    // End of B2's content ("B2"), a non-boundary cell — not the table's outer corner.
+    const { handled, dispatched } = runCmd(right, doc, cellContentPos(doc, 'B2') + 2);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('returns false when not at the end/start of the cell\'s own content, even in a corner cell', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    // Middle of C3's content (the bottom-right corner cell), not yet at its end.
+    const { handled, dispatched } = runCmd(right, doc, cellContentPos(doc, 'C3') + 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
+  });
+
+  it('ArrowRight swallows the key at the end of the last cell when the table closes the doc — no neighbour to escape into, and never wraps back to the first cell', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(right, doc, cellContentPos(doc, 'C3') + 2);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(false);
+    expect(next).toBeNull();
+  });
+
+  it('ArrowLeft swallows the key at the start of the first cell when the table opens the doc', () => {
+    const doc = schema.node('doc', null, [threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(left, doc, cellContentPos(doc, 'A1'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(false);
+    expect(next).toBeNull();
+  });
+
+  it('ArrowRight at the end of the last cell escapes into an existing paragraph after the table', () => {
+    const after = schema.node('paragraph', null, schema.text('after'));
+    const doc = schema.node('doc', null, [threeByThreeTable(), after]);
+    const { handled, dispatched, next } = runCmd(right, doc, cellContentPos(doc, 'C3') + 2);
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.selection.$from.parent.textContent).toBe('after');
+  });
+
+  it('ArrowLeft at the start of the first cell escapes into an existing paragraph before the table', () => {
+    const before = schema.node('paragraph', null, schema.text('before'));
+    const doc = schema.node('doc', null, [before, threeByThreeTable()]);
+    const { handled, dispatched, next } = runCmd(left, doc, cellContentPos(doc, 'A1'));
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    expect(next!.selection.$from.parent.textContent).toBe('before');
+  });
+
+  it('returns false outside a table entirely', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('x'))]);
+    const { handled, dispatched } = runCmd(right, doc, 1);
+    expect(handled).toBe(false);
+    expect(dispatched).toBe(false);
   });
 });
 

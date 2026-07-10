@@ -681,6 +681,52 @@ export function tableArrowVertical(dir: 1 | -1): Command {
 }
 
 /**
+ * ArrowLeft/ArrowRight at the table's outer horizontal boundary — the very
+ * start of the first cell (top-left), or the very end of the last cell
+ * (bottom-right) — escapes instead of leaving the browser's native caret
+ * movement to improvise there. Ordinary cell-to-cell movement (anywhere
+ * that isn't this literal corner) already works correctly without any help
+ * here — cells are flat inline content, so the browser's own native
+ * left/right caret traversal already hops from one cell's end into the
+ * next's start. Only the outer corners are actually broken: with no
+ * further position for the *browser's* native caret to move to, the
+ * fallback behaviour (browser- and position-dependent, not anything this
+ * app codes) has been observed to either wrap the caret back to the first
+ * cell (ArrowRight, no neighbour) or escape the ProseMirror view entirely
+ * onto unrelated page chrome, silently swallowing the next keystroke
+ * (ArrowRight, WITH a neighbouring paragraph) — both confirmed live. Same
+ * shape and same restraint as {@link tableArrowVertical}: moves into an
+ * existing neighbouring block if there is one, otherwise swallows the key
+ * and does nothing (arrows are pure navigation, never an insert gesture —
+ * unlike Enter, see {@link exitTableAtBoundary}).
+ */
+export function tableArrowHorizontal(dir: 1 | -1): Command {
+  return (state, dispatch) => {
+    const { selection } = state;
+    if (!(selection instanceof TextSelection) || !selection.empty) return false;
+    const $head = selection.$head;
+    const $cell = cellAround($head);
+    if (!$cell) return false;
+    if (dir === -1 ? $head.parentOffset !== 0 : $head.parentOffset !== $head.parent.content.size) return false;
+    const table = $cell.node(-1);
+    const map = TableMap.get(table);
+    const tableStart = $cell.start(-1);
+    const rect = map.findCell($cell.pos - tableStart);
+    const atOuterCorner = dir === -1 ? rect.left === 0 && rect.top === 0 : rect.right === map.width && rect.bottom === map.height;
+    if (!atOuterCorner) return false;
+
+    const boundary = dir === -1 ? $cell.before(-1) : $cell.after(-1);
+    const $boundary = state.doc.resolve(boundary);
+    const hasNeighbour = dir === -1 ? $boundary.nodeBefore : $boundary.nodeAfter;
+    if (!hasNeighbour) return true; // swallow — nothing to move into, same restraint as tableArrowVertical
+    if (dispatch) {
+      dispatch(state.tr.setSelection(Selection.near(state.doc.resolve(boundary + dir), dir)).scrollIntoView());
+    }
+    return true;
+  };
+}
+
+/**
  * ArrowUp/ArrowDown from a plain textblock directly adjacent to a table —
  * the counterpart to {@link tableArrowVertical}'s escape branch, entering
  * the table instead of leaving it. Without this, entering is left to the
@@ -869,6 +915,8 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Escape': escapeCodeBlock,
       'ArrowUp': chainCommands(tableArrowVertical(-1), tableArrowFromOutside(-1)),
       'ArrowDown': chainCommands(exitCodeBlockDown, tableArrowVertical(1), tableArrowFromOutside(1)),
+      'ArrowLeft': tableArrowHorizontal(-1),
+      'ArrowRight': tableArrowHorizontal(1),
       'Shift-ArrowUp': tableShiftArrow('vert', -1),
       'Shift-ArrowDown': tableShiftArrow('vert', 1),
       'Shift-ArrowLeft': tableShiftArrow('horiz', -1),
