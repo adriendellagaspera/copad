@@ -34,6 +34,23 @@ export function filterItems(query: string): SlashItem[] {
 }
 
 /**
+ * Items matching `query` that can also actually *run* at the current
+ * selection. A command that declines here — most importantly "Table" inside
+ * an existing table, where nesting is disallowed — is dropped, so the menu
+ * never offers a choice that would delete the "/query" trigger and then insert
+ * nothing (which reads as the menu silently glitching). Applicability is the
+ * command's own no-dispatch dry run, the standard ProseMirror "would this
+ * apply?" probe — the same mechanism the toolbar uses to hide inapplicable
+ * buttons. (This also hides "Text" while already in a plain paragraph, where
+ * converting a paragraph to a paragraph is a no-op — harmless, since there's
+ * nothing to convert.) Both the keyboard handler and the menu component use
+ * this so mouse and keyboard selection stay in lockstep.
+ */
+export function menuItems(state: EditorState, query: string): SlashItem[] {
+  return filterItems(query).filter((it) => it.command(state, undefined));
+}
+
+/**
  * Transaction metadata for the slash menu plugin.
  * - `dismiss` closes the menu and suppresses it for the current trigger position.
  * - `index` moves keyboard focus to the given list index.
@@ -133,7 +150,7 @@ export function slashMenuPlugin(): Plugin<SlashState> {
       handleKeyDown(view, event) {
         const st = slashKey.getState(view.state);
         if (!st?.active) return false;
-        const items = filterItems(st.query);
+        const items = menuItems(view.state, st.query);
         if (event.key === 'Escape') {
           dismissSlash(view);
           return true;
