@@ -71,7 +71,9 @@ describe('block commands', () => {
 
   it('insertTable creates a 3x3 table with a header row', () => {
     const next = apply(paragraphState(''), commands.insertTable);
-    const table = next.doc.firstChild;
+    // child(0) is the leading escape-hatch paragraph added since the table
+    // would otherwise be the doc's sole node — see the dedicated test below.
+    const table = next.doc.child(1);
     expect(table?.type.name).toBe('table');
     expect(table?.childCount).toBe(3);
     expect(table?.firstChild?.firstChild?.type.name).toBe('table_header');
@@ -87,6 +89,28 @@ describe('block commands', () => {
     expect($from.node(3).type.name).toBe('table_header');
     expect($from.index(2)).toBe(0); // first cell of the first row
     expect($from.index(1)).toBe(0); // first row of the table
+  });
+
+  it('insertTable on a doc with only an empty paragraph adds an empty paragraph on BOTH sides, so the table is never the doc\'s sole node — otherwise ArrowUp/ArrowDown at the table\'s edge has nothing to escape into and swallows the key (see tableArrowVertical), trapping the caret', () => {
+    const next = apply(paragraphState(''), commands.insertTable);
+    expect(next.doc.childCount).toBe(3);
+    expect(next.doc.child(0).type.name).toBe('paragraph');
+    expect(next.doc.child(1).type.name).toBe('table');
+    expect(next.doc.child(2).type.name).toBe('paragraph');
+  });
+
+  it('insertTable does not add a spare paragraph on a side that already has a neighbouring block', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const empty = schema.node('paragraph');
+    const doc = schema.node('doc', null, [before, empty, after]);
+    let state = EditorState.create({ schema, doc });
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, before.nodeSize + 1)));
+    const next = apply(state, commands.insertTable);
+    expect(next.doc.childCount).toBe(3);
+    expect(next.doc.child(0).textContent).toBe('above');
+    expect(next.doc.child(1).type.name).toBe('table');
+    expect(next.doc.child(2).textContent).toBe('below');
   });
 
   it('insertTable is a no-op inside an existing table', () => {
@@ -113,7 +137,7 @@ describe('block commands', () => {
     });
     const state = withTable.apply(withTable.tr.setSelection(TextSelection.create(withTable.doc, cellPos)));
     const next = apply(state, commands.addRowAfter);
-    expect(next.doc.firstChild?.childCount).toBe(4);
+    expect(next.doc.child(1).childCount).toBe(4);
   });
 
   it('h1 toggles back to a paragraph when the block is already a level-1 heading', () => {

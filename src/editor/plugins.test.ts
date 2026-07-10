@@ -555,8 +555,9 @@ describe('Enter inside a table cell (real block content, no more table-escape sp
     const types = tableNodeTypes(schema);
     const cell = types.header_cell.create(null, [schema.nodes.paragraph.create(null, schema.text('hello'))]);
     const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
-    // Split between "hel" and "lo".
-    const pos = cellContentPos(doc, 'hello') + 1 + 3;
+    // Split between "hel" and "lo". cellContentPos already resolves to the
+    // real start of the paragraph's text (see its doc comment).
+    const pos = cellContentPos(doc, 'hello') + 3;
     const { handled, dispatched, next } = runCmd(enterCommand, doc, pos);
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
@@ -575,7 +576,7 @@ describe('Enter inside a table cell (real block content, no more table-escape sp
     const types = tableNodeTypes(schema);
     const cell = types.header_cell.create(null, [schema.nodes.paragraph.create(null, schema.text('hello'))]);
     const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
-    const pos = cellContentPos(doc, 'hello') + 1; // real start of the paragraph's text
+    const pos = cellContentPos(doc, 'hello'); // real start of the paragraph's text
     const { handled, dispatched, next } = runCmd(enterCommand, doc, pos);
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
@@ -596,7 +597,10 @@ describe('backspaceAtTableStart', () => {
   it('deletes an empty paragraph directly above the table', () => {
     const empty = schema.node('paragraph');
     const doc = schema.node('doc', null, [empty, oneCellTable()]);
-    const cellStart = empty.nodeSize + 3; // end of the empty paragraph, then into table/row/cell
+    // End of the empty paragraph, then into table/row/cell — snapped to the
+    // real reachable position inside the cell's own (empty) paragraph, same
+    // as cellContentRange/cellContentPos (see their doc comments).
+    const cellStart = TextSelection.near(doc.resolve(empty.nodeSize + 3), 1).from;
     const { handled, dispatched, next } = runCmd(bs, doc, cellStart);
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
@@ -607,7 +611,7 @@ describe('backspaceAtTableStart', () => {
   it('moves the caret to the end of a non-empty paragraph above the table, without deleting or merging it', () => {
     const before = schema.node('paragraph', null, schema.text('above'));
     const doc = schema.node('doc', null, [before, oneCellTable()]);
-    const cellStart = before.nodeSize + 3;
+    const cellStart = TextSelection.near(doc.resolve(before.nodeSize + 3), 1).from;
     const { handled, dispatched, next } = runCmd(bs, doc, cellStart);
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
@@ -632,9 +636,10 @@ describe('backspaceAtTableStart', () => {
       empty,
       tableNodeTypes(schema).table.create(null, [tableNodeTypes(schema).row.create(null, [cell])]),
     ]);
-    // Between "a" and "b" — cellContentPos's own "+2" lands one character
-    // into the cell's (single-paragraph) text, not at its true start.
-    const midCellPos = cellContentPos(doc, 'ab') + 2;
+    // Between "a" and "b" — cellContentPos already resolves to the real
+    // start of the cell's text, so "+1" lands one character in, not at
+    // the true start.
+    const midCellPos = cellContentPos(doc, 'ab') + 1;
     const { handled, dispatched } = runCmd(bs, doc, midCellPos);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
@@ -707,8 +712,9 @@ describe('deleteAtTableEnd (forward-Delete mirror of backspaceAtTableStart)', ()
       tableNodeTypes(schema).table.create(null, [tableNodeTypes(schema).row.create(null, [cell])]),
       after,
     ]);
-    // Between "a" and "b", not the cell's true content end.
-    const midCellPos = cellContentPos(doc, 'ab') + 2;
+    // Between "a" and "b", not the cell's true content end. cellContentPos
+    // already resolves to the real start of the text (before "a").
+    const midCellPos = cellContentPos(doc, 'ab') + 1;
     const { handled, dispatched } = runCmd(del, doc, midCellPos);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
@@ -766,17 +772,14 @@ function threeByThreeTable() {
   return types.table.create(null, [headerRow, row2, row3]);
 }
 
-/** The position right after the cell's own node opens (before its wrapping
- *  paragraph), for the cell whose text is exactly `label` — matches
- *  {@link cellContentRange}'s (plugins.ts) `start`: the *cell's* structural
- *  edge, not the inner paragraph's own content start. This is deliberately
- *  NOT "where the caret visually sits after Home" once cells wrap their text
- *  in a paragraph (that position is one further in, at the start of the
- *  paragraph) — `tableArrowVertical`/`tableArrowHorizontal`/
- *  `backspaceAtTableStart`/`deleteAtTableEnd`/`tabAddsRowAtEnd` all key off
- *  `cellContentRange`'s outer span, so tests target that exact span to
- *  exercise the real branch instead of coincidentally short-circuiting one
- *  position off from it. */
+/** The position where a real caret actually rests at the start of a cell's
+ *  content, for the cell whose text is exactly `label` — matches
+ *  {@link cellContentRange}'s (plugins.ts) `start`. That's one depth level
+ *  *inside* the cell's wrapping paragraph (`TextSelection.near` from the
+ *  cell's own structural edge, biased forward), not the cell's raw
+ *  structural edge itself: a real DOM caret can never rest at a non-inline
+ *  position (see `cellContentRange`'s doc comment — this is exactly the bug
+ *  that let a fresh table trap the caret with no ArrowUp/ArrowDown escape). */
 function cellContentPos(doc: ReturnType<typeof schema.node>, label: string): number {
   let pos = -1;
   doc.descendants((node, nodePos) => {
@@ -785,14 +788,15 @@ function cellContentPos(doc: ReturnType<typeof schema.node>, label: string): num
     }
   });
   if (pos === -1) throw new Error(`cell "${label}" not found`);
-  return pos;
+  return TextSelection.near(doc.resolve(pos), 1).from;
 }
 
 /** Mirror of {@link cellContentPos} for the *end* of a cell's content span —
- *  matches {@link cellContentRange}'s `end` (right before the cell node
- *  closes, after every block it holds). Computed by walking the actual cell
- *  node's `content.size` rather than a hardcoded text-length offset, so it
- *  stays correct regardless of how many characters/blocks the cell holds. */
+ *  matches {@link cellContentRange}'s `end`: the real caret-reachable
+ *  position (`TextSelection.near`, biased backward) rather than the cell's
+ *  raw structural edge. Computed by walking the actual cell node's
+ *  `content.size` rather than a hardcoded text-length offset, so it stays
+ *  correct regardless of how many characters/blocks the cell holds. */
 function cellContentEnd(doc: ReturnType<typeof schema.node>, label: string): number {
   let pos = -1;
   doc.descendants((node, nodePos) => {
@@ -801,7 +805,7 @@ function cellContentEnd(doc: ReturnType<typeof schema.node>, label: string): num
     }
   });
   if (pos === -1) throw new Error(`cell "${label}" not found`);
-  return pos;
+  return TextSelection.near(doc.resolve(pos), -1).from;
 }
 
 describe('tableArrowVertical', () => {
@@ -922,7 +926,7 @@ describe('tableArrowVertical', () => {
     ]);
     let endOfTwo = -1;
     doc.descendants((node, pos) => {
-      if (node.isText && node.text === 'two') endOfTwo = pos + node.nodeSize + 1; // +1: past the paragraph's own closing tag, matching cellContentRange.end
+      if (node.isText && node.text === 'two') endOfTwo = pos + node.nodeSize; // real reachable end: right after "two", matching cellContentRange.end
     });
     const { handled, dispatched, next } = runCmd(down, doc, endOfTwo);
     expect(handled).toBe(true);
@@ -945,8 +949,9 @@ describe('tableArrowHorizontal', () => {
 
   it('returns false when not at the end/start of the cell\'s own content, even in a corner cell', () => {
     const doc = schema.node('doc', null, [threeByThreeTable()]);
-    // Between "C" and "3" of C3's content (the bottom-right corner cell), not yet at its end.
-    const { handled, dispatched } = runCmd(right, doc, cellContentPos(doc, 'C3') + 2);
+    // Between "C" and "3" of C3's content (the bottom-right corner cell), not
+    // yet at its end. cellContentPos already resolves to the real start.
+    const { handled, dispatched } = runCmd(right, doc, cellContentPos(doc, 'C3') + 1);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });
@@ -1014,7 +1019,7 @@ describe('tableArrowHorizontal', () => {
     const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])]), after]);
     let endOfTwo = -1;
     doc.descendants((node, pos) => {
-      if (node.isText && node.text === 'two') endOfTwo = pos + node.nodeSize + 1; // +1: past the paragraph's own closing tag, matching cellContentRange.end
+      if (node.isText && node.text === 'two') endOfTwo = pos + node.nodeSize; // real reachable end: right after "two", matching cellContentRange.end
     });
     const { handled, dispatched, next } = runCmd(right, doc, endOfTwo);
     expect(handled).toBe(true);
@@ -1121,10 +1126,13 @@ describe('tableShiftArrow', () => {
   it('extends an existing CellSelection further in the given axis rather than restarting it', () => {
     const cmd = tableShiftArrow('vert', 1);
     const doc = schema.node('doc', null, [threeByThreeTable()]);
+    // CellSelection.create wants a position pointing AT the cell itself
+    // (resolve(pos).nodeAfter === the cell) — one depth level shallower than
+    // cellContentPos's real-caret-position, hence "- 2" here rather than "- 1".
     const anchorPos = cellContentPos(doc, 'B1');
     const headPos = cellContentPos(doc, 'B2');
     let state = EditorState.create({ schema, doc });
-    state = state.apply(state.tr.setSelection(CellSelection.create(doc, anchorPos - 1, headPos - 1)));
+    state = state.apply(state.tr.setSelection(CellSelection.create(doc, anchorPos - 2, headPos - 2)));
 
     let next: EditorState | null = null;
     const handled = cmd(state, (tr) => {
@@ -1280,7 +1288,7 @@ describe('insertHardBreak', () => {
     const types = tableNodeTypes(schema);
     const cell = types.header_cell.create(null, [schema.nodes.paragraph.create(null, schema.text('ab'))]);
     const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
-    const { handled, dispatched, next } = runCmd(insertHardBreak, doc, cellContentPos(doc, 'ab') + 2); // between "a" and "b"
+    const { handled, dispatched, next } = runCmd(insertHardBreak, doc, cellContentPos(doc, 'ab') + 1); // between "a" and "b"
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
     const restoredParagraph = next!.doc.firstChild?.firstChild?.firstChild?.firstChild;

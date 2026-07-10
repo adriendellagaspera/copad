@@ -73,6 +73,25 @@ const insertTable: Command = (state, dispatch) => {
       if (tablePos === -1 && node.type === types.table) tablePos = pos;
     });
     if (tablePos !== -1) {
+      const paragraphType = state.schema.nodes.paragraph;
+      if (paragraphType) {
+        const tableSize = tr.doc.nodeAt(tablePos)!.nodeSize;
+        // A table landing as the doc's very first or very last node leaves
+        // no neighbouring block for ArrowUp/ArrowDown to escape into (see
+        // tableArrowVertical's "nothing to escape into" branch, which then
+        // swallows the key rather than doing something worse) — exactly
+        // what replaceSelectionWith produces when the table replaces a
+        // doc's sole (empty) paragraph, trapping the caret inside the table
+        // with no way out. Guarantee an escape hatch on whichever side is
+        // missing, same as a doc is never allowed to start/end mid-table.
+        if (tablePos === 0) {
+          tr.insert(0, paragraphType.create());
+          tablePos += paragraphType.create().nodeSize;
+        }
+        if (tablePos + tableSize === tr.doc.content.size) {
+          tr.insert(tablePos + tableSize, paragraphType.create());
+        }
+      }
       // +1 into the table, +1 into the first row, +1 into the first cell.
       tr.setSelection(TextSelection.near(tr.doc.resolve(tablePos + 3)));
     }

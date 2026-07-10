@@ -605,11 +605,32 @@ function adjacentTableCellPos(table: PMNode, boundary: number, dir: 1 | -1, col:
  * {@link tableArrowHorizontal} tell "at the true edge of the *cell*" apart
  * from "at the edge of one paragraph among several in the same cell" now
  * that cells hold real block content (see schema.ts).
+ *
+ * The raw arithmetic boundary (cell-depth, right before/after the cell's
+ * first/last child opens/closes) is one depth level too shallow whenever
+ * that child is an *empty* textblock — exactly a freshly-inserted table's
+ * cells (see `insertTable` in commands.ts), before anyone has typed a
+ * character. A caret can never actually rest at that cell-depth position;
+ * clicking (or `Selection.near`) resolves one level deeper, *inside* the
+ * empty paragraph, which is a different integer position — so the naive
+ * comparison silently never matched on a fresh table (confirmed live:
+ * ArrowUp/ArrowDown at the boundary fell through to the browser's own
+ * unreliable native handling instead of escaping, trapping the caret with
+ * no way out top or bottom). Passing each raw boundary through
+ * `TextSelection.near` snaps it to wherever a caret would actually land —
+ * the same depth-correct resolution `Selection.near` already does for
+ * every other position in this file — so the comparison always matches
+ * the real resting position, however many (or few) levels deep the cell's
+ * first/last child happens to be.
  */
 function cellContentRange($cell: ResolvedPos): { start: number; end: number } {
   const node = $cell.nodeAfter;
-  const start = $cell.pos + 1;
-  return { start, end: start + (node ? node.content.size : 0) };
+  const rawStart = $cell.pos + 1;
+  const rawEnd = rawStart + (node ? node.content.size : 0);
+  const doc = $cell.doc;
+  const start = TextSelection.near(doc.resolve(rawStart), 1).from;
+  const end = TextSelection.near(doc.resolve(rawEnd), -1).from;
+  return { start, end };
 }
 
 /**
