@@ -31,6 +31,15 @@ describe('editorShortcuts', () => {
     const commands = editorShortcuts(OS.Apple).find((s) => s.label === 'Commands');
     expect(commands?.keys).toEqual(['/']);
   });
+
+  it('omits the Alt-Shift-\\ Toolbar hint on Apple (the \\ key is inaccessible there)', () => {
+    const labels = editorShortcuts(OS.Apple).map((s) => s.label);
+    expect(labels).not.toContain('Toolbar');
+    // and no shortcut on Apple should advertise the backslash cap
+    expect(editorShortcuts(OS.Apple).some((s) => s.keys.includes('\\' as never))).toBe(false);
+    // but it's still shown elsewhere
+    expect(editorShortcuts(OS.Other).map((s) => s.label)).toContain('Toolbar');
+  });
 });
 
 describe('tableShortcuts', () => {
@@ -50,6 +59,14 @@ describe('tableShortcuts', () => {
     const deleteColumn = tableShortcuts(OS.Apple).find((s) => s.label === 'Delete column');
     expect(deleteColumn?.keys[0]).toBe('⌘');
     expect(tableShortcuts(OS.Other).find((s) => s.label === 'Delete column')?.keys[0]).toBe('Ctrl');
+  });
+
+  it('omits the Table toolbar entry-point hint on Apple, keeps the per-command shortcuts', () => {
+    const labels = tableShortcuts(OS.Apple).map((s) => s.label);
+    expect(labels).not.toContain('Table toolbar');
+    // the letter-key table commands (whose keys ARE on a Mac keyboard) stay
+    expect(labels).toEqual(['Next cell', 'Add row', 'Delete row', 'Add column', 'Delete column', 'Toggle header']);
+    expect(tableShortcuts(OS.Apple).some((s) => s.keys.includes('\\' as never))).toBe(false);
   });
 });
 
