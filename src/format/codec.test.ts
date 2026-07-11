@@ -176,13 +176,44 @@ describe('markdown codec', () => {
     const restored = readPmDoc(dst);
     const cell = restored.firstChild?.child(1).firstChild;
     expect(cell?.type.name).toBe('table_cell');
-    expect(cell?.childCount).toBe(3); // "one", hard_break, "two"
-    expect(cell?.child(1).type.name).toBe('hard_break');
+    const para = cell?.firstChild;
+    expect(para?.type.name).toBe('paragraph');
+    expect(para?.childCount).toBe(3); // "one", hard_break, "two"
+    expect(para?.child(1).type.name).toBe('hard_break');
     expect(cell?.textContent).toBe('onetwo'); // hard_break itself carries no text
 
     const bytes = await markdownCodec.encode(dst);
     const md = new TextDecoder().decode(bytes);
     expect(md).toContain('one<br>two');
+  });
+
+  it('degrades a rich table\'s embedded HTML block to literal visible text — never throws — when parsed with no DOM available (this file runs under plain Node, not a browser)', async () => {
+    const dst = new Y.Doc();
+    await markdownCodec.decode(
+      new TextEncoder().encode('before\n\n<table><tbody><tr><td><ul><li>x</li></ul></td></tr></tbody></table>\n\nafter\n'),
+      dst
+    );
+    const restored = readPmDoc(dst);
+    expect(restored.textContent).toContain('before');
+    expect(restored.textContent).toContain('after');
+    // No DOM to parse it as a real table with — the raw markup survives as
+    // plain text instead of being silently dropped.
+    expect(restored.textContent).toContain('<table>');
+  });
+
+  it('encodes a rich table (list in a cell) as a degraded pipe-table row — never throws — when no DOM is available to build the HTML fallback', async () => {
+    const { table, table_row, table_cell, paragraph, bullet_list, list_item } = schema.nodes;
+    const item = list_item.create(null, [paragraph.create(null, schema.text('x'))]);
+    const richCell = table_cell.create(null, [bullet_list.create(null, [item])]);
+    const plainCell = table_cell.create(null, [paragraph.create(null, schema.text('plain'))]);
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [table.create(null, [table_row.create(null, [richCell, plainCell])])])
+    );
+    const bytes = await markdownCodec.encode(doc);
+    const md = new TextDecoder().decode(bytes);
+    expect(md).toContain('| x | plain |');
   });
 });
 

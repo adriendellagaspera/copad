@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
+import { tableNodeTypes } from 'prosemirror-tables';
 import { schema } from './schema.js';
-import { commands, runCommand, activeInputMarks, isInTable, activeBlockLabel, activeBlockContext } from './commands.js';
+import { commands, runCommand, activeInputMarks, isInTable, isNodeActive, activeBlockLabel, activeBlockContext } from './commands.js';
 
 function paragraphState(text = 'hi'): EditorState {
   const para = text ? schema.node('paragraph', null, schema.text(text)) : schema.node('paragraph');
@@ -49,9 +50,30 @@ describe('block commands', () => {
     expect(found).toBe(true);
   });
 
+  it('horizontalRule splits the enclosing paragraph inside a table cell, same as outside any table — cells hold real block content now (see schema.ts), and the old guard blocking this was removed once that stopped corrupting the table', () => {
+    const types = tableNodeTypes(schema);
+    const cell = types.header_cell.create(null, [schema.nodes.paragraph.create(null, schema.text('x'))]);
+    const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
+    let state = EditorState.create({ schema, doc });
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 4))); // inside the cell's paragraph
+    let dispatched = false;
+    let next: typeof state | null = null;
+    const handled = commands.horizontalRule(state, (tr) => {
+      dispatched = true;
+      next = state.apply(tr);
+    });
+    expect(handled).toBe(true);
+    expect(dispatched).toBe(true);
+    const table = next!.doc.firstChild!;
+    expect(table.type.name).toBe('table');
+    expect(table.childCount).toBe(1); // still one row, table wasn't corrupted
+  });
+
   it('insertTable creates a 3x3 table with a header row', () => {
     const next = apply(paragraphState(''), commands.insertTable);
-    const table = next.doc.firstChild;
+    // child(0) is the leading escape-hatch paragraph added since the table
+    // would otherwise be the doc's sole node — see the dedicated test below.
+    const table = next.doc.child(1);
     expect(table?.type.name).toBe('table');
     expect(table?.childCount).toBe(3);
     expect(table?.firstChild?.firstChild?.type.name).toBe('table_header');
@@ -67,6 +89,28 @@ describe('block commands', () => {
     expect($from.node(3).type.name).toBe('table_header');
     expect($from.index(2)).toBe(0); // first cell of the first row
     expect($from.index(1)).toBe(0); // first row of the table
+  });
+
+  it('insertTable on a doc with only an empty paragraph adds an empty paragraph on BOTH sides, so the table is never the doc\'s sole node — otherwise ArrowUp/ArrowDown at the table\'s edge has nothing to escape into and swallows the key (see tableArrowVertical), trapping the caret', () => {
+    const next = apply(paragraphState(''), commands.insertTable);
+    expect(next.doc.childCount).toBe(3);
+    expect(next.doc.child(0).type.name).toBe('paragraph');
+    expect(next.doc.child(1).type.name).toBe('table');
+    expect(next.doc.child(2).type.name).toBe('paragraph');
+  });
+
+  it('insertTable does not add a spare paragraph on a side that already has a neighbouring block', () => {
+    const before = schema.node('paragraph', null, schema.text('above'));
+    const after = schema.node('paragraph', null, schema.text('below'));
+    const empty = schema.node('paragraph');
+    const doc = schema.node('doc', null, [before, empty, after]);
+    let state = EditorState.create({ schema, doc });
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, before.nodeSize + 1)));
+    const next = apply(state, commands.insertTable);
+    expect(next.doc.childCount).toBe(3);
+    expect(next.doc.child(0).textContent).toBe('above');
+    expect(next.doc.child(1).type.name).toBe('table');
+    expect(next.doc.child(2).textContent).toBe('below');
   });
 
   it('insertTable is a no-op inside an existing table', () => {
@@ -93,7 +137,43 @@ describe('block commands', () => {
     });
     const state = withTable.apply(withTable.tr.setSelection(TextSelection.create(withTable.doc, cellPos)));
     const next = apply(state, commands.addRowAfter);
-    expect(next.doc.firstChild?.childCount).toBe(4);
+    expect(next.doc.child(1).childCount).toBe(4);
+  });
+
+  it('h1 toggles back to a paragraph when the block is already a level-1 heading', () => {
+    const asH1 = apply(paragraphState('title'), commands.h1);
+    expect(asH1.doc.firstChild?.type.name).toBe('heading');
+    const back = apply(asH1, commands.h1);
+    expect(back.doc.firstChild?.type.name).toBe('paragraph');
+    expect(back.doc.firstChild?.textContent).toBe('title');
+  });
+
+  it('bullet toggles the block back to a paragraph when it is already a bullet list', () => {
+    const asList = apply(paragraphState('item'), commands.bullet);
+    expect(asList.doc.firstChild?.type.name).toBe('bullet_list');
+    const back = apply(asList, commands.bullet);
+    expect(back.doc.firstChild?.type.name).toBe('paragraph');
+    expect(back.doc.firstChild?.textContent).toBe('item');
+  });
+
+  it('blockquote lifts back out instead of nesting a second blockquote on re-invoke', () => {
+    const quoted = apply(paragraphState('q'), commands.blockquote);
+    expect(quoted.doc.firstChild?.type.name).toBe('blockquote');
+    const back = apply(quoted, commands.blockquote);
+    // Lifted out — not a blockquote-in-a-blockquote (the old infinite-nest bug).
+    expect(back.doc.firstChild?.type.name).toBe('paragraph');
+    expect(back.doc.firstChild?.textContent).toBe('q');
+  });
+
+  it('isNodeActive detects a wrapping list/blockquote ancestor, not just the immediate textblock', () => {
+    const asList = apply(paragraphState('x'), commands.bullet);
+    expect(isNodeActive(asList, schema.nodes.bullet_list)).toBe(true);
+    expect(isNodeActive(asList, schema.nodes.ordered_list)).toBe(false);
+    const quoted = apply(paragraphState('y'), commands.blockquote);
+    expect(isNodeActive(quoted, schema.nodes.blockquote)).toBe(true);
+    const h2 = apply(paragraphState('z'), commands.h2);
+    expect(isNodeActive(h2, schema.nodes.heading, { level: 2 })).toBe(true);
+    expect(isNodeActive(h2, schema.nodes.heading, { level: 1 })).toBe(false);
   });
 
   it('runCommand executes against a view-like object without throwing', () => {
