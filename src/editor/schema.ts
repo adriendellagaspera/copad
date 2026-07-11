@@ -3,9 +3,14 @@ import { schema as basicSchema } from 'prosemirror-schema-basic';
 import { addListNodes } from 'prosemirror-schema-list';
 import { tableNodes } from 'prosemirror-tables';
 
+// `list_item`'s content draws from both the ordinary `'block'` group and the
+// separate `'tableBlock'` group (see the comment above `tableGroup` below) —
+// otherwise moving `table` out of `'block'` to keep it out of cells would
+// also silently drop it from every *other* `block*`/`block+` content
+// expression that isn't a cell, including this one.
 const listNodes = addListNodes(
   basicSchema.spec.nodes,
-  'paragraph block*',
+  'paragraph (block | tableBlock)*',
   'block'
 );
 
@@ -37,7 +42,7 @@ const nodes = listNodes
       },
     },
     task_item: {
-      content: 'paragraph block*',
+      content: 'paragraph (block | tableBlock)*',
       attrs: { checked: { default: false } },
       parseDOM: [
         {
@@ -64,7 +69,14 @@ const nodes = listNodes
     },
   })
   .append(tableNodes({ tableGroup: 'tableBlock', cellContent: 'block+', cellAttributes: {} }))
-  .update('doc', { content: '(block | tableBlock)+' });
+  .update('doc', { content: '(block | tableBlock)+' })
+  // Same widening as `doc` and `list_item`/`task_item` above: `blockquote`
+  // drew its content from the plain `'block'` group before `table` moved out
+  // of it, so without this it would silently stop admitting a nested table.
+  .update('blockquote', {
+    ...basicSchema.spec.nodes.get('blockquote'),
+    content: '(block | tableBlock)+',
+  });
 
 // `strong`/`em`/`code` (from prosemirror-schema-basic) default to
 // `inclusive: true` — typing right after a closed mark (e.g. `**bold**`

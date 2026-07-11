@@ -103,4 +103,15 @@ describe('linkAround (whole-link range from a bare caret mid-link)', () => {
     const state = stateWith('plain text');
     expect(linkAround(state)).toBeNull();
   });
+
+  it('returns null for a caret resting right after a link, before unlinked text', () => {
+    // "hello world"; link only "hello" (positions 1-6), caret at the boundary
+    // (pos 6) — the link mark is `inclusive: false`, so this caret is NOT on
+    // the link, matching ProseMirror's own `$from.marks()` boundary rule.
+    let state = stateWith('hello world');
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1, 6)));
+    setLink('example.com')(state, (tr) => (state = state.apply(tr)));
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 6)));
+    expect(linkAround(state)).toBeNull();
+  });
 });

@@ -105,4 +105,26 @@ describe('schema', () => {
     expect(doc.firstChild?.child(0).type.name).toBe('table_header');
     expect(doc.child(1).child(0).type.name).toBe('table_cell');
   });
+
+  // `table` moved to its own `tableBlock` group (kept out of cellContent, so
+  // tables can't nest inside cells) — every non-cell content expression that
+  // used to draw from the plain `block` group must still admit it, or this
+  // silently regresses which containers a table can live in.
+  it('allows a table nested inside a blockquote', () => {
+    const { blockquote, table, table_row, table_cell, paragraph } = schema.nodes;
+    const t = table.create(null, table_row.create(null, table_cell.create(null, paragraph.create())));
+    expect(() => blockquote.createChecked(null, t)).not.toThrow();
+  });
+
+  it('allows a table nested inside a list item', () => {
+    const { list_item, table, table_row, table_cell, paragraph } = schema.nodes;
+    const t = table.create(null, table_row.create(null, table_cell.create(null, paragraph.create())));
+    expect(() => list_item.createChecked(null, [paragraph.create(), t])).not.toThrow();
+  });
+
+  it('allows a table nested inside a task item', () => {
+    const { task_item, table, table_row, table_cell, paragraph } = schema.nodes;
+    const t = table.create(null, table_row.create(null, table_cell.create(null, paragraph.create())));
+    expect(() => task_item.createChecked(null, [paragraph.create(), t])).not.toThrow();
+  });
 });

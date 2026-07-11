@@ -162,7 +162,11 @@ const serializer = new MarkdownSerializer(
       // *simple* table (every cell just a single paragraph — true for
       // every table before cells held real block content, and still the
       // overwhelmingly common case) keeps the unchanged pipe-table output.
-      const lines = isTableSimple(node) ? simpleTableToMarkdownLines(node) : [richTableToHtml(node)];
+      const lines = isTableSimple(node)
+        ? simpleTableToMarkdownLines(node)
+        : hasDom()
+          ? [richTableToHtml(node)]
+          : richTableToPlainTextLines(node);
       lines.forEach((line) => {
         state.write(line);
         state.ensureNewLine();
@@ -176,6 +180,31 @@ const serializer = new MarkdownSerializer(
     underline: { open: '', close: '', mixable: true },
   },
 );
+
+/** No-DOM degrade for a rich (multi-block) table cell when `richTableToHtml`
+ *  (DOM-only, see its doc comment) isn't available: flatten each cell's
+ *  block structure to plain inline text into a GFM pipe-table row. Lossy
+ *  (lists/headings/multiple paragraphs collapse to one line of text) but an
+ *  honest degrade — same philosophy as the `html_block` decode handler's own
+ *  no-DOM fallback above — rather than `markdownCodec.encode()` throwing
+ *  outside a browser (this codec, unlike `htmlCodec`, isn't documented as
+ *  browser-only). */
+function richTableToPlainTextLines(table: PMNode): string[] {
+  const rows: string[][] = [];
+  table.forEach((row) => {
+    const cells: string[] = [];
+    row.forEach((cell) => {
+      cells.push(cell.textContent.replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim());
+    });
+    rows.push(cells);
+  });
+  const colCount = rows[0]?.length ?? 0;
+  return [
+    `| ${(rows[0] ?? []).join(' | ')} |`,
+    `| ${Array(colCount).fill('---').join(' | ')} |`,
+    ...rows.slice(1).map((cells) => `| ${cells.join(' | ')} |`),
+  ];
+}
 
 /** A bare `[ ] `/`[x] `/`[X] ` at the start of a list item's first paragraph —
  *  GFM's checklist syntax once the leading `- ` has already become a

@@ -200,6 +200,21 @@ describe('markdown codec', () => {
     // plain text instead of being silently dropped.
     expect(restored.textContent).toContain('<table>');
   });
+
+  it('encodes a rich table (list in a cell) as a degraded pipe-table row — never throws — when no DOM is available to build the HTML fallback', async () => {
+    const { table, table_row, table_cell, paragraph, bullet_list, list_item } = schema.nodes;
+    const item = list_item.create(null, [paragraph.create(null, schema.text('x'))]);
+    const richCell = table_cell.create(null, [bullet_list.create(null, [item])]);
+    const plainCell = table_cell.create(null, [paragraph.create(null, schema.text('plain'))]);
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [table.create(null, [table_row.create(null, [richCell, plainCell])])])
+    );
+    const bytes = await markdownCodec.encode(doc);
+    const md = new TextDecoder().decode(bytes);
+    expect(md).toContain('| x | plain |');
+  });
 });
 
 describe('text codec', () => {

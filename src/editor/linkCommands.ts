@@ -72,9 +72,13 @@ export function linkAround(state: EditorState): { href: string; from: number; to
   }
   const parent = $from.parent;
   const index = $from.index();
-  // The text node the caret sits in (or just after, at a text-node boundary).
-  const here = $from.textOffset > 0 ? parent.maybeChild(index) : (parent.maybeChild(index - 1) ?? parent.maybeChild(index));
-  const mark = here && linkType.isInSet(here.marks);
+  // $from.marks() (not a raw neighbouring-node lookup) is what respects the
+  // link mark's `inclusive: false`: at a boundary between linked and
+  // unlinked text it correctly drops the mark, so a caret resting right
+  // after a link is not misdetected as "on" it. storedMarks takes priority
+  // when the user just toggled a mark at the caret, same as ProseMirror's
+  // own convention for "marks new input would get".
+  const mark = linkType.isInSet(state.storedMarks ?? $from.marks());
   if (!mark) return null;
   const startOfParent = $from.start();
   // Expand left/right over every adjacent child carrying this exact link mark.
