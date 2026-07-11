@@ -2,15 +2,13 @@ import type { Storage, StorageAvailability, LoginOptions, DocContent, Filename }
 import { DocFormat, OpenMode, LoginKind } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { knownExtensions } from '../format/index.js';
+import { hasFsAccessApi, pickFileMobile } from '../format/filePicker.js';
 import { STORAGE_ID } from './constants.js';
 
-// showOpenFilePicker / showSaveFilePicker not yet in TypeScript's lib.dom.d.ts at this version.
+// showSaveFilePicker not yet in TypeScript's lib.dom.d.ts at this version.
+// (showOpenFilePicker is declared in ../format/filePicker.js.)
 declare global {
   interface Window {
-    showOpenFilePicker(opts?: {
-      multiple?: boolean;
-      types?: Array<{ description: string; accept: Record<string, string[]> }>;
-    }): Promise<FileSystemFileHandle[]>;
     showSaveFilePicker(opts?: {
       suggestedName?: string;
       types?: Array<{ description: string; accept: Record<string, string[]> }>;
@@ -32,37 +30,10 @@ type LocalState =
 // Module-level state — survives Svelte reactivity cycles but not page refresh.
 let state: LocalState = { mode: LocalMode.Idle };
 
-function hasFsAccessApi(): boolean {
-  return typeof window !== 'undefined' && 'showOpenFilePicker' in window;
-}
-
 function unavailableReason(): string | undefined {
   if (typeof window === 'undefined') return 'Not in a browser context.';
   if (!isSecureContext) return 'Requires a secure context — open via https:// or http://localhost.';
   return undefined;
-}
-
-// cancel fires on Chrome 113+ / Safari 16.4+; on older iOS the promise hangs until reload.
-function pickFileMobile(): Promise<File> {
-  return new Promise((resolve, reject) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = knownExtensions().join(',');
-    input.style.cssText = 'position:fixed;top:-9999px';
-    const cleanup = () => input.remove();
-    input.addEventListener('change', () => {
-      cleanup();
-      const file = input.files?.[0];
-      if (file) resolve(file);
-      else reject(new Error('No file selected'));
-    });
-    input.addEventListener('cancel', () => {
-      cleanup();
-      reject(new Error('The user aborted a request.'));
-    });
-    document.body.appendChild(input);
-    input.click();
-  });
 }
 
 export function localFsStorage(): { auth: StorageAuth; storage: Storage } {

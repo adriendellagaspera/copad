@@ -9,9 +9,11 @@
     view: EditorView | null;
     editorState: EditorState | null;
     toasts: Toasts;
+    canImport?: boolean;
+    onImport?: () => void;
   };
 
-  let { view, editorState, toasts }: Props = $props();
+  let { view, editorState, toasts, canImport = false, onImport }: Props = $props();
 
   // Floating selection bubble — desktop only (a pointer-fine media query in
   // editor.css gates visibility; the fixed Toolbar stays on touch devices where
@@ -232,5 +234,5 @@
   onmousedown={(e) => e.preventDefault()}
   role="presentation"
 >
-  <Toolbar {view} {editorState} {toasts} />
+  <Toolbar {view} {editorState} {toasts} {canImport} {onImport} />
 </div>

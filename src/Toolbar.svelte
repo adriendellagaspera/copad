@@ -11,9 +11,11 @@
     view: EditorView | null;
     editorState: EditorState | null;
     toasts: Toasts;
+    canImport?: boolean;
+    onImport?: () => void;
   };
 
-  let { view, editorState, toasts }: Props = $props();
+  let { view, editorState, toasts, canImport = false, onImport }: Props = $props();
 
   const bold      = $derived(editorState ? isMarkActive(editorState, schema.marks.strong) : false);
   const italic    = $derived(editorState ? isMarkActive(editorState, schema.marks.em)     : false);
@@ -90,6 +92,7 @@
     <button onclick={run(commands.undo)} title="Undo (Mod+Z)" aria-label="Undo">↶</button>
     <button onclick={run(commands.redo)} title="Redo (Mod+Y)" aria-label="Redo">↷</button>
     <span class="spacer"></span>
+    <button class="md-btn" onclick={onImport} disabled={!canImport} title="Import a file into this document">Import…</button>
     <button class="md-btn" onclick={copyMarkdown} title="Copy document as Markdown">Copy MD</button>
   </div>
 {/if}
