@@ -18,6 +18,7 @@
   import LinkPopover from './editor/ui/LinkPopover.svelte';
   import WordCount from './editor/ui/WordCount.svelte';
   import Outline from './editor/ui/Outline.svelte';
+  import DownloadMenu from './editor/ui/DownloadMenu.svelte';
   import ShortcutBar from './editor/ui/ShortcutBar.svelte';
   import type { PeerUser } from './ui/types.js';
   import { SaveStatus } from './ui/types.js';
@@ -454,6 +455,7 @@
     <span class="spacer"></span>
     <WordCount {editorState} />
     <Outline {view} {editorState} />
+    <DownloadMenu doc={collab.doc} baseName={roomName.value ?? room} {toasts} />
   </div>
   <SelectionToolbar {view} {editorState} {toasts} />
   <CaretFormatHint {view} {editorState} />

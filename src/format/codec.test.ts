@@ -6,7 +6,7 @@ import { yjsCodec } from './yjs.js';
 import { textCodec } from './text.js';
 import { jsonCodec } from './json.js';
 import { markdownCodec } from './markdown.js';
-import { codecForFilename, knownExtensions, DEFAULT_CODEC } from './index.js';
+import { codecForFilename, knownExtensions, DEFAULT_CODEC, downloadCodecs } from './index.js';
 import type { Codec } from './types.js';
 
 // A representative document exercising headings, marks, lists.
@@ -234,5 +234,9 @@ describe('codec registry', () => {
       '.yjs', '.txt', '.md', '.html', '.json',
       '.py', '.js', '.ts', '.rs', '.go', '.yml', '.css', '.sql',
     ]));
+  });
+
+  it('offers text/markdown/html/json for download, excluding the native yjs snapshot', () => {
+    expect(downloadCodecs.map((c) => c.id)).toEqual(['text', 'markdown', 'html', 'json']);
   });
 });
