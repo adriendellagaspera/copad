@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { onedriveStorage } from './onedrive.js';
 import type { StorageAuth } from './auth.js';
-import type { Storage } from './types.js';
+import type { Storage, Filename } from './types.js';
 import type { RoomId } from '../collaboration/types.js';
 import { ClassifiedWriteError, WriteFailureKind } from './writeOutcome.js';
 
@@ -101,6 +101,67 @@ describe('onedriveStorage load/save', () => {
     }
     expect(thrown).toBeInstanceOf(ClassifiedWriteError);
     expect((thrown as InstanceType<typeof ClassifiedWriteError>).kind).toBe(WriteFailureKind.Transient);
+  });
+});
+
+describe('onedriveStorage list', () => {
+  let storage: Storage;
+  beforeEach(() => { ({ storage } = onedriveStorage(TEST_ROOM)); withToken(); });
+
+  it('lists file names from the app folder, filtering out sub-folders', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({
+        value: [
+          { name: 'notes.md', file: {} },
+          { name: 'Archive', folder: {} },
+          { name: 'document.yjs', file: {} },
+        ],
+      }),
+    } as unknown as Response);
+    expect(await storage.list!()).toEqual(['notes.md', 'document.yjs']);
+    expect(mockFetch.mock.calls[0][0]).toBe(
+      'https://graph.microsoft.com/v1.0/me/drive/special/approot/children',
+    );
+  });
+
+  it('throws a descriptive error on API failure', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 500 } as Response);
+    await expect(storage.list!()).rejects.toThrow('OneDrive list failed: 500');
+  });
+
+  it('throws when not connected', async () => {
+    localStorage.clear();
+    await expect(onedriveStorage(TEST_ROOM).storage.list!()).rejects.toThrow('OneDrive: not connected');
+  });
+});
+
+describe('onedriveStorage loadFrom', () => {
+  let storage: Storage;
+  beforeEach(() => { ({ storage } = onedriveStorage(TEST_ROOM)); withToken(); });
+
+  it('reads an arbitrary file, independent of the configured target filename', async () => {
+    const bytes = new Uint8Array([9, 8, 7]);
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(bytes.buffer) } as unknown as Response);
+    const result = await storage.loadFrom!('other.yjs' as Filename);
+    expect(result).toEqual({ format: 'binary', bytes });
+    expect(mockFetch.mock.calls[0][0]).toBe(
+      'https://graph.microsoft.com/v1.0/me/drive/special/approot:/other.yjs:/content',
+    );
+  });
+
+  it('picks text format from the requested filename, not the room target', async () => {
+    const bytes = new TextEncoder().encode('hello');
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(bytes.buffer) } as unknown as Response);
+    // Room target defaults to document.yjs (binary) — loadFrom('notes.md') must still decode as text.
+    const result = await storage.loadFrom!('notes.md' as Filename);
+    expect(result).toEqual({ format: 'text', text: 'hello' });
+  });
+
+  it('returns null on 404', async () => {
+    mockFetch.mockResolvedValueOnce({ status: 404, ok: false } as Response);
+    expect(await storage.loadFrom!('missing.md' as Filename)).toBeNull();
   });
 });
 

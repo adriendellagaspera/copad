@@ -318,6 +318,11 @@
   // Cast at the IO boundary: user-typed strings enter the domain as DisplayName here.
   let name = $state<DisplayName>('Anonymous' as DisplayName);
 
+  // A file picked in Settings' Browse dialog (Phase 2 import), waiting to be
+  // decoded into the live doc. Settings and Editor are siblings — `collab.doc`
+  // only exists inside Editor — so this is the hand-off between them.
+  let pendingImport = $state<{ bytes: Uint8Array; filename: Filename } | null>(null);
+
   // Bumped when localStorage state changes (config saved, auth token stored).
   let tick = $state(0);
   const bump = () => { tick += 1; };
@@ -945,6 +950,8 @@
       spellcheck={language.spellcheck}
       {writeLocked}
       {writeSoloAt}
+      importRequest={pendingImport}
+      onImportHandled={() => (pendingImport = null)}
     />
     <!-- The waiting state itself teaches the contract now — see SyncBanner's
          `gated` tier — instead of a separate one-time explainer dialog
@@ -995,6 +1002,7 @@
   onchange={bump}
   onconnect={afterConnect}
   ondisconnect={afterDisconnect}
+  onimport={(bytes, filename) => (pendingImport = { bytes, filename })}
 />
 
 <ShareDialog

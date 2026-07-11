@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { githubStorage } from './github.js';
 import type { StorageAuth } from './auth.js';
-import type { Storage } from './types.js';
+import type { Storage, Filename } from './types.js';
 import type { RoomId } from '../collaboration/types.js';
 import { ClassifiedWriteError, WriteFailureKind } from './writeOutcome.js';
 
@@ -349,5 +349,87 @@ describe('githubStorage contentFormat', () => {
     const { storage } = setup();
     storage.setFilename?.('readme.txt');
     expect(storage.contentFormat).toBe('text');
+  });
+});
+
+// ── Browse (Phase 2 import) ───────────────────────────────────────────────────
+
+describe('githubStorage list', () => {
+  let auth: StorageAuth;
+  let storage: Storage;
+
+  beforeEach(() => {
+    ({ auth, storage } = setup());
+    configureAndValidate(auth);
+  });
+
+  it('lists file names from the repo root, filtering out directories', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve([
+        { name: 'notes.md', type: 'file' },
+        { name: 'assets', type: 'dir' },
+        { name: 'README.md', type: 'file' },
+      ]),
+    } as unknown as Response);
+    expect(await storage.list!()).toEqual(['notes.md', 'README.md']);
+  });
+
+  it('calls the Contents endpoint at the repo root (no path segment)', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve([]) } as unknown as Response);
+    await storage.list!();
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toBe('https://api.github.com/repos/alice/notes/contents?ref=main');
+  });
+
+  it('throws a descriptive error on API failure', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 500 } as Response);
+    await expect(storage.list!()).rejects.toThrow('GitHub list failed: 500');
+  });
+
+  it('throws when not connected', async () => {
+    localStorage.clear();
+    const { storage: s } = setup();
+    await expect(s.list!()).rejects.toThrow('GitHub: not connected');
+  });
+});
+
+describe('githubStorage loadFrom', () => {
+  let auth: StorageAuth;
+  let storage: Storage;
+
+  beforeEach(() => {
+    ({ auth, storage } = setup());
+    configureAndValidate(auth);
+  });
+
+  it('reads an arbitrary file, independent of the configured target filename', async () => {
+    const text = 'Hello from another file';
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ content: btoa(text), sha: 'abc' }),
+    } as unknown as Response);
+    const result = await storage.loadFrom!('other.md' as Filename);
+    expect(result).toEqual({ format: 'text', text });
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toContain('/repos/alice/notes/contents/other.md');
+  });
+
+  it('picks binary format from the requested filename, not the room target', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ content: btoa('\x01\x02'), sha: 'abc' }),
+    } as unknown as Response);
+    // Room target defaults to notes.md (text) — loadFrom('backup.yjs') must still decode as binary.
+    const result = await storage.loadFrom!('backup.yjs' as Filename);
+    expect(result?.format).toBe('binary');
+  });
+
+  it('returns null on 404', async () => {
+    mockFetch.mockResolvedValueOnce({ status: 404, ok: false } as Response);
+    expect(await storage.loadFrom!('missing.md' as Filename)).toBeNull();
   });
 });

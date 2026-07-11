@@ -17,8 +17,10 @@
   import { BRAND_ICONS } from './ui/brandIcons.js';
   import { GENERIC_ICONS } from './ui/genericStorageIcons.js';
   import { IMAGE_ICONS, SHAREPOINT_SITE_IMAGE, SHAREPOINT_ONEDRIVE_IMAGE } from './ui/imageIcons.js';
+  import type { Filename } from './storage/types.js';
 
   import Dialog from './ui/Dialog.svelte';
+  import BrowseDialog from './ui/BrowseDialog.svelte';
 
   type SettingsView = 'app' | 'storage';
 
@@ -41,6 +43,7 @@
     onchange,
     onconnect,
     ondisconnect,
+    onimport,
   }: {
     backends: StorageBackend[];
     open?: boolean;
@@ -60,7 +63,11 @@
     onchange?: () => void;
     onconnect?: (b: StorageBackend) => void;
     ondisconnect?: (b: StorageBackend) => void;
+    onimport?: (bytes: Uint8Array, filename: Filename) => void;
   } = $props();
+
+  // Which backend's file list the Browse dialog is showing, if any.
+  let browseTarget = $state<StorageBackend | null>(null);
 
   // Language — 'auto' means browser language, anything else is a BCP-47 tag.
   // If the stored value isn't one of the preset options, show the custom input.
@@ -515,6 +522,9 @@
 
               <div class="backend-actions">
                 {#if authed}
+                  {#if b.storage.list}
+                    <button onclick={() => (browseTarget = b)}>Browse…</button>
+                  {/if}
                   <button onclick={() => disconnect(b)}>Disconnect</button>
                 {:else}
                   <button
@@ -622,3 +632,14 @@
     </div>
   </div>
 </Dialog>
+
+<BrowseDialog
+  open={!!browseTarget}
+  backend={browseTarget}
+  onclose={() => (browseTarget = null)}
+  onImport={(bytes, filename) => {
+    onimport?.(bytes, filename);
+    browseTarget = null;
+    close();
+  }}
+/>

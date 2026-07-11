@@ -24,7 +24,7 @@
   import { SaveStatus } from './ui/types.js';
   import type { Toasts } from './ui/toasts.svelte.js';
   import type { Storage, DocContent, Filename, StorageId } from './storage/types.js';
-  import { StorageAccess, DocFormat } from './storage/types.js';
+  import { StorageAccess, DocFormat, docContentBytes } from './storage/types.js';
   import { WriteFailureKind } from './storage/writeOutcome.js';
   import { parseWriteFailure } from './storage/parse.js';
   import type {
@@ -81,10 +81,19 @@
      *  peer joins or durability proves out. Drives the focus-on-unlock effect
      *  below; a natural unlock must never steal focus (contract §4.1). */
     writeSoloAt?: EpochMs | null;
+    /** A file picked elsewhere (Settings' Browse dialog — Phase 2 import) waiting
+     *  to be decoded into this document. Distinct from the local one-shot picker
+     *  in `importFile` below, which never leaves this component. */
+    importRequest?: { bytes: Uint8Array; filename: Filename } | null;
+    /** Called once `importRequest` has been applied (success or failure), so the
+     *  parent can clear it and this effect doesn't re-fire on the next render. */
+    onImportHandled?: () => void;
   };
 
-  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, writeLocked = false, writeSoloAt = null }: Props =
-    $props();
+  let {
+    storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true,
+    writeLocked = false, writeSoloAt = null, importRequest = null, onImportHandled,
+  }: Props = $props();
 
   // Plain (non-reactive) tracking var — detects a new `writeSoloAt` stamp in
   // the effect below. untrack: intentionally read once (its value at mount),
@@ -298,10 +307,7 @@
       .load()
       .then(async (content: DocContent | null) => {
         if (content) {
-          const bytes = content.format === DocFormat.Binary
-            ? content.bytes
-            : new TextEncoder().encode(content.text);
-          await codec.decode(bytes, collab.doc);
+          await codec.decode(docContentBytes(content), collab.doc);
         }
         loadedFrom = id;
       })
@@ -316,12 +322,35 @@
       });
   });
 
-  // One-shot import of an arbitrary local file into the current document — no
-  // backend involved (see #190). `codec.decode` writes straight into `collab.doc`
-  // via `writePmDoc`/`prosemirrorToYXmlFragment` rather than a ProseMirror
-  // transaction, so it bypasses `view.editable` entirely: the write-gate has to
-  // be re-checked here explicitly, and the button below stays disabled otherwise.
+  // Import of an arbitrary file into the current document — no backend
+  // involved for this write itself (see #190/#16 for the local one-shot
+  // picker below, #190-phase-2 for the Browse-a-connected-backend path via
+  // `importRequest`). `codec.decode` writes straight into `collab.doc` via
+  // `writePmDoc`/`prosemirrorToYXmlFragment` rather than a ProseMirror
+  // transaction, so it bypasses `view.editable` entirely: the write-gate has
+  // to be re-checked here explicitly, and the button below stays disabled
+  // otherwise.
   const canImport = $derived(role === SessionRole.Writer && !writeLocked);
+
+  async function applyImport(bytes: Uint8Array, filename: Filename): Promise<void> {
+    const ext = extensionOf(filename);
+    if (!knownExtensions().includes(ext)) {
+      toasts.error(`Unsupported file type${ext ? ` "${ext}"` : ''} — try .yjs, .md, .txt, .html, or .json`);
+      return;
+    }
+    if (
+      yFragment.length > 0 &&
+      !window.confirm(`Replace the current document with "${filename}"? This can't be undone for collaborators.`)
+    ) {
+      return;
+    }
+    try {
+      await codecForFilename(filename).decode(bytes, collab.doc);
+      toasts.success(`Imported ${filename}`);
+    } catch (e) {
+      toasts.error(`Couldn't import ${filename}: ${(e as Error).message}`);
+    }
+  }
 
   async function importFile(): Promise<void> {
     if (!canImport) return;
@@ -331,25 +360,27 @@
     } catch {
       return; // cancelled
     }
-    const ext = extensionOf(file.name);
-    if (!knownExtensions().includes(ext)) {
-      toasts.error(`Unsupported file type${ext ? ` "${ext}"` : ''} — try .yjs, .md, .txt, .html, or .json`);
-      return;
-    }
-    if (
-      yFragment.length > 0 &&
-      !window.confirm(`Replace the current document with "${file.name}"? This can't be undone for collaborators.`)
-    ) {
-      return;
-    }
-    try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      await codecForFilename(file.name).decode(bytes, collab.doc);
-      toasts.success(`Imported ${file.name}`);
-    } catch (e) {
-      toasts.error(`Couldn't import ${file.name}: ${(e as Error).message}`);
-    }
+    await applyImport(new Uint8Array(await file.arrayBuffer()), file.name as Filename);
   }
+
+  // A file picked in a connected backend's Browse dialog (Settings, via
+  // App.svelte — see `importRequest` prop above) arrives here once per
+  // distinct request; `onImportHandled` lets the parent clear it so this
+  // effect doesn't re-fire on the next unrelated render. Settings has no
+  // write-gate awareness of its own (it's rendered regardless of role), so
+  // — unlike the toolbar's disabled button — a request can arrive here from
+  // a reader; always resolve it (never leave it dangling for a later gate
+  // change to silently pick up) and say why nothing happened.
+  $effect(() => {
+    const req = importRequest;
+    if (!req) return;
+    if (!canImport) {
+      toasts.error('You need write access to import a file.');
+      onImportHandled?.();
+      return;
+    }
+    applyImport(req.bytes, req.filename).finally(() => onImportHandled?.());
+  });
 
   // The file this peer would persist to, as a target key (hashed backend +
   // filename + browser install id). Absent when this peer isn't persisting.

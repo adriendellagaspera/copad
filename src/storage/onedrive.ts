@@ -10,6 +10,7 @@ import {
   parseOneDriveClientId,
   parseGraphUserId,
   parseGraphOwnerId,
+  parseOneDriveChildren,
 } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
@@ -205,6 +206,35 @@ export function onedriveStorage(room: RoomId): { auth: StorageAuth; storage: Sto
       const meId = parseGraphUserId(await meRes.json());
       const ownerId = parseGraphOwnerId(await itemRes.json());
       return ownerId === meId ? StorageAccess.Owner : StorageAccess.Write;
+    },
+
+    // ── Browse (Phase 2 import) ─────────────────────────────────────────────
+    // Same AppFolder scope as load()/save() above — /children just lists it
+    // instead of reading one item, so no broader consent is needed.
+
+    async list(): Promise<Filename[]> {
+      const tok = token();
+      if (!tok) throw new Error('OneDrive: not connected');
+
+      const res = await fetch(`${appFolderRoot()}/children`, { headers: authHeaders(tok) });
+      if (!res.ok) throw new Error(`OneDrive list failed: ${res.status}`);
+      return parseOneDriveChildren(await res.json());
+    },
+
+    async loadFrom(filename: Filename): Promise<DocContent | null> {
+      const tok = token();
+      if (!tok) throw new Error('OneDrive: not connected');
+
+      const res = await fetch(contentUrl(filename), { headers: authHeaders(tok) });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`OneDrive load failed: ${res.status}`);
+
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      // Unlike load(), the format is driven by *this* filename's extension —
+      // not the room's separately-configured target file.
+      return extensionOf(filename) === '.yjs'
+        ? { format: DocFormat.Binary, bytes }
+        : { format: DocFormat.Text, text: new TextDecoder().decode(bytes) };
     },
   };
 
