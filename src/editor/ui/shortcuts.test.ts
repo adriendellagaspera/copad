@@ -32,13 +32,14 @@ describe('editorShortcuts', () => {
     expect(commands?.keys).toEqual(['/']);
   });
 
-  it('omits the Alt-Shift-\\ Toolbar hint on Apple (the \\ key is inaccessible there)', () => {
-    const labels = editorShortcuts(OS.Apple).map((s) => s.label);
-    expect(labels).not.toContain('Toolbar');
-    // and no shortcut on Apple should advertise the backslash cap
+  it('advertises the toolbar entry as Shift-F10 on Apple, Alt-Shift-\\ elsewhere', () => {
+    // Apple: Shift-F10 (\ isn't a labelled key there); never advertises \
+    const apple = editorShortcuts(OS.Apple).find((s) => s.label === 'Toolbar');
+    expect(apple?.keys).toEqual(['Shift', 'F10']);
     expect(editorShortcuts(OS.Apple).some((s) => s.keys.includes('\\' as never))).toBe(false);
-    // but it's still shown elsewhere
-    expect(editorShortcuts(OS.Other).map((s) => s.label)).toContain('Toolbar');
+    // Other: Alt-Shift-\
+    const other = editorShortcuts(OS.Other).find((s) => s.label === 'Toolbar');
+    expect(other?.keys).toEqual(['Alt', 'Shift', '\\']);
   });
 });
 
@@ -61,12 +62,16 @@ describe('tableShortcuts', () => {
     expect(tableShortcuts(OS.Other).find((s) => s.label === 'Delete column')?.keys[0]).toBe('Ctrl');
   });
 
-  it('omits the Table toolbar entry-point hint on Apple, keeps the per-command shortcuts', () => {
-    const labels = tableShortcuts(OS.Apple).map((s) => s.label);
-    expect(labels).not.toContain('Table toolbar');
-    // the letter-key table commands (whose keys ARE on a Mac keyboard) stay
-    expect(labels).toEqual(['Next cell', 'Add row', 'Delete row', 'Add column', 'Delete column', 'Toggle header']);
-    expect(tableShortcuts(OS.Apple).some((s) => s.keys.includes('\\' as never))).toBe(false);
+  it('advertises the Table toolbar entry as Shift-F10 on Apple, keeps the per-command shortcuts', () => {
+    const apple = tableShortcuts(OS.Apple);
+    expect(apple.map((s) => s.label)).toEqual([
+      'Next cell', 'Add row', 'Delete row', 'Add column', 'Delete column', 'Toggle header', 'Table toolbar',
+    ]);
+    // the entry point is Shift-F10 on Apple, never the inaccessible \
+    expect(apple.find((s) => s.label === 'Table toolbar')?.keys).toEqual(['Shift', 'F10']);
+    expect(apple.some((s) => s.keys.includes('\\' as never))).toBe(false);
+    // the per-command letters/⌫ (all labelled keys, matched via keyCode fallback) stay put
+    expect(apple.find((s) => s.label === 'Add row')?.keys).toEqual(['⌥', 'Shift', 'R']);
   });
 });
 

@@ -22,12 +22,36 @@ export interface Shortcut {
 }
 
 /**
+ * The floating-toolbar entry point, resolved per OS. Both a raw
+ * `Alt-Shift-\` and the ARIA-standard `Shift-F10` open the panel (see
+ * `SelectionToolbar.svelte`'s keydown handler); which one we *advertise*
+ * differs by platform:
+ *
+ * - **Apple**: `Shift-F10`. `\` is not a directly accessible/labelled key on
+ *   a Mac keyboard (an AZERTY layout produces it via a `⇧⌥/`-style compose,
+ *   not a labelled key), so advertising `⌥⇧\` there points at a key the user
+ *   can't find. `Shift-F10` is the standard keyboard shortcut for "open the
+ *   context menu / toolbar", present and labelled on every keyboard (it costs
+ *   an `Fn` on Mac laptops whose F-row defaults to hardware keys — the one
+ *   accepted `Fn` in the set, since the no-`Fn` alternative isn't reliably
+ *   *discoverable* here). The `⌥⇧\` binding stays live and `Fn`-free for
+ *   anyone who finds it — it's matched on the physical Backslash key via
+ *   `event.code`, so it works regardless of layout; it's just not the
+ *   advertised hint on Apple.
+ * - **Other**: `Alt-Shift-\`, where `\` is a normal labelled key.
+ */
+function toolbarEntryKeys(os: OS): KeyCap[] {
+  return os === OS.Apple
+    ? [keyCap('Shift'), keyCap('F10')]
+    : [altKey(os), keyCap('Shift'), keyCap('\\')];
+}
+
+/**
  * The editor's headline shortcuts, with the modifier cap resolved for `os`
  * (defaults to the parsed current OS — parse-don't-validate at the boundary).
  */
 export function editorShortcuts(os: OS = parseOS()): Shortcut[] {
   const mod = modKey(os);
-  const alt = altKey(os);
   return [
     { keys: [mod, keyCap('B')], label: shortcutLabel('Bold') },
     { keys: [mod, keyCap('I')], label: shortcutLabel('Italic') },
@@ -36,12 +60,9 @@ export function editorShortcuts(os: OS = parseOS()): Shortcut[] {
     { keys: [mod, keyCap('Shift'), keyCap('C')], label: shortcutLabel('Inline code') },
     { keys: [mod, keyCap('K')], label: shortcutLabel('Link') },
     { keys: [keyCap('/')], label: shortcutLabel('Commands') },
-    // Toolbar entry point — hidden on Apple, where `\` isn't a directly
-    // accessible key (on a Mac AZERTY layout it's a compose combo, not a
-    // labelled key), so advertising `⌥⇧\` there points at a key the user
-    // can't find. See {@link tableShortcuts}. The binding itself stays (it
-    // matches the physical Backslash key via `event.code`), just unadvertised.
-    ...(os === OS.Apple ? [] : [{ keys: [alt, keyCap('Shift'), keyCap('\\')], label: shortcutLabel('Toolbar') }]),
+    // Toolbar entry point — Shift-F10 on Apple (`\` isn't a labelled key
+    // there), Alt-Shift-\ elsewhere. See {@link toolbarEntryKeys}.
+    { keys: toolbarEntryKeys(os), label: shortcutLabel('Toolbar') },
     { keys: [mod, keyCap('Z')], label: shortcutLabel('Undo') },
   ];
 }
@@ -57,24 +78,19 @@ export function editorShortcuts(os: OS = parseOS()): Shortcut[] {
  * the `/` slash menu, so without this strip they'd have no discoverable
  * hint anywhere in the app.
  *
- * The panel's entry point is shown here as `Alt-Shift-\`, not `Shift-F10` —
- * both work (see `SelectionToolbar.svelte`'s keydown handler), but
- * `Shift-F10` alone needs `Fn` on most Mac laptop keyboards (F-keys are
- * remapped to hardware functions there by default), while `Alt-Shift-\`
- * needs no `Fn` hunting. Punctuation rather than a letter, after two
- * letter-based attempts (`Alt-Enter`, `Alt-Shift-T`) each turned out to
- * already mean something else on some real setup (a window manager's
- * fullscreen toggle, a browser's reopen-closed-tab binding) — see that same
+ * The panel's entry point resolves per OS via {@link toolbarEntryKeys}:
+ * `Shift-F10` on Apple (where `\` isn't a labelled key), `Alt-Shift-\`
+ * elsewhere. The `\` choice (over a letter) followed two letter-based
+ * attempts (`Alt-Enter`, `Alt-Shift-T`) that each turned out to already mean
+ * something else on some real setup (a window manager's fullscreen toggle, a
+ * browser's reopen-closed-tab binding) — see `SelectionToolbar.svelte`'s
  * doc comment for the details.
  *
- * On **Apple** this entry-point hint is omitted entirely: `\` is not a
- * directly accessible key on a Mac keyboard (on an AZERTY layout it's a
- * compose combo, `⇧⌥/`-style, not a labelled key), so showing `⌥⇧\` there
- * points at a key the user can't find — worse than showing nothing. The
- * per-command shortcuts below (`⌥⇧R/C/H`, whose letters *are* on the
- * keyboard) and the mouse still reach every table action; the binding stays
- * live (it matches the physical Backslash key via `event.code`), just
- * unadvertised on Apple.
+ * The per-command shortcuts (`⌥⇧R/C/H`, `⌥⇧⌫`, `⌘⌥⇧⌫`) are matched by
+ * `prosemirror-keymap`'s keyCode fallback (`base[event.keyCode]`), which is
+ * layout- and Option-compose-independent and — unlike Windows AltGr — is
+ * *not* disabled for `metaKey` on Mac, so every one of them works `Fn`-free
+ * on macOS including AZERTY (the letters/`⌫` are all labelled keys too).
  */
 export function tableShortcuts(os: OS = parseOS()): Shortcut[] {
   const mod = modKey(os);
@@ -86,7 +102,7 @@ export function tableShortcuts(os: OS = parseOS()): Shortcut[] {
     { keys: [alt, keyCap('Shift'), keyCap('C')], label: shortcutLabel('Add column') },
     { keys: [mod, alt, keyCap('Shift'), keyCap('⌫')], label: shortcutLabel('Delete column') },
     { keys: [alt, keyCap('Shift'), keyCap('H')], label: shortcutLabel('Toggle header') },
-    ...(os === OS.Apple ? [] : [{ keys: [alt, keyCap('Shift'), keyCap('\\')], label: shortcutLabel('Table toolbar') }]),
+    { keys: toolbarEntryKeys(os), label: shortcutLabel('Table toolbar') },
   ];
 }
 
