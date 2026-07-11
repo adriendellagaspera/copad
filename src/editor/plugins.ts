@@ -980,6 +980,13 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-Shift-9': toggleWrap(s.nodes.blockquote),
       'Mod-z': undo,
       'Mod-y': redo,
+      // Redo also on Mod-Shift-z (the macOS default). Known, accepted gap: on
+      // an AZERTY Mac the Z key sits at the physical US-W position, so
+      // prosemirror-keymap's keyCode fallback resolves it to `w`, not `z`, and
+      // this binding doesn't fire there. Left as-is deliberately — redo stays
+      // fully reachable via Mod-y on every layout, and hardcoding the physical
+      // key (`event.code === 'KeyW'`) would be a layout-specific special case
+      // for no real gain. Mod-Shift-z still works on QWERTY Macs.
       'Mod-Shift-z': redo,
       'Escape': escapeCodeBlock,
       'ArrowUp': chainCommands(tableArrowVertical(-1), tableArrowFromOutside(-1)),
