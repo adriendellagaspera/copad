@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures';
 
 /** UI/UX regression tests for the redesigned chrome and editor features. */
@@ -49,4 +50,29 @@ test('word count reflects typed text', async ({ page }) => {
   await ed.click();
   await page.keyboard.type('one two three');
   await expect(page.locator('.wordcount')).toContainText('3 words');
+});
+
+test('download menu (header capsule) exports the document as markdown', async ({ page }) => {
+  // Force the Blob/anchor fallback so this test observes a real Playwright
+  // download event regardless of whether the browser also supports the File
+  // System Access API's save picker (Chromium does; Firefox/Safari don't).
+  await page.addInitScript(() => { delete (window as { showSaveFilePicker?: unknown }).showSaveFilePicker; });
+  await page.goto('/?room=pw-download');
+  const ed = page.locator('.ProseMirror');
+  await ed.waitFor();
+  await ed.click();
+  await page.keyboard.type('# Export me');
+
+  // Scoped to the header capsule instance — the mobile dock mounts a second,
+  // CSS-hidden copy of the same component (see IdentityMenu/Share for the
+  // same dual-mount pattern), so an unscoped title/role lookup would be
+  // ambiguous even though only one is ever visible at a time.
+  await page.locator('header.capsule .download-btn').click();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('menuitem', { name: /Markdown/ }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe('pw-download.md');
+  const path = await download.path();
+  expect(path && readFileSync(path, 'utf8')).toContain('# Export me');
 });

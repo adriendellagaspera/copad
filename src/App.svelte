@@ -60,6 +60,8 @@
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
   import ShareDialog from './ui/ShareDialog.svelte';
+  import DownloadMenu from './ui/DownloadMenu.svelte';
+  import { roomName } from './collaboration/roomName.svelte.js';
   import SyncBanner from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
   import { createTheme } from './ui/theme.svelte.js';
@@ -732,6 +734,7 @@
         onColor={(c) => { color = c; }}
       />
     </div>
+    <DownloadMenu baseName={roomName.value ?? room} {toasts} />
     <button class="cap-share share-btn" onclick={() => (shareOpen = true)} title="Share / invite collaborators">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
@@ -781,6 +784,7 @@
         <path d="M12 5v14M5 12h14" />
       </svg>
     </button>
+    <DownloadMenu baseName={roomName.value ?? room} {toasts} />
     <button class="dock-share" onclick={() => (shareOpen = true)} title="Share / invite collaborators" aria-label="Share / invite collaborators">
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />

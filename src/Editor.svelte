@@ -18,7 +18,6 @@
   import LinkPopover from './editor/ui/LinkPopover.svelte';
   import WordCount from './editor/ui/WordCount.svelte';
   import Outline from './editor/ui/Outline.svelte';
-  import DownloadMenu from './editor/ui/DownloadMenu.svelte';
   import ShortcutBar from './editor/ui/ShortcutBar.svelte';
   import type { PeerUser } from './ui/types.js';
   import { SaveStatus } from './ui/types.js';
@@ -40,6 +39,7 @@
   import { trackPresenceActivity } from './collaboration/presenceActivity.js';
   import { remoteCursorBuilder, remoteSelectionBuilder, refreshPresenceFade, jumpToPresence } from './editor/ui/remoteCursors.js';
   import { roomName, renameRoom, bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
+  import { bindDownload, unbindDownload } from './editor/downloadBridge.svelte.js';
   import DocTitle from './editor/ui/DocTitle.svelte';
   import {
     sessionState,
@@ -110,6 +110,11 @@
   });
   const onRoomMeta = (): void => setRoomNameLocal(readRoomName());
   roomMeta.observe(onRoomMeta);
+
+  // One-off "Download as…" export (#86) — the header-level DownloadMenu calls
+  // through this bridge since it lives outside the Editor subtree and has no
+  // direct access to `collab.doc`.
+  bindDownload((codec) => Promise.resolve(codec.encode(collab.doc)));
 
   let editorEl = $state<HTMLDivElement | undefined>();
   // $state.raw: track reference changes for reactivity but don't proxy the
@@ -420,6 +425,7 @@
     offStatus();
     roomMeta.unobserve(onRoomMeta);
     unbindRoomName();
+    unbindDownload();
     resetSessionState();
     window.removeEventListener('beforeunload', flush);
     view?.destroy();
@@ -455,7 +461,6 @@
     <span class="spacer"></span>
     <WordCount {editorState} />
     <Outline {view} {editorState} />
-    <DownloadMenu doc={collab.doc} baseName={roomName.value ?? room} {toasts} />
   </div>
   <SelectionToolbar {view} {editorState} {toasts} />
   <CaretFormatHint {view} {editorState} />
