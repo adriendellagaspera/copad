@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseOS, modKey, keyCap, OS } from './platform.js';
+import { parseOS, modKey, altKey, keyCap, OS } from './platform.js';
 
 describe('parseOS', () => {
   it('parses Apple via userAgentData.platform (modern, preferred)', () => {
@@ -33,6 +33,13 @@ describe('modKey', () => {
   it('resolves ⌘ on Apple and Ctrl elsewhere', () => {
     expect(modKey(OS.Apple)).toBe('⌘');
     expect(modKey(OS.Other)).toBe('Ctrl');
+  });
+});
+
+describe('altKey', () => {
+  it('resolves ⌥ on Apple and Alt elsewhere', () => {
+    expect(altKey(OS.Apple)).toBe('⌥');
+    expect(altKey(OS.Other)).toBe('Alt');
   });
 });
 
