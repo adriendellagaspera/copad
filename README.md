@@ -194,6 +194,16 @@ room property. This is worth understanding so nothing surprises you:
   (secure link `#k=` or a room password, from the Share dialog). Who may **edit** can
   be signalled with a **view-only link** (`?role=reader`) — cooperative, i.e. a
   determined client could ignore it, so use it with trusted collaborators.
+- **What the room id protects, and what it doesn't.** The room id (`?room=`) is
+  drawn from a CSPRNG (`crypto.randomUUID()`), so it can't be guessed or enumerated.
+  In `public` mode that's the *only* access control: knowing the id is knowing the
+  room, and by itself it does **not** encrypt anything — a plaintext room still
+  leaks its content, and the full SDP exchanged over signaling (`a=candidate:`
+  lines carry LAN and public IPs), to anyone who reaches it. **"New document"**
+  mints a secret-link key (`#k=`) alongside the id, so a freshly created room is
+  end-to-end encrypted from the start — visible as the 🔒 badge on the status
+  chip and in the Share dialog, not an invisible default. Sharing the bare
+  `?room=` id without the `#k=` fragment shares access without the key.
 - **Local backend caveat**: the Local-file backend holds a single picked file, so it
   effectively serves one room's document at a time — switching rooms no longer carries
   content, but re-importing a file in another room repoints that one file.
