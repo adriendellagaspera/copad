@@ -4,7 +4,7 @@ import type { StorageAuth } from './auth.js';
 import { knownExtensions } from '../format/index.js';
 import { STORAGE_ID } from './constants.js';
 
-// showOpenFilePicker / showSaveFilePicker not yet in TypeScript's lib.dom.d.ts at this version.
+// Not yet in TypeScript's lib.dom.d.ts.
 declare global {
   interface Window {
     showOpenFilePicker(opts?: {
@@ -18,8 +18,6 @@ declare global {
   }
 }
 
-// How the local backend is currently bound to a file — a closed set we own, so
-// the state machine below matches `LocalMode.Native` over a bare `'native'`.
 const LocalMode = { Idle: 'idle', Native: 'native', Imported: 'imported', New: 'new' } as const;
 type LocalMode = (typeof LocalMode)[keyof typeof LocalMode];
 
@@ -29,7 +27,6 @@ type LocalState =
   | { readonly mode: typeof LocalMode.Imported; readonly file: File }
   | { readonly mode: typeof LocalMode.New };
 
-// Module-level state — survives Svelte reactivity cycles but not page refresh.
 let state: LocalState = { mode: LocalMode.Idle };
 
 function hasFsAccessApi(): boolean {
@@ -42,7 +39,7 @@ function unavailableReason(): string | undefined {
   return undefined;
 }
 
-// cancel fires on Chrome 113+ / Safari 16.4+; on older iOS the promise hangs until reload.
+// `cancel` needs Chrome 113+ / Safari 16.4+; older iOS leaves this pending until reload.
 function pickFileMobile(): Promise<File> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
@@ -83,7 +80,6 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
           state = { mode: LocalMode.Native, handle };
         }
       } else {
-        // Fallback: "New file" starts an empty document; save is a no-op.
         state = createNew
           ? { mode: LocalMode.New }
           : { mode: LocalMode.Imported, file: await pickFileMobile() };
@@ -101,14 +97,13 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
     get blurb(): string {
       return hasFsAccessApi()
         ? 'Opens any text or source file on your device — .yjs, .md, .txt, .html, .json, .py, .js, .rs, …'
-        : 'Import a file from your device — .yjs, .md, .txt, .html, .json, … Changes sync in real time and are preserved in the browser\'s local cache.';
+        : 'Import a file from your device — .yjs, .md, .txt, .html, .json, … Changes sync in real time and stay in this browser\'s local cache; this browser can\'t write them back to the original file.';
     },
     get availability(): StorageAvailability {
       const reason = unavailableReason();
       return reason ? { ok: false, reason } : { ok: true };
     },
 
-    // The picked file's name selects the codec; `.yjs` is the native default.
     filename(): Filename {
       const name =
         state.mode === LocalMode.Native ? state.handle.name
@@ -132,7 +127,7 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
             ? null
             : { format: DocFormat.Binary, bytes: new Uint8Array(await state.file.arrayBuffer()) };
         case LocalMode.New:
-          return null; // Empty document; content comes from collaborators.
+          return null;
         case LocalMode.Idle:
           throw new Error('Local: not connected');
       }
@@ -149,7 +144,11 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
         }
         case LocalMode.Imported:
         case LocalMode.New:
-          return; // No write-back — edits persist in the Y.Doc and local cache.
+          throw new Error(
+            'this browser can\'t write files back (no File System Access API). ' +
+              'Changes stay in the session and the local cache — connect a cloud ' +
+              'backend or export the document to keep them.'
+          );
         case LocalMode.Idle:
           throw new Error('Local: not connected');
       }

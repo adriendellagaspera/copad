@@ -193,6 +193,23 @@ This codebase uses **functional naming** — no OO suffixes.
 | `new Foo()` | `foo()` |
 | `FooManager`, `FooService`, `FooHandler` | plain function or module |
 
+## Comments
+
+**Default: zero in-code comments.** The code must speak for itself — naming, types
+and structure carry the meaning. A comment that restates the code is noise, and it
+rots as soon as the code moves.
+
+A comment is tolerated only when the *reason* cannot be read from the code at all,
+and it must be ultra-concise (one line wherever possible): an external system's
+non-obvious behaviour (pCloud returns API errors inside an HTTP 200), or a
+constraint the compiler can't express that a future reader would otherwise undo.
+
+Never comment what a function does, what a type means, what a well-named variable
+holds, or why a change was made — names and git cover those. A comment that feels
+necessary usually marks a bad name or a missing type: fix that instead.
+
+**When you touch a file, bring its existing comments down to this bar.**
+
 ## Key technical notes
 
 - **Svelte 5 runes** — use `$state.raw()` for ProseMirror objects (avoid deep Proxy wrapping).
