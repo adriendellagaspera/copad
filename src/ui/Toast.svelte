@@ -7,7 +7,14 @@
 
 <div class="toasts" aria-live="polite" aria-atomic="false">
   {#each toasts.items as t (t.id)}
-    <div class="toast {t.kind}" role={t.kind === ToastKind.Error ? 'alert' : 'status'}>
+    <div
+      class="toast {t.kind}"
+      role={t.kind === ToastKind.Error ? 'alert' : 'status'}
+      onmouseenter={() => toasts.pause(t.id)}
+      onmouseleave={() => toasts.resume(t.id)}
+      onfocusin={() => toasts.pause(t.id)}
+      onfocusout={() => toasts.resume(t.id)}
+    >
       <span class="toast-icon" aria-hidden="true">
         {#if t.kind === ToastKind.Error}✕{:else if t.kind === ToastKind.Success}✓{:else}i{/if}
       </span>
@@ -22,15 +29,25 @@
 <style>
   .toasts {
     position: fixed;
-    bottom: var(--sp-4);
     left: 50%;
     transform: translateX(-50%);
+    /* 60px must match the dock-reservation offset in editor.css's .content padding-bottom. */
+    bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));
     display: flex;
     flex-direction: column-reverse;
     gap: var(--sp-2);
     z-index: var(--z-toast);
     width: min(420px, calc(100vw - 2 * var(--sp-4)));
     pointer-events: none;
+  }
+  /* Must mirror editor.css's dock-reservation trigger, or the two disagree about when the dock is showing. */
+  @media (pointer: fine) and (min-width: 901px) {
+    .toasts {
+      left: auto;
+      right: var(--sp-4);
+      transform: none;
+      bottom: var(--sp-4);
+    }
   }
   .toast {
     pointer-events: auto;

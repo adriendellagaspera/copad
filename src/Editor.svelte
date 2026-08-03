@@ -301,9 +301,11 @@
         }, 2_500);
       })
       .catch((e: Error) => {
+        // A repeat failure is already carried by StatusPill's durable state; toast only the transition into it.
+        const wasAlreadyFailing = saveStatus === SaveStatus.Error;
         saveStatus = SaveStatus.Error;
         console.warn('Copad: autosave failed', e);
-        toasts.error(`Couldn't save to ${label}: ${e.message}`);
+        if (!wasAlreadyFailing) toasts.error(`Couldn't save to ${label}: ${e.message}`);
       });
   };
 

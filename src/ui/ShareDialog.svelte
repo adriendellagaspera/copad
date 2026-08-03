@@ -34,10 +34,7 @@
   let inputEl = $state<HTMLInputElement | undefined>();
   let readerInputEl = $state<HTMLInputElement | undefined>();
 
-  // Local mirror of the room's current encryption, re-read whenever the dialog
-  // opens (location.hash / localStorage aren't reactive on their own). linkKey and
-  // storedPw carry RoomCredential — the same branded type the domain uses — while
-  // pwInput is the raw editable text field (user input stays a string until accepted).
+  // Re-read on open: location.hash / localStorage aren't reactive on their own.
   let linkKey = $state<RoomCredential | undefined>(undefined);
   let storedPw = $state<RoomCredential | null>(null);
   let pwInput = $state('');
@@ -49,27 +46,21 @@
       pwInput = storedPw ?? '';
       confirmingRemove = false;
       copiedButton = null;
+      secConfirm = null;
     }
   });
 
   const base = $derived(`${location.origin}${location.pathname}?room=${encodeURIComponent(room)}`);
-  // Keep the #k= key (when present) at the very end so it stays in the hash and the
-  // role flag stays in the query string.
+  // #k= must stay last so it's in the hash, not the query string.
   const hashSuffix = $derived(linkKey ? `#k=${encodeURIComponent(linkKey)}` : '');
   const url = $derived(`${base}${hashSuffix}`);
   const readerUrl = $derived(`${base}&role=reader${hashSuffix}`);
   const encrypted = $derived(!!linkKey || !!storedPw || !!envPassword);
   const envOnly = $derived(!linkKey && !storedPw && !!envPassword);
 
-  // The room's currently-effective per-room key (secure link takes precedence over
-  // a stored password), before whatever change we're about to make.
   const currentKey = (): RoomCredential | null => linkKey ?? storedPw ?? null;
 
-  // Changing encryption does three things, in order: record the new key's
-  // fingerprint (so a later keyless visit is gated), migrate the local cache from
-  // the old key to the new one (content survives; no copy is left readable under
-  // the old key), then reconnect. All awaited *before* onSecurityChange so the
-  // editor remounts against an already-migrated cache and correct registry.
+  // Fingerprint + cache migration must both complete before onSecurityChange remounts the editor.
   async function makeSecureLink(): Promise<void> {
     const before = currentKey();
     const key = rotateSecretKey();
@@ -80,7 +71,7 @@
     storedPw = null;
     pwInput = '';
     onSecurityChange?.();
-    toasts.success('Secure link created — anyone with the link can read this document');
+    flashSecConfirm('Secure link created — anyone with the link can read this document');
   }
 
   async function applyPassword(): Promise<void> {
@@ -95,7 +86,7 @@
     linkKey = undefined;
     storedPw = cred;
     onSecurityChange?.();
-    toasts.success(pw ? 'Document password applied' : 'Document password removed');
+    flashSecConfirm(pw ? 'Document password applied' : 'Document password removed');
   }
 
   async function removeEncryption(): Promise<void> {
@@ -109,12 +100,10 @@
     pwInput = '';
     confirmingRemove = false;
     onSecurityChange?.();
-    toasts.info('Encryption removed from this document');
+    flashSecConfirm('Encryption removed from this document');
   }
 
-  // Removing encryption breaks collaborators' current link/password, so the
-  // button requires a second click within a short window instead of acting
-  // immediately. Shared by both "Remove encryption" entry points below.
+  // Two-click confirm: this breaks collaborators' current link/password.
   let confirmingRemove = $state(false);
   let confirmRemoveTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -128,7 +117,16 @@
     confirmRemoveTimer = setTimeout(() => (confirmingRemove = false), 4000);
   }
 
-  // Which link's "Copy link" button is showing its transient "Copied ✓" state.
+  // Inline, not a toast: this dialog stays open after these actions, and on mobile a fixed toast would cover the sheet's own content.
+  let secConfirm = $state<string | null>(null);
+  let secConfirmTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function flashSecConfirm(text: string): void {
+    clearTimeout(secConfirmTimer);
+    secConfirm = text;
+    secConfirmTimer = setTimeout(() => (secConfirm = null), 4000);
+  }
+
   let copiedButton = $state<'invite' | 'reader' | null>(null);
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -138,9 +136,7 @@
     copiedTimer = setTimeout(() => (copiedButton = null), 2000);
   }
 
-  // Shared toast slot for every copy in this dialog: copying the invite link
-  // then the view-only link (or vice versa) swaps the message in place
-  // instead of stacking two "…copied to clipboard" toasts.
+  // One group so invite/reader copies swap in place instead of stacking.
   const COPY_TOAST_GROUP = 'share-dialog-copy';
 
   async function copyTo(
@@ -239,6 +235,10 @@
       Document privacy
       {#if encrypted}<span class="lock" title="End-to-end encrypted">🔒 Encrypted</span>{/if}
     </h3>
+
+    {#if secConfirm}
+      <p class="sec-confirm" role="status">✓ {secConfirm}</p>
+    {/if}
 
     {#if envOnly}
       <p class="sec-note">This deployment encrypts every document with a shared key.</p>
@@ -404,6 +404,15 @@
     font-size: var(--fs-300);
     font-weight: 500;
     color: var(--ok, var(--accent));
+  }
+  .sec-confirm {
+    margin: 0 0 var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-2, 6px);
+    background: var(--ok-soft, var(--surface-3));
+    color: var(--ok, var(--text));
+    font-size: var(--fs-300);
+    font-weight: 500;
   }
   .sec-note {
     margin: 0 0 var(--sp-3);
