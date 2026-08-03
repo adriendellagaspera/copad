@@ -26,6 +26,12 @@ function writeKey(key: RoomCredential): void {
   history.replaceState(null, '', '#' + params.toString());
 }
 
+/** Mint a fresh CSPRNG key for a secret link / encrypted room. The single cast
+ *  site from `crypto.randomUUID()`'s ~122 bits of entropy into a {@link RoomCredential}. */
+export function mintSecretKey(): RoomCredential {
+  return crypto.randomUUID() as RoomCredential;
+}
+
 /**
  * A randomly generated key embedded in the URL `#k=` fragment.
  *
@@ -37,7 +43,7 @@ function writeKey(key: RoomCredential): void {
  */
 export function secretLink(): SecretLinkPort {
   const existing = parseKey();
-  const key: RoomCredential = existing ?? (crypto.randomUUID() as RoomCredential);
+  const key: RoomCredential = existing ?? mintSecretKey();
   if (!existing) writeKey(key);
   return {
     mode: RoomAccessMode.SecretLink,
@@ -49,7 +55,7 @@ export function secretLink(): SecretLinkPort {
 /** Replace the current `#k=` key with a freshly generated one. Call this
  *  when the user explicitly requests a new secure link for the room. */
 export function rotateSecretKey(): RoomCredential {
-  const key = crypto.randomUUID() as RoomCredential;
+  const key = mintSecretKey();
   writeKey(key);
   return key;
 }

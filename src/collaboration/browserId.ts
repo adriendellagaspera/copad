@@ -23,11 +23,14 @@ const store = localStore<BrowserId | null>(
 );
 
 function mint(): BrowserId {
-  const rand =
-    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-  return rand as BrowserId;
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID() as BrowserId;
+  }
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('') as BrowserId;
+  }
+  throw new Error('Copad: no CSPRNG available (crypto.getRandomValues missing) — cannot mint a browser id.');
 }
 
 /** This browser's id, minting and persisting one on first use. */

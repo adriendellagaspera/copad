@@ -39,7 +39,8 @@
     roomOpenedWithoutPassword,
     setRoomOpenedWithoutPassword,
   } from './collaboration/roomAccess.js';
-  import { currentSecretKey } from './collaboration/secretLink.js';
+  import { currentSecretKey, mintSecretKey } from './collaboration/secretLink.js';
+  import { newRoomId } from './collaboration/roomId.js';
   import type { RoomCipher } from './collaboration/roomCipher.js';
   import {
     roomLockState,
@@ -652,9 +653,20 @@
   // own room, and the per-room-per-backend filename already lives correctly
   // namespaced in localStorage. A new document means a new tab — never a
   // second room alongside this one.
+  //
+  // The room id is CSPRNG (contract §5) — it's the only access control in
+  // `public` mode. A fresh secret-link key rides along in the `#k=` fragment
+  // (client-side only, never sent to signaling) so the room is end-to-end
+  // encrypted from the start; the new tab's status chip shows it as such —
+  // the choice is visible, not an invisible default.
   function newRoom(): void {
-    const r = Math.random().toString(36).slice(2, 10);
-    window.open(`${location.pathname}?room=${encodeURIComponent(r)}`, '_blank', 'noopener');
+    const r = newRoomId();
+    const key = mintSecretKey();
+    window.open(
+      `${location.pathname}?room=${encodeURIComponent(r)}#k=${encodeURIComponent(key)}`,
+      '_blank',
+      'noopener',
+    );
   }
 
   // The wordmark's full reload is a deliberate, legitimate action from a mouse
