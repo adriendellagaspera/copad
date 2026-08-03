@@ -5,14 +5,11 @@ import type { DocContent } from './types.js';
 import { DocFormat } from './types.js';
 import type { RoomId } from '../collaboration/types.js';
 
-// pcloud-sdk-js's popup() is the actual IO boundary here (see pcloud.ts) — mock
-// its shape so tests control exactly when/whether the success/error callback fires.
 const popup = vi.fn();
 vi.mock('pcloud-sdk-js', () => ({ default: { oauth: { popup } } }));
 
 const TEST_ROOM = 'document' as RoomId;
 
-// Minimal localStorage shim for Node test environment.
 const store: Record<string, string> = {};
 const localStorageMock = {
   getItem: (key: string) => store[key] ?? null,
@@ -33,9 +30,7 @@ afterEach(() => {
 
 const DOC: DocContent = { format: DocFormat.Binary, bytes: new Uint8Array([1, 2, 3]) };
 
-// pCloud answers HTTP 200 even when the upload failed, putting the outcome in
-// the body — so a fetch stub has to control `ok` and the JSON independently.
-const replying = (body: unknown, ok = true, status = 200): Fetch =>
+const replying =(body: unknown, ok = true, status = 200): Fetch =>
   (async () => ({ ok, status, json: async () => body })) as unknown as Fetch;
 
 async function connected(netFetch: Fetch) {
@@ -106,7 +101,6 @@ describe('pcloudStorage', () => {
     const { pcloudStorage } = await import('./pcloud.js');
     const { auth }: { auth: StorageAuth } = pcloudStorage(vi.fn(), TEST_ROOM);
     auth.setConfig?.('clientId', 'my-client-id');
-    // Simulate a blocked popup / an SDK that never fires either callback.
     popup.mockImplementation(() => {});
 
     const pending = auth.login();

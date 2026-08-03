@@ -5,8 +5,7 @@ import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
 import { LoginKind, OpenMode } from './types.js';
 
-// happy-dom has no showOpenFilePicker, so every test here exercises the
-// <input type="file"> fallback path (mobile / Firefox), not the native one.
+// happy-dom has no showOpenFilePicker, so these all take the fallback path.
 
 describe('localFsStorage — fallback path (no File System Access API)', () => {
   let auth: StorageAuth;
@@ -14,7 +13,7 @@ describe('localFsStorage — fallback path (no File System Access API)', () => {
 
   beforeEach(() => {
     ({ auth, storage } = localFsStorage());
-    auth.logout(); // reset module-level state to idle between tests
+    auth.logout();
   });
 
   it('is not authenticated before login', () => {
@@ -51,10 +50,6 @@ describe('localFsStorage — fallback path (no File System Access API)', () => {
     });
 
     it('refuses to save rather than report a write it cannot do', async () => {
-      // There is no file handle on this path: the file came in through an
-      // <input type="file">, which is a one-way read. Resolving here made the
-      // status pill read "Saved" on every keystroke while the file on disk kept
-      // its imported contents — a save that never happened, reported as done.
       await expect(
         storage.save({ format: 'binary', bytes: new Uint8Array([1, 2, 3]) }),
       ).rejects.toThrow(/can't write files back/);

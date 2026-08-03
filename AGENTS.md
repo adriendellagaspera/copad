@@ -56,6 +56,21 @@
 - Add a discriminant field (`active`, `ok`, `format`, `type`) that TypeScript can
   narrow on. Callers must handle all arms.
 
+## Comments
+
+- Default to **zero** in-code comments. Naming, types and structure carry the
+  meaning; a comment that restates the code is noise, and it rots.
+- A comment is tolerated only when the *reason* for the code cannot be read from
+  the code at all, and it must be ultra-concise — one line wherever possible:
+  - an external system's non-obvious behaviour (pCloud returns API errors inside
+    an HTTP 200);
+  - a constraint the compiler cannot express and a future reader would undo.
+- Never comment what a function does, what a type means, what a well-named
+  variable holds, or why a change was made — that is what names and git are for.
+- Prefer fixing the code over explaining it: a comment that feels necessary
+  usually marks a bad name or a missing type.
+- When you touch a file, bring its existing comments down to this bar.
+
 ## Checklist before every commit
 
 - [ ] No new `any`, no unguarded `as unknown`, no widening casts outside parsers.
@@ -65,3 +80,4 @@
 - [ ] New Svelte props use named types in `$props()`.
 - [ ] `npm run check` passes with zero errors.
 - [ ] No adapter import added inside `Editor.svelte` or format codecs.
+- [ ] No new comment that the code already says; comments in touched files slimmed.

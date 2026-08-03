@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parsePCloudUploadResponse } from './parse.js';
 
-// pCloud answers HTTP 200 even when the upload failed, putting the real outcome
-// in the body. These cases pin the shapes `save()` has to tell apart, because
-// getting it wrong reports data loss as a successful save.
 describe('parsePCloudUploadResponse', () => {
   it('reads a successful upload', () => {
     const r = parsePCloudUploadResponse({ result: 0, fileids: [12345], metadata: [{}] });
@@ -19,8 +16,6 @@ describe('parsePCloudUploadResponse', () => {
   });
 
   it('reports no file id when a zero result stored nothing', () => {
-    // Accepted by the protocol, wrote nothing — indistinguishable from success
-    // on `result` alone, which is why `fileids` is the evidence that matters.
     expect(parsePCloudUploadResponse({ result: 0, fileids: [] }).fileids).toEqual([]);
   });
 

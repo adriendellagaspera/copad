@@ -26,16 +26,8 @@ import {
   OAUTH_TIMEOUT_MS,
 } from './constants.js';
 
-// ── Branded types ─────────────────────────────────────────────────────────────
-
-/** The pCloud OAuth token minted by the SDK's popup callback. */
 export type PCloudToken = string & { readonly _brand: 'PCloudToken' };
-
-/** The resolved API host for the session's region — one of the two constant
- *  hosts (`PCLOUD_API_HOST` / `PCLOUD_EU_API_HOST`), branded per session. */
 export type PCloudApiHost = string & { readonly _brand: 'PCloudApiHost' };
-
-/** A configured pCloud OAuth app Client ID. */
 export type PCloudClientId = string & { readonly _brand: 'PCloudClientId' };
 
 const sessionStore = localStore<PCloudSession | null>(
@@ -44,7 +36,6 @@ const sessionStore = localStore<PCloudSession | null>(
   (s) => (s ? JSON.stringify(s) : null),
 );
 
-// Persisted under `storage.pcloud.clientId` — same key the old connect form used.
 const cfg = configStore(STORAGE_ID.pcloud, [
   {
     name: 'clientId',
@@ -60,8 +51,6 @@ export function pcloudStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
   const filePath = () => `${CLOUD_FOLDER}/${fileName.get()}`;
   const session = (): PCloudSession | null => sessionStore.read();
 
-  // Client ID is validated once here (trim, non-empty), mirroring the other
-  // OAuth-popup backends' config resolvers.
   function resolvedClientId(): PCloudClientId | null {
     return parsePCloudClientId(cfg.config('clientId'));
   }
@@ -74,19 +63,14 @@ export function pcloudStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
       if (!clientId) throw new Error('Add a pCloud Client ID in Settings first.');
 
       await new Promise<void>((resolve, reject) => {
-        // Unlike the shared openOAuthPopup() helper the other OAuth backends use,
-        // this third-party SDK gives us no popup-blocked signal and no timeout of
-        // its own — without one, a blocked popup or a callback the SDK never fires
-        // leaves the Connect button stuck on "Connecting…" forever.
+        // The SDK signals neither a blocked popup nor a callback it never fires.
         const timeout = setTimeout(() => {
           reject(new Error('pCloud auth timed out — check that popups are allowed for this site.'));
         }, OAUTH_TIMEOUT_MS);
 
         pcloudSdk.oauth.popup(
           clientId,
-          // The SDK callback hands us raw strings with no separate response-parse
-          // step to hook into — this callback signature IS the IO boundary, so we
-          // brand both fields right here.
+          // This callback signature is the IO boundary — no response to parse.
           (token: string, locationid?: number) => {
             clearTimeout(timeout);
             const host = ((locationid ?? 1) === 2
@@ -169,16 +153,10 @@ export function pcloudStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
       );
       if (!res.ok) throw new Error(`pCloud save failed: ${res.status}`);
 
-      // pCloud puts API failures in the *body* of a 200 — an expired token, a
-      // full quota or a bad path all arrive as `{ result: <non-zero> }` with an
-      // HTTP 200. Trusting `res.ok` alone reported every one of them as a
-      // successful save while nothing was written. `load()` already knows this
-      // (it checks `meta.result !== 0`); the write path has to check too.
+      // pCloud reports API failures inside an HTTP 200, so `res.ok` proves nothing.
       const reply = parsePCloudUploadResponse((await res.json()) as unknown);
       if (reply.result !== 0)
         throw new Error(`pCloud save failed: ${reply.error ?? `error ${reply.result}`}`);
-      // A zero result with no file id means the request was accepted and stored
-      // nothing — success on the protocol, silent data loss for the user.
       if (reply.fileids.length === 0)
         throw new Error('pCloud save failed: the upload stored no file');
     },
