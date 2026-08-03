@@ -1,11 +1,9 @@
 # The Copad contract
 
 > Specification. Unimplemented except where a section says otherwise (§5 has shipped).
-> This is the spine — the part that has to stay coherent. It used to rest on a set of
-> `notes/` design docs (transports, states, measured probe feasibility, rendezvous
-> options); those were archived as comments on the GitHub issue each section maps to
-> (#213/#215/#216/#217/#218) and deleted from the repo — a living spec plus its issue
-> tracker is one source of truth, not two.
+> This is the spine — the part that has to stay coherent, self-sufficient, on its own.
+> Where it cites a mechanism, the citation is to this repo's code or to the upstream
+> project that owns that mechanism — never to an issue tracker or a pull request.
 
 ## 1. The contract
 
@@ -213,7 +211,7 @@ Resolved: `newRoomId()` (`src/collaboration/roomId.ts`) draws room ids from `cry
 
 If Copad only writes with company, *"is anyone there?"* becomes its most frequent question, and it must be answerable **without joining**. Otherwise every visit is a coin flip and two people three minutes apart never meet.
 
-Both transports are probeable **with stock upstream servers** — no server ships in this repo and none needs patching.
+Both transports are probeable **with stock upstream servers** — no server ships in this repo and none needs patching: [`y-webrtc`](https://github.com/yjs/y-webrtc)'s `y-webrtc-signaling` bin, [`@y/websocket-server`](https://github.com/yjs/y-websocket-server)'s `y-websocket-server` bin.
 
 Measured, on running prototypes:
 
@@ -224,8 +222,11 @@ Measured, on running prototypes:
 | Clean departure | 341–716 ms | 2 ms |
 | **Frozen client (lid closed)** | **89 s** | **31 s** |
 | Rooms per connection | **200 on one socket** | 1 |
+| Server cost of being probed | 1 `Set` entry per room | **1 `Y.Doc` per room, never freed** |
 
 Two consequences. A hall watching many rooms is **cheaper on P2P** than on the hub — the opposite of intuition. And the UX number is the frozen-client tail: the hall must say *"seen a minute ago"*, never *"present"*.
+
+The hub row is a real cost, not a footnote: the stock server only frees a room's `Y.Doc` on disconnect if persistence is configured (`closeConn`, conditional on `persistence !== null`), and the bundled binary configures none. Probing a hub room — even once, even briefly — allocates a `Y.Doc` that outlives the probe for the life of the process. A hall watching many rooms, or anyone hostile enough to probe many room names, grows the hub's memory without bound. Mitigate at the hub's persistence layer, not in the probe.
 
 The probe works **without the room key** — presence leaks, content does not. It needs an `unknown` arm distinct from `empty`, which is the same rule as §2.2: "I don't know" must never render as "there is nobody".
 
