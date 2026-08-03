@@ -197,15 +197,15 @@ It becomes an explicit, named button, **P2P only**, stating its cost: `Write alo
 
 The honest cost, to be written in the README: the contract is *read-only when alone by default, deliberately overridable*. That is defensible. The silent version was not.
 
-## 5. Prerequisite: harden the room identifier
+## 5. Prerequisite: harden the room identifier — done
 
-Not follow-up work — a **precondition**, and small.
+Was not follow-up work — a **precondition**, and small.
 
-`newRoom()` generates 8 base36 characters from `Math.random()` — about 41 bits, from a non-cryptographic PRNG. Room ids are the only access control in `public` mode. Separately, a plaintext room leaks the **full SDP** over signaling, whose `a=candidate:` lines carry LAN and public IPs.
+`newRoom()` used to generate 8 base36 characters from `Math.random()` — about 41 bits, from a non-cryptographic PRNG. Room ids are the only access control in `public` mode. Separately, a plaintext room leaks the **full SDP** over signaling, whose `a=candidate:` lines carry LAN and public IPs.
 
-This contract makes it worse: today a guessed room leaks a document; under §6 it also leaks **who is where, and when**. Presence becomes a published signal — a step up in sensitivity.
+This contract made it worse: a guessed room leaked a document, and under §6 it would also leak **who is where, and when** — presence becomes a published signal, a step up in sensitivity.
 
-So: **CSPRNG room ids and encryption by default are prerequisites of the probe, not a later chore.** (`browserId` also uses `Math.random()`; less critical — leader-election scoping, not access — but worth doing at the same time.)
+Resolved: `newRoomId()` (`src/collaboration/roomId.ts`) draws room ids from `crypto.randomUUID()`, and `browserId()` (`src/collaboration/browserId.ts`) mints the same way (with a `crypto.getRandomValues` fallback). **New rooms are encrypted by default** — `newRoom()` mints a secret-link key (`#k=`) alongside the id, so a freshly created room is end-to-end encrypted from the start; the Share dialog surfaces this as the 🔒 *Encrypted* badge, so the choice is visible rather than implicit. The README states plainly what the room id protects and what it doesn't. CSPRNG room ids and encryption by default were prerequisites of the probe, not a later chore — that precondition is now satisfied.
 
 ## 6. Two modules that plug into the contract
 
@@ -261,7 +261,7 @@ Two traps: Zoom meeting ids are enumerable, so the canonical form must include `
 
 ## 8. Order of work
 
-1. **Harden the room identifier** (§5) — small, and a precondition for §6.1.
+1. ~~**Harden the room identifier**~~ (§5) — done, was a precondition for §6.1.
 2. **Presence model** — `RoomPresence`, the new core hooks, memoised emission. No visible behaviour.
 3. **`writeGate.ts`** — pure decision function with a full truth table. Not wired. No visible behaviour.
 4. **Wire the gate** — this is the commit that inverts the polarity, and where the review matters.
