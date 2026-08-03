@@ -41,6 +41,16 @@ export interface PCloudFileLinkResponse {
   path: string;
 }
 
+/** pCloud's `/uploadfile` reply. pCloud reports API failures *inside a 200
+ *  response* (a non-zero `result`), so the HTTP status alone never proves an
+ *  upload landed. `fileids` is the positive evidence: a 200 with `result: 0` but
+ *  no file id means the request was accepted and nothing was stored. */
+export interface PCloudUploadResponse {
+  result: number;
+  error?: string;
+  fileids: number[];
+}
+
 /** Persisted S3 connection. All fields feed AWS Signature V4; `prefix` is the
  *  object-key folder the per-room filename is appended to. */
 export interface S3Conf {
@@ -167,6 +177,19 @@ export function parsePCloudFileLinkResponse(raw: unknown): PCloudFileLinkRespons
   if (typeof result !== 'number' || !Array.isArray(hosts) || typeof path !== 'string')
     throw new Error('pCloud file link response malformed');
   return { result, hosts: hosts.filter((h): h is string => typeof h === 'string'), path };
+}
+
+export function parsePCloudUploadResponse(raw: unknown): PCloudUploadResponse {
+  if (typeof raw !== 'object' || raw === null)
+    throw new Error('Unexpected pCloud upload response');
+  const obj = raw as Record<string, unknown>;
+  const { result, error, fileids } = obj;
+  if (typeof result !== 'number') throw new Error('pCloud upload response malformed');
+  return {
+    result,
+    ...(typeof error === 'string' ? { error } : {}),
+    fileids: Array.isArray(fileids) ? fileids.filter((f): f is number => typeof f === 'number') : [],
+  };
 }
 
 export function parseDropboxTokenResponse(raw: unknown): { access_token: DropboxToken } {

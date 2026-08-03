@@ -50,11 +50,25 @@ describe('localFsStorage — fallback path (no File System Access API)', () => {
       expect(await storage.load()).toBeNull();
     });
 
-    it('save is a no-op — it resolves without throwing', async () => {
+    it('refuses to save rather than report a write it cannot do', async () => {
+      // There is no file handle on this path: the file came in through an
+      // <input type="file">, which is a one-way read. Resolving here made the
+      // status pill read "Saved" on every keystroke while the file on disk kept
+      // its imported contents — a save that never happened, reported as done.
       await expect(
         storage.save({ format: 'binary', bytes: new Uint8Array([1, 2, 3]) }),
-      ).resolves.toBeUndefined();
+      ).rejects.toThrow(/can't write files back/);
     });
+
+    it('names the ways out in its failure message', async () => {
+      await expect(
+        storage.save({ format: 'binary', bytes: new Uint8Array([1, 2, 3]) }),
+      ).rejects.toThrow(/cloud backend or export/);
+    });
+  });
+
+  it('says in its blurb that the original file is not written back', () => {
+    expect(storage.blurb).toMatch(/can't write them back to the original file/);
   });
 
   it('save rejects non-binary content', async () => {

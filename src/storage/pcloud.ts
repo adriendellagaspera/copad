@@ -9,6 +9,7 @@ import {
   type PCloudSession,
   parsePCloudSession,
   parsePCloudFileLinkResponse,
+  parsePCloudUploadResponse,
   parsePCloudClientId,
 } from './parse.js';
 import { localStore } from '../persistence/local.js';
@@ -167,6 +168,19 @@ export function pcloudStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
         { method: 'POST', body: form }
       );
       if (!res.ok) throw new Error(`pCloud save failed: ${res.status}`);
+
+      // pCloud puts API failures in the *body* of a 200 — an expired token, a
+      // full quota or a bad path all arrive as `{ result: <non-zero> }` with an
+      // HTTP 200. Trusting `res.ok` alone reported every one of them as a
+      // successful save while nothing was written. `load()` already knows this
+      // (it checks `meta.result !== 0`); the write path has to check too.
+      const reply = parsePCloudUploadResponse((await res.json()) as unknown);
+      if (reply.result !== 0)
+        throw new Error(`pCloud save failed: ${reply.error ?? `error ${reply.result}`}`);
+      // A zero result with no file id means the request was accepted and stored
+      // nothing — success on the protocol, silent data loss for the user.
+      if (reply.fileids.length === 0)
+        throw new Error('pCloud save failed: the upload stored no file');
     },
   };
 

@@ -101,7 +101,7 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
     get blurb(): string {
       return hasFsAccessApi()
         ? 'Opens any text or source file on your device — .yjs, .md, .txt, .html, .json, .py, .js, .rs, …'
-        : 'Import a file from your device — .yjs, .md, .txt, .html, .json, … Changes sync in real time and are preserved in the browser\'s local cache.';
+        : 'Import a file from your device — .yjs, .md, .txt, .html, .json, … Changes sync in real time and stay in this browser\'s local cache; this browser can\'t write them back to the original file.';
     },
     get availability(): StorageAvailability {
       const reason = unavailableReason();
@@ -149,7 +149,17 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
         }
         case LocalMode.Imported:
         case LocalMode.New:
-          return; // No write-back — edits persist in the Y.Doc and local cache.
+          // Without the File System Access API there is no handle to write
+          // through: the file arrived through an <input type="file">, which is a
+          // one-way read. Resolving here reported a save that never happened —
+          // the status pill read "Saved" on every keystroke while the file on
+          // disk stayed exactly as it was imported. Say so instead; a caller
+          // that can't write must never look like one that did.
+          throw new Error(
+            'this browser can\'t write files back (no File System Access API). ' +
+              'Changes stay in the session and the local cache — connect a cloud ' +
+              'backend or export the document to keep them.'
+          );
         case LocalMode.Idle:
           throw new Error('Local: not connected');
       }

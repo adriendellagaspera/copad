@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { StorageAuth } from './auth.js';
+import type { Fetch } from '../network/types.js';
+import type { DocContent } from './types.js';
+import { DocFormat } from './types.js';
 import type { RoomId } from '../collaboration/types.js';
 
 // pcloud-sdk-js's popup() is the actual IO boundary here (see pcloud.ts) — mock
@@ -28,6 +31,24 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+const DOC: DocContent = { format: DocFormat.Binary, bytes: new Uint8Array([1, 2, 3]) };
+
+// pCloud answers HTTP 200 even when the upload failed, putting the outcome in
+// the body — so a fetch stub has to control `ok` and the JSON independently.
+const replying = (body: unknown, ok = true, status = 200): Fetch =>
+  (async () => ({ ok, status, json: async () => body })) as unknown as Fetch;
+
+async function connected(netFetch: Fetch) {
+  const { pcloudStorage } = await import('./pcloud.js');
+  const backend = pcloudStorage(netFetch, TEST_ROOM);
+  backend.auth.setConfig?.('clientId', 'my-client-id');
+  popup.mockImplementation((_clientId: string, onSuccess: (t: string, l?: number) => void) => {
+    onSuccess('tok-123', 1);
+  });
+  await backend.auth.login();
+  return backend;
+}
+
 describe('pcloudStorage', () => {
   it('is not authenticated before login', async () => {
     const { pcloudStorage } = await import('./pcloud.js');
@@ -53,6 +74,31 @@ describe('pcloudStorage', () => {
     await auth.login();
 
     expect(auth.isAuthenticated()).toBe(true);
+  });
+
+  it('save reports a failure that pCloud returned inside a 200', async () => {
+    const { storage } = await connected(replying({ result: 2000, error: 'Log in failed.' }));
+    await expect(storage.save(DOC)).rejects.toThrow('pCloud save failed: Log in failed.');
+  });
+
+  it('save reports a non-zero result even with no error text', async () => {
+    const { storage } = await connected(replying({ result: 2008 }));
+    await expect(storage.save(DOC)).rejects.toThrow('pCloud save failed: error 2008');
+  });
+
+  it('save reports an accepted upload that stored no file', async () => {
+    const { storage } = await connected(replying({ result: 0, fileids: [] }));
+    await expect(storage.save(DOC)).rejects.toThrow('the upload stored no file');
+  });
+
+  it('save resolves when pCloud confirms a stored file', async () => {
+    const { storage } = await connected(replying({ result: 0, fileids: [98765] }));
+    await expect(storage.save(DOC)).resolves.toBeUndefined();
+  });
+
+  it('save still reports a transport-level failure', async () => {
+    const { storage } = await connected(replying({ result: 0, fileids: [1] }, false, 503));
+    await expect(storage.save(DOC)).rejects.toThrow('pCloud save failed: 503');
   });
 
   it('login times out with a clear error if the SDK never calls back', async () => {
