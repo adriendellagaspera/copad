@@ -654,11 +654,7 @@
   // namespaced in localStorage. A new document means a new tab — never a
   // second room alongside this one.
   //
-  // The room id is CSPRNG (contract §5) — it's the only access control in
-  // `public` mode. A fresh secret-link key rides along in the `#k=` fragment
-  // (client-side only, never sent to signaling) so the room is end-to-end
-  // encrypted from the start; the new tab's status chip shows it as such —
-  // the choice is visible, not an invisible default.
+  // CSPRNG room id (contract §5); a fresh secret-link key rides in `#k=` so the room is encrypted by default.
   function newRoom(): void {
     const r = newRoomId();
     const key = mintSecretKey();

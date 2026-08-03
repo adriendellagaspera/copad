@@ -26,8 +26,6 @@ function writeKey(key: RoomCredential): void {
   history.replaceState(null, '', '#' + params.toString());
 }
 
-/** Mint a fresh CSPRNG key for a secret link / encrypted room. The single cast
- *  site from `crypto.randomUUID()`'s ~122 bits of entropy into a {@link RoomCredential}. */
 export function mintSecretKey(): RoomCredential {
   return crypto.randomUUID() as RoomCredential;
 }
