@@ -1,11 +1,9 @@
 # The Copad contract
 
-> Specification. Nothing here is implemented yet.
-> This document is the spine — the part that has to stay coherent. Detail, code references and truth tables live in the notes it rests on:
-> [`notes/presence-contract.md`](notes/presence-contract.md) (transports, states, implementation plan) ·
-> [`notes/write-outcome.md`](notes/write-outcome.md) (branch (b), the `Storage` port) ·
-> [`notes/presence-probe.md`](notes/presence-probe.md) (measured probe feasibility) ·
-> [`notes/integrations.md`](notes/integrations.md) (rendezvous options).
+> Specification. Unimplemented except where a section says otherwise (§5 has shipped).
+> This is the spine — the part that has to stay coherent, self-sufficient, on its own.
+> Where it cites a mechanism, the citation is to this repo's code or to the upstream
+> project that owns that mechanism — never to an issue tracker or a pull request.
 
 ## 1. The contract
 
@@ -197,15 +195,15 @@ It becomes an explicit, named button, **P2P only**, stating its cost: `Write alo
 
 The honest cost, to be written in the README: the contract is *read-only when alone by default, deliberately overridable*. That is defensible. The silent version was not.
 
-## 5. Prerequisite: harden the room identifier
+## 5. Prerequisite: harden the room identifier — done
 
-Not follow-up work — a **precondition**, and small.
+Was not follow-up work — a **precondition**, and small.
 
-`newRoom()` generates 8 base36 characters from `Math.random()` — about 41 bits, from a non-cryptographic PRNG. Room ids are the only access control in `public` mode. Separately, a plaintext room leaks the **full SDP** over signaling, whose `a=candidate:` lines carry LAN and public IPs.
+`newRoom()` used to generate 8 base36 characters from `Math.random()` — about 41 bits, from a non-cryptographic PRNG. Room ids are the only access control in `public` mode. Separately, a plaintext room leaks the **full SDP** over signaling, whose `a=candidate:` lines carry LAN and public IPs.
 
-This contract makes it worse: today a guessed room leaks a document; under §6 it also leaks **who is where, and when**. Presence becomes a published signal — a step up in sensitivity.
+This contract made it worse: a guessed room leaked a document, and under §6 it would also leak **who is where, and when** — presence becomes a published signal, a step up in sensitivity.
 
-So: **CSPRNG room ids and encryption by default are prerequisites of the probe, not a later chore.** (`browserId` also uses `Math.random()`; less critical — leader-election scoping, not access — but worth doing at the same time.)
+Resolved: `newRoomId()` (`src/collaboration/roomId.ts`) draws room ids from `crypto.randomUUID()`, and `browserId()` (`src/collaboration/browserId.ts`) mints the same way (with a `crypto.getRandomValues` fallback). **New rooms are encrypted by default** — `newRoom()` mints a secret-link key (`#k=`) alongside the id, so a freshly created room is end-to-end encrypted from the start; the Share dialog surfaces this as the 🔒 *Encrypted* badge, so the choice is visible rather than implicit. The README states plainly what the room id protects and what it doesn't. CSPRNG room ids and encryption by default were prerequisites of the probe, not a later chore — that precondition is now satisfied.
 
 ## 6. Two modules that plug into the contract
 
@@ -213,7 +211,7 @@ So: **CSPRNG room ids and encryption by default are prerequisites of the probe, 
 
 If Copad only writes with company, *"is anyone there?"* becomes its most frequent question, and it must be answerable **without joining**. Otherwise every visit is a coin flip and two people three minutes apart never meet.
 
-Both transports are probeable **with stock upstream servers** — no server ships in this repo and none needs patching.
+Both transports are probeable **with stock upstream servers** — no server ships in this repo and none needs patching: [`y-webrtc`](https://github.com/yjs/y-webrtc)'s `y-webrtc-signaling` bin, [`@y/websocket-server`](https://github.com/yjs/y-websocket-server)'s `y-websocket-server` bin.
 
 Measured, on running prototypes:
 
@@ -224,8 +222,11 @@ Measured, on running prototypes:
 | Clean departure | 341–716 ms | 2 ms |
 | **Frozen client (lid closed)** | **89 s** | **31 s** |
 | Rooms per connection | **200 on one socket** | 1 |
+| Server cost of being probed | 1 `Set` entry per room | **1 `Y.Doc` per room, never freed** |
 
 Two consequences. A hall watching many rooms is **cheaper on P2P** than on the hub — the opposite of intuition. And the UX number is the frozen-client tail: the hall must say *"seen a minute ago"*, never *"present"*.
+
+The hub row is a real cost, not a footnote: the stock server only frees a room's `Y.Doc` on disconnect if persistence is configured (`closeConn`, conditional on `persistence !== null`), and the bundled binary configures none. Probing a hub room — even once, even briefly — allocates a `Y.Doc` that outlives the probe for the life of the process. A hall watching many rooms, or anyone hostile enough to probe many room names, grows the hub's memory without bound. Mitigate at the hub's persistence layer, not in the probe.
 
 The probe works **without the room key** — presence leaks, content does not. It needs an `unknown` arm distinct from `empty`, which is the same rule as §2.2: "I don't know" must never render as "there is nobody".
 
@@ -261,7 +262,7 @@ Two traps: Zoom meeting ids are enumerable, so the canonical form must include `
 
 ## 8. Order of work
 
-1. **Harden the room identifier** (§5) — small, and a precondition for §6.1.
+1. ~~**Harden the room identifier**~~ (§5) — done, was a precondition for §6.1.
 2. **Presence model** — `RoomPresence`, the new core hooks, memoised emission. No visible behaviour.
 3. **`writeGate.ts`** — pure decision function with a full truth table. Not wired. No visible behaviour.
 4. **Wire the gate** — this is the commit that inverts the polarity, and where the review matters.
