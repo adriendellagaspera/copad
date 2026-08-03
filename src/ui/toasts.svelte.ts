@@ -1,6 +1,3 @@
-/* Toast store — replaces silent console.warn for user-visible errors.
- * createToasts() returns a plain rune-backed object (no class). */
-
 export const ToastKind = { Error: 'error', Info: 'info', Success: 'success' } as const;
 export type ToastKind = (typeof ToastKind)[keyof typeof ToastKind];
 export interface Toast {
@@ -13,16 +10,9 @@ export function createToasts() {
   let items = $state<Toast[]>([]);
   let seq = 0;
   const timers = new Map<number, ReturnType<typeof setTimeout>>();
-  // Wall-clock time each live timer is due to fire, so pause() can compute how
-  // much was left without separate per-toast bookkeeping at push/resume sites.
   const deadlines = new Map<number, number>();
-  // Time left (ms) on a paused toast's countdown, consumed on resume().
   const remaining = new Map<number, number>();
-  // Which "slot" each live toast occupies, for matching only — never rendered.
-  // Defaults to its own kind+text (plain dedupe of an identical repeat); an
-  // explicit `group` widens that slot so *related but differently-worded*
-  // toasts (e.g. "Invite link copied" / "View-only link copied") swap into
-  // the same spot instead of stacking side by side.
+  // group widens the dedupe key beyond an exact repeat, so related-but-differently-worded toasts swap in place.
   const slots = new Map<number, string>();
 
   function schedule(id: number, ttl: number): void {
@@ -41,9 +31,6 @@ export function createToasts() {
     items = items.filter((t) => t.id !== id);
   }
 
-  // Hovering or focusing a toast (to read a long message, or reach the
-  // dismiss button) pauses its countdown so it can't vanish mid-read; leaving
-  // resumes it with whatever time was left.
   function pause(id: number): void {
     const deadline = deadlines.get(id);
     if (deadline === undefined) return;

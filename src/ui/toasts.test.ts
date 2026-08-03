@@ -38,8 +38,6 @@ describe('toast store', () => {
     const secondId = t.success('Invite link copied to clipboard', 1000);
     expect(secondId).toBe(firstId);
     expect(t.items).toHaveLength(1);
-    // The timer was reset on the second push, so it should survive past the
-    // first push's original 1000ms deadline.
     vi.advanceTimersByTime(700);
     expect(t.items).toHaveLength(1);
     vi.advanceTimersByTime(300);
@@ -76,11 +74,9 @@ describe('toast store', () => {
     const id = t.error('boom', 1000);
     vi.advanceTimersByTime(600);
     t.pause(id);
-    // Well past the original 1000ms deadline — still alive because paused.
     vi.advanceTimersByTime(2000);
     expect(t.items).toHaveLength(1);
     t.resume(id);
-    // Only the ~400ms remaining from the pause point should be left.
     vi.advanceTimersByTime(399);
     expect(t.items).toHaveLength(1);
     vi.advanceTimersByTime(1);
@@ -90,8 +86,8 @@ describe('toast store', () => {
   it('resume() re-arms the exact remaining duration, ignoring time spent paused', () => {
     const t = createToasts();
     const id = t.error('boom', 100);
-    t.pause(id); // 100ms remaining, frozen
-    vi.advanceTimersByTime(10_000); // time passing while paused doesn't count
+    t.pause(id);
+    vi.advanceTimersByTime(10_000);
     expect(t.items).toHaveLength(1);
     t.resume(id);
     vi.advanceTimersByTime(99);
@@ -106,7 +102,7 @@ describe('toast store', () => {
     t.pause(id);
     t.resume(id);
     expect(t.items).toHaveLength(1);
-    t.pause(999); // never existed
+    t.pause(999);
     t.resume(999);
   });
 });

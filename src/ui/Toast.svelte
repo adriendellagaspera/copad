@@ -31,10 +31,7 @@
     position: fixed;
     left: 50%;
     transform: translateX(-50%);
-    /* Lifted clear of the fixed mobile dock/toolbar by default — same offset
-       editor.css reserves for it (.content's padding-bottom) — since that
-       chrome can show at this width even on a pointer:fine device (a resized
-       desktop window). The wide-desktop override below replaces this. */
+    /* 60px must match the dock-reservation offset in editor.css's .content padding-bottom. */
     bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));
     display: flex;
     flex-direction: column-reverse;
@@ -43,13 +40,7 @@
     width: min(420px, calc(100vw - 2 * var(--sp-4)));
     pointer-events: none;
   }
-  /* Desktop: anchor bottom-right (Sonner/Linear convention) instead of
-     bottom-center. The editor's status/shortcut bar sits in normal flow near
-     the bottom of a centered, capped-width card — bottom-center toasts used
-     to land squarely on it; the corner of the viewport clears it. Matches
-     editor.css's own dock-reservation trigger so the two never disagree
-     about when the fixed dock/toolbar (and thus this centered fallback) is
-     showing. */
+  /* Must mirror editor.css's dock-reservation trigger, or the two disagree about when the dock is showing. */
   @media (pointer: fine) and (min-width: 901px) {
     .toasts {
       left: auto;
