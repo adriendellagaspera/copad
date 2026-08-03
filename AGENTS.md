@@ -1,5 +1,16 @@
 # Copad — rules for AI agents
 
+## The contract comes first
+
+- [`docs/contract.md`](docs/contract.md) is **binding, not indicative**. Read it
+  before changing anything about presence, the write gate, storage durability,
+  room identifiers, or what the editor allows when alone.
+- Changing behaviour it describes means updating it **in the same commit**. A
+  spec that lags the code is worse than no spec: it is read as true.
+- The same holds for `CLAUDE.md` and `README.md`. When you touch an area they
+  describe, bring their description back in line — these files brief every
+  agent, so a stale line propagates into work that was never wrong on purpose.
+
 ## Type system rules
 
 - Use the branded-string pattern for every domain concept that is a primitive at

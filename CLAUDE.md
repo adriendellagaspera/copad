@@ -1,5 +1,16 @@
 # Copad — project guide for Claude
 
+## The contract
+
+**`docs/contract.md` is binding, not indicative.** It states what Copad promises:
+you can only write where your writing goes — to a peer receiving it, or to a
+backend durably keeping it. Read it before touching presence, the write gate,
+storage durability, room identifiers, or what the editor allows when alone.
+
+Changing behaviour it describes means updating it **in the same commit**. The
+same holds for this file and `README.md`: they brief every agent, so a stale line
+propagates into work nobody meant to get wrong.
+
 ## Architecture
 
 Copad follows **hexagonal architecture** (ports & adapters) with a **functional style**.
