@@ -5,316 +5,141 @@
 
 > **⚠️ Work in progress.** Not ready for production use.
 
-I wanted to collaborate on a file in my pCloud. I found nothing off the shelf so I built this.
+I wanted to collaborate on a file in my pCloud. I found nothing off the shelf, so I built this.
 
-**Real-time collaborative rich-text editing on your own file storage** — pCloud,
-Dropbox, WebDAV/Nextcloud, and more. Backend-agnostic, peer-to-peer, ~$0/month to run.
+## The contract
 
-## Why not Dropbox Paper / Notion / Google Docs?
+**Copad only writes where your writing goes** — to a peer receiving it, or to a backend
+durably keeping it. Never silently to neither. That promise, and what it costs, is written
+out in full in [`docs/contract.md`](docs/contract.md) — read it before relying on this app
+with anything you'd mind losing.
 
-Those are great products. Copad is for a different situation:
-
-| | Copad | Dropbox Paper / Notion / Google Docs |
-|---|---|---|
-| **Where the file lives** | A real file in your own storage folder | Provider's servers, proprietary format |
-| **Storage backend** | Dropbox, Nextcloud, pCloud, any WebDAV | Locked to one provider |
-| **Works on self-hosted storage** | ✅ (Nextcloud, ownCloud, any WebDAV) | ❌ |
-| **Open the doc without the app** | ✅ (it's a file in your folder) | ❌ |
-| **Open source / self-hostable** | ✅ | ❌ |
-| **Cost** | ~$0 (your existing storage) | Subscription |
-
-The core difference: **the document is a file you own**, sitting in a folder you already pay for, on a service you already chose. No new subscription, no lock-in, no data leaving your storage provider.
-
-Copad won't match Paper or Notion on polish (no comments, version history, or templates — yet). The trade-off is full ownership and portability.
+Ownership is the companion clause, not the headline: the document is a real file, in a
+folder you already pay for, on a service you already chose. No new subscription, no
+proprietary format, no vault.
 
 ## How it works
 
-File storage services (Dropbox, Nextcloud, pCloud…) are great at durability but have
-no concept of real-time collaboration. Copad separates the two concerns:
-
-- **Real-time collaboration** → [Yjs](https://github.com/yjs/yjs) (CRDT) over a swappable transport: edits merge without conflicts. Two transports ship behind the same `Collab` port:
-  - **[y-webrtc](https://github.com/yjs/y-webrtc) (default)** — **peer-to-peer**, no server in the data path. Needs STUN, and a TURN relay on mobile/symmetric NAT. Each room can be **end-to-end encrypted** from the Share dialog — a "secure link" (key in the URL `#hash`, never sent to the server) or a password you share separately.
-  - **[y-websocket](https://github.com/yjs/y-websocket) hub (opt-in)** — every client connects to one central relay. No WebRTC, so **no STUN/TURN and no NAT traversal** — the reliable choice for mobile / restrictive networks. Set `VITE_COLLAB_TRANSPORT=websocket` (+ a hub URL) to switch (the server is then in the data path, so end-to-end encryption no longer applies).
-- **Persistence** → a swappable `StorageAdapter`: loads the document on startup, autosaves on changes. The storage layer only ever sees an **opaque binary blob** (the Yjs snapshot) — it knows nothing about CRDTs.
-
-The editor is built on [ProseMirror](https://prosemirror.net) (schema, keymap, input rules — bold, italic, strike, headings, lists, quotes, inline code) and wrapped in a [Svelte 5](https://svelte.dev) UI.
-
-```
-ProseMirror editor (Svelte 5)
-   │
-   ▼
-  Yjs  ──── y-webrtc (P2P) ────►  other browsers  (live merge + cursors)
-   │
-   ▼  (load on startup / debounced autosave by the elected "leader" peer)
-StorageAdapter ── Dropbox | WebDAV/Nextcloud | pCloud | …
+```mermaid
+flowchart LR
+    subgraph Browser
+        PM["ProseMirror editor\n(Svelte 5 UI)"] <--> Y["Y.Doc (Yjs CRDT)"]
+        Y <--> Cache[("IndexedDB\nlocal cache")]
+    end
+    Y <-->|"live edits + cursors"| Collab["Collab port"]
+    Collab --> WebRTC["y-webrtc\npeer-to-peer (default)"]
+    Collab --> WS["y-websocket\nhub relay (opt-in)"]
+    WebRTC <-->|P2P, optional E2E| Peers(("other browsers"))
+    WS <-->|central relay, plaintext| Peers
+    Y <-->|"opaque Yjs bytes\n(load / autosave)"| Storage["Storage port"]
+    Storage --> Backends[("Dropbox · pCloud · WebDAV\nGitHub · GitLab · S3 · SharePoint\nGoogle Drive · OneDrive · Local file")]
 ```
 
-## Multi-backend architecture
+Two ports, each with swappable adapters — see [`CLAUDE.md`](CLAUDE.md) for the full
+port/adapter table and the type system that keeps them honest:
 
-Everything goes through one interface — [`src/storage/types.ts`](src/storage/types.ts):
+- **`Collab`** — [Yjs](https://github.com/yjs/yjs) CRDT state over
+  [y-webrtc](https://github.com/yjs/y-webrtc) (P2P, default, optionally end-to-end
+  encrypted) or [y-websocket](https://github.com/yjs/y-websocket) (central hub, no
+  NAT traversal needed, no E2E). `VITE_COLLAB_TRANSPORT` picks one.
+- **`Storage`** — a bytes-only `load`/`save` over the user's own cloud folder. The
+  editor is [ProseMirror](https://prosemirror.net); persisted bytes are the Yjs
+  snapshot, converted to/from a target file format by a `Codec`
+  (`.yjs`/`.md`/`.txt`/`.html`/`.json`) picked from the filename.
 
-```ts
-interface Storage {
-  id: string; label: string;
-  unavailableReason?: string;             // set when the browser can't support this backend
-  isAuthenticated(): boolean;
-  credentialFields?: CredentialField[];   // form fields (WebDAV); absent for OAuth
-  connect(creds?): Promise<void>;         // OAuth popup or applies credentials
-  disconnect(): void;
-  load(): Promise<Uint8Array | null>;     // read the Yjs snapshot
-  save(bytes: Uint8Array): Promise<void>; // write the Yjs snapshot
-}
-```
+## Storage backends
 
-Adapters in [`src/storage/`](src/storage/):
+| Backend | Auth | CORS |
+|---|---|---|
+| [Dropbox](https://www.dropbox.com/developers/apps) | OAuth2 PKCE | native |
+| [pCloud](https://docs.pcloud.com) | OAuth popup | reads need the proxy |
+| WebDAV / [Nextcloud](https://docs.nextcloud.com/server/latest/user_manual/en/files/access_webdav.html) | app password | usually needs the proxy |
+| [GitHub](https://docs.github.com/en/rest) | PAT | native |
+| [GitLab](https://docs.gitlab.com/ee/api/rest/) | PAT | native |
+| S3-compatible (AWS/R2/MinIO/B2/…) | access keys, [SigV4](https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html) via `crypto.subtle` | bucket must allow it |
+| [SharePoint / OneDrive for Business](https://learn.microsoft.com/en-us/graph/api/resources/onedrive) | Graph token | native |
+| [Google Drive](https://developers.google.com/drive/api/guides/api-specific-auth) | OAuth2 PKCE, `drive.file` scope | native |
+| [OneDrive (personal)](https://learn.microsoft.com/en-us/onedrive/developer/rest-api/getting-started/app-registration) | OAuth2 PKCE, `Files.ReadWrite.AppFolder` | native |
+| Local file | [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API) | Chrome/Edge only |
 
-| Backend | Auth | Direct browser access? | Proxy needed? |
-|---|---|---|---|
-| **Dropbox** | OAuth2 **PKCE** (popup) | ✅ CORS OK (token + content) | No |
-| **pCloud** | OAuth token (popup) | ⚠️ upload OK, read CORS-iffy | For reads only |
-| **WebDAV / Nextcloud** | Basic (app password) | ❌ no CORS by default | Yes (unless server is CORS-enabled) |
-| **GitLab** | Personal Access Token | ✅ native CORS (self-hosted too) | No |
-| **S3-compatible** (AWS/R2/MinIO/B2) | Access keys (**SigV4**, no SDK) | ⚠️ bucket must allow CORS | No (signed direct) |
-| **SharePoint / OneDrive for Business** | Microsoft Graph token | ✅ native CORS | No |
-| **Google Drive** | OAuth2 **PKCE** (popup) | ✅ native CORS | No |
-| **OneDrive (personal)** | OAuth2 **PKCE** (popup) | ✅ native CORS | No |
-| **Local file** | None (File System Access API) | ✅ Chrome/Edge only | No |
+Each adapter implements `Storage` (`src/storage/types.ts`); auth is a separate
+`StorageAuth` port so `Editor.svelte` never sees credentials. Config fields (app
+keys) live in Settings ⚙ or a `VITE_*` env override — see the table in
+[`CLAUDE.md`](CLAUDE.md#environment-variables). Adding a backend means writing one
+adapter and registering it in `src/storage/index.ts`; nothing else changes.
 
-**Adding a backend** (Google Drive, S3/R2, OneDrive…) = write a factory function returning
-a `Storage` and register it in [`src/storage/index.ts`](src/storage/index.ts).
+Backends without native CORS go through [`deploy/proxy-worker/`](deploy/proxy-worker/), a
+generic forward proxy (set `VITE_PROXY_URL`, restrict `ALLOWED_HOSTS`). Runs free on
+Cloudflare Workers.
 
-## The optional shared proxy
-
-For backends without CORS support, [`deploy/proxy-worker/`](deploy/proxy-worker/) is a
-**generic forward proxy**: the app sends its request to `<proxy>/__proxy` with the
-real target URL in the `x-target-url` header, and the worker forwards it with CORS
-headers added. The client half — `proxiedFetch()` in [`src/network/proxy.ts`](src/network/proxy.ts) —
-is bundled into the app. Enable it via `VITE_PROXY_URL`. Runs on Cloudflare's free tier (100k req/day).
-
-> ⚠️ Restrict the proxy with `ALLOWED_HOSTS` in [`deploy/proxy-worker/wrangler.toml`](deploy/proxy-worker/wrangler.toml)
-> so it can't be used as an open relay. Credentials that transit it stay on **your** worker.
-
-## Quick start (local)
+## Quick start
 
 ```bash
 npm install
-cp .env.example .env        # configure at least one backend (Dropbox is the easiest)
-
-# Terminal 1 — WebRTC signaling server
-npm run signaling           # ws://localhost:4444
-
-# Terminal 2 — the app
-npm run dev                 # http://localhost:5173
+cp .env.example .env        # configure at least one backend — Dropbox is the easiest
+npm run signaling            # terminal 1 — WebRTC signaling, ws://localhost:4444
+npm run dev                  # terminal 2 — the app, http://localhost:5173
 ```
 
-Open two tabs: type in one, it appears in the other with live cursors.
-Pick a **Storage** backend from the pills under the header and connect it to
-enable save/restore. App keys (Dropbox, pCloud) can be set either via `.env`
-(below) or at runtime in the in-app **Settings** (⚙) panel — runtime values are
-saved in the browser, and an `.env` value locks the field as deployment-managed.
+Open two tabs, type in one. Pick a storage backend from the pills under the header
+and connect it to enable save/restore.
 
-### Set up Dropbox (recommended)
+Local dev OAuth redirect: `http://localhost:5173/redirect.html` (register it in each
+provider's developer console alongside your production URL).
 
-1. Create an app at https://www.dropbox.com/developers/apps → Scoped access, permissions `files.content.read` + `files.content.write`.
-2. Under *Settings*, copy the **App key** — either into `.env` (`VITE_DROPBOX_APP_KEY`) or into the app's Settings (⚙) panel.
-3. Under *OAuth 2 → Redirect URIs*, add your redirect URL(s) — see table below.
+## Deployment
 
-### Set up WebDAV / Nextcloud
+1. **Frontend** — `npm run build` → deploy `dist/` anywhere static (Cloudflare
+   Pages, Netlify, GitHub Pages — see [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)).
+2. **A collaboration server** — required, and not vendored here: both transports run
+   an **upstream package's bundled bin** on any Node host.
 
-1. Deploy the proxy ([`deploy/proxy-worker/`](deploy/proxy-worker/)) and set `VITE_PROXY_URL` (add your domain to `ALLOWED_HOSTS`).
-2. In the app, choose **WebDAV / Nextcloud**, enter the folder URL (`https://…/remote.php/dav/files/USER/Collab`), your username, and a **Nextcloud app password**.
+   | Transport | Package | Bin |
+   |---|---|---|
+   | `webrtc` (default) | [`y-webrtc`](https://github.com/yjs/y-webrtc) | `y-webrtc-signaling` |
+   | `websocket` | [`@y/websocket-server`](https://github.com/yjs/y-websocket-server) | `y-websocket-server` |
 
-### Set up pCloud
+   Point a host at a 3-line `package.json` depending on the package, `npm start`
+   running its bin, `HOST=0.0.0.0` if the platform needs it. Set
+   `VITE_SIGNALING_URL` / `VITE_WEBSOCKET_URL` to the resulting `wss://` URL (must
+   be `wss://` — mixed content blocks plain `ws://` from an `https://` page).
+3. **TURN**, for WebRTC on mobile/CGNAT/symmetric NAT — a free public relay is the
+   default; bring your own via `VITE_TURN_URL` or self-host
+   [coturn](https://github.com/coturn/coturn) ([`deploy/turn/`](deploy/turn/)).
+   Sidestep it entirely with the WebSocket transport.
+4. **(Optional) proxy** — `cd deploy/proxy-worker && npx wrangler deploy`.
 
-Create an app at https://docs.pcloud.com → *My applications*, copy the **Client ID** into `VITE_PCLOUD_CLIENT_ID` (or into the app's Settings ⚙ panel), and add your redirect URL. The US/EU region is detected automatically from the OAuth response.
+Full env var reference: [`CLAUDE.md`](CLAUDE.md#environment-variables).
 
-### Set up S3-compatible storage
+## Known limitations
 
-Copad signs requests to any S3-compatible bucket directly from the browser
-(AWS Signature V4 — no SDK, nothing server-side). In the app choose
-**S3-compatible** and fill **endpoint**, **bucket**, **region**, **access key
-ID**, and **secret access key**; an optional **key prefix** folders your
-documents (default `copad`). The bucket must allow **CORS** from Copad's origin
-— allow the `GET`, `PUT`, and `HEAD` methods and the `authorization` +
-`x-amz-*` request headers.
+- **OAuth tokens live in the browser.** Acceptable for a small app; route through
+  the proxy to keep secrets server-side for a harder posture.
+- **No single authority.** For a stronger consistency story than P2P leader
+  election, swap `Collab` for a small Yjs server ([Hocuspocus](https://tiptap.dev/docs/hocuspocus/introduction)
+  or a Durable Object) persisting through the same `Storage` port.
+- **Cross-machine file collisions aren't detectable.** Two rooms on one backend
+  pointed at the same file are caught only within one browser (`firstFileCollision()`
+  in `src/storage/filename.ts`) — there's no server to coordinate room→file
+  ownership across machines, by design. Give each room a distinct filename.
 
-Known endpoints — path-style, `https://<endpoint>/<bucket>/<key>`:
+## Project layout
 
-| Provider | Endpoint (host) | Region |
-|---|---|---|
-| AWS S3 | `s3.<region>.amazonaws.com` | e.g. `us-east-1` |
-| Cloudflare R2 | `<account-id>.r2.cloudflarestorage.com` | `auto` |
-| Backblaze B2 | `s3.<region>.backblazeb2.com` | e.g. `us-west-004` |
-| Wasabi | `s3.<region>.wasabisys.com` | e.g. `eu-central-1` |
-| DigitalOcean Spaces | `<region>.digitaloceanspaces.com` | e.g. `nyc3` |
-| Scaleway | `s3.<region>.scw.cloud` | e.g. `fr-par` |
-| Google Cloud Storage | `storage.googleapis.com` | your bucket's region |
-| MinIO / self-hosted | your MinIO URL | as configured |
-
-> The credentials are per-session (not stored as deployment config); a scoped
-> key that can `GetObject`/`PutObject` on the prefix is enough — no `ListBucket`.
-
-### OAuth redirect URIs
-
-Add these in each provider's developer console:
-
-| Environment | URI |
-|---|---|
-| Local dev | `http://localhost:5173/redirect.html` |
-| GitHub Pages | `https://adriendellagaspera.github.io/copad/redirect.html` |
-
-## How persistence works
-
-- The document is stored as a **binary Yjs state** (a CRDT update, not HTML) — this enables clean merging across sessions.
-- **Load**: on mount / after connecting, the adapter reads the file and applies it to the `Y.Doc`.
-- **Save**: debounced autosave (3 s of inactivity) + `beforeunload`. To avoid write races, among peers saving **the same file** only the lowest-`clientID` one writes (leader election via Yjs awareness). Peers saving to **different** files — different backends, or different accounts of one backend — each save their own copy independently, so no one's autosave starves another's.
-- **Local cache** (on by default): the doc is mirrored into the browser's IndexedDB (via [y-indexeddb](https://github.com/yjs/y-indexeddb)), so a **reload keeps your work even with no storage backend connected**. It's stored **unencrypted** in the browser regardless of any room password (that only encrypts the connection), so Settings ⚙ has a toggle to turn it off and a "Clear local copies" button for shared/untrusted devices.
-
-## Rooms & who saves what
-
-Because storage is **bring-your-own-cloud**, saving is **per person**, not a shared
-room property. This is worth understanding so nothing surprises you:
-
-- **Each room is its own document.** A room's target file is scoped to that room,
-  so switching rooms does **not** carry content across — importing a document in one
-  room won't follow you into another. One backend can hold several rooms, each a
-  distinct file derived from the room id (e.g. `copad-demo.yjs`).
-- **"Saved" vs "Live-only" (the header badge).** It's a statement about **you**:
-  **Saved** means this room autosaves to *your* connected backend; **Live-only** means
-  it isn't saved to any storage of yours — it lives in the real-time session and your
-  browser's local cache only. Click a **Live-only** badge to connect a backend and
-  start saving it.
-- **There is no single room "owner".** Anyone in the room can connect **their own**
-  backend and keep **their own** saved copy — several people can each save the same
-  room to their own cloud independently. Nobody can write to *your* backend: that
-  needs *your* credentials, which never leave your browser. (What another person can
-  do is keep their own copy — you can't prevent someone who can read a document from
-  saving it, which is true of any collaborative tool.)
-- **Controlling access.** Who may **read/join** a room is the encryption gate
-  (secure link `#k=` or a room password, from the Share dialog). Who may **edit** can
-  be signalled with a **view-only link** (`?role=reader`) — cooperative, i.e. a
-  determined client could ignore it, so use it with trusted collaborators.
-- **What the room id protects, and what it doesn't.** The room id (`?room=`) is
-  drawn from a CSPRNG (`crypto.randomUUID()`), so it can't be guessed or enumerated.
-  In `public` mode that's the *only* access control: knowing the id is knowing the
-  room, and by itself it does **not** encrypt anything — a plaintext room still
-  leaks its content, and the full SDP exchanged over signaling (`a=candidate:`
-  lines carry LAN and public IPs), to anyone who reaches it. **"New document"**
-  mints a secret-link key (`#k=`) alongside the id, so a freshly created room is
-  end-to-end encrypted from the start — visible as the 🔒 badge on the status
-  chip and in the Share dialog, not an invisible default. Sharing the bare
-  `?room=` id without the `#k=` fragment shares access without the key.
-- **Local backend caveat**: the Local-file backend holds a single picked file, so it
-  effectively serves one room's document at a time — switching rooms no longer carries
-  content, but re-importing a file in another room repoints that one file.
-- **Two rooms, one file → warning**: filenames are user-settable, so you *can* point two
-  rooms on one backend at the same file (they'd overwrite each other). The header shows a
-  **Conflict** badge / **File conflict** status when it detects this, linking to Settings to
-  rename. It's a **same-browser** check: if the same file is claimed by another room on a
-  **different machine** (same cloud account), there's no serverless way to notice it — so
-  give each room a distinct file name. See *Known limitations*.
-
-## Cost breakdown
-
-| Component | Hosting | Cost |
-|---|---|---|
-| Static frontend | Cloudflare Pages / Netlify / GitHub Pages | Free |
-| Edit traffic (WebRTC P2P) | Peer-to-peer | $0 — no server involved |
-| WebRTC signaling | Small WebSocket process (free tier) | Free |
-| Document storage | User's own Dropbox / Nextcloud / pCloud | Already paid |
-| (Optional) CORS proxy | Cloudflare Worker | Free |
-
-**Bring-your-own-cloud model**: each user stores documents in their own account —
-you only host a static frontend and a tiny signaling server.
-
-## Deployment (production, free)
-
-1. **Frontend**: `npm run build` → deploy `dist/`. GitHub Actions workflow included — see [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
-2. **A collaboration server** (required for real-time collab) — none ships in this repo; deploy the upstream server for your transport (see [Deploying a collaboration server](#deploying-a-collaboration-server)):
-   - **WebRTC** (`VITE_COLLAB_TRANSPORT=webrtc`, the default): a y-webrtc signaling server; set `VITE_SIGNALING_URL` to its `wss://` URL. Peers connect P2P; on mobile/restrictive networks you'll also want a TURN relay (`VITE_TURN_URL`…).
-   - **WebSocket hub** (`VITE_COLLAB_TRANSPORT=websocket`): a y-websocket hub; set `VITE_WEBSOCKET_URL` to its `wss://` URL. No WebRTC, so **no STUN/TURN** — works on any network.
-
-   The URL **must** be `wss://` — browsers block insecure `ws://` from an `https://` page (mixed content). If the selected transport's server is unset, the app shows a warning banner and real-time collaboration stays disabled.
-3. **(Optional) Proxy**: `cd deploy/proxy-worker && npx wrangler deploy`, then set `VITE_PROXY_URL`.
-4. Set `VITE_ROOM_PASSWORD` to end-to-end encrypt the P2P channel (WebRTC transport only — the WebSocket hub sees plaintext updates).
-
-### Deploying a collaboration server
-
-No server code lives in this repo — both transports run an **upstream package's bundled
-server**, so deploying is just `npm install` + run its bin on any Node host (Render, Fly.io,
-a VPS):
-
-| Transport | Package | Bin | Reads |
-|---|---|---|---|
-| WebRTC (signaling) | [`y-webrtc`](https://github.com/yjs/y-webrtc) | `y-webrtc-signaling` | `PORT` |
-| WebSocket (hub) | [`@y/websocket-server`](https://github.com/yjs/y-websocket-server) | `y-websocket-server` | `HOST`, `PORT` |
-
-Create a folder with a 3-line `package.json` and deploy it (Render → New Web Service;
-Fly.io → `fly launch`; or any VPS):
-
-```json
-{
-  "dependencies": { "@y/websocket-server": "^0.1.5" },
-  "scripts": { "start": "y-websocket-server" }
-}
-```
-
-Swap in `"y-webrtc": "^10"` / `"start": "y-webrtc-signaling"` for the signaling server. The
-host runs `npm install` (so `node_modules` lives there, not in this repo) then `npm start`;
-set `HOST=0.0.0.0` if the platform needs it. The hub answers `okay` to an HTTP healthcheck.
-Copy the resulting `wss://` URL into `VITE_WEBSOCKET_URL` (or `VITE_SIGNALING_URL`).
-
-**Locally**, no setup needed — `npm run signaling` and `npm run collab` run the same bins
-(`ws://localhost:4444` and `ws://localhost:1234`).
-
-## Known limitations / future directions
-
-- **WebRTC behind strict NAT**: public STUN is enough for most home/office networks. Mobile carriers use CGNAT / symmetric NAT, where STUN fails and a TURN relay is needed. Copad ships with a free **public default relay** so desktop↔mobile works out of the box (best-effort/rate-limited), and lets you bring your own — via `VITE_TURN_URL` / `VITE_TURN_USERNAME` / `VITE_TURN_PASSWORD`, **at runtime** in Settings → Connection, or self-hosted [coturn](https://github.com/coturn/coturn) (see [`deploy/turn/`](deploy/turn/)). The status bar's connection panel (📊 icon) shows whether each peer is **Direct** or **Relayed via TURN**, with a Reconnect button. Or sidestep WebRTC entirely with the WebSocket hub (`VITE_COLLAB_TRANSPORT=websocket`) — no STUN/TURN required.
-- **OAuth token in the browser**: acceptable for a small app; the proxy can keep secrets server-side for a harder security posture.
-- **Single authority**: if you want zero CORS/leader issues, replace y-webrtc with a small Yjs server ([Hocuspocus](https://tiptap.dev/docs/hocuspocus/introduction) / Cloudflare Durable Object) that persists via the same `StorageAdapter`.
-- **Two people, one genuinely shared file**: leader election dedupes writers per *target* (a hash of browser + backend + filename), which correctly lets different accounts each save their own copy. The flip side: if two different people point at the *same* shared file (e.g. the same GitHub repo/branch/path), they're treated as distinct targets and may both write — harmless for last-writer-wins backends, or a self-healing conflict (409) on GitHub's sha-based updates. The intended model is one saved copy per person.
-- **Same file claimed by two rooms across machines**: the header warns when two of *your* rooms (in this browser) resolve to the same file, but a same-account collision from **another machine** is invisible — there's no server to coordinate room→file ownership, by design. Give each room a distinct file name to be safe.
-
-## Project structure
+Architecture, ports/adapters, and the type system are documented in
+[`CLAUDE.md`](CLAUDE.md) — that file, not this one, is the source of truth for how
+the codebase fits together.
 
 ```
 src/
-  storage/
-    types.ts     # Storage interface (the port)
-    oauth.ts     # PKCE helpers + OAuth popup
-    pcloud.ts    # pCloud adapter
-    dropbox.ts   # Dropbox adapter (PKCE)
-    webdav.ts    # WebDAV / Nextcloud adapter
-    gitlab.ts    # GitLab adapter (PAT, gitlab.com or self-hosted)
-    s3.ts        # S3-compatible adapter (AWS SigV4 via crypto.subtle)
-    sharepoint.ts# SharePoint / OneDrive for Business adapter (Microsoft Graph)
-    gdrive.ts    # Google Drive adapter (PKCE, drive.file scope)
-    onedrive.ts  # Personal OneDrive adapter (PKCE, Files.ReadWrite.AppFolder scope)
-    local.ts     # Local file adapter (File System Access API, Chrome/Edge)
-    index.ts     # registry of configured backends
-  network/
-    types.ts                # Fetch type alias
-    direct.ts               # pass-through fetch
-    proxy.ts                # proxiedFetch client for the optional CORS proxy
-                            #   (the deployable Worker lives in deploy/proxy-worker/)
-  collaboration/
-    types.ts     # Collab + CollabConnect interfaces (the ports)
-    webrtc.ts    # y-webrtc peer-to-peer adapter (default transport)
-    websocket.ts # y-websocket hub adapter (opt-in via VITE_COLLAB_TRANSPORT=websocket)
-    config.ts    # transport / signaling / ICE resolution from env
-  editor/
-    schema.ts    # ProseMirror schema (basic + lists + strike mark)
-    plugins.ts   # keymap + input rules
-    commands.ts  # toolbar commands + isMarkActive / isNodeActive helpers
-    schema.test.ts
-  Editor.svelte  # ProseMirror + Yjs binding + autosave / leader election
-  Toolbar.svelte # rich-text toolbar (Svelte 5 $derived active states)
-  App.svelte     # room management, storage picker, connect UI, collab transport wiring
-  redirect.ts    # OAuth popup landing page (pCloud + Dropbox + Google Drive)
+  storage/         Storage + StorageAuth ports, one adapter per backend
+  collaboration/    Collab port, webrtc/websocket adapters, room access/cipher, presence
+  format/          Codec port — bytes ⟷ Y.Doc per file extension
+  editor/          ProseMirror schema, plugins, commands
+  persistence/     localStorage primitive (the only module touching it)
+  ui/              Svelte components
+  App.svelte       room management, wiring, top-level state
+  Editor.svelte    ProseMirror + Yjs binding, autosave, leader election
 ```
-
-The collaboration servers are not vendored here — they're upstream packages run via their
-bins (`y-webrtc-signaling`, `y-websocket-server`). See "Deploying a collaboration server".
 
 ## License
 

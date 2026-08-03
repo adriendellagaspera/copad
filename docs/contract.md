@@ -1,11 +1,11 @@
 # The Copad contract
 
-> Specification. Nothing here is implemented yet.
-> This document is the spine — the part that has to stay coherent. Detail, code references and truth tables live in the notes it rests on:
-> [`notes/presence-contract.md`](notes/presence-contract.md) (transports, states, implementation plan) ·
-> [`notes/write-outcome.md`](notes/write-outcome.md) (branch (b), the `Storage` port) ·
-> [`notes/presence-probe.md`](notes/presence-probe.md) (measured probe feasibility) ·
-> [`notes/integrations.md`](notes/integrations.md) (rendezvous options).
+> Specification. Unimplemented except where a section says otherwise (§5 has shipped).
+> This is the spine — the part that has to stay coherent. It used to rest on a set of
+> `notes/` design docs (transports, states, measured probe feasibility, rendezvous
+> options); those were archived as comments on the GitHub issue each section maps to
+> (#213/#215/#216/#217/#218) and deleted from the repo — a living spec plus its issue
+> tracker is one source of truth, not two.
 
 ## 1. The contract
 
