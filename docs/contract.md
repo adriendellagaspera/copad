@@ -179,11 +179,11 @@ This is what lets two people actually meet. Waiting is a feature, not an error s
 
 No spinner — a spinner promises imminence and lies after 30 seconds. A calm dot and elapsed time (*Waiting since 14:02*). The band stays dismissable. **The primary action of waiting is `Copy invite link`**, not `Connect storage`: under this thesis, inviting someone *is* how you unblock. That inverts today's hierarchy. The tab title should reflect waiting so that waiting in one tab among twenty is practical.
 
-### 4.3 Export is a hard requirement
+### 4.3 Export is a hard requirement — done
 
-**No export function exists in `src/` today.** "Export" currently means *configure an OAuth backend and let autosave write*. That is not acceptable for a contract that promises *read, copy, export, wait*: a promised capability cannot be a side effect of OAuth setup.
+"Export" used to mean *configure an OAuth backend and let autosave write*. That was not acceptable for a contract that promises *read, copy, export, wait*: a promised capability cannot be a side effect of OAuth setup.
 
-`Export a copy` is **the only genuinely new UI surface the contract requires**. All five codecs already exist, so the format falls out of the requested extension — no codec to write.
+`Export a copy` (`src/ui/ExportDialog.svelte` + `ExportFormats.svelte`) is the genuinely new UI surface the contract required — all four portable codecs (text/markdown/html/json) already existed, so the format falls out of the chosen extension; no codec was written. It reaches the shared `Y.Doc` through `src/editor/exportBridge.svelte.ts` (same module-level-bridge shape as the room-name bridge), bound whenever the Editor is mounted — including while write-gated, since export is a read. Reachable from two places: the read-only band itself (`SyncBanner`'s gated tier, next to Invite / Connect storage) and Settings, so it works whether or not the gate has armed.
 
 Also active while read-only: text selection and copy, scrolling and outline, Share, Settings, connecting a backend, theme and identity, loading from the backend. Inactive: typing, formatting toolbar (visible but disabled — removing it would suggest a different app), slash menu, input rules, undo/redo, renaming the document (the title lives in the shared doc, so renaming is a collaborative write).
 
@@ -268,7 +268,7 @@ Two traps: Zoom meeting ids are enumerable, so the canonical form must include `
 4. **Wire the gate** — this is the commit that inverts the polarity, and where the review matters.
 5. **Write outcome** — `WriteReceipt`, `PersistHealth`, adapter migration one at a time.
 6. **The waiting room** — banner tiers, pill labels, `Reaching`, hysteresis.
-7. **The unlock moment** (§4.1) and **export** (§4.3).
+7. **The unlock moment** (§4.1). ~~**Export**~~ (§4.3) — done.
 8. **The hub's own contract** — its settle/linger values, its copy, no escape hatch.
 9. **Docs** — README repositioning; `CLAUDE.md` is drifting and needs a pass (two of two spot-checks were stale).
 

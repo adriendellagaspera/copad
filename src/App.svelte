@@ -61,6 +61,8 @@
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
   import ShareDialog from './ui/ShareDialog.svelte';
+  import ExportDialog from './ui/ExportDialog.svelte';
+  import { roomName } from './collaboration/roomName.svelte.js';
   import SyncBanner from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
   import { createTheme } from './ui/theme.svelte.js';
@@ -73,6 +75,7 @@
   const language = createLanguage();
   $effect(() => initInputModality());
   let shareOpen = $state(false);
+  let exportOpen = $state(false);
   // Copad's peer-to-peer (no async sync) default used to be explained up front by
   // a one-time intro modal. That taught the same "solo writing is ephemeral" lesson
   // as the write-gate below — a wall of text shown before you'd done anything, and
@@ -500,7 +503,9 @@
   // steal the click the user was mid-way through (e.g. "Copy link"). It simply
   // waits — `writeLocked` and `writeGateSeen` are unaffected by either dialog, so
   // this recomputes to true the moment the user closes them, gate still armed.
-  const showWriteGateExplainer = $derived(writeLocked && !writeGateSeen && !shareOpen && !settingsOpen);
+  const showWriteGateExplainer = $derived(
+    writeLocked && !writeGateSeen && !shareOpen && !settingsOpen && !exportOpen,
+  );
 
   function allowWriteSolo(): void {
     if (!soloRooms.includes(room)) soloRooms = [...soloRooms, room];
@@ -544,7 +549,7 @@
   // Deferred while Share or Settings is open, for the same stacking-collision
   // reason as `showWriteGateExplainer`.
   const showCollabUnavailableIntro = $derived(
-    collabUnavailable && !collabUnavailableSeen && !shareOpen && !settingsOpen,
+    collabUnavailable && !collabUnavailableSeen && !shareOpen && !settingsOpen && !exportOpen,
   );
 
   function connectStorageFromCollabIntro(): void {
@@ -833,6 +838,7 @@
     {collabUnavailable}
     onShare={() => (shareOpen = true)}
     onConnectStorage={() => openSettings()}
+    onExport={() => (exportOpen = true)}
   />
 
   {#if !iceReady}
@@ -922,6 +928,8 @@
   spellcheck={language.spellcheck}
   onLanguageChange={language.setChoice}
   onSpellcheckChange={language.setSpellcheck}
+  exportBaseName={roomName.value ?? room}
+  {toasts}
   onchange={bump}
   onconnect={afterConnect}
   ondisconnect={afterDisconnect}
@@ -936,6 +944,13 @@
   saved={savedHere}
   storageLabel={savedHere ? storage?.storage.label : undefined}
   {onSecurityChange}
+/>
+
+<ExportDialog
+  open={exportOpen}
+  onclose={() => (exportOpen = false)}
+  baseName={roomName.value ?? room}
+  {toasts}
 />
 <Toast {toasts} />
 

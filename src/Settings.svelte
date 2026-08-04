@@ -11,6 +11,8 @@
   import type { TurnUrl } from './collaboration/types.js';
   import type { Theme } from './ui/theme.svelte.js';
   import ThemeSelect from './ui/ThemeSelect.svelte';
+  import ExportFormats from './ui/ExportFormats.svelte';
+  import type { Toasts } from './ui/toasts.svelte.js';
   import { BRAND_ICONS } from './ui/brandIcons.js';
   import { GENERIC_ICONS } from './ui/genericStorageIcons.js';
   import { IMAGE_ICONS, SHAREPOINT_SITE_IMAGE, SHAREPOINT_ONEDRIVE_IMAGE } from './ui/imageIcons.js';
@@ -33,6 +35,8 @@
     spellcheck = true,
     onLanguageChange,
     onSpellcheckChange,
+    exportBaseName,
+    toasts,
     onchange,
     onconnect,
     ondisconnect,
@@ -50,6 +54,8 @@
     spellcheck?: boolean;
     onLanguageChange?: (lang: string) => void;
     onSpellcheckChange?: (on: boolean) => void;
+    exportBaseName: string;
+    toasts: Toasts;
     onchange?: () => void;
     onconnect?: (b: StorageBackend) => void;
     ondisconnect?: (b: StorageBackend) => void;
@@ -305,6 +311,17 @@
     <small class="field-help">
       Uses your browser's built-in spell checker. Works best with a matching language above.
     </small>
+  </section>
+
+  <section class="backend">
+    <div class="backend-head">
+      <span class="backend-name">Export a copy</span>
+    </div>
+    <p class="backend-blurb">
+      A one-off copy of this document, independent of any connected storage backend.
+      Works while read-only.
+    </p>
+    <ExportFormats baseName={exportBaseName} {toasts} />
   </section>
 
   <!-- The header's own theme toggle collapses away on mobile (see the M3

@@ -39,6 +39,7 @@
   import { trackPresenceActivity } from './collaboration/presenceActivity.js';
   import { remoteCursorBuilder, remoteSelectionBuilder, refreshPresenceFade, jumpToPresence } from './editor/ui/remoteCursors.js';
   import { roomName, renameRoom, bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
+  import { bindExport, unbindExport } from './editor/exportBridge.svelte.js';
   import DocTitle from './editor/ui/DocTitle.svelte';
   import {
     sessionState,
@@ -109,6 +110,8 @@
   });
   const onRoomMeta = (): void => setRoomNameLocal(readRoomName());
   roomMeta.observe(onRoomMeta);
+
+  bindExport((codec) => Promise.resolve(codec.encode(collab.doc)));
 
   let editorEl = $state<HTMLDivElement | undefined>();
   // $state.raw: track reference changes for reactivity but don't proxy the
@@ -421,6 +424,7 @@
     offStatus();
     roomMeta.unobserve(onRoomMeta);
     unbindRoomName();
+    unbindExport();
     resetSessionState();
     window.removeEventListener('beforeunload', flush);
     view?.destroy();

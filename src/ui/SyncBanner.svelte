@@ -12,6 +12,7 @@
     collabUnavailable = false,
     onShare,
     onConnectStorage,
+    onExport,
   }: {
     conn: ConnStatus;
     /** How edits travel: peer-to-peer (nothing leaves the device while alone) or a
@@ -46,6 +47,8 @@
     onShare: () => void;
     /** Open Settings so the user can connect a backend to keep their own copy. */
     onConnectStorage: () => void;
+    /** Open the "Export a copy" dialog. */
+    onExport?: () => void;
   } = $props();
 
   // `Waiting` = attached to signaling but no peers present — you're alone in the
@@ -165,6 +168,9 @@
       <span class="actions">
         <button class="invite-cta" onclick={onShare}>Invite</button>
         <button class="link" onclick={onConnectStorage}>Connect storage</button>
+        {#if onExport}
+          <button class="link" onclick={onExport}>Export a copy</button>
+        {/if}
       </span>
     {:else if collabUnavailable}
       <span class="msg">
