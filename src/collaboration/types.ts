@@ -1,5 +1,6 @@
 import type * as Y from 'yjs';
 import type { Awareness } from 'y-protocols/awareness';
+import type { BrowserId } from './browserId.js';
 
 /** Whether a peer may edit the document in this session. */
 export const SessionRole = { Writer: 'writer', Reader: 'reader' } as const;
@@ -104,12 +105,15 @@ export type PersistTarget = string & { readonly _brand: 'PersistTarget' };
  * - `persistTarget` — the file this peer would write to (when `canPersist`).
  *                  Leader election is scoped to it, so peers writing distinct
  *                  files each persist their own copy. Absent when not persisting.
+ * - `browserId`  — this peer's `browserId()`, so a peer can tell a second tab of
+ *                  their own browser apart from a stranger's.
  */
 export interface PeerAwarenessState {
   readonly user: PeerUser;
   readonly role: SessionRole;
   readonly canPersist: boolean;
   readonly persistTarget?: PersistTarget;
+  readonly browserId?: BrowserId;
 }
 
 /**
@@ -136,6 +140,24 @@ export const ConnStatus = {
   Offline: 'offline',
 } as const;
 export type ConnStatus = (typeof ConnStatus)[keyof typeof ConnStatus];
+
+/**
+ * Whether branch (a) of the contract — "someone is here" — currently holds.
+ * Beside {@link ConnStatus}, never replacing it; feeds the write gate (`writeGate.ts`).
+ * `reaching` is a discovered-but-unconnected peer: proven present, never locks.
+ */
+export const PresenceKind = {
+  Unknown: 'unknown',
+  Reaching: 'reaching',
+  Alone: 'alone',
+  Accompanied: 'accompanied',
+} as const;
+export type PresenceKind = (typeof PresenceKind)[keyof typeof PresenceKind];
+
+/** Emitters must memoise this by `kind` — see `core.ts`. */
+export interface RoomPresence {
+  readonly kind: PresenceKind;
+}
 
 /**
  * Which kind of transport backs a `Collab` session:
@@ -184,6 +206,8 @@ export interface Collab {
   /** Subscribe to whether the doc has synced with at least one peer. Fires
    *  immediately, then on every change. Returns an unsubscribe function. */
   onSynced(fn: (synced: boolean) => void): () => void;
+  /** Subscribe to {@link RoomPresence}. Optional; absence means `Unknown`. */
+  onPresence?(fn: (presence: RoomPresence) => void): () => void;
   /** Force a transport reconnect (drop + re-attach). */
   reconnect?(): void;
   /** Snapshot the live connection for the diagnostics panel. */

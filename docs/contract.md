@@ -75,9 +75,9 @@ Non-negotiable consequence: **never lock on `Connecting`, `Unreachable` or `Offl
 
 Two independent axes. The lock closes only when **both** branches fail.
 
-### 3.1 Presence — branch (a)
+### 3.1 Presence — branch (a) — wired
 
-`RoomPresence` is added **beside** `ConnStatus`, never replacing it (`ConnStatus` keeps feeding the status pill and the connection dialog).
+`RoomPresence` is added **beside** `ConnStatus`, never replacing it (`ConnStatus` keeps feeding the status pill and the connection dialog). `src/collaboration/types.ts` (`PresenceKind`/`RoomPresence`), computed and memoised in `src/collaboration/core.ts`, emitted by both adapters via the `Collab` port's optional `onPresence`.
 
 | Kind | Meaning | Opens (a)? |
 |---|---|---|
@@ -263,7 +263,7 @@ Two traps: Zoom meeting ids are enumerable, so the canonical form must include `
 ## 8. Order of work
 
 1. ~~**Harden the room identifier**~~ (§5) — done, was a precondition for §6.1.
-2. **Presence model** — `RoomPresence`, the new core hooks, memoised emission. No visible behaviour.
+2. ~~**Presence model**~~ — `RoomPresence`, the new core hooks, memoised emission — done (§3.1).
 3. **`writeGate.ts`** — pure decision function with a full truth table. Not wired. No visible behaviour.
 4. **Wire the gate** — this is the commit that inverts the polarity, and where the review matters.
 5. **Write outcome** — `WriteReceipt`, `PersistHealth`, adapter migration one at a time.

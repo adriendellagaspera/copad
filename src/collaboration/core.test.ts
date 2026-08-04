@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as Y from 'yjs';
 import { createCollabCore } from './core.js';
 import { CONNECT_TIMEOUT_MS } from './constants.js';
+import { PresenceKind } from './types.js';
 import type { RoomId } from './types.js';
 
 const ROOM = 'room' as RoomId;
@@ -10,17 +11,20 @@ const ROOM = 'room' as RoomId;
 // Mutable transport state the fake hooks read, so a test can drive transitions.
 let attached: boolean;
 let peers: number;
+let reaching: number;
 const makeCore = (doc = new Y.Doc()) =>
   createCollabCore({
     doc,
     room: ROOM,
     isAttached: () => attached,
     peerCount: () => peers,
+    reachingCount: () => reaching,
   });
 
 beforeEach(() => {
   attached = false;
   peers = 0;
+  reaching = 0;
 });
 
 describe('createCollabCore status machine', () => {
@@ -155,5 +159,111 @@ describe('createCollabCore teardown', () => {
     attached = true;
     core.emitStatus();
     expect(calls).toBe(after);
+  });
+});
+
+describe('createCollabCore presence (RoomPresence, beside ConnStatus)', () => {
+  it('maps offline/not-attached → Unknown, attached+alone → Alone, reaching → Reaching, peer → Accompanied', () => {
+    const core = makeCore();
+    const seen: PresenceKind[] = [];
+    core.onPresence((p) => seen.push(p.kind));
+    expect(seen[0]).toBe(PresenceKind.Unknown); // fires immediately, not attached
+
+    attached = true;
+    core.emitStatus();
+    expect(seen.at(-1)).toBe(PresenceKind.Alone);
+
+    reaching = 1;
+    core.emitStatus();
+    expect(seen.at(-1)).toBe(PresenceKind.Reaching);
+
+    peers = 1;
+    core.emitStatus();
+    expect(seen.at(-1)).toBe(PresenceKind.Accompanied);
+
+    peers = 0;
+    reaching = 0;
+    attached = false;
+    core.emitStatus();
+    expect(seen.at(-1)).toBe(PresenceKind.Unknown);
+    core.destroy();
+  });
+
+  it('never reports Reaching when no reachingCount hook is supplied (hub transport shape)', () => {
+    const core = createCollabCore({
+      doc: new Y.Doc(),
+      room: ROOM,
+      isAttached: () => attached,
+      peerCount: () => peers,
+    });
+    const seen: PresenceKind[] = [];
+    core.onPresence((p) => seen.push(p.kind));
+    attached = true;
+    core.emitStatus();
+    expect(seen.at(-1)).toBe(PresenceKind.Alone); // never Reaching — no hook to report it
+    core.destroy();
+  });
+
+  it('reports Unknown while offline even if otherwise attached with peers (never confirms solitude OR company from stale reads)', () => {
+    const core = makeCore();
+    const seen: PresenceKind[] = [];
+    core.onPresence((p) => seen.push(p.kind));
+    attached = true;
+    peers = 1;
+    core.emitStatus();
+    expect(seen.at(-1)).toBe(PresenceKind.Accompanied);
+
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+    window.dispatchEvent(new Event('offline'));
+    expect(seen.at(-1)).toBe(PresenceKind.Unknown);
+
+    Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+    window.dispatchEvent(new Event('online'));
+    core.destroy();
+  });
+
+  it('is memoised: repeated emitStatus() calls with an unchanged kind notify once and reuse the same object identity', () => {
+    const core = makeCore();
+    const seen: unknown[] = [];
+    core.onPresence((p) => seen.push(p));
+    attached = true;
+    core.emitStatus(); // → Alone, notifies
+    const afterFirst = seen.length;
+    const firstObject = seen.at(-1);
+
+    core.emitStatus(); // still Alone — must NOT notify again
+    core.emitStatus();
+    core.emitStatus();
+    expect(seen.length).toBe(afterFirst);
+    expect(seen.at(-1)).toBe(firstObject); // same identity, not just equal
+
+    peers = 1;
+    core.emitStatus(); // real transition → Accompanied, notifies with a fresh object
+    expect(seen.length).toBe(afterFirst + 1);
+    expect(seen.at(-1)).not.toBe(firstObject);
+    core.destroy();
+  });
+
+  it('a late subscriber gets the current, already-memoised object immediately', () => {
+    const core = makeCore();
+    attached = true;
+    peers = 1;
+    core.emitStatus();
+    let got: unknown;
+    core.onPresence((p) => (got = p));
+    expect((got as { kind: PresenceKind }).kind).toBe(PresenceKind.Accompanied);
+    core.destroy();
+  });
+
+  it('unsubscribing stops further presence callbacks', () => {
+    const core = makeCore();
+    const seen: PresenceKind[] = [];
+    const off = core.onPresence((p) => seen.push(p.kind));
+    const n = seen.length;
+    off();
+    attached = true;
+    core.emitStatus();
+    expect(seen.length).toBe(n);
+    core.destroy();
   });
 });
