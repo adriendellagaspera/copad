@@ -121,13 +121,14 @@ The boundary is an **event, not a clock**: the first local modification in this 
 
 The same hysteresis governs a peer leaving mid-session (§4, ⑥). One principle, two verticals.
 
-### 3.4 The decision rule
+### 3.4 The decision rule — wired
 
 ```
 durabilityHolds = savedHere && (health ∈ {Proven, Unproven, Failing} || regime === Warm)
                   ⟺ false only when  Broken ∧ Cold
 
 Open if any of:
+  role === Reader            → out of scope, readers were never gated
   collabUnavailable          → nobody can ever arrive
   soloOptIn                  → explicit, named user choice (P2P only)
   presence === Accompanied   → branch (a)
@@ -139,6 +140,17 @@ Open if any of:
 
 Held otherwise. ⟺ Alone, confirmed, past grace, out of hysteresis, and not durable.
 ```
+
+Implemented in `src/collaboration/writeGate.ts` (`writeGateFor()`), a pure
+function — no timers, no clocks, no DOM — with `docs/contract.md`'s truth table
+unit-tested branch by branch. `durabilityHolds` is currently just `savedHere`:
+the full `PersistHealth`/`regime` machine (§3.2) hasn't shipped yet (§8 step 5),
+so `Broken`/`Cold` can't be observed — until it does, "configured, logged in,
+and claims this room" is the honest, if coarser, approximation. The clocks for
+the settle and linger windows live in `App.svelte` (two small `$effect`s), which
+feed `writeGateFor()` pre-computed booleans (`aloneSettled`,
+`withinDepartureLinger`) rather than raw timestamps — keeping the decision
+function itself clock-free.
 
 > **Unlocking is optimistic and immediate; locking is pessimistic and deferred.** Any sign of life opens at once; only a prolonged, confirmed absence closes. The tests must enforce this asymmetry.
 
@@ -264,7 +276,7 @@ Two traps: Zoom meeting ids are enumerable, so the canonical form must include `
 
 1. ~~**Harden the room identifier**~~ (§5) — done, was a precondition for §6.1.
 2. ~~**Presence model**~~ — `RoomPresence`, the new core hooks, memoised emission — done (§3.1).
-3. **`writeGate.ts`** — pure decision function with a full truth table. Not wired. No visible behaviour.
+3. ~~**`writeGate.ts`**~~ — pure decision function with a full truth table — done (§3.4).
 4. **Wire the gate** — this is the commit that inverts the polarity, and where the review matters.
 5. **Write outcome** — `WriteReceipt`, `PersistHealth`, adapter migration one at a time.
 6. **The waiting room** — banner tiers, pill labels, `Reaching`, hysteresis.
