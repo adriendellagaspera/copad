@@ -3,6 +3,7 @@ import { githubStorage } from './github.js';
 import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
 import type { RoomId } from '../collaboration/types.js';
+import { ClassifiedWriteError, WriteFailureKind } from './writeOutcome.js';
 
 // Room stem is 'notes', matching the default filename ('notes.md') the tests below assert on.
 const TEST_ROOM = 'notes' as RoomId;
@@ -264,6 +265,67 @@ describe('githubStorage save', () => {
       json: () => Promise.resolve({ message: 'SHA mismatch' }),
     } as unknown as Response);
     await expect(storage.save({ format: 'text', text: 'x' })).rejects.toThrow('SHA mismatch');
+  });
+
+  it('reports a WriteReceipt landing on success', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ content: { sha: 'new-sha' } }),
+    } as unknown as Response);
+    await expect(storage.save({ format: 'text', text: 'hello' })).resolves.toEqual({ landing: 'landed' });
+  });
+
+  it('classifies a 409 as Contended and invalidates the cached sha so the next save re-resolves it', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: () => Promise.resolve({ message: 'sha stale' }),
+    } as unknown as Response);
+    let thrown: unknown;
+    try {
+      await storage.save({ format: 'text', text: 'x' });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(ClassifiedWriteError);
+    expect((thrown as InstanceType<typeof ClassifiedWriteError>).kind).toBe(WriteFailureKind.Contended);
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ content: { sha: 'fresh-sha' } }),
+    } as unknown as Response);
+    await storage.save({ format: 'text', text: 'retry' });
+    const body = JSON.parse(mockFetch.mock.calls[1][1].body as string) as Record<string, unknown>;
+    expect(body.sha).toBeUndefined();
+  });
+
+  it('classifies a 401 as Denied', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({ message: 'bad token' }),
+    } as unknown as Response);
+    let thrown: unknown;
+    try {
+      await storage.save({ format: 'text', text: 'x' });
+    } catch (e) {
+      thrown = e;
+    }
+    expect((thrown as InstanceType<typeof ClassifiedWriteError>).kind).toBe(WriteFailureKind.Denied);
+  });
+
+  it('coalesces a concurrent save into a Skipped receipt instead of silently resolving as landed', async () => {
+    let resolveFirst!: (r: unknown) => void;
+    mockFetch.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveFirst = resolve; }),
+    );
+    const first = storage.save({ format: 'text', text: 'a' });
+    const second = await storage.save({ format: 'text', text: 'b' });
+    expect(second).toEqual({ landing: 'skipped', why: 'coalesced' });
+    resolveFirst({ ok: true, status: 200, json: () => Promise.resolve({ content: { sha: 's' } }) });
+    await first;
   });
 });
 

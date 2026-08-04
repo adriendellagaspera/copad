@@ -6,6 +6,7 @@ import { filenameStore } from './filename.js';
 import { extensionOf } from '../format/types.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
+import { landed, skipped, writeFailure, classifyHttpStatus, WriteSkip, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import {
   parseRepo,
   parseBranch,
@@ -148,7 +149,10 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
 
     if (!res.ok) {
       const err = parseGitHubErrorBody(await res.json().catch(() => ({})));
-      throw new Error(`GitHub save failed: ${String(err['message'] ?? res.status)}`);
+      // 409 means our cached sha is stale — clear it, or every retry resends the
+      // same sha and conflicts forever instead of self-healing on the next attempt.
+      if (res.status === 409) fileSha = null;
+      throw writeFailure(classifyHttpStatus(res.status), String(err['message'] ?? res.status));
     }
 
     fileSha = parseGitHubCommitResponse(await res.json()).content.sha;
@@ -247,15 +251,16 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
       return { format: DocFormat.Binary, bytes };
     },
 
-    async save(content: DocContent): Promise<void> {
-      if (committing) return;
+    async save(content: DocContent): Promise<WriteReceipt> {
+      if (committing) return skipped(WriteSkip.Coalesced);
       const tok = resolvedToken();
       const repo = resolvedRepo();
-      if (!tok) throw new Error('GitHub: not connected');
-      if (!repo) throw new Error('GitHub: repository not configured');
+      if (!tok) throw writeFailure(WriteFailureKind.Denied, 'GitHub: not connected');
+      if (!repo) throw writeFailure(WriteFailureKind.Missing, 'GitHub: repository not configured');
       committing = true;
       try {
         await commitFile(tok, repo, resolvedBranch(), content);
+        return landed();
       } finally {
         committing = false;
       }
