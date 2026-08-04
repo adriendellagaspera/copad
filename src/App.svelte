@@ -57,6 +57,7 @@
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
   import { SessionRole, PresenceKind, Transport } from './collaboration/types.js';
   import { writeGateFor, GATE_SETTLE_MS, GATE_LINGER_MS, type SoloOptIn } from './collaboration/writeGate.js';
+  import { durabilityHolds as computeDurabilityHolds } from './collaboration/persistHealth.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
@@ -404,8 +405,15 @@
   // false lockout is the costly failure here, not a false few extra seconds of
   // solo writing (contract §2.2). It only closes on positive, settled absence.
   //
-  // `savedHere` stands in for the full `durabilityHolds`/`PersistHealth` machine
-  // (contract §3.2, not yet shipped).
+  // Branch (b) itself is `durabilityHolds` (contract §3.2/§3.3), not the bare
+  // `savedHere` declarative fact — `Broken ∧ Cold` is the one case it can still
+  // fail even though `savedHere` is true. `savedHere` stays the read everywhere
+  // else (the `storage` prop below, dialogs' labels): swapping it there too would
+  // make `Broken` absorbing, cutting the Editor off from the very `flush()` calls
+  // that could prove it healthy again.
+  const durabilityHolds = $derived(
+    computeDurabilityHolds(savedHere, sessionState.persistHealth, sessionState.regime),
+  );
   //
   // The escape hatch is `allowWriteSolo()`, surfaced as "Write alone anyway" in
   // `SyncBanner`'s gated tier — P2P only. Session-scoped, per room.
@@ -452,7 +460,7 @@
       presence: sessionState.presence,
       collabUnavailable,
       soloOptIn,
-      savedHere,
+      savedHere: durabilityHolds,
       aloneSettled,
       withinDepartureLinger,
     }),
@@ -465,7 +473,7 @@
     sessionRole === SessionRole.Writer &&
       !collabUnavailable &&
       !soloOptIn &&
-      !savedHere &&
+      !durabilityHolds &&
       sessionState.presence.kind !== PresenceKind.Accompanied,
   );
 
