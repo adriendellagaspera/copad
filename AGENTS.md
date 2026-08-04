@@ -32,11 +32,12 @@
 - IO boundaries and how to handle each:
   - Env vars → call the existing `resolve*()` config functions; they return
     branded types (`SignalingUrl`, `WebsocketUrl`, …).
-  - `localStorage` reads → cast to the branded type inside the reading function
-    (see `localCacheEnabled()` in `src/collaboration/cache.ts`).
+  - `localStorage` → never touch it. Bind a key to a parser and a serializer
+    with `localStore<T>()` from `src/persistence/local.ts` — the only module
+    allowed to reach `localStorage` — and read/write typed values through it.
   - URL params → cast in `App.svelte`, the single entry point.
   - Network peer data → use `parsePeerAwarenessState(raw: unknown)` in
-    `src/collaboration/types.ts`; do not read awareness state elsewhere.
+    `src/collaboration/parse.ts`; do not read awareness state elsewhere.
   - External API JSON → type the interface, cast at `response.json()`.
   - Filename from browser API → cast to `Filename` inside the storage adapter.
 
