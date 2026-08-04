@@ -11,9 +11,7 @@ export { extensionOf };
 /** Every codec Copad can read/write. The first one (`.yjs`) is the native default. */
 export const codecs: Codec[] = [yjsCodec, textCodec, markdownCodec, htmlCodec, jsonCodec];
 
-/** Formats offered by the "Export a copy" action — every codec except the native
- *  `.yjs` snapshot, which exists for backend persistence rather than a portable
- *  file a user downloads to read elsewhere. */
+/** Formats offered by the "Export a copy" action — every codec but the native `.yjs`. */
 export const exportCodecs: Codec[] = [textCodec, markdownCodec, htmlCodec, jsonCodec];
 
 /** Native format used whenever a filename has no recognised content extension. */

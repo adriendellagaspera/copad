@@ -47,10 +47,7 @@
     onShare: () => void;
     /** Open Settings so the user can connect a backend to keep their own copy. */
     onConnectStorage: () => void;
-    /** Open the "Export a copy" dialog — the read-only band's reachable point for
-     *  the contract's *read, copy, export, wait* while gated (§4.3). Only offered
-     *  in the gated tier: the other tiers are editable, where Settings already
-     *  reaches export. */
+    /** Open the "Export a copy" dialog. */
     onExport?: () => void;
   } = $props();
 

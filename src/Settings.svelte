@@ -54,7 +54,6 @@
     spellcheck?: boolean;
     onLanguageChange?: (lang: string) => void;
     onSpellcheckChange?: (on: boolean) => void;
-    /** Filename base (room name, or the room id when unnamed) for "Export a copy". */
     exportBaseName: string;
     toasts: Toasts;
     onchange?: () => void;
