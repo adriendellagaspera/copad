@@ -4,6 +4,7 @@ import type {
   StunUrl, TurnUrl, TurnUsername, TurnCredential, IceServer, IceServersUrl,
 } from './types.js';
 import { SessionRole, FallbackTurnPolicy } from './types.js';
+import type { BrowserId } from './browserId.js';
 import type { RoomCredential } from './roomAccess.js';
 import type { KeyFingerprint } from './roomCrypto.js';
 import type { LocalCacheEnabled } from './cache.js';
@@ -118,7 +119,16 @@ export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
   const targetRaw = obj['persistTarget'];
   const persistTarget: PersistTarget | undefined =
     typeof targetRaw === 'string' && targetRaw ? (targetRaw as PersistTarget) : undefined;
-  return { user: { name, color }, role, canPersist, ...(persistTarget ? { persistTarget } : {}) };
+  const browserIdRaw = obj['browserId'];
+  const browserId: BrowserId | undefined =
+    typeof browserIdRaw === 'string' && browserIdRaw ? (browserIdRaw as BrowserId) : undefined;
+  return {
+    user: { name, color },
+    role,
+    canPersist,
+    ...(persistTarget ? { persistTarget } : {}),
+    ...(browserId ? { browserId } : {}),
+  };
 }
 
 /** Parse a raw string from storage as a RoomId — the single cast site for RoomId from localStorage/URL. */

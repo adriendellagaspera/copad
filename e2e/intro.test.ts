@@ -1,59 +1,66 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * First-run onboarding. Copad's peer-to-peer, live-only default is unusual — writing
- * alone means nothing leaves this device until someone joins. The write-gate teaches
- * that just-in-time: it holds the editor read-only and, in the top banner, explains
- * why. It yields on the writing gesture — clicking or typing in the body lifts it —
- * so there's never a trip to a button. Fresh context (no fixtures) so the gate
- * actually arms.
- *
- * The very first time a browser ever arms the gate, a blocking dialog (WriteGateIntro)
- * escalates on top of the still-visible editor before the ambient banner's
- * yield-on-write behavior applies — that first encounter is covered separately below.
+ * The write gate (`docs/contract.md` §1–§4). Copad's peer-to-peer, live-only
+ * default is unusual — writing alone means nothing leaves this device until
+ * someone joins. The gate holds the editor read-only while alone, past a settle
+ * window, and the waiting state itself explains why — no separate onboarding
+ * dialog (`WriteGateIntro`, deleted; contract §7 — "the waiting state teaches
+ * the contract better than a modal shown once per browser"). The escape hatch
+ * is an explicit, named "Write alone anyway" button (contract §4.4), not a
+ * silent yield on the first click/keystroke.
  */
 
-test('first-ever gate arm shows a blocking explainer, dismissible by writing solo', async ({ page }) => {
-  await page.goto('/?room=intro-solo-first');
-
-  const dialog = page.getByRole('dialog', { name: "You're the only one here" });
-  await expect(dialog).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
-
-  await dialog.getByRole('button', { name: 'Write here anyway' }).click();
-  await expect(dialog).toBeHidden();
-  await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'true');
-
-  const seen = await page.evaluate(() => localStorage.getItem('copad:writeGateSeen'));
-  expect(seen).toBe('true');
-
-  // Never reappears once seen — a fresh room in the same browser goes straight to
-  // the ambient banner + yield-on-write behavior.
-  await page.goto('/?room=intro-solo-second');
-  await expect(page.locator('.sync-banner')).toBeVisible({ timeout: 20_000 });
-  await expect(dialog).toBeHidden();
-});
-
-test('a solo peer-to-peer room gates writing, then yields on the writing gesture', async ({ page }) => {
-  // Pre-seed the one-time explainer as already seen — this test is about the
-  // standing banner + yield-on-write behavior that every arm after the first uses,
-  // not the first-encounter dialog (covered above).
-  await page.addInitScript(() => localStorage.setItem('copad:writeGateSeen', 'true'));
+test('a solo peer-to-peer room gates writing after the settle window, then opens via the explicit escape hatch', async ({ page }) => {
   await page.goto('/?room=intro-solo');
 
-  // Peer-to-peer, no peers, no backend → after a short grace window the gate arms:
-  // the editor goes read-only and the top strip explains why, with Invite / Connect.
+  // Peer-to-peer, no peers, no backend → after the settle window the gate holds:
+  // the editor goes read-only and the top strip explains why, with Invite /
+  // Connect storage / Write alone anyway.
   const banner = page.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 20_000 });
-  await expect(banner).toContainText('Start writing to write on your own');
+  await expect(banner).toContainText("You're the only one here");
   await expect(banner.getByRole('button', { name: 'Invite' })).toBeVisible();
   await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
 
-  // Yield-on-write: clicking into the body IS opting to write solo — the gate lifts
-  // under the cursor (no button trip), the editor becomes editable, and the strip
-  // stays as a standing "empty room" reminder.
+  // Clicking or typing in the body does NOT silently lift the gate anymore —
+  // only the explicit button does.
   await page.locator('.ProseMirror').click();
+  await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
+
+  await banner.getByRole('button', { name: 'Write alone anyway' }).click();
   await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'true');
-  await expect(banner).toContainText("You're writing to an empty room");
-  await expect(banner.getByRole('button', { name: 'Invite' })).toBeVisible();
+
+  // Opting in for this room doesn't re-show the gate for the rest of the session.
+  await expect(banner).toBeVisible();
+});
+
+test('a read-only link never offers the write-alone escape hatch', async ({ page }) => {
+  // Storage-backed "never gated" is covered by unit tests (`writeGate.test.ts`,
+  // the `savedHere` branch) — no backend is easy to wire in this harness. This
+  // exercises the reader carve-out: `writeGateFor()` opens for readers
+  // unconditionally, so the escape-hatch button (only rendered while gated)
+  // never appears — a read-only visitor was never a candidate to write at all.
+  await page.goto('/?room=intro-reader&role=reader');
+  await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
+  await expect(page.getByRole('button', { name: 'Write alone anyway' })).toHaveCount(0);
+});
+
+test.describe('on a narrow viewport', () => {
+  test.use({ viewport: { width: 390, height: 664 }, isMobile: true, hasTouch: true });
+
+  test('the gated banner wraps its actions instead of overflowing off-screen', async ({ page }) => {
+    await page.goto('/?room=intro-solo-mobile');
+    const banner = page.locator('.sync-banner');
+    await expect(banner).toBeVisible({ timeout: 20_000 });
+    const writeSolo = banner.getByRole('button', { name: 'Write alone anyway' });
+    await expect(writeSolo).toBeVisible();
+
+    const box = await writeSolo.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+
+    await writeSolo.click();
+    await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'true');
+  });
 });

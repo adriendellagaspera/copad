@@ -9,8 +9,8 @@
 // to `emitStatus`/`setSynced`.
 
 import type * as Y from 'yjs';
-import type { RoomId } from './types.js';
-import { ConnStatus } from './types.js';
+import type { RoomId, RoomPresence } from './types.js';
+import { ConnStatus, PresenceKind } from './types.js';
 import type { RoomCredential } from './roomAccess.js';
 import { attachLocalCache, type LocalCache, type LocalCacheEnabled } from './cache.js';
 import { CONNECT_TIMEOUT_MS } from './constants.js';
@@ -27,12 +27,17 @@ export interface CollabCoreOptions {
   isAttached: () => boolean;
   /** Number of *other* peers currently present (0 = alone in the room). */
   peerCount: () => number;
+  /** Peers discovered but not yet exchanging data — feeds `PresenceKind.Reaching`.
+   *  Omit on transports with no such state (e.g. the hub). */
+  reachingCount?: () => number;
 }
 
 export interface CollabCore {
   onStatus(fn: (status: ConnStatus) => void): () => void;
   onSynced(fn: (synced: boolean) => void): () => void;
-  /** Recompute and broadcast the connection status — call from provider events. */
+  /** Subscribe to {@link RoomPresence}, memoised by `kind`. */
+  onPresence(fn: (presence: RoomPresence) => void): () => void;
+  /** Recompute and broadcast both status and presence — call from provider events. */
   emitStatus(): void;
   /** Update and broadcast the synced flag — call from the provider's sync event. */
   setSynced(value: boolean): void;
@@ -47,9 +52,10 @@ export interface CollabCore {
 }
 
 export function createCollabCore(opts: CollabCoreOptions): CollabCore {
-  const { isAttached, peerCount } = opts;
+  const { isAttached, peerCount, reachingCount } = opts;
   const statusFns = new Set<(s: ConnStatus) => void>();
   const syncedFns = new Set<(b: boolean) => void>();
+  const presenceFns = new Set<(p: RoomPresence) => void>();
   let synced = false;
 
   // Local cache: keeps the doc across reloads even with no storage backend.
@@ -104,10 +110,30 @@ export function createCollabCore(opts: CollabCoreOptions): CollabCore {
     return peerCount() > 0 ? ConnStatus.Connected : ConnStatus.Waiting;
   };
 
+  // Offline or not-attached ⟹ Unknown, not Alone — never lock on ignorance.
+  const computePresenceKind = (): PresenceKind => {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return PresenceKind.Unknown;
+    if (!isAttached()) return PresenceKind.Unknown;
+    if (peerCount() > 0) return PresenceKind.Accompanied;
+    if (reachingCount && reachingCount() > 0) return PresenceKind.Reaching;
+    return PresenceKind.Alone;
+  };
+
+  // Memoised: same kind ⟹ same object, so a downstream grace timer keyed on
+  // identity doesn't restart on every awareness sweep.
+  let presence: RoomPresence = { kind: computePresenceKind() };
+  const emitPresence = (): void => {
+    const kind = computePresenceKind();
+    if (kind === presence.kind) return;
+    presence = { kind };
+    presenceFns.forEach((fn) => fn(presence));
+  };
+
   const emitStatus = (): void => {
     syncTimer();
     const s = computeStatus();
     statusFns.forEach((fn) => fn(s));
+    emitPresence();
   };
 
   // Arm the initial window immediately — `onStatus` computes its first value
@@ -133,6 +159,11 @@ export function createCollabCore(opts: CollabCoreOptions): CollabCore {
       fn(synced);
       return () => syncedFns.delete(fn);
     },
+    onPresence(fn) {
+      presenceFns.add(fn);
+      fn(presence);
+      return () => presenceFns.delete(fn);
+    },
     emitStatus,
     setSynced(value) {
       synced = value;
@@ -151,6 +182,7 @@ export function createCollabCore(opts: CollabCoreOptions): CollabCore {
       clearTimer();
       statusFns.clear();
       syncedFns.clear();
+      presenceFns.clear();
       cache?.destroy();
     },
   };

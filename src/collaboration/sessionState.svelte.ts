@@ -9,8 +9,8 @@
 
 import type { PeerUser } from '../ui/types.js';
 import { SaveStatus } from '../ui/types.js';
-import { ConnStatus, Transport } from './types.js';
-import type { Diagnostics } from './types.js';
+import { ConnStatus, PresenceKind, Transport } from './types.js';
+import type { Diagnostics, RoomPresence } from './types.js';
 
 /** Diagnostics access for the connection dialog — present only while a session
  *  is live, and only on transports that expose it (WebRTC). */
@@ -21,6 +21,10 @@ export interface SessionDiagnostics {
 }
 
 let conn = $state<ConnStatus>(ConnStatus.Connecting);
+// Feeds the write gate, not the status pill. Defaults to Unknown: never lock on ignorance.
+let presence = $state<RoomPresence>({ kind: PresenceKind.Unknown });
+// True while every accompanying peer shares our own browserId — a second tab, not a stranger.
+let soloBrowser = $state(false);
 let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
 let users = $state<PeerUser[]>([]);
 let peers = $state(1);
@@ -41,6 +45,12 @@ let jumpToPeer = $state<((clientId: number) => void) | undefined>(undefined);
 export const sessionState = {
   get conn(): ConnStatus {
     return conn;
+  },
+  get presence(): RoomPresence {
+    return presence;
+  },
+  get soloBrowser(): boolean {
+    return soloBrowser;
   },
   get saveStatus(): SaveStatus {
     return saveStatus;
@@ -65,6 +75,12 @@ export const sessionState = {
 export function setSessionConn(value: ConnStatus): void {
   conn = value;
 }
+export function setSessionRoomPresence(value: RoomPresence): void {
+  presence = value;
+}
+export function setSessionSoloBrowser(value: boolean): void {
+  soloBrowser = value;
+}
 export function setSessionSave(value: SaveStatus): void {
   saveStatus = value;
 }
@@ -85,6 +101,8 @@ export function setSessionJumpToPeer(value: ((clientId: number) => void) | undef
 /** Restore defaults when the Editor unmounts (room change / teardown). */
 export function resetSessionState(): void {
   conn = ConnStatus.Connecting;
+  presence = { kind: PresenceKind.Unknown };
+  soloBrowser = false;
   saveStatus = SaveStatus.Idle;
   users = [];
   peers = 1;

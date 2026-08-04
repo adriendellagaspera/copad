@@ -54,6 +54,8 @@ export function websocketCollab(opts: WebsocketCollabOptions): CollabConnect {
       transport: Transport.Hub,
       onStatus: core.onStatus,
       onSynced: core.onSynced,
+      // No `reachingCount` — the hub has no discovered-but-unconnected state.
+      onPresence: core.onPresence,
       reconnect() {
         provider.disconnect();
         provider.connect();

@@ -97,6 +97,16 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
       return connected + (r.bcConns?.size ?? 0);
     };
 
+    // A conn enters `webrtcConns` on discovery, before its data channel opens —
+    // that's `Reaching`, distinct from `peerCount`'s connected-only count.
+    const reachingCount = (): number => {
+      const r = room_();
+      if (!r) return 0;
+      let reaching = 0;
+      r.webrtcConns?.forEach((c) => { if (!c.connected) reaching += 1; });
+      return reaching;
+    };
+
     // The provider's signaling sockets (shared module singletons keyed by URL),
     // read at the library IO boundary. `webrtc.signalingConns` is populated
     // synchronously by the constructor's connect(), so it's ready here.
@@ -120,6 +130,7 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
       cacheKey: password,
       isAttached,
       peerCount,
+      reachingCount,
     });
 
     // y-webrtc emits `status`/`peers` on room + peer changes, but NOT when a
@@ -153,6 +164,7 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
       transport: Transport.P2P,
       onStatus: core.onStatus,
       onSynced: core.onSynced,
+      onPresence: core.onPresence,
       reconnect() {
         // Drop and re-attach to the signaling server; peers re-announce and the
         // WebRTC connections are rebuilt from scratch. connect() may recreate the

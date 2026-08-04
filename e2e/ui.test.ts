@@ -76,18 +76,15 @@ test('export a copy (Settings) exports the document as markdown', async ({ page 
 
 test('export a copy is reachable from the read-only band while write-gated', async ({ page }) => {
   await page.addInitScript(() => { delete (window as { showSaveFilePicker?: unknown }).showSaveFilePicker; });
-  // Pre-seed the one-time write-gate explainer as already seen — this test covers
-  // the standing banner's Export action, not the first-encounter blocking dialog
-  // (see intro.test.ts).
-  await page.addInitScript(() => localStorage.setItem('copad:writeGateSeen', 'true'));
   await page.goto('/?room=pw-export-gated');
   await page.locator('.ProseMirror').waitFor();
 
-  // Solo + P2P + live-only: the write-gate arms after its grace window (2s) —
-  // wait it out without clicking into the editor, since any click/keystroke
-  // there is itself the "yield to write" gesture that lifts the gate.
+  // Solo + P2P + live-only: the gate holds once presence has settled Alone
+  // (GATE_SETTLE_MS) — wait it out without clicking into the editor, since a
+  // click no longer silently opts into writing solo (contract §4.4's explicit
+  // escape hatch replaced that).
   const banner = page.locator('.sync-banner');
-  await expect(banner).toBeVisible({ timeout: 5000 });
+  await expect(banner).toBeVisible({ timeout: 10_000 });
   await expect(banner).toContainText("You're the only one here");
 
   const [download] = await Promise.all([

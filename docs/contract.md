@@ -1,6 +1,7 @@
 # The Copad contract
 
-> Specification. Unimplemented except where a section says otherwise (§5 has shipped).
+> Specification. Unimplemented except where a section says otherwise (§4.3, §4.4,
+> §5 have shipped; §2.2/§3.1/§3.4's presence model and write gate are wired).
 > This is the spine — the part that has to stay coherent, self-sufficient, on its own.
 > Where it cites a mechanism, the citation is to this repo's code or to the upstream
 > project that owns that mechanism — never to an issue tracker or a pull request.
@@ -56,9 +57,9 @@ Under this contract those two errors cost wildly different amounts. A P2P false 
 
 The hub is not a degraded P2P and P2P is not an approximate hub. Each promises exactly what its mechanics allow.
 
-### 2.2 The uncertainty rule, and its inversion
+### 2.2 The uncertainty rule, and its inversion — wired
 
-A write gate already exists (`App.svelte:395-521`). It arms **deliberately** on `Connecting` / `Unreachable` / `Offline`, justified in `App.svelte:414-420` on the grounds that protection matters most when signaling is cold.
+A write gate existed before this rule did — the same App.svelte section, before this issue rewired it. It armed **deliberately** on `Connecting` / `Unreachable` / `Offline`, justified on the grounds that protection matters most when signaling is cold.
 
 That reasoning is right for a **durability warning** and wrong for a **contract lock**.
 
@@ -75,9 +76,9 @@ Non-negotiable consequence: **never lock on `Connecting`, `Unreachable` or `Offl
 
 Two independent axes. The lock closes only when **both** branches fail.
 
-### 3.1 Presence — branch (a)
+### 3.1 Presence — branch (a) — wired
 
-`RoomPresence` is added **beside** `ConnStatus`, never replacing it (`ConnStatus` keeps feeding the status pill and the connection dialog).
+`RoomPresence` is added **beside** `ConnStatus`, never replacing it (`ConnStatus` keeps feeding the status pill and the connection dialog). `src/collaboration/types.ts` (`PresenceKind`/`RoomPresence`), computed and memoised in `src/collaboration/core.ts`, emitted by both adapters via the `Collab` port's optional `onPresence`.
 
 | Kind | Meaning | Opens (a)? |
 |---|---|---|
@@ -121,13 +122,14 @@ The boundary is an **event, not a clock**: the first local modification in this 
 
 The same hysteresis governs a peer leaving mid-session (§4, ⑥). One principle, two verticals.
 
-### 3.4 The decision rule
+### 3.4 The decision rule — wired
 
 ```
 durabilityHolds = savedHere && (health ∈ {Proven, Unproven, Failing} || regime === Warm)
                   ⟺ false only when  Broken ∧ Cold
 
 Open if any of:
+  role === Reader            → out of scope, readers were never gated
   collabUnavailable          → nobody can ever arrive
   soloOptIn                  → explicit, named user choice (P2P only)
   presence === Accompanied   → branch (a)
@@ -139,6 +141,17 @@ Open if any of:
 
 Held otherwise. ⟺ Alone, confirmed, past grace, out of hysteresis, and not durable.
 ```
+
+Implemented in `src/collaboration/writeGate.ts` (`writeGateFor()`), a pure
+function — no timers, no clocks, no DOM — with `docs/contract.md`'s truth table
+unit-tested branch by branch. `durabilityHolds` is currently just `savedHere`:
+the full `PersistHealth`/`regime` machine (§3.2) hasn't shipped yet (§8 step 5),
+so `Broken`/`Cold` can't be observed — until it does, "configured, logged in,
+and claims this room" is the honest, if coarser, approximation. The clocks for
+the settle and linger windows live in `App.svelte` (two small `$effect`s), which
+feed `writeGateFor()` pre-computed booleans (`aloneSettled`,
+`withinDepartureLinger`) rather than raw timestamps — keeping the decision
+function itself clock-free.
 
 > **Unlocking is optimistic and immediate; locking is pessimistic and deferred.** Any sign of life opens at once; only a prolonged, confirmed absence closes. The tests must enforce this asymmetry.
 
@@ -187,13 +200,13 @@ No spinner — a spinner promises imminence and lies after 30 seconds. A calm do
 
 Also active while read-only: text selection and copy, scrolling and outline, Share, Settings, connecting a backend, theme and identity, loading from the backend. Inactive: typing, formatting toolbar (visible but disabled — removing it would suggest a different app), slash menu, input rules, undo/redo, renaming the document (the title lives in the shared doc, so renaming is a collaborative write).
 
-### 4.4 The escape hatch
+### 4.4 The escape hatch — done
 
-Today the gate yields silently on the first keystroke. *"Read-only until you type"* is not a contract, it is a speed bump — right for a warning, self-defeating for a contract.
+The gate used to yield silently on the first keystroke. *"Read-only until you type"* is not a contract, it is a speed bump — right for a warning, self-defeating for a contract.
 
-It becomes an explicit, named button, **P2P only**, stating its cost: `Write alone anyway` → *Nothing you write will leave this device until someone joins.* Scope stays per-room, in memory, for the session; every reload re-asserts the contract.
+It is now an explicit, named button, **P2P only**, stating its cost: `Write alone anyway` → *Nothing you write will leave this device until someone joins.* (`SyncBanner.svelte`'s gated tier — rendered only while `transport === Transport.P2P`, since the hub's contract offers no escape hatch, §2.1.) Scope stays per-room, in memory, for the session; every reload re-asserts the contract (`App.svelte`'s `soloRooms`, unpersisted).
 
-The honest cost, to be written in the README: the contract is *read-only when alone by default, deliberately overridable*. That is defensible. The silent version was not.
+The honest cost, documented in the README: the contract is *read-only when alone by default, deliberately overridable*. That is defensible. The silent version was not.
 
 ## 5. Prerequisite: harden the room identifier — done
 
@@ -263,9 +276,9 @@ Two traps: Zoom meeting ids are enumerable, so the canonical form must include `
 ## 8. Order of work
 
 1. ~~**Harden the room identifier**~~ (§5) — done, was a precondition for §6.1.
-2. **Presence model** — `RoomPresence`, the new core hooks, memoised emission. No visible behaviour.
-3. **`writeGate.ts`** — pure decision function with a full truth table. Not wired. No visible behaviour.
-4. **Wire the gate** — this is the commit that inverts the polarity, and where the review matters.
+2. ~~**Presence model**~~ — `RoomPresence`, the new core hooks, memoised emission — done (§3.1).
+3. ~~**`writeGate.ts`**~~ — pure decision function with a full truth table — done (§3.4).
+4. ~~**Wire the gate**~~ — the commit that inverts the polarity — done (§2.2, §4.4's escape hatch). The waiting-room polish in step 6 below (banner tiers per `RoomPresence` kind, pill labels, the `Reaching` UI treatment, typing-extended departure hysteresis) is deliberately left for that step — this one only inverts the lock's polarity and replaces the silent yield with the named escape hatch.
 5. **Write outcome** — `WriteReceipt`, `PersistHealth`, adapter migration one at a time.
 6. **The waiting room** — banner tiers, pill labels, `Reaching`, hysteresis.
 7. **The unlock moment** (§4.1). ~~**Export**~~ (§4.3) — done.
