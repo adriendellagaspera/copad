@@ -14,6 +14,7 @@ import {
 } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
+import { landed, skipped, writeFailure, classifyHttpStatus, WriteSkip, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import {
   STORAGE_ID,
   DEFAULT_FILENAME,
@@ -178,10 +179,10 @@ export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Stora
       return { format: DocFormat.Binary, bytes };
     },
 
-    async save(content: DocContent): Promise<void> {
-      if (committing) return;
+    async save(content: DocContent): Promise<WriteReceipt> {
+      if (committing) return skipped(WriteSkip.Coalesced);
       const tok = token();
-      if (!tok) throw new Error('Google Drive: not connected');
+      if (!tok) throw writeFailure(WriteFailureKind.Denied, 'Google Drive: not connected');
 
       const bytes =
         content.format === DocFormat.Text
@@ -199,7 +200,7 @@ export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Stora
             headers: { ...authHeaders(tok), 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: fileName.get() }),
           });
-          if (!res.ok) throw new Error(`Google Drive create failed: ${res.status}`);
+          if (!res.ok) throw writeFailure(classifyHttpStatus(res.status), `Google Drive create failed: ${res.status}`);
           fileId = parseGDriveCreatedFile(await res.json());
         }
 
@@ -208,7 +209,13 @@ export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Stora
           headers: { ...authHeaders(tok), 'Content-Type': mime },
           body: bytes as unknown as BodyInit,
         });
-        if (!res.ok) throw new Error(`Google Drive save failed: ${res.status}`);
+        if (!res.ok) {
+          // A stale cached fileId (file deleted/moved since) should be re-resolved
+          // next attempt rather than repeating the same failing upload target.
+          if (res.status === 404) fileId = null;
+          throw writeFailure(classifyHttpStatus(res.status), `Google Drive save failed: ${res.status}`);
+        }
+        return landed();
       } finally {
         committing = false;
       }
