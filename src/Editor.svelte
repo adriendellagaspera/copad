@@ -30,8 +30,9 @@
     DisplayName,
     CursorColor,
     PeerAwarenessState,
+    RoomPresence,
   } from './collaboration/types.js';
-  import { ConnStatus, SessionRole } from './collaboration/types.js';
+  import { ConnStatus, PresenceKind, SessionRole } from './collaboration/types.js';
   import type { RoomName, PersistTarget } from './collaboration/types.js';
   import { parsePeerAwarenessState, parseRoomName } from './collaboration/parse.js';
   import { browserId } from './collaboration/browserId.js';
@@ -46,6 +47,8 @@
     setSessionConn,
     setSessionSave,
     setSessionPresence,
+    setSessionRoomPresence,
+    setSessionSoloBrowser,
     setSessionDiagnostics,
     setSessionEditing,
     setSessionJumpToPeer,
@@ -62,21 +65,12 @@
     toasts: Toasts;
     lang?: string;
     spellcheck?: boolean;
-    /** When true the editor is read-only, regardless of role — the write-gate holds
-     *  back solo writing in a peer-to-peer, live-only room until someone joins. */
+    /** When true the editor is read-only — the write gate (`writeGateFor()` in
+     *  `App.svelte`) is holding. This component only reflects it. */
     writeLocked?: boolean;
-    /** True while the room *could* be gated (P2P + live-only + no peer, not yet opted
-     *  solo) — a superset of `writeLocked` that's also true during the pre-arm grace
-     *  window. While it holds, the first writing gesture opts you into solo, so the
-     *  gate never arms mid-typing and a click/keystroke never gets stranded. */
-    writeGateEligible?: boolean;
-    /** Called when the user makes the writing gesture (clicks or types in the body)
-     *  while the gate could apply: that IS opting to write solo, so the gate yields
-     *  there and then — no trip to a button. No-op otherwise. */
-    onWriteSolo?: () => void;
   };
 
-  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, writeLocked = false, writeGateEligible = false, onWriteSolo }: Props =
+  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, writeLocked = false }: Props =
     $props();
 
   const SAVE_DEBOUNCE = 3_000;
@@ -122,6 +116,9 @@
   let users = $state<PeerUser[]>([]);
   let peers = $state(1);
   let conn = $state<ConnStatus>(ConnStatus.Connecting);
+  let roomPresence = $state<RoomPresence>({ kind: PresenceKind.Unknown });
+  // True while every accompanying peer shares our own browserId — a second tab, not a stranger.
+  let soloBrowser = $state(false);
   let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
   let loadedFrom = $state<string | null>(null);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -174,9 +171,23 @@
     return list;
   };
 
+  const readSoloBrowser = (): boolean => {
+    const states = parsedStates();
+    const selfId = collab.doc.clientID;
+    const mine = browserId();
+    let sawOther = false;
+    for (const [id, state] of states) {
+      if (id === selfId) continue;
+      sawOther = true;
+      if (state.browserId !== mine) return false;
+    }
+    return sawOther;
+  };
+
   const refreshPresence = (): void => {
     peers = collab.awareness.getStates().size || 1;
     users = readUsers();
+    soloBrowser = readSoloBrowser();
   };
   collab.awareness.on('change', refreshPresence);
   refreshPresence();
@@ -184,6 +195,9 @@
   // ── Connection status ───────────────────────────────────────────────────────
   const offStatus = collab.onStatus((s) => {
     conn = s;
+  });
+  const offPresence = collab.onPresence?.((p) => {
+    roomPresence = p;
   });
 
   // ── Push session state to the header bridge ─────────────────────────────────
@@ -205,6 +219,8 @@
   $effect(() => setSessionConn(conn));
   $effect(() => setSessionSave(saveStatus));
   $effect(() => setSessionPresence(users, peers));
+  $effect(() => setSessionRoomPresence(roomPresence));
+  $effect(() => setSessionSoloBrowser(soloBrowser));
 
   // Mobile-only signal (see the M3 layout in App.svelte / editor.css): whether
   // the document currently has focus, so the header can swap its bottom dock
@@ -239,6 +255,7 @@
       user: { name, color },
       role,
       canPersist,
+      browserId: browserId(),
       ...(target ? { persistTarget: target } : {}),
     };
     collab.awareness.setLocalState(state);
@@ -340,28 +357,6 @@
     if (view) view.setProps({ editable: () => role === SessionRole.Writer && !locked });
   });
 
-  // Yield-on-write: the writing gesture itself — clicking or typing in the body —
-  // is what opts you into writing solo, so the gate lifts under your cursor instead
-  // of forcing a trip to a button. Listeners are attached whenever the gate is
-  // *eligible* (not only once armed), so writing during the pre-arm grace window
-  // opts you in too and the gate never arms mid-typing. When the gate is already
-  // armed (editor read-only) we also flip the view editable *synchronously* so the
-  // very click that lifted it still lands a caret; the $effect above reconciles.
-  $effect(() => {
-    const el = editorEl;
-    if (!writeGateEligible || !el || !onWriteSolo) return;
-    const yieldToWrite = (): void => {
-      onWriteSolo?.();
-      view?.setProps({ editable: () => role === SessionRole.Writer });
-    };
-    el.addEventListener('pointerdown', yieldToWrite, { capture: true });
-    el.addEventListener('keydown', yieldToWrite, { capture: true });
-    return () => {
-      el.removeEventListener('pointerdown', yieldToWrite, { capture: true });
-      el.removeEventListener('keydown', yieldToWrite, { capture: true });
-    };
-  });
-
   onMount(() => {
     const state = EditorState.create({
       schema,
@@ -422,6 +417,7 @@
     clearInterval(fadeTimer);
     presenceActivity.destroy();
     offStatus();
+    offPresence?.();
     roomMeta.unobserve(onRoomMeta);
     unbindRoomName();
     unbindExport();

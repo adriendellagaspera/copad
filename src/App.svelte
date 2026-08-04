@@ -50,13 +50,13 @@
   } from './collaboration/roomLock.js';
   import { keyFingerprint } from './collaboration/roomCrypto.js';
   import RoomLock from './ui/RoomLock.svelte';
-  import WriteGateIntro from './ui/WriteGateIntro.svelte';
   import CollabUnavailableIntro from './ui/CollabUnavailableIntro.svelte';
-  import { KEY_WRITE_GATE_SEEN, KEY_COLLAB_UNAVAILABLE_SEEN } from './collaboration/constants.js';
+  import { KEY_COLLAB_UNAVAILABLE_SEEN } from './collaboration/constants.js';
   import { localStore } from './persistence/local.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
-  import { SessionRole, ConnStatus, Transport } from './collaboration/types.js';
+  import { SessionRole, PresenceKind, Transport } from './collaboration/types.js';
+  import { writeGateFor, GATE_SETTLE_MS, GATE_LINGER_MS, type SoloOptIn } from './collaboration/writeGate.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
@@ -396,135 +396,78 @@
     return `Room “${other}” also saves to ${file} on your ${s.storage.label} — they’ll overwrite each other. Rename this room’s file in Settings.`;
   });
 
-  // ── Write-gate: don't let people write into the void ────────────────────────
-  // In a peer-to-peer, live-only room where you're the only one present, nothing
-  // you write leaves this device until someone joins — writing solo is talking to
-  // an empty room, which isn't what Copad is for. So we hold the editor read-only
-  // and surface it as the strongest tier of the top SyncBanner strip (Invite /
-  // Connect storage). It's not a wall: the writing gesture itself opts you into
-  // writing solo — Editor's yield-on-write lifts the gate under your cursor on the
-  // first click/keystroke (remembered per room) — and it also lifts on its own the
-  // instant a peer joins or the room becomes Saved. Ordinarily there's no separate
-  // overlay and no scrim over the text, in keeping with "the interface recedes in
-  // front of it" — *except* the very first time this browser ever arms the gate,
-  // where the mechanic is unintuitive enough to warrant a deliberate, blocking
-  // acknowledgment (see `writeGateSeenStore` / `WriteGateIntro` below). That one
-  // dialog sits on top of the still-visible editor rather than replacing it, and
-  // never reappears once seen.
+  // ── Write gate (docs/contract.md §1–§4) ──────────────────────────────────────
+  // `writeGateFor()` is the pure decision function; this section only supplies its
+  // inputs and owns the two clocks it needs (settle + departure-linger).
   //
-  // What "into the void" really means: no peer is *receiving* my edits AND nothing
-  // durable is keeping them. That's P2P transport (a hub relays to later joiners,
-  // so solo isn't pointless there), live-only for you (a Saved room keeps your
-  // copy), and **not Connected** — no peer present. Crucially we key on "no peer",
-  // NOT on ConnStatus.Waiting: whether we've attached to the signaling socket yet
-  // is an implementation detail the writer doesn't care about. Connecting, Waiting,
-  // Unreachable and Offline are identical to them — in all four, zero peers have
-  // their bytes. Keying on Waiting alone made the gate invisible exactly when
-  // signaling is absent or cold (a fresh serverless deploy), i.e. when protection
-  // matters most.
+  // Polarity: uncertainty (`RoomPresence.Unknown`, `Reaching`) OPENS the gate — a
+  // false lockout is the costly failure here, not a false few extra seconds of
+  // solo writing (contract §2.2). It only closes on positive, settled absence.
   //
-  // The flicker risk that narrow gating avoided (a brief Connecting on every load,
-  // before a peer is found) is handled by a **grace delay** instead of exclusion:
-  // we only arm the gate once the room has stayed peerless for GATE_GRACE_MS. If a
-  // peer joins (or the room becomes Saved) within that window, the gate never
-  // shows; it also lifts immediately the moment eligibility drops. A read-only
-  // session (shared view link) is never gated.
+  // `savedHere` stands in for the full `durabilityHolds`/`PersistHealth` machine
+  // (contract §3.2, not yet shipped).
   //
-  // The "write on your own" escape is **session-scoped, in memory only** — not
-  // persisted. So any full reload re-asserts the gate (Copad re-nudges you to
-  // invite someone on each fresh visit); we don't try to single out a hard refresh
-  // (indistinguishable from a soft one in the browser). Kept per room so opting
-  // into one room doesn't unlock another during the same session.
-  const GATE_GRACE_MS = 2_000;
+  // The escape hatch is `allowWriteSolo()`, surfaced as "Write alone anyway" in
+  // `SyncBanner`'s gated tier — P2P only. Session-scoped, per room.
   let soloRooms = $state<RoomId[]>([]);
-
-  // First time this browser ever arms the gate, the ambient banner alone is too
-  // easy to miss: the mechanic — solo edits are ephemeral, not just "not yet
-  // synced" — is unintuitive and structural, worth a deliberate acknowledgment
-  // once. So the *first* arm, globally (not per room — it's the mechanic being
-  // taught, not any one room), escalates to a blocking explainer dialog on top of
-  // the (still-mounted, still-visible) editor; every arm after that falls back to
-  // the banner + type-to-write-solo gate, unchanged. Persisted so it truly shows
-  // once per browser, not once per session.
-  const writeGateSeenStore = localStore<boolean>(
-    KEY_WRITE_GATE_SEEN,
-    (raw) => raw === 'true',
-    String,
-  );
-  let writeGateSeen = $state(writeGateSeenStore.read());
-  function markWriteGateSeen(): void {
-    if (writeGateSeen) return;
-    writeGateSeen = true;
-    writeGateSeenStore.write(true);
-  }
-
-  // Everything except the grace timing: are we, right now, a writer alone in a
-  // P2P live-only room who hasn't opted to write solo? (No peer ⟺ not Connected —
-  // Connecting, Unreachable, Waiting and Offline all qualify.)
-  //
-  // `!collabUnavailable` is the crucial guard: the gate exists to stop you writing
-  // into the void *while someone could still join*. If this deployment can't sync
-  // across devices at all, no one can ever join — holding writing back and telling
-  // you to "invite someone" would be a misleading dead end. So we don't gate; solo
-  // writing is simply the only mode, and durability is the storage story (below).
-  const gateEligible = $derived(
-    sessionRole === SessionRole.Writer &&
-      sessionState.diagnostics.transport === Transport.P2P &&
-      !savedHere &&
-      sessionState.conn !== ConnStatus.Connected &&
-      !soloRooms.includes(room) &&
-      !collabUnavailable,
-  );
-
-  // Rising-edge debounce: arm the gate only after eligibility has held for the
-  // grace window. `gateEligible` recomputes to the same `true` across a
-  // Connecting→Waiting transition, so (by Svelte's === check on deriveds) this
-  // effect doesn't re-run and the timer survives; it's torn down the instant a
-  // peer joins / the room becomes Saved / the user opts solo.
-  let gateArmed = $state(false);
-  $effect(() => {
-    if (!gateEligible) {
-      gateArmed = false;
-      return;
-    }
-    const t = setTimeout(() => (gateArmed = true), GATE_GRACE_MS);
-    return () => clearTimeout(t);
-  });
-
-  const writeLocked = $derived(gateEligible && gateArmed);
-
-  // Gate armed + never acknowledged before in this browser ⟹ show the one-time
-  // explainer instead of relying on the banner alone. It closes itself the moment
-  // `writeGateSeen` flips true (whichever action the user picks, or a plain
-  // dismiss), since this derived recomputes to false.
-  //
-  // Deferred while Share or Settings is already open: both render their own
-  // full-screen `Dialog`/backdrop, and popping a second one on top mid-flow would
-  // steal the click the user was mid-way through (e.g. "Copy link"). It simply
-  // waits — `writeLocked` and `writeGateSeen` are unaffected by either dialog, so
-  // this recomputes to true the moment the user closes them, gate still armed.
-  const showWriteGateExplainer = $derived(
-    writeLocked && !writeGateSeen && !shareOpen && !settingsOpen && !exportOpen,
-  );
+  const soloOptIn = $derived((sessionState.diagnostics.transport === Transport.P2P &&
+    soloRooms.includes(room)) as SoloOptIn);
 
   function allowWriteSolo(): void {
     if (!soloRooms.includes(room)) soloRooms = [...soloRooms, room];
   }
 
-  function writeSoloFromExplainer(): void {
-    markWriteGateSeen();
-    allowWriteSolo();
-  }
+  // Keyed on `presence.kind` (primitive), not the `RoomPresence` object, as a
+  // second guard on top of core.ts's own memoisation.
+  let aloneSettled = $state(false);
+  $effect(() => {
+    if (sessionState.presence.kind !== PresenceKind.Alone) {
+      aloneSettled = false;
+      return;
+    }
+    const t = setTimeout(() => (aloneSettled = true), GATE_SETTLE_MS);
+    return () => clearTimeout(t);
+  });
 
-  function inviteFromExplainer(): void {
-    markWriteGateSeen();
-    shareOpen = true;
-  }
+  // Hysteresis so a peer who just left doesn't instantly lock a mid-sentence writer.
+  let withinDepartureLinger = $state(false);
+  let wasAccompanied = false;
+  $effect(() => {
+    const kind = sessionState.presence.kind;
+    if (kind === PresenceKind.Accompanied) {
+      wasAccompanied = true;
+      withinDepartureLinger = false;
+      return;
+    }
+    if (!wasAccompanied) return;
+    wasAccompanied = false;
+    withinDepartureLinger = true;
+    const t = setTimeout(() => (withinDepartureLinger = false), GATE_LINGER_MS);
+    return () => clearTimeout(t);
+  });
 
-  function connectStorageFromExplainer(): void {
-    markWriteGateSeen();
-    openSettings();
-  }
+  const gate = $derived(
+    writeGateFor({
+      role: sessionRole,
+      presence: sessionState.presence,
+      collabUnavailable,
+      soloOptIn,
+      savedHere,
+      aloneSettled,
+      withinDepartureLinger,
+    }),
+  );
+  const writeLocked = $derived(gate.status === 'held');
+
+  // Superset of `writeLocked` — drives `SyncBanner`'s tiering during the pre-lock
+  // grace window, before the clocks let `writeGateFor` actually return `held`.
+  const gateEligible = $derived(
+    sessionRole === SessionRole.Writer &&
+      !collabUnavailable &&
+      !soloOptIn &&
+      !savedHere &&
+      sessionState.presence.kind !== PresenceKind.Accompanied,
+  );
 
   // ── Collab-unavailable intro: a structurally local-only deployment ─────────
   // `collabUnavailable` never blocks (see above) — it's an environment fact, not
@@ -730,6 +673,12 @@
       />
       {#if otherPeers.length > 0}
         <PresenceBar users={otherPeers} size={24} onSelect={sessionState.jumpToPeer} />
+        {#if sessionState.soloBrowser}
+          <!-- Contract §7: a second tab of your own browser really does receive
+               your bytes and satisfies the contract — but naming it stops it
+               reading as "a stranger showed up" or a silent, unexplained loophole. -->
+          <span class="solo-browser-note">Another tab of yours</span>
+        {/if}
       {/if}
     </div>
 
@@ -839,6 +788,7 @@
     onShare={() => (shareOpen = true)}
     onConnectStorage={() => openSettings()}
     onExport={() => (exportOpen = true)}
+    onWriteSolo={allowWriteSolo}
   />
 
   {#if !iceReady}
@@ -871,22 +821,10 @@
       lang={language.resolved}
       spellcheck={language.spellcheck}
       {writeLocked}
-      writeGateEligible={gateEligible}
-      onWriteSolo={allowWriteSolo}
     />
-    <!-- Sits on top of the still-mounted, still-visible Editor above (never
-         replaces it — a peer who left after syncing content must never have that
-         content hidden behind this). Closes itself once `writeGateSeen` flips,
-         whether via a button or a plain dismiss (✕ / Escape / backdrop click). -->
-    <WriteGateIntro
-      open={showWriteGateExplainer}
-      onWriteSolo={writeSoloFromExplainer}
-      onInvite={inviteFromExplainer}
-      onConnectStorage={connectStorageFromExplainer}
-      onDismiss={markWriteGateSeen}
-    />
-    <!-- Mutually exclusive with WriteGateIntro (gateEligible requires
-         !collabUnavailable), so at most one of the two is ever open. -->
+    <!-- The waiting state itself teaches the contract now — see SyncBanner's
+         `gated` tier — instead of a separate one-time explainer dialog
+         (`WriteGateIntro`, deleted; contract §7). -->
     <CollabUnavailableIntro
       open={showCollabUnavailableIntro}
       saved={savedHere}
@@ -978,5 +916,11 @@
     to {
       transform: rotate(360deg);
     }
+  }
+  .solo-browser-note {
+    margin-left: var(--sp-2);
+    color: var(--text-faint);
+    font-size: var(--fs-300);
+    white-space: nowrap;
   }
 </style>

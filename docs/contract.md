@@ -56,9 +56,9 @@ Under this contract those two errors cost wildly different amounts. A P2P false 
 
 The hub is not a degraded P2P and P2P is not an approximate hub. Each promises exactly what its mechanics allow.
 
-### 2.2 The uncertainty rule, and its inversion
+### 2.2 The uncertainty rule, and its inversion — wired
 
-A write gate already exists (`App.svelte:395-521`). It arms **deliberately** on `Connecting` / `Unreachable` / `Offline`, justified in `App.svelte:414-420` on the grounds that protection matters most when signaling is cold.
+A write gate existed before this rule did — the same App.svelte section, before this issue rewired it. It armed **deliberately** on `Connecting` / `Unreachable` / `Offline`, justified on the grounds that protection matters most when signaling is cold.
 
 That reasoning is right for a **durability warning** and wrong for a **contract lock**.
 
@@ -277,7 +277,7 @@ Two traps: Zoom meeting ids are enumerable, so the canonical form must include `
 1. ~~**Harden the room identifier**~~ (§5) — done, was a precondition for §6.1.
 2. ~~**Presence model**~~ — `RoomPresence`, the new core hooks, memoised emission — done (§3.1).
 3. ~~**`writeGate.ts`**~~ — pure decision function with a full truth table — done (§3.4).
-4. **Wire the gate** — this is the commit that inverts the polarity, and where the review matters.
+4. ~~**Wire the gate**~~ — the commit that inverts the polarity — done (§2.2, §4.4's escape hatch). The waiting-room polish in step 6 below (banner tiers per `RoomPresence` kind, pill labels, the `Reaching` UI treatment, typing-extended departure hysteresis) is deliberately left for that step — this one only inverts the lock's polarity and replaces the silent yield with the named escape hatch.
 5. **Write outcome** — `WriteReceipt`, `PersistHealth`, adapter migration one at a time.
 6. **The waiting room** — banner tiers, pill labels, `Reaching`, hysteresis.
 7. **The unlock moment** (§4.1). ~~**Export**~~ (§4.3) — done.
