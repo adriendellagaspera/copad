@@ -14,6 +14,7 @@ import {
 } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
+import { landed, writeFailure, classifyHttpStatus, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import {
   STORAGE_ID,
   CLOUD_FOLDER,
@@ -136,10 +137,10 @@ export function pcloudStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
       }
     },
 
-    async save(content: DocContent): Promise<void> {
-      if (content.format !== DocFormat.Binary) throw new Error('pCloud storage expects binary content');
+    async save(content: DocContent): Promise<WriteReceipt> {
+      if (content.format !== DocFormat.Binary) throw writeFailure(WriteFailureKind.Rejected, 'pCloud storage expects binary content');
       const s = session();
-      if (!s) throw new Error('pCloud: not connected');
+      if (!s) throw writeFailure(WriteFailureKind.Denied, 'pCloud: not connected');
 
       const form = new FormData();
       form.append('filename', fileName.get());
@@ -151,14 +152,15 @@ export function pcloudStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
         `https://${s.host}${PCLOUD_UPLOAD_PATH}?auth=${s.token}`,
         { method: 'POST', body: form }
       );
-      if (!res.ok) throw new Error(`pCloud save failed: ${res.status}`);
+      if (!res.ok) throw writeFailure(classifyHttpStatus(res.status), `pCloud save failed: ${res.status}`);
 
       // pCloud reports API failures inside an HTTP 200, so `res.ok` proves nothing.
       const reply = parsePCloudUploadResponse((await res.json()) as unknown);
       if (reply.result !== 0)
-        throw new Error(`pCloud save failed: ${reply.error ?? `error ${reply.result}`}`);
+        throw writeFailure(WriteFailureKind.Unknown, `pCloud save failed: ${reply.error ?? `error ${reply.result}`}`);
       if (reply.fileids.length === 0)
-        throw new Error('pCloud save failed: the upload stored no file');
+        throw writeFailure(WriteFailureKind.Unknown, 'pCloud save failed: the upload stored no file');
+      return landed();
     },
   };
 
