@@ -13,6 +13,7 @@
     onShare,
     onConnectStorage,
     onExport,
+    onWriteSolo,
   }: {
     conn: ConnStatus;
     /** How edits travel: peer-to-peer (nothing leaves the device while alone) or a
@@ -49,6 +50,8 @@
     onConnectStorage: () => void;
     /** Open the "Export a copy" dialog. */
     onExport?: () => void;
+    /** "Write alone anyway" — opts this room into solo writing for the session. P2P only. */
+    onWriteSolo?: () => void;
   } = $props();
 
   // `Waiting` = attached to signaling but no peers present — you're alone in the
@@ -157,12 +160,15 @@
       <span class="msg">
         {#if offline}
           <strong>You're offline.</strong>
-          Start writing to write on your own — nothing leaves this device until you're
-          back and someone joins.
+          Copad opens the document when you're back and someone joins. Until then
+          you can read, copy and export it — nothing you write here leaves this
+          device until someone receives it.
         {:else}
           <strong>You're the only one here.</strong>
-          Start writing to write on your own — but in peer-to-peer mode nothing leaves
-          this device until someone joins.
+          Copad opens the document when someone joins — until then you can read,
+          copy and export it, but not write. In peer-to-peer mode nothing you write
+          leaves this device until it's received, so writing alone here would just
+          be lost.
         {/if}
       </span>
       <span class="actions">
@@ -170,6 +176,15 @@
         <button class="link" onclick={onConnectStorage}>Connect storage</button>
         {#if onExport}
           <button class="link" onclick={onExport}>Export a copy</button>
+        {/if}
+        {#if isP2P && onWriteSolo}
+          <button
+            class="link write-solo"
+            onclick={onWriteSolo}
+            title="Nothing you write will leave this device until someone joins."
+          >
+            Write alone anyway
+          </button>
         {/if}
       </span>
     {:else if collabUnavailable}

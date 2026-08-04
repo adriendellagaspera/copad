@@ -10,9 +10,13 @@ I wanted to collaborate on a file in my pCloud. I found nothing off the shelf, s
 ## The contract
 
 **Copad only writes where your writing goes** — to a peer receiving it, or to a backend
-durably keeping it. Never silently to neither. That promise, and what it costs, is written
-out in full in [`docs/contract.md`](docs/contract.md) — read it before relying on this app
-with anything you'd mind losing.
+durably keeping it. Never silently to neither: the editor is read-only while alone, in a
+peer-to-peer room with nothing durable behind it. That's deliberately overridable — an
+explicit `Write alone anyway` button says exactly what it costs (*nothing you write leaves
+this device until someone joins*) rather than silently letting you write into the void.
+That promise, and what it costs, is written out in full in
+[`docs/contract.md`](docs/contract.md) — read it before relying on this app with anything
+you'd mind losing.
 
 Ownership is the companion clause, not the headline: the document is a real file, in a
 folder you already pay for, on a service you already chose. No new subscription, no

@@ -1,6 +1,7 @@
 # The Copad contract
 
-> Specification. Unimplemented except where a section says otherwise (§5 has shipped).
+> Specification. Unimplemented except where a section says otherwise (§4.3, §4.4,
+> §5 have shipped; §2.2/§3.1/§3.4's presence model and write gate are wired).
 > This is the spine — the part that has to stay coherent, self-sufficient, on its own.
 > Where it cites a mechanism, the citation is to this repo's code or to the upstream
 > project that owns that mechanism — never to an issue tracker or a pull request.
@@ -199,13 +200,13 @@ No spinner — a spinner promises imminence and lies after 30 seconds. A calm do
 
 Also active while read-only: text selection and copy, scrolling and outline, Share, Settings, connecting a backend, theme and identity, loading from the backend. Inactive: typing, formatting toolbar (visible but disabled — removing it would suggest a different app), slash menu, input rules, undo/redo, renaming the document (the title lives in the shared doc, so renaming is a collaborative write).
 
-### 4.4 The escape hatch
+### 4.4 The escape hatch — done
 
-Today the gate yields silently on the first keystroke. *"Read-only until you type"* is not a contract, it is a speed bump — right for a warning, self-defeating for a contract.
+The gate used to yield silently on the first keystroke. *"Read-only until you type"* is not a contract, it is a speed bump — right for a warning, self-defeating for a contract.
 
-It becomes an explicit, named button, **P2P only**, stating its cost: `Write alone anyway` → *Nothing you write will leave this device until someone joins.* Scope stays per-room, in memory, for the session; every reload re-asserts the contract.
+It is now an explicit, named button, **P2P only**, stating its cost: `Write alone anyway` → *Nothing you write will leave this device until someone joins.* (`SyncBanner.svelte`'s gated tier — rendered only while `transport === Transport.P2P`, since the hub's contract offers no escape hatch, §2.1.) Scope stays per-room, in memory, for the session; every reload re-asserts the contract (`App.svelte`'s `soloRooms`, unpersisted).
 
-The honest cost, to be written in the README: the contract is *read-only when alone by default, deliberately overridable*. That is defensible. The silent version was not.
+The honest cost, documented in the README: the contract is *read-only when alone by default, deliberately overridable*. That is defensible. The silent version was not.
 
 ## 5. Prerequisite: harden the room identifier — done
 
