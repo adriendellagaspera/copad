@@ -68,6 +68,21 @@ describe('parsePeerAwarenessState — valid input passes through', () => {
     const input = { user: { name: 'Eve', color: '#AABBCC' }, role: 'writer', canPersist: false };
     expect(parsePeerAwarenessState(input).user.color).toBe('#AABBCC');
   });
+
+  it('preserves browserId when present', () => {
+    const input = {
+      user: { name: 'Frank', color: '#00aaff' },
+      role: 'writer',
+      canPersist: false,
+      browserId: 'abc123',
+    };
+    expect(parsePeerAwarenessState(input).browserId).toBe('abc123');
+  });
+
+  it('omits browserId when absent', () => {
+    const input = { user: { name: 'Grace', color: '#00aaff' }, role: 'writer', canPersist: false };
+    expect(parsePeerAwarenessState(input).browserId).toBeUndefined();
+  });
 });
 
 describe('parsePeerAwarenessState — partial input', () => {
