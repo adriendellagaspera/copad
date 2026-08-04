@@ -39,6 +39,7 @@
   import { trackPresenceActivity } from './collaboration/presenceActivity.js';
   import { remoteCursorBuilder, remoteSelectionBuilder, refreshPresenceFade, jumpToPresence } from './editor/ui/remoteCursors.js';
   import { roomName, renameRoom, bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
+  import { bindExport, unbindExport } from './editor/exportBridge.svelte.js';
   import DocTitle from './editor/ui/DocTitle.svelte';
   import {
     sessionState,
@@ -109,6 +110,12 @@
   });
   const onRoomMeta = (): void => setRoomNameLocal(readRoomName());
   roomMeta.observe(onRoomMeta);
+
+  // "Export a copy" (#214) — the read-only band and Settings live outside the
+  // Editor subtree and have no direct access to `collab.doc`, so they reach it
+  // through this bridge. Bound unconditionally (not gated on writeLocked):
+  // export is a read, and must work while read-only — that's the whole point.
+  bindExport((codec) => Promise.resolve(codec.encode(collab.doc)));
 
   let editorEl = $state<HTMLDivElement | undefined>();
   // $state.raw: track reference changes for reactivity but don't proxy the
@@ -421,6 +428,7 @@
     offStatus();
     roomMeta.unobserve(onRoomMeta);
     unbindRoomName();
+    unbindExport();
     resetSessionState();
     window.removeEventListener('beforeunload', flush);
     view?.destroy();

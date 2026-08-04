@@ -12,6 +12,7 @@
     collabUnavailable = false,
     onShare,
     onConnectStorage,
+    onExport,
   }: {
     conn: ConnStatus;
     /** How edits travel: peer-to-peer (nothing leaves the device while alone) or a
@@ -46,6 +47,11 @@
     onShare: () => void;
     /** Open Settings so the user can connect a backend to keep their own copy. */
     onConnectStorage: () => void;
+    /** Open the "Export a copy" dialog — the read-only band's reachable point for
+     *  the contract's *read, copy, export, wait* while gated (§4.3). Only offered
+     *  in the gated tier: the other tiers are editable, where Settings already
+     *  reaches export. */
+    onExport?: () => void;
   } = $props();
 
   // `Waiting` = attached to signaling but no peers present — you're alone in the
@@ -165,6 +171,9 @@
       <span class="actions">
         <button class="invite-cta" onclick={onShare}>Invite</button>
         <button class="link" onclick={onConnectStorage}>Connect storage</button>
+        {#if onExport}
+          <button class="link" onclick={onExport}>Export a copy</button>
+        {/if}
       </span>
     {:else if collabUnavailable}
       <span class="msg">
