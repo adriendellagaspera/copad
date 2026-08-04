@@ -45,3 +45,22 @@ test('a read-only link never offers the write-alone escape hatch', async ({ page
   await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
   await expect(page.getByRole('button', { name: 'Write alone anyway' })).toHaveCount(0);
 });
+
+test.describe('on a narrow viewport', () => {
+  test.use({ viewport: { width: 390, height: 664 }, isMobile: true, hasTouch: true });
+
+  test('the gated banner wraps its actions instead of overflowing off-screen', async ({ page }) => {
+    await page.goto('/?room=intro-solo-mobile');
+    const banner = page.locator('.sync-banner');
+    await expect(banner).toBeVisible({ timeout: 20_000 });
+    const writeSolo = banner.getByRole('button', { name: 'Write alone anyway' });
+    await expect(writeSolo).toBeVisible();
+
+    const box = await writeSolo.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+
+    await writeSolo.click();
+    await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'true');
+  });
+});

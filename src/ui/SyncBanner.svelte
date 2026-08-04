@@ -25,11 +25,9 @@
      *  Saved / Live-only distinction — driven by `savedHere`, not merely by having
      *  a backend connected, so the copy is honest in rooms your backend doesn't save. */
     storageLabel: string | null;
-    /** True when the write-gate is holding the editor read-only (P2P + live-only +
-     *  no peer, past the grace window). The gate has no separate surface anymore — it
-     *  lives *here*, as the strongest tier of this one top strip: same slot,
-     *  escalating intensity. When gated the editor is read-only and yields on the
-     *  first writing gesture; this strip tells you that, and offers Invite / Connect. */
+    /** True when the write gate is holding the editor read-only. The strongest
+     *  tier of this one top strip: offers Invite / Connect storage / Export / the
+     *  explicit "Write alone anyway" escape hatch. */
     gated?: boolean;
     /** True while the gate *could* still arm — the pre-arm grace window (P2P +
      *  live-only + no peer, not yet opted solo). During it we show nothing: the
@@ -295,8 +293,8 @@
   .actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--sp-2);
-    flex-shrink: 0;
   }
   /* >=44px hit area (WCAG 2.5.5) around a small glyph — grown via padding, not
      by enlarging the ✕ itself. Always last, after any tier's own actions. */
