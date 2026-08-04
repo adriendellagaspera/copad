@@ -4,6 +4,7 @@ import { localFsStorage } from './local.js';
 import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
 import { LoginKind, OpenMode } from './types.js';
+import { ClassifiedWriteError, WriteFailureKind } from './writeOutcome.js';
 
 // happy-dom has no showOpenFilePicker, so these all take the fallback path.
 
@@ -60,6 +61,17 @@ describe('localFsStorage — fallback path (no File System Access API)', () => {
         storage.save({ format: 'binary', bytes: new Uint8Array([1, 2, 3]) }),
       ).rejects.toThrow(/cloud backend or export/);
     });
+
+    it('classifies the structural no-write-back case as Rejected, not Unknown', async () => {
+      let thrown: unknown;
+      try {
+        await storage.save({ format: 'binary', bytes: new Uint8Array([1]) });
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(ClassifiedWriteError);
+      expect((thrown as InstanceType<typeof ClassifiedWriteError>).kind).toBe(WriteFailureKind.Rejected);
+    });
   });
 
   it('says in its blurb that the original file is not written back', () => {
@@ -87,5 +99,16 @@ describe('localFsStorage — fallback path (no File System Access API)', () => {
     await expect(
       storage.save({ format: 'binary', bytes: new Uint8Array([1]) }),
     ).rejects.toThrow('Local: not connected');
+  });
+
+  it('reports a WriteReceipt landing when a native handle actually writes', async () => {
+    const writable = { write: vi.fn(), close: vi.fn() };
+    const handle = { name: 'doc.yjs', createWritable: vi.fn().mockResolvedValue(writable) } as unknown as FileSystemFileHandle;
+    vi.stubGlobal('showOpenFilePicker', vi.fn().mockResolvedValue([handle]));
+    await auth.login();
+    await expect(
+      storage.save({ format: 'binary', bytes: new Uint8Array([1]) }),
+    ).resolves.toEqual({ landing: 'landed' });
+    vi.unstubAllGlobals();
   });
 });
