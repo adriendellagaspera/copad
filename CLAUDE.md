@@ -101,7 +101,7 @@ A backend moves *bytes*; a **codec** (`src/format/`) turns those bytes into the 
 | Codec | Extensions | Notes |
 |-------|-----------|-------|
 | `yjsCodec` | `.yjs` | **Native default.** Full CRDT state (history + content) — the only format that round-trips collaborative merge. Fallback for unknown extensions. |
-| `textCodec` | `.txt` | Plain text; one paragraph per line. Formatting flattened. |
+| `textCodec` | `.txt`, `.log`, `.csv` and ~90 source-code extensions — the list lives in `src/format/text.ts` | Plain text and source files; one paragraph per line. Formatting flattened. |
 | `markdownCodec` | `.md`, `.markdown` | CommonMark + GFM strikethrough (`~~`), checklists (`- [ ]`/`- [x]`), and tables. No native underline syntax — that mark is flattened to plain text on export. |
 | `htmlCodec` | `.html`, `.htm` | ProseMirror DOM parser/serializer; **needs a DOM** (browser only). |
 | `jsonCodec` | `.json` | ProseMirror document JSON; lossless for our schema. |
@@ -304,7 +304,7 @@ necessary usually marks a bad name or a missing type: fix that instead.
 | `VITE_PROXY_URL` | for WebDAV | CORS proxy URL |
 | `VITE_WEBDAV_URL` | no | Pre-fill the WebDAV URL input |
 | `VITE_STORAGE_BACKEND` | no | Default storage backend id |
-| `VITE_ENABLE_DROPBOX` / `VITE_ENABLE_PCLOUD` / `VITE_ENABLE_WEBDAV` / `VITE_ENABLE_GITHUB` / `VITE_ENABLE_LOCAL` | no | Hide a backend entirely — no pill, no Settings section (default: `true` for each). A newly added backend defaults to `false` until proven working outside production. In `src/storage/constants.ts`'s `BACKEND_ENABLED`. |
+| `VITE_ENABLE_DROPBOX` / `VITE_ENABLE_PCLOUD` / `VITE_ENABLE_WEBDAV` / `VITE_ENABLE_GITHUB` / `VITE_ENABLE_GITLAB` / `VITE_ENABLE_S3` / `VITE_ENABLE_SHAREPOINT` / `VITE_ENABLE_GDRIVE` / `VITE_ENABLE_ONEDRIVE` / `VITE_ENABLE_LOCAL` | no | Hide a backend entirely — no pill, no Settings section. Only WebDAV and Local default to `true`; every other backend stays `false` until it has been connected to a real account outside production, which is its own dedicated PR. In `src/storage/constants.ts`'s `BACKEND_ENABLED`. |
 | `VITE_STUN_URL` | no | STUN server(s), comma-separated (default: `stun:stun.l.google.com:19302`; set empty to disable). Via `resolveIceServers()`. |
 | `VITE_TURN_URL` | no | TURN relay url(s), comma-separated. Needed for restrictive/mobile NATs (CGNAT / symmetric NAT). When unset, a public default relay (`DEFAULT_TURN` in `config.ts`) is used unless disabled. Runtime Settings TURN (`turn.ts`) overrides this. |
 | `VITE_TURN_USERNAME` | no | TURN username. |
