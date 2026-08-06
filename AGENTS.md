@@ -1,5 +1,27 @@
 # Copad — rules for AI agents
 
+**Keep this file lean.** It's imported wholesale into every Claude Code
+session via `CLAUDE.md`'s `@AGENTS.md` — an import loads at launch same as
+inline content, so it doesn't dodge Claude Code's own guidance to target
+under 200 lines of loaded memory before adherence drops. Add a rule only if
+it's general (applies across the codebase, not one file) and relevant on
+nearly every task; anything narrower belongs as an in-code comment (see
+Comments below) or in `docs/architecture.md`.
+
+## Commands
+
+- `npm run lint` — ESLint; enforces the gated rules below.
+- `npm run check` — svelte-check; type-checks `.svelte` and `.ts`.
+- `npm test` — vitest, the full unit suite.
+- `npm run build` — production build.
+- `npm run docs` — regenerates the API reference into `docs/api/` (git-ignored).
+- `npm run dev` — Vite dev server; needs `npm run signaling` (WebRTC, default)
+  or `npm run collab` (WebSocket transport) running alongside it for
+  collaboration to work locally.
+
+Run lint + check + test before calling anything done; CI runs all of the
+above plus the build and Playwright e2e suite (`npm run e2e`).
+
 ## The contract comes first
 
 - [`docs/contract.md`](docs/contract.md) is **binding, not indicative**. Read it

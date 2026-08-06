@@ -1,9 +1,20 @@
 # Copad
 
 This file exists only because Claude Code auto-loads a file with this exact
-name — nothing here is Claude-specific. It imports `AGENTS.md` below via
-Claude Code's `@path` memory-import syntax, so the rules load automatically
-instead of depending on an instruction to go read them.
+name. It imports `AGENTS.md` below via `@path` — the pattern Claude Code's own
+docs recommend for a repo that already has an `AGENTS.md`
+([docs.claude.com/en/docs/memory#agentsmd](https://code.claude.com/docs/en/memory#agentsmd)) —
+so the rules load automatically instead of depending on an instruction to go
+read them.
+
+**Do not grow this file beyond the import, the three links below, and a
+`## Claude Code` section for instructions that would be meaningless to any
+other agent** (a plan-mode trigger, a Claude-only tool quirk — there is none
+today). Everything else is a rule (→ `AGENTS.md`) or reference (→
+`docs/architecture.md`); grow one of those instead, never here. Claude Code's
+own guidance targets under 200 lines per `CLAUDE.md`, and an import loads at
+launch same as inline content — it does not save context — so that ceiling
+applies to `AGENTS.md` too once it's imported here.
 
 @AGENTS.md
 
