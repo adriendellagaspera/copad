@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fly } from 'svelte/transition';
   import Avatar from './Avatar.svelte';
   import type { PeerUser } from './types.js';
 
@@ -7,7 +8,20 @@
     max = 5,
     size = 28,
     onSelect,
-  }: { users: PeerUser[]; max?: number; size?: number; onSelect?: (clientId: number) => void } = $props();
+    justJoinedIds = [],
+  }: {
+    users: PeerUser[];
+    max?: number;
+    size?: number;
+    onSelect?: (clientId: number) => void;
+    /** Ids that should play the unlock moment's entrance (docs/contract.md §4.1:
+     *  "the peer's avatar enters in their colour") — an already-present peer's
+     *  avatar never re-triggers it. */
+    justJoinedIds?: number[];
+  } = $props();
+
+  const reducedMotion =
+    typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const shown = $derived(users.slice(0, max));
   const overflow = $derived(Math.max(0, users.length - max));
@@ -30,7 +44,10 @@
   aria-label="{count} {count === 1 ? 'person' : 'people'} editing"
 >
   {#each shown as u (u.id)}
-    <div class="presence-item">
+    <div
+      class="presence-item"
+      in:fly={justJoinedIds.includes(u.id) && !reducedMotion ? { x: -8, duration: 250 } : { duration: 0 }}
+    >
       {#if onSelect}
         <button
           type="button"

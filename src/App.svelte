@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick as nextTick, untrack } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import type { StorageBackend } from './storage/index.js';
   import { savedRoomsStore } from './storage/savedRooms.js';
@@ -56,8 +57,11 @@
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
   import { SessionRole, PresenceKind, Transport } from './collaboration/types.js';
-  import { writeGateFor, GATE_SETTLE_MS, GATE_LINGER_MS, type SoloOptIn } from './collaboration/writeGate.js';
+  import { writeGateFor, GATE_SETTLE_MS, type SoloOptIn } from './collaboration/writeGate.js';
+  import { departureLingerDeadline } from './collaboration/departureHysteresis.js';
+  import { copyText } from './ui/clipboard.js';
   import { durabilityHolds as computeDurabilityHolds } from './collaboration/persistHealth.js';
+  import type { PeerUser } from './ui/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
@@ -74,6 +78,8 @@
   const theme = createTheme();
   const toasts = createToasts();
   const language = createLanguage();
+  const reducedMotion =
+    typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   $effect(() => initInputModality());
   let shareOpen = $state(false);
   let exportOpen = $state(false);
@@ -422,33 +428,116 @@
     if (!soloRooms.includes(room)) soloRooms = [...soloRooms, room];
   }
 
+  // The waiting tier's primary action (§4.2): copying the link *is* how you
+  // unblock, so it's a direct clipboard write, not a detour through the Share
+  // dialog. Same URL shape as ShareDialog's own `url`.
+  const inviteUrl = $derived.by((): string => {
+    const key = currentSecretKey();
+    const base = `${location.origin}${location.pathname}?room=${encodeURIComponent(room)}`;
+    return key ? `${base}#k=${encodeURIComponent(key)}` : base;
+  });
+  const COPY_INVITE_TOAST_GROUP = 'copy-invite-link';
+  async function copyInviteLink(): Promise<void> {
+    if (await copyText(inviteUrl)) {
+      toasts.success('Invite link copied to clipboard', undefined, COPY_INVITE_TOAST_GROUP);
+    } else {
+      toasts.info('Open Share to copy the invite link', undefined, COPY_INVITE_TOAST_GROUP);
+    }
+  }
+
   // Keyed on `presence.kind` (primitive), not the `RoomPresence` object, as a
   // second guard on top of core.ts's own memoisation.
   let aloneSettled = $state(false);
+  // When this stretch of solitude began — drives the waiting tier's "Waiting since
+  // 14:02" (docs/contract.md §4.2: a fixed clock time, not a ticking duration, so no
+  // interval is needed to keep it current).
+  let waitingSince = $state<number | null>(null);
   $effect(() => {
     if (sessionState.presence.kind !== PresenceKind.Alone) {
       aloneSettled = false;
+      waitingSince = null;
       return;
     }
+    waitingSince = Date.now();
     const t = setTimeout(() => (aloneSettled = true), GATE_SETTLE_MS);
     return () => clearTimeout(t);
   });
 
+  // Tab title reflects waiting so it's legible among many tabs (docs/contract.md
+  // §4.2). Captured once — Svelte re-runs this module on room switches within the
+  // same tab, but the browser tab itself doesn't reload, so a module-level `let`
+  // (not `$state`) read on first import is the actual page title to restore to.
+  const baseTitle = document.title;
+  $effect(() => {
+    document.title = sessionState.presence.kind === PresenceKind.Alone ? `Waiting… · ${baseTitle}` : baseTitle;
+  });
+
+  // Snapshot of the last non-empty peer list — names who just left (docs/contract.md
+  // §4, "Ada left"). Plain closure, not `$state`: only read at the moment of
+  // departure below, never rendered reactively itself.
+  let lastPeers: PeerUser[] = [];
+  $effect(() => {
+    if (sessionState.users.length > 0) lastPeers = sessionState.users;
+  });
+
   // Hysteresis so a peer who just left doesn't instantly lock a mid-sentence writer.
   let withinDepartureLinger = $state(false);
+  let departedAt = $state<number | null>(null);
+  let departedPeerName = $state<string | null>(null);
   let wasAccompanied = false;
   $effect(() => {
     const kind = sessionState.presence.kind;
     if (kind === PresenceKind.Accompanied) {
       wasAccompanied = true;
       withinDepartureLinger = false;
+      departedAt = null;
+      departedPeerName = null;
       return;
     }
     if (!wasAccompanied) return;
     wasAccompanied = false;
+    departedAt = Date.now();
+    departedPeerName = lastPeers[0]?.name ?? null;
+  });
+
+  // Re-arms on every local keystroke (`sessionState.lastLocalEditAt`), extending the
+  // linger deadline instead of letting a flat timer cut a mid-sentence writer off —
+  // see departureHysteresis.ts. Capped there, so it can't be extended indefinitely.
+  $effect(() => {
+    if (departedAt === null) return;
+    const deadline = departureLingerDeadline(departedAt, sessionState.lastLocalEditAt);
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      withinDepartureLinger = false;
+      return;
+    }
     withinDepartureLinger = true;
-    const t = setTimeout(() => (withinDepartureLinger = false), GATE_LINGER_MS);
+    const t = setTimeout(() => (withinDepartureLinger = false), remaining);
     return () => clearTimeout(t);
+  });
+
+  // The unlock moment (docs/contract.md §4.1) — fires once per arrival, not on every
+  // still-Accompanied re-render. A separate flag from the departure effect's own
+  // `wasAccompanied` above, so the two don't fight over one boolean. Caret + band-fold
+  // are already free (reactive `editable`, SyncBanner's own exit transition); this
+  // only drives the two steps that need new state: the peer's avatar entrance and the
+  // one self-dismissing line. Never calls `.focus()` — never steal focus (§4.1).
+  let wasUnlockedAccompanied = false;
+  let justJoinedIds = $state<number[]>([]);
+  let unlockLine = $state<string | null>(null);
+  let unlockLineTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    if (sessionState.presence.kind !== PresenceKind.Accompanied) {
+      wasUnlockedAccompanied = false;
+      return;
+    }
+    if (wasUnlockedAccompanied) return;
+    wasUnlockedAccompanied = true;
+    const arrived = sessionState.users.filter((u) => !u.self);
+    justJoinedIds = arrived.map((u) => u.id);
+    clearTimeout(unlockLineTimer);
+    unlockLine = `${arrived[0]?.name ?? 'Someone'} is here. The document is open.`;
+    unlockLineTimer = setTimeout(() => (unlockLine = null), 3_000);
   });
 
   const gate = $derived(
@@ -677,7 +766,7 @@
         onclick={() => (diagOpen = true)}
       />
       {#if otherPeers.length > 0}
-        <PresenceBar users={otherPeers} size={24} onSelect={sessionState.jumpToPeer} />
+        <PresenceBar users={otherPeers} size={24} onSelect={sessionState.jumpToPeer} {justJoinedIds} />
         {#if sessionState.soloBrowser}
           <!-- Contract §7: a second tab of your own browser really does receive
                your bytes and satisfies the contract — but naming it stops it
@@ -785,16 +874,33 @@
        is its own unintuitive surprise, easy to miss in a banner alone. -->
   <SyncBanner
     conn={sessionState.conn}
+    presenceKind={sessionState.presence.kind}
     transport={sessionState.diagnostics.transport}
     storageLabel={savedHere && storage ? storage.storage.label : null}
     gated={writeLocked}
     {gateEligible}
     {collabUnavailable}
+    {waitingSince}
+    {departedPeerName}
+    {withinDepartureLinger}
     onShare={() => (shareOpen = true)}
     onConnectStorage={() => openSettings()}
     onExport={() => (exportOpen = true)}
     onWriteSolo={allowWriteSolo}
+    onCopyInviteLink={copyInviteLink}
+    onRetry={sessionState.diagnostics.reconnect}
+    onConnectionDetails={() => (diagOpen = true)}
   />
+
+  <!-- The unlock moment's one self-dismissing line (docs/contract.md §4.1) — plain
+       text, no sound/confetti/flash/modal, never steals focus. `prefers-reduced-motion`
+       keeps this step (it's already just text; only the fade becomes instant) and the
+       caret; the avatar-entrance and band-fold durations are what actually drop. -->
+  {#if unlockLine}
+    <div class="unlock-line" role="status" aria-live="polite" transition:fade={{ duration: reducedMotion ? 0 : 200 }}>
+      {unlockLine}
+    </div>
+  {/if}
 
   {#if !iceReady}
     <div class="ice-gate" role="status" aria-live="polite">
@@ -898,6 +1004,15 @@
 <Toast {toasts} />
 
 <style>
+  /* The unlock moment's one self-dismissing line (docs/contract.md §4.1) — quiet
+     text, not a toast: no icon, no dismiss button, no stacking dock. It clears
+     itself; nothing to act on. */
+  .unlock-line {
+    padding: var(--sp-1) var(--sp-4) 0;
+    color: var(--text-muted);
+    font-size: var(--fs-300);
+  }
+
   /* Shown only while the startup ICE-credentials fetch is in flight (deployments
      with VITE_ICE_SERVERS_URL). Bounded by ICE_FETCH_TIMEOUT_MS. */
   .ice-gate {
