@@ -20,7 +20,7 @@ test('a solo peer-to-peer room gates writing after the settle window, then opens
   const banner = page.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 20_000 });
   await expect(banner).toContainText("You're the only one here");
-  await expect(banner.getByRole('button', { name: 'Invite' })).toBeVisible();
+  await expect(banner.getByRole('button', { name: 'Copy invite link', exact: true })).toBeVisible();
   await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
 
   // Clicking or typing in the body does NOT silently lift the gate anymore —
