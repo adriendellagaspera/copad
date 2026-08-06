@@ -14,6 +14,7 @@ import {
 } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
+import { landed, writeFailure, classifyHttpStatus, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import { STORAGE_ID, DEFAULT_FILENAME, S3_PREFIX, S3_KEY } from './constants.js';
 
 // S3-compatible object storage (AWS S3, Cloudflare R2, MinIO, Backblaze B2…).
@@ -233,10 +234,10 @@ export function s3Storage(room: RoomId): { auth: StorageAuth; storage: Storage }
       return { format: DocFormat.Binary, bytes: new Uint8Array(await res.arrayBuffer()) };
     },
 
-    async save(content: DocContent): Promise<void> {
-      if (content.format !== DocFormat.Binary) throw new Error('S3 storage expects binary content');
+    async save(content: DocContent): Promise<WriteReceipt> {
+      if (content.format !== DocFormat.Binary) throw writeFailure(WriteFailureKind.Rejected, 'S3 storage expects binary content');
       const c = conf();
-      if (!c) throw new Error('S3: not connected');
+      if (!c) throw writeFailure(WriteFailureKind.Denied, 'S3: not connected');
 
       const url = objectUrl(c, fileName.get());
       const res = await fetch(url.toString(), {
@@ -244,7 +245,8 @@ export function s3Storage(room: RoomId): { auth: StorageAuth; storage: Storage }
         headers: { ...await signRequest('PUT', url, content.bytes, c), 'Content-Type': 'application/octet-stream' },
         body: content.bytes as unknown as BodyInit,
       });
-      if (!res.ok) throw new Error(`S3 save failed: ${res.status}`);
+      if (!res.ok) throw writeFailure(classifyHttpStatus(res.status), `S3 save failed: ${res.status}`);
+      return landed();
     },
 
     // S3 access is enforced server-side by IAM / bucket policy on the credential;
