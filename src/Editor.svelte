@@ -22,7 +22,7 @@
   import type { PeerUser } from './ui/types.js';
   import { SaveStatus } from './ui/types.js';
   import type { Toasts } from './ui/toasts.svelte.js';
-  import type { Storage, DocContent, Filename } from './storage/types.js';
+  import type { Storage, DocContent, Filename, StorageId } from './storage/types.js';
   import { StorageAccess, DocFormat } from './storage/types.js';
   import type {
     CollabConnect,
@@ -120,7 +120,7 @@
   // True while every accompanying peer shares our own browserId — a second tab, not a stranger.
   let soloBrowser = $state(false);
   let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
-  let loadedFrom = $state<string | null>(null);
+  let loadedFrom = $state<StorageId | null>(null);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let savedTimer: ReturnType<typeof setTimeout> | undefined;
 
