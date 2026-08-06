@@ -6,6 +6,7 @@ import { filenameStore } from './filename.js';
 import { type WebDavConf, parseWebDavConf } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
+import { landed, writeFailure, classifyHttpStatus, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import { STORAGE_ID, WEBDAV_KEY, DEFAULT_FILENAME } from './constants.js';
 
 /** The WebDAV folder URL, normalized (no trailing slash) once accepted at `login()` time. */
@@ -91,10 +92,10 @@ export function webdavStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
       return { format: DocFormat.Binary, bytes: new Uint8Array(await res.arrayBuffer()) };
     },
 
-    async save(content: DocContent): Promise<void> {
-      if (content.format !== DocFormat.Binary) throw new Error('WebDAV storage expects binary content');
+    async save(content: DocContent): Promise<WriteReceipt> {
+      if (content.format !== DocFormat.Binary) throw writeFailure(WriteFailureKind.Rejected, 'WebDAV storage expects binary content');
       const c = conf();
-      if (!c) throw new Error('WebDAV: not connected');
+      if (!c) throw writeFailure(WriteFailureKind.Denied, 'WebDAV: not connected');
 
       const res = await netFetch(`${c.baseUrl}/${fileName.get()}`, {
         method: 'PUT',
@@ -106,7 +107,8 @@ export function webdavStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
       });
 
       if (![200, 201, 204].includes(res.status))
-        throw new Error(`WebDAV save failed: ${res.status}`);
+        throw writeFailure(classifyHttpStatus(res.status), `WebDAV save failed: ${res.status}`);
+      return landed();
     },
   };
 
