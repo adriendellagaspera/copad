@@ -5,6 +5,7 @@ import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
 import { LoginKind } from './types.js';
 import type { RoomId } from '../collaboration/types.js';
+import { ClassifiedWriteError, WriteFailureKind } from './writeOutcome.js';
 
 // Room stem is 'document', matching the plain default filename ('document.yjs') asserted below.
 const TEST_ROOM = 'document' as RoomId;
@@ -101,10 +102,22 @@ describe('sharepointStorage load/save', () => {
     );
   });
 
-  it('saves via PUT to the content endpoint', async () => {
+  it('saves via PUT to the content endpoint and reports a landed WriteReceipt', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200 } as Response);
-    await storage.save({ format: 'binary', bytes: new Uint8Array([9]) });
+    await expect(storage.save({ format: 'binary', bytes: new Uint8Array([9]) })).resolves.toEqual({ landing: 'landed' });
     expect(mockFetch.mock.calls[0][1].method).toBe('PUT');
+  });
+
+  it('classifies a failed save as a ClassifiedWriteError', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401 } as Response);
+    let thrown: unknown;
+    try {
+      await storage.save({ format: 'binary', bytes: new Uint8Array([9]) });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(ClassifiedWriteError);
+    expect((thrown as InstanceType<typeof ClassifiedWriteError>).kind).toBe(WriteFailureKind.Denied);
   });
 });
 
