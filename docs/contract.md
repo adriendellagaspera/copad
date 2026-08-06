@@ -160,7 +160,7 @@ function itself clock-free.
 
 > **Unlocking is optimistic and immediate; locking is pessimistic and deferred.** Any sign of life opens at once; only a prolonged, confirmed absence closes. The tests must enforce this asymmetry.
 
-## 4. The states, as the user meets them
+## 4. The states, as the user meets them — wired
 
 Three words that must never blur into one another — the solitude lock is **not a permission**, and must never borrow the padlock vocabulary of `RoomLock`, or the user reads "the host restricted me" when the true sentence is "there is nobody here".
 
@@ -185,13 +185,13 @@ Inherited principles, not inventions: **never a scrim over the text** — the do
 
 Departure hysteresis re-arms when someone returns and is **extended by typing** — never close mid-sentence — capped so the contract doesn't evaporate.
 
-### 4.1 The unlock moment
+### 4.1 The unlock moment — done
 
 The product moment. In order, ~450 ms: the **caret appears** (the editor becomes editable reactively, no remount — this is the real signal, physical and silent); the band folds away; the peer's avatar enters in their colour; one self-dismissing line — *Ada is here. The document is open.*
 
 Explicitly forbidden: sound, confetti, full-screen flash, modal. The contrast (nothing → caret) does all the work. **Never steal focus** — a background tab grabbing focus because someone joined is a hostile bug. `prefers-reduced-motion` keeps steps 1 and 4 only.
 
-### 4.2 Waiting has to be liveable
+### 4.2 Waiting has to be liveable — done
 
 This is what lets two people actually meet. Waiting is a feature, not an error screen.
 
@@ -201,7 +201,7 @@ No spinner — a spinner promises imminence and lies after 30 seconds. A calm do
 
 "Export" used to mean *configure an OAuth backend and let autosave write*. That was not acceptable for a contract that promises *read, copy, export, wait*: a promised capability cannot be a side effect of OAuth setup.
 
-`Export a copy` (`src/ui/ExportDialog.svelte` + `ExportFormats.svelte`) is the genuinely new UI surface the contract required — all four portable codecs (text/markdown/html/json) already existed, so the format falls out of the chosen extension; no codec was written. It reaches the shared `Y.Doc` through `src/editor/exportBridge.svelte.ts` (same module-level-bridge shape as the room-name bridge), bound whenever the Editor is mounted — including while write-gated, since export is a read. Reachable from two places: the read-only band itself (`SyncBanner`'s gated tier, next to Invite / Connect storage) and Settings, so it works whether or not the gate has armed.
+`Export a copy` (`src/ui/ExportDialog.svelte` + `ExportFormats.svelte`) is the genuinely new UI surface the contract required — all four portable codecs (text/markdown/html/json) already existed, so the format falls out of the chosen extension; no codec was written. It reaches the shared `Y.Doc` through `src/editor/exportBridge.svelte.ts` (same module-level-bridge shape as the room-name bridge), bound whenever the Editor is mounted — including while write-gated, since export is a read. Reachable from two places: the read-only band itself (`SyncBanner`'s waiting tier, next to Copy invite link / Connect storage) and Settings, so it works whether or not the gate has armed.
 
 Also active while read-only: text selection and copy, scrolling and outline, Share, Settings, connecting a backend, theme and identity, loading from the backend. Inactive: typing, formatting toolbar (visible but disabled — removing it would suggest a different app), slash menu, input rules, undo/redo, renaming the document (the title lives in the shared doc, so renaming is a collaborative write).
 

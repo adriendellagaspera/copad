@@ -7,6 +7,7 @@
   import { currentSecretKey, clearSecretKey, rotateSecretKey } from '../collaboration/secretLink.js';
   import { rememberRoomEncryption, forgetRoomEncryption } from '../collaboration/roomLock.js';
   import { migrateRoomCache } from '../collaboration/cache.js';
+  import { copyText } from './clipboard.js';
 
   let {
     open,
@@ -145,25 +146,11 @@
     label: string,
     which: 'invite' | 'reader',
   ): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(text);
-      toasts.success(label, undefined, COPY_TOAST_GROUP);
-      flashCopied(which);
-      return;
-    } catch {
-      /* fall through to the manual fallback */
-    }
-    el?.select();
-    let ok = false;
-    try {
-      ok = document.execCommand('copy');
-    } catch {
-      ok = false;
-    }
-    if (ok) {
+    if (await copyText(text)) {
       toasts.success(label, undefined, COPY_TOAST_GROUP);
       flashCopied(which);
     } else {
+      el?.select();
       toasts.info('Press ⌘/Ctrl+C to copy the selected link', undefined, COPY_TOAST_GROUP);
     }
   }

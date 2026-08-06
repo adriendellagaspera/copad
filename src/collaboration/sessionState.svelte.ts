@@ -30,6 +30,11 @@ let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
 // Branch (b)'s state machine (docs/contract.md §3.2/§3.3, persistHealth.ts).
 let persistHealth = $state<PersistHealth>(UNPROVEN);
 let regime = $state<PersistRegime>(PersistRegime.Cold);
+// Timestamp of the most recent local (non-remote) doc-changing transaction — unlike
+// `regime`, a one-way Cold→Warm latch, this repeats on every keystroke. Read by the
+// write gate's departure hysteresis to extend the linger window while typing
+// continues (docs/contract.md §4, "extended by typing — never close mid-sentence").
+let lastLocalEditAt = $state<number | null>(null);
 let users = $state<PeerUser[]>([]);
 let peers = $state(1);
 let diag = $state<SessionDiagnostics>({ transport: Transport.P2P });
@@ -64,6 +69,9 @@ export const sessionState = {
   },
   get regime(): PersistRegime {
     return regime;
+  },
+  get lastLocalEditAt(): number | null {
+    return lastLocalEditAt;
   },
   get users(): PeerUser[] {
     return users;
@@ -100,6 +108,9 @@ export function setSessionPersistHealth(value: PersistHealth): void {
 export function setSessionRegime(value: PersistRegime): void {
   regime = value;
 }
+export function setSessionLocalEdit(value: number): void {
+  lastLocalEditAt = value;
+}
 export function setSessionPresence(nextUsers: PeerUser[], nextPeers: number): void {
   users = nextUsers;
   peers = nextPeers;
@@ -122,6 +133,7 @@ export function resetSessionState(): void {
   saveStatus = SaveStatus.Idle;
   persistHealth = UNPROVEN;
   regime = PersistRegime.Cold;
+  lastLocalEditAt = null;
   users = [];
   peers = 1;
   diag = { transport: Transport.P2P };

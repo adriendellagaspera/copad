@@ -1,21 +1,32 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
-  import { ConnStatus, Transport } from '../collaboration/types.js';
+  import { ConnStatus, PresenceKind, Transport } from '../collaboration/types.js';
 
   let {
     conn,
+    presenceKind,
     transport,
     storageLabel,
     gated = false,
     gateEligible = false,
     collabUnavailable = false,
+    waitingSince = null,
+    departedPeerName = null,
+    withinDepartureLinger = false,
     onShare,
     onConnectStorage,
     onExport,
     onWriteSolo,
+    onCopyInviteLink,
+    onRetry,
+    onConnectionDetails,
   }: {
     conn: ConnStatus;
+    /** Presence at the finer grain the write gate itself uses — distinguishes
+     *  `Alone` (row ③, gate holds) from `Reaching` (row ④, someone's here but
+     *  unreachable, never gates) within the single `ConnStatus.Waiting` value. */
+    presenceKind: PresenceKind;
     /** How edits travel: peer-to-peer (nothing leaves the device while alone) or a
      *  hub relay (the server catches later joiners up). Calibrates the message. */
     transport: Transport;
@@ -26,8 +37,7 @@
      *  a backend connected, so the copy is honest in rooms your backend doesn't save. */
     storageLabel: string | null;
     /** True when the write gate is holding the editor read-only. The strongest
-     *  tier of this one top strip: offers Invite / Connect storage / Export / the
-     *  explicit "Write alone anyway" escape hatch. */
+     *  tier of this one top strip — the waiting room (docs/contract.md §4.2). */
     gated?: boolean;
     /** True while the gate *could* still arm — the pre-arm grace window (P2P +
      *  live-only + no peer, not yet opted solo). During it we show nothing: the
@@ -42,6 +52,15 @@
      *  offers Invite (there's no one it could ever reach), and stays neutral in
      *  tone — a fact you can't act on right now isn't an urgent warning. */
     collabUnavailable?: boolean;
+    /** When this stretch of solitude began, for "Waiting since 14:02" (§4.2). Null
+     *  outside the waiting tier. */
+    waitingSince?: number | null;
+    /** Name of the peer who just left, for "{name} left" (§4, row ⑥). Null when
+     *  unknown or not applicable. */
+    departedPeerName?: string | null;
+    /** True while still within the departure-hysteresis grace window — still
+     *  editable, the room reads as "just emptied" rather than "alone". */
+    withinDepartureLinger?: boolean;
     /** Open the Share dialog so the user can invite a collaborator. */
     onShare: () => void;
     /** Open Settings so the user can connect a backend to keep their own copy. */
@@ -50,13 +69,20 @@
     onExport?: () => void;
     /** "Write alone anyway" — opts this room into solo writing for the session. P2P only. */
     onWriteSolo?: () => void;
+    /** Copy the invite link straight to the clipboard — the waiting tier's primary
+     *  action (§4.2: "inviting someone *is* how you unblock"). */
+    onCopyInviteLink?: () => void;
+    /** Retry connecting, for the `reaching` tier. */
+    onRetry?: () => void;
+    /** Open the connection detail sheet, for the `reaching` tier. */
+    onConnectionDetails?: () => void;
   } = $props();
 
-  // `Waiting` = attached to signaling but no peers present — you're alone in the
-  // room. Deliberately not shown for Connecting/Offline (those aren't "alone",
-  // they're "not attached yet"), so the standing banner only speaks to real solitude.
-  const alone = $derived(conn === ConnStatus.Waiting);
   const offline = $derived(conn === ConnStatus.Offline);
+  const unreachableNet = $derived(conn === ConnStatus.Unreachable);
+  const reaching = $derived(!gated && presenceKind === PresenceKind.Reaching);
+  const departing = $derived(!gated && !reaching && withinDepartureLinger);
+  const aloneStanding = $derived(conn === ConnStatus.Waiting && presenceKind !== PresenceKind.Reaching);
   const saved = $derived(storageLabel !== null);
   const isP2P = $derived(transport === Transport.P2P);
   // Strong (warning) tone for the truly-into-the-void case: peer-to-peer and
@@ -64,13 +90,41 @@
   // solo reminder once you've opted to write there. `collabUnavailable` is excluded
   // even though it can coincide with P2P + !saved — it's a permanent fact you can't
   // resolve right now, not an urgent, actionable warning, so it stays neutral.
-  const strong = $derived(!collabUnavailable && isP2P && !saved);
+  const strong = $derived(!collabUnavailable && isP2P && !saved && !reaching && !departing && !unreachableNet);
+
   // One top strip, an escalation ladder: the gate (blocks, transient — someone
-  // could still join) → collab-unavailable (never blocks, permanent environment
-  // fact, its own tier) → the standing solo reminder (never blocks, transient —
-  // you opted to write solo, or the room is saved / on a hub and was never
-  // gateable). Nothing during the gate's grace window. Same slot throughout.
-  const wantShow = $derived(gated || collabUnavailable || (alone && !gateEligible));
+  // could still join) → reaching/departing/unreachable/offline (never block,
+  // transient, informational) → collab-unavailable (never blocks, permanent
+  // environment fact) → the standing solo reminder (never blocks, transient — you
+  // opted to write solo, or the room is saved / on a hub and was never gateable).
+  // Nothing during the gate's grace window. Same slot throughout.
+  const wantShow = $derived(
+    gated ||
+      reaching ||
+      departing ||
+      unreachableNet ||
+      offline ||
+      collabUnavailable ||
+      (aloneStanding && !gateEligible),
+  );
+
+  const reason = $derived(
+    !wantShow
+      ? 'hidden'
+      : gated
+        ? 'gated'
+        : reaching
+          ? 'reaching'
+          : departing
+            ? 'departing'
+            : unreachableNet
+              ? 'unreachable'
+              : offline
+                ? 'offline'
+                : collabUnavailable
+                  ? 'unavailable'
+                  : 'alone',
+  );
 
   // Dismissible: the write-gate itself lives on the editor (click/keystroke
   // lifts it regardless of this banner), so hiding the strip never traps you —
@@ -78,15 +132,18 @@
   // changes. `reason` collapses to 'hidden' whenever `wantShow` is false, so a
   // dismissal is forgotten the moment there's a fresh thing to say (a new tier,
   // or the same tier recurring after going away).
-  const reason = $derived(
-    !wantShow ? 'hidden' : gated ? 'gated' : collabUnavailable ? 'unavailable' : 'alone',
-  );
   let dismissed = $state(false);
   $effect(() => {
     reason;
     dismissed = false;
   });
   const show = $derived(wantShow && !dismissed);
+
+  const waitingSinceLabel = $derived(
+    waitingSince === null
+      ? ''
+      : new Date(waitingSince).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
+  );
 
   // Svelte's JS transitions aren't touched by the CSS reduced-motion reset in
   // base.css (that only catches CSS animations/transitions), so they need
@@ -131,12 +188,16 @@
 </script>
 
 <!-- Presence-first solo state, one strip that escalates (north-star: voice + paper;
-     the interface recedes in front of the text — never a scrim over it). Tiers:
-       • gated → the write-gate: editor read-only, "start writing to write solo".
-       • collabUnavailable → this deployment can't sync across devices at all;
-         connecting storage is the only durability story here.
-       • alone → a standing reminder, calibrated to where edits go (P2P live-only /
-         P2P saved / hub), once you've opted to write on your own.
+     the interface recedes in front of the text — never a scrim over it). Tiers map
+     onto docs/contract.md §4's state table:
+       • gated (row ③) → the waiting room: calm, no spinner, "Waiting since…",
+         primary action is Copy invite link.
+       • reaching (row ④) → someone's here, still connecting to them; never gates.
+       • departing (row ⑥) → a peer just left; still editable during the linger.
+       • unreachable (row ⑦) → can't tell if anyone's here; document stays open.
+       • offline (row ⑧) → no network; document stays open.
+       • collabUnavailable → this deployment can't sync across devices at all.
+       • alone (standing reminder) → opted to write solo, or saved / on a hub.
      It never implies an absent peer will see live edits before they join. -->
 {#if show}
   <div
@@ -147,30 +208,32 @@
     in:slide={{ duration: reducedMotion ? 0 : 150 }}
     out:bannerOut={{ duration: reducedMotion ? 0 : 220 }}
   >
-    <span class="ic" aria-hidden="true">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-        <line x1="12" y1="9" x2="12" y2="13" />
-        <line x1="12" y1="17" x2="12.01" y2="17" />
-      </svg>
+    <span class="ic" class:dot={gated} aria-hidden="true">
+      {#if gated}
+        <!-- A calm dot, not a spinner — a spinner promises imminence and lies
+             after 30 seconds (§4.2). -->
+        <span class="waiting-dot"></span>
+      {:else}
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+      {/if}
     </span>
     {#if gated}
       <span class="msg">
-        {#if offline}
-          <strong>You're offline.</strong>
-          Copad opens the document when you're back and someone joins. Until then
-          you can read, copy and export it — nothing you write here leaves this
-          device until someone receives it.
-        {:else}
-          <strong>You're the only one here.</strong>
-          Copad opens the document when someone joins — until then you can read,
-          copy and export it, but not write. In peer-to-peer mode nothing you write
-          leaves this device until it's received, so writing alone here would just
-          be lost.
-        {/if}
+        <strong>You're the only one here.</strong>
+        {#if waitingSinceLabel}Waiting since {waitingSinceLabel}.{/if}
+        Copad opens the document when someone joins — until then you can read,
+        copy and export it, but not write. In peer-to-peer mode nothing you write
+        leaves this device until it's received, so writing alone here would just
+        be lost.
       </span>
       <span class="actions">
-        <button class="invite-cta" onclick={onShare}>Invite</button>
+        {#if onCopyInviteLink}
+          <button class="invite-cta" onclick={onCopyInviteLink}>Copy invite link</button>
+        {/if}
         <button class="link" onclick={onConnectStorage}>Connect storage</button>
         {#if onExport}
           <button class="link" onclick={onExport}>Export a copy</button>
@@ -184,6 +247,32 @@
             Write alone anyway
           </button>
         {/if}
+      </span>
+    {:else if reaching}
+      <span class="msg">
+        <strong>Someone's here</strong> — still connecting to them.
+      </span>
+      <span class="actions">
+        {#if onRetry}
+          <button class="link" onclick={onRetry}>Retry</button>
+        {/if}
+        {#if onConnectionDetails}
+          <button class="link" onclick={onConnectionDetails}>Connection details</button>
+        {/if}
+      </span>
+    {:else if departing}
+      <span class="msg">
+        <strong>{departedPeerName ?? 'Someone'} left.</strong>
+        You can keep writing for a moment.
+      </span>
+    {:else if unreachableNet}
+      <span class="msg">
+        We can't tell whether anyone else is here, so the document stays open.
+      </span>
+    {:else if offline}
+      <span class="msg">
+        <strong>You're offline.</strong>
+        The document stays open; nothing syncs until you're back.
       </span>
     {:else if collabUnavailable}
       <span class="msg">
@@ -277,10 +366,19 @@
   .ic {
     flex-shrink: 0;
     display: inline-flex;
+    align-items: center;
     color: var(--warn);
   }
   .sync-banner.soft .ic {
     color: var(--text-muted);
+  }
+  /* The waiting tier's calm dot — deliberately static, never a spinner (§4.2:
+     a spinner promises imminence and lies after 30 seconds). */
+  .waiting-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
   }
   .msg {
     flex: 1;

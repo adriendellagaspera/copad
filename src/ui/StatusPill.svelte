@@ -86,7 +86,7 @@
         };
       if (conn === ConnStatus.Waiting)
         return {
-          label: 'Alone',
+          label: 'Waiting',
           tone: 'muted',
           icon: 'live',
           pulse: false,
