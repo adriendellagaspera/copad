@@ -1,15 +1,12 @@
-# Copad — project guide for Claude
+# Copad — architecture map
 
-## The contract
-
-**`docs/contract.md` is binding, not indicative.** It states what Copad promises:
-you can only write where your writing goes — to a peer receiving it, or to a
-backend durably keeping it. Read it before touching presence, the write gate,
-storage durability, room identifiers, or what the editor allows when alone.
-
-Changing behaviour it describes means updating it **in the same commit**. The
-same holds for this file and `README.md`: they brief every agent, so a stale line
-propagates into work nobody meant to get wrong.
+**Contribution rules live in [`AGENTS.md`](AGENTS.md) — read it in full before any
+task.** This file is a map (what exists, where it lives), not rules (how to write
+it); keeping the two apart is what stops the same rule drifting into two different
+wordings. `docs/contract.md` is binding, not indicative, on top of both — read it
+before touching presence, the write gate, storage durability, room identifiers, or
+what the editor allows when alone, and update it in the same commit as any
+behaviour change it describes (`AGENTS.md`'s first rule).
 
 ## Architecture
 
@@ -129,119 +126,44 @@ No magic literal lives buried in business logic. Deployment-relevant constants �
 
 The only constants with **no** env override are the per-backend localStorage **key strings** (`storage.<id>.*`, `collab.room-password.*`, `collab.room-encrypted.*`, `collab.room-open.*` — pure identity; changing them just orphans saved state with no deployment benefit) and the GitHub default branch (already deployment-settable via the `branch` config field's `VITE_GITHUB_BRANCH` lock). Changing `VITE_APP_NAMESPACE` on a *live* deployment likewise orphans `copad:`-namespaced state — it's a set-once-at-deploy knob.
 
-## Type system principles
+## Where things live (type system & IO boundaries)
 
-Four interlocking principles keep the type system honest end-to-end.
+The rules behind this are in `AGENTS.md` (branded types, parse-don't-validate,
+no primitives at internal boundaries). This is the map of where they're applied:
 
-### 1. Screaming names
+- Branded types: `RoomId`, `DisplayName`, `CursorColor`, `SignalingUrl`
+  (`src/collaboration/types.ts`); `StorageId`, `Filename`, `FileExtension`
+  (`src/format/types.ts`); `CacheDbName`, `LocalCacheEnabled`
+  (`src/collaboration/cache.ts`).
+- Discriminated unions: `StorageAvailability` (`src/storage/types.ts`),
+  `SlashState` (`src/editor/ui/slashMenu.ts`).
+- Per-vertical `parse.ts` files: `src/collaboration/parse.ts` (network peer
+  state, localStorage room ids/credentials/cache flag/key fingerprint),
+  `src/storage/parse.ts` (stored sessions, API JSON, postMessage),
+  `src/editor/parse.ts` (ProseMirror node/mark attrs), `src/editor/ui/slashMenu.ts`
+  (slash plugin transaction meta, co-located with `slashKey` to avoid a circular dep).
+- Operator-injectable peer defaults (`FALLBACK_NAME`, `FALLBACK_COLOR`) live in
+  `src/collaboration/peerDefaults.ts` — the only env-var cast site for those two.
+- `localStorage` is abstracted entirely behind `localStore<T>(key, parse, serialize)`
+  in `src/persistence/local.ts`, the *only* module that touches it (enforced by
+  `eslint.config.js`). Cache prefs (`cache.ts`), per-room password
+  (`roomAccess.ts`), backend config/filename (`storage/config.ts`,
+  `storage/filename.ts`), OAuth tokens/sessions/validation (`dropbox.ts`,
+  `pcloud.ts`, `webdav.ts`, `github.ts`), and theme (`ui/theme.svelte.ts`) all go
+  through it — except the no-flash theme script inlined in `index.html`, which
+  can't import modules.
 
-Every domain concept gets a named type whose name makes its meaning obvious under `grep`. Never let a bare `string` or `number` represent a domain value inside core logic.
-
-```typescript
-// src/collaboration/types.ts
-export type RoomId       = string & { readonly _brand: 'RoomId' };
-export type DisplayName  = string & { readonly _brand: 'DisplayName' };
-export type CursorColor  = string & { readonly _brand: 'CursorColor' };
-export type SignalingUrl = string & { readonly _brand: 'SignalingUrl' };
-```
-
-The intersection `string & { readonly _brand: '…' }` is the brand pattern — it carries no runtime cost and blocks accidental assignments. All brands follow this exact shape. Other examples: `StorageId`, `Filename`, `FileExtension` (`src/format/types.ts`), `CacheDbName`, `LocalCacheEnabled` (`src/collaboration/cache.ts`).
-
-IO-boundary casts (`'value' as BrandType`) are the **only** permitted entry points into a branded type.
-
-### 2. Domain-Driven Design with hexagonal architecture
-
-Ports are TypeScript interfaces that define what the domain needs; adapters implement them without the domain knowing. See the Architecture section above for the full port/adapter table.
-
-The type system enforces the boundary: `Editor.svelte` receives only the `Storage` port — never a concrete adapter, never `StorageAuth`. `CollabConnect` is typed as `(room: RoomId) => Collab`; Editor cannot reach through it to y-webrtc or y-websocket internals.
-
-Discriminated unions model domain states: `StorageAvailability` (`src/storage/types.ts`) uses `{ ok: true } | { ok: false; reason: string }` so callers must handle both arms. `SlashState` (`src/editor/ui/slashMenu.ts`) uses `SlashClosed | SlashOpen` — narrowing on `active` gives exclusive access to the fields that only make sense when the menu is open.
-
-### 3. Parse, don't validate
-
-Data is parsed **once** at the IO boundary into a rich type. Internal code trusts the type and never re-validates. A function that returns `boolean` is a validator; a function that returns the domain type (or throws) is a parser.
-
-```typescript
-// src/collaboration/parse.ts — single cast site for network peer data
-export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
-  // all field access guarded here; safe fallbacks for malformed data
-  const name: DisplayName = (typeof nameRaw === 'string' && nameRaw.trim())
-    ? nameRaw.trim() as DisplayName
-    : FALLBACK_NAME;
-  // …
-}
-```
-
-Each vertical keeps its IO-boundary parsers in a dedicated `parse.ts` file:
-- `src/collaboration/parse.ts` — network peer state (`parsePeerAwarenessState`), localStorage room ids/credentials/cache flag/key fingerprint (`parseRoomId`, `parseRoomCredential`, `parseRoomList`, `parseLocalCacheEnabled`, `parseKeyFingerprint`)
-- `src/storage/parse.ts` — stored sessions + API JSON + postMessage (`parseWebDavConf`, `parsePCloudSession`, `parseGitHubLoadResponse`, `parseOAuthCode`, `parseRepo`, `parseBranch`, …)
-- `src/editor/parse.ts` — ProseMirror node/mark attrs (`headingLevel`, `linkHref`)
-- `src/editor/ui/slashMenu.ts` — slash plugin transaction meta (`getSlashMeta`, co-located with `slashKey` to avoid a circular dep)
-
-Operator-injectable peer defaults (`FALLBACK_NAME`, `FALLBACK_COLOR`) live in `src/collaboration/peerDefaults.ts` — they read `VITE_FALLBACK_NAME` / `VITE_FALLBACK_COLOR` and validate before branding, so they are the only env-var cast site for those two values.
-
-**`localStorage` is abstracted entirely behind the persistence primitive** in `src/persistence/local.ts`: `localStore<T>(key, parse, serialize)` is the *single* module that touches `localStorage`. A store binds a `StorageKey` to a parser and serializer, so domain code only calls `.read()` / `.write()` / `.clear()` — it never sees `localStorage` *or* a parse function. The cache prefs (`cache.ts`), per-room password (`roomAccess.ts`), backend config/filename (`storage/config.ts`, `storage/filename.ts`), OAuth tokens/sessions/validation (`dropbox.ts`, `pcloud.ts`, `webdav.ts`, `github.ts`), and theme (`ui/theme.svelte.ts`) all go through it. (The one exception is the no-flash theme script inlined in `index.html`, which can't import modules.)
-
-IO boundaries in this codebase and how each is handled:
-
-| Boundary | How parsed |
+| IO boundary | Handled by |
 |----------|-----------|
-| Env vars (`import.meta.env.*`) | `resolveSignaling()`, `resolveTransport()`, etc. in `src/collaboration/config.ts`; per-vertical constants in `src/collaboration/constants.ts` / `src/storage/constants.ts`; peer defaults in `src/collaboration/peerDefaults.ts` — all return branded/typed values |
-| `localStorage` reads/writes | the `localStore<T>` primitive in `src/persistence/local.ts` — binds a key to a parser + serializer; the only module touching `localStorage` |
+| Env vars (`import.meta.env.*`) | `resolveSignaling()`, `resolveTransport()`, etc. in `src/collaboration/config.ts`; per-vertical constants in `src/collaboration/constants.ts` / `src/storage/constants.ts` |
+| `localStorage` reads/writes | `localStore<T>` in `src/persistence/local.ts` |
 | URL params | cast in `App.svelte` at the single entry point (e.g. `?room=` → `RoomId`) |
 | Network peer awareness | `parsePeerAwarenessState(raw: unknown)` in `src/collaboration/parse.ts` |
-| ProseMirror node/mark attrs (`any`) | typed accessors in `src/editor/parse.ts` and `getSlashMeta` in `src/editor/ui/slashMenu.ts` |
+| ProseMirror node/mark attrs (`any`, from the library) | typed accessors in `src/editor/parse.ts` and `getSlashMeta` in `src/editor/ui/slashMenu.ts` |
 | User form input | stays `string` until accepted into the domain by a login/connect function |
-| External API JSON | parse function in the vertical's `parse.ts` (e.g. `parseGitHubLoadResponse`), narrowing `await res.json()` typed as `unknown` |
+| External API JSON | parse function in the vertical's `parse.ts` (e.g. `parseGitHubLoadResponse`) |
 | postMessage (OAuth popup) | `parseOAuthCode(data: unknown)` in `src/storage/parse.ts` |
 | Filename from browser API | `handle?.name as Filename` inside `localFsStorage()` in `src/storage/local.ts` |
-
-### 4. Strong typing end-to-end — no primitives at internal boundaries
-
-`string`, `number`, `boolean`, `Record`, `object`, and `{}` are only permitted at IO boundaries. Every internal function signature uses named types:
-
-```typescript
-// src/format/types.ts — extensionOf is a parser, not a validator
-export function extensionOf(filename: string): FileExtension {
-  const dot = filename.lastIndexOf('.');
-  return (dot === -1 ? '' : filename.slice(dot).toLowerCase()) as FileExtension;
-}
-
-// src/collaboration/cache.ts — cacheDbName produces a branded DB name (cast at the namespacing boundary)
-export function cacheDbName(room: RoomId): CacheDbName {
-  return `${CACHE_DB_PREFIX}${room}` as CacheDbName;
-}
-```
-
-This applies to function parameters, return types, object fields, and Svelte component `$props()`. The compiler then catches misuse — passing a raw `string` where a `RoomId` is expected is a type error, not a runtime surprise.
-
-## Naming conventions
-
-This codebase uses **functional naming** — no OO suffixes.
-
-| Avoid | Use instead |
-|-------|-------------|
-| `XxxAdapter`, `XxxProvider`, `XxxFactory` | name after what the thing **is** or **does** |
-| `class Foo implements Bar` | factory function `foo(): Bar` returning a plain object |
-| `new Foo()` | `foo()` |
-| `FooManager`, `FooService`, `FooHandler` | plain function or module |
-
-## Comments
-
-**Default: zero in-code comments.** The code must speak for itself — naming, types
-and structure carry the meaning. A comment that restates the code is noise, and it
-rots as soon as the code moves.
-
-A comment is tolerated only when the *reason* cannot be read from the code at all,
-and it must be ultra-concise (one line wherever possible): an external system's
-non-obvious behaviour (pCloud returns API errors inside an HTTP 200), or a
-constraint the compiler can't express that a future reader would otherwise undo.
-
-Never comment what a function does, what a type means, what a well-named variable
-holds, or why a change was made — names and git cover those. A comment that feels
-necessary usually marks a bad name or a missing type: fix that instead.
-
-**When you touch a file, bring its existing comments down to this bar.**
 
 ## Key technical notes
 
