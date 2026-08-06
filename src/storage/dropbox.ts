@@ -7,6 +7,7 @@ import { pkceChallenge, openOAuthPopup } from './oauth.js';
 import { parseDropboxTokenResponse, parseDropboxAppKey } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
+import { landed, writeFailure, classifyHttpStatus, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import {
   STORAGE_ID,
   CLOUD_FOLDER,
@@ -140,10 +141,10 @@ export function dropboxStorage(room: RoomId): { auth: StorageAuth; storage: Stor
       return { format: DocFormat.Binary, bytes: new Uint8Array(await res.arrayBuffer()) };
     },
 
-    async save(content: DocContent): Promise<void> {
-      if (content.format !== DocFormat.Binary) throw new Error('Dropbox storage expects binary content');
+    async save(content: DocContent): Promise<WriteReceipt> {
+      if (content.format !== DocFormat.Binary) throw writeFailure(WriteFailureKind.Rejected, 'Dropbox storage expects binary content');
       const tok = token();
-      if (!tok) throw new Error('Dropbox: not connected');
+      if (!tok) throw writeFailure(WriteFailureKind.Denied, 'Dropbox: not connected');
 
       const res = await fetch(DROPBOX_UPLOAD_URL, {
         method: 'POST',
@@ -159,7 +160,8 @@ export function dropboxStorage(room: RoomId): { auth: StorageAuth; storage: Stor
         body: content.bytes as unknown as BodyInit,
       });
 
-      if (!res.ok) throw new Error(`Dropbox save failed: ${res.status}`);
+      if (!res.ok) throw writeFailure(classifyHttpStatus(res.status), `Dropbox save failed: ${res.status}`);
+      return landed();
     },
   };
 

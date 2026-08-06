@@ -6,6 +6,7 @@ import type { Storage } from './types.js';
 import { LoginKind } from './types.js';
 import type { Fetch } from '../network/types.js';
 import type { RoomId } from '../collaboration/types.js';
+import { ClassifiedWriteError, WriteFailureKind } from './writeOutcome.js';
 
 // Room stem is 'document', matching the plain default filename ('document.yjs') asserted below.
 const TEST_ROOM = 'document' as RoomId;
@@ -55,14 +56,29 @@ describe('dropboxStorage', () => {
     expect(auth.configFields!.map(f => f.name)).toContain('appKey');
   });
 
-  it('save calls Dropbox upload endpoint', async () => {
+  it('save calls Dropbox upload endpoint and reports a landed WriteReceipt', async () => {
     localStorage.setItem('storage.dropbox.token', 'tok');
     mockFetch.mockResolvedValueOnce({ ok: true } as Response);
-    await storage.save({ format: 'binary', bytes: new Uint8Array([1, 2, 3]) });
+    await expect(
+      storage.save({ format: 'binary', bytes: new Uint8Array([1, 2, 3]) }),
+    ).resolves.toEqual({ landing: 'landed' });
     expect(mockFetch).toHaveBeenCalledWith(
       'https://content.dropboxapi.com/2/files/upload',
       expect.objectContaining({ method: 'POST' })
     );
+  });
+
+  it('save classifies a failure as a ClassifiedWriteError', async () => {
+    localStorage.setItem('storage.dropbox.token', 'tok');
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 401 } as Response);
+    let thrown: unknown;
+    try {
+      await storage.save({ format: 'binary', bytes: new Uint8Array([1]) });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(ClassifiedWriteError);
+    expect((thrown as InstanceType<typeof ClassifiedWriteError>).kind).toBe(WriteFailureKind.Denied);
   });
 
   it('load returns null on 409 (file not found)', async () => {
@@ -138,13 +154,28 @@ describe('webdavStorage', () => {
     expect(await storage.load()).toBeNull();
   });
 
-  it('save calls PUT', async () => {
+  it('save calls PUT and reports a landed WriteReceipt', async () => {
     localStorage.setItem('storage.webdav.conf', JSON.stringify({ baseUrl: 'https://x', auth: 'y' }));
     mockFetch.mockResolvedValueOnce({ status: 201, ok: true } as Response);
-    await storage.save({ format: 'binary', bytes: new Uint8Array([1, 2, 3]) });
+    await expect(
+      storage.save({ format: 'binary', bytes: new Uint8Array([1, 2, 3]) }),
+    ).resolves.toEqual({ landing: 'landed' });
     expect(mockFetch).toHaveBeenCalledWith(
       'https://x/document.yjs',
       expect.objectContaining({ method: 'PUT' })
     );
+  });
+
+  it('save classifies a failure as a ClassifiedWriteError', async () => {
+    localStorage.setItem('storage.webdav.conf', JSON.stringify({ baseUrl: 'https://x', auth: 'y' }));
+    mockFetch.mockResolvedValueOnce({ status: 404, ok: false } as Response);
+    let thrown: unknown;
+    try {
+      await storage.save({ format: 'binary', bytes: new Uint8Array([1]) });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(ClassifiedWriteError);
+    expect((thrown as InstanceType<typeof ClassifiedWriteError>).kind).toBe(WriteFailureKind.Missing);
   });
 });
