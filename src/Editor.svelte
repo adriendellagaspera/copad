@@ -51,6 +51,7 @@
     setSessionSave,
     setSessionPersistHealth,
     setSessionRegime,
+    setSessionLocalEdit,
     setSessionPresence,
     setSessionRoomPresence,
     setSessionSoloBrowser,
@@ -422,10 +423,9 @@
         const next = self.state.apply(tr);
         self.updateState(next);
         editorState = next;
-        regime = nextRegime(regime, {
-          docChanged: tr.docChanged,
-          isChangeOrigin: !!tr.getMeta(ySyncPluginKey)?.isChangeOrigin,
-        });
+        const isChangeOrigin = !!tr.getMeta(ySyncPluginKey)?.isChangeOrigin;
+        regime = nextRegime(regime, { docChanged: tr.docChanged, isChangeOrigin });
+        if (tr.docChanged && !isChangeOrigin) setSessionLocalEdit(Date.now());
       },
     });
 
