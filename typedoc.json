@@ -1,0 +1,14 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src"],
+  "entryPointStrategy": "expand",
+  "exclude": ["**/*.test.ts", "**/*.svelte"],
+  "out": "docs/api",
+  "plugin": ["typedoc-plugin-markdown"],
+  "readme": "none",
+  "hideBreadcrumbs": true,
+  "hideGenerator": true,
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "githubPages": false
+}

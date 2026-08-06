@@ -126,44 +126,17 @@ No magic literal lives buried in business logic. Deployment-relevant constants �
 
 The only constants with **no** env override are the per-backend localStorage **key strings** (`storage.<id>.*`, `collab.room-password.*`, `collab.room-encrypted.*`, `collab.room-open.*` — pure identity; changing them just orphans saved state with no deployment benefit) and the GitHub default branch (already deployment-settable via the `branch` config field's `VITE_GITHUB_BRANCH` lock). Changing `VITE_APP_NAMESPACE` on a *live* deployment likewise orphans `copad:`-namespaced state — it's a set-once-at-deploy knob.
 
-## Where things live (type system & IO boundaries)
+## Finding things
 
-The rules behind this are in `AGENTS.md` (branded types, parse-don't-validate,
-no primitives at internal boundaries). This is the map of where they're applied:
-
-- Branded types: `RoomId`, `DisplayName`, `CursorColor`, `SignalingUrl`
-  (`src/collaboration/types.ts`); `StorageId`, `Filename`, `FileExtension`
-  (`src/format/types.ts`); `CacheDbName`, `LocalCacheEnabled`
-  (`src/collaboration/cache.ts`).
-- Discriminated unions: `StorageAvailability` (`src/storage/types.ts`),
-  `SlashState` (`src/editor/ui/slashMenu.ts`).
-- Per-vertical `parse.ts` files: `src/collaboration/parse.ts` (network peer
-  state, localStorage room ids/credentials/cache flag/key fingerprint),
-  `src/storage/parse.ts` (stored sessions, API JSON, postMessage),
-  `src/editor/parse.ts` (ProseMirror node/mark attrs), `src/editor/ui/slashMenu.ts`
-  (slash plugin transaction meta, co-located with `slashKey` to avoid a circular dep).
-- Operator-injectable peer defaults (`FALLBACK_NAME`, `FALLBACK_COLOR`) live in
-  `src/collaboration/peerDefaults.ts` — the only env-var cast site for those two.
-- `localStorage` is abstracted entirely behind `localStore<T>(key, parse, serialize)`
-  in `src/persistence/local.ts`, the *only* module that touches it (enforced by
-  `eslint.config.js`). Cache prefs (`cache.ts`), per-room password
-  (`roomAccess.ts`), backend config/filename (`storage/config.ts`,
-  `storage/filename.ts`), OAuth tokens/sessions/validation (`dropbox.ts`,
-  `pcloud.ts`, `webdav.ts`, `github.ts`), and theme (`ui/theme.svelte.ts`) all go
-  through it — except the no-flash theme script inlined in `index.html`, which
-  can't import modules.
-
-| IO boundary | Handled by |
-|----------|-----------|
-| Env vars (`import.meta.env.*`) | `resolveSignaling()`, `resolveTransport()`, etc. in `src/collaboration/config.ts`; per-vertical constants in `src/collaboration/constants.ts` / `src/storage/constants.ts` |
-| `localStorage` reads/writes | `localStore<T>` in `src/persistence/local.ts` |
-| URL params | cast in `App.svelte` at the single entry point (e.g. `?room=` → `RoomId`) |
-| Network peer awareness | `parsePeerAwarenessState(raw: unknown)` in `src/collaboration/parse.ts` |
-| ProseMirror node/mark attrs (`any`, from the library) | typed accessors in `src/editor/parse.ts` and `getSlashMeta` in `src/editor/ui/slashMenu.ts` |
-| User form input | stays `string` until accepted into the domain by a login/connect function |
-| External API JSON | parse function in the vertical's `parse.ts` (e.g. `parseGitHubLoadResponse`) |
-| postMessage (OAuth popup) | `parseOAuthCode(data: unknown)` in `src/storage/parse.ts` |
-| Filename from browser API | `handle?.name as Filename` inside `localFsStorage()` in `src/storage/local.ts` |
+`npm run docs` (TypeDoc, markdown output) generates a browsable API index into
+`docs/api/` — git-ignored, regenerate whenever you need it. It covers every
+exported type/function/interface with its doc comment and exact source
+location, straight from the code, so it can't drift the way a hand-maintained
+"where things live" table did — that table is gone; this replaces it. Locate
+things with it (or plain grep — `AGENTS.md`'s naming rules keep names
+grep-unambiguous); it doesn't replace the rules in `AGENTS.md`, and it can't
+answer *why* something is shaped the way it is — that belongs as a comment in
+the code (`AGENTS.md`'s Comments rule) or in this file's Architecture section.
 
 ## Key technical notes
 

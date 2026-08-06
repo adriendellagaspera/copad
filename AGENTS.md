@@ -45,6 +45,15 @@
   - External API JSON → type the interface, cast at `response.json()`.
   - Filename from browser API → cast to `Filename` inside the storage adapter.
 
+## Finding things
+
+- `npm run docs` generates a markdown API index (TypeDoc) into `docs/api/` —
+  git-ignored, regenerate on demand. Every export, its doc comment, and its
+  exact source location, always current because it's read straight from the
+  code. Prefer it (or `grep` — names are grep-unambiguous by the rule above)
+  over asking; there is no hand-maintained "where things live" doc to read
+  instead, on purpose.
+
 ## Hexagonal architecture rules
 
 - Ports live in `types.ts` / `auth.ts` files; adapters implement them elsewhere.
