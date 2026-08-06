@@ -10,6 +10,7 @@
   import { parseTurnUrl, parseTurnUsername, parseTurnCredential } from './collaboration/parse.js';
   import type { TurnUrl } from './collaboration/types.js';
   import type { Theme } from './ui/theme.svelte.js';
+  import { LANGUAGE_AUTO, parseLanguageChoice, type LanguageChoice } from './ui/language.svelte.js';
   import ThemeSelect from './ui/ThemeSelect.svelte';
   import ExportFormats from './ui/ExportFormats.svelte';
   import type { Toasts } from './ui/toasts.svelte.js';
@@ -31,7 +32,7 @@
     onCacheClear,
     turnPrefs,
     onTurnChange,
-    languageChoice = 'auto',
+    languageChoice = LANGUAGE_AUTO,
     spellcheck = true,
     onLanguageChange,
     onSpellcheckChange,
@@ -50,9 +51,9 @@
     onCacheClear?: () => void | Promise<void>;
     turnPrefs?: TurnPrefs;
     onTurnChange?: (p: TurnPrefs) => void;
-    languageChoice?: string;
+    languageChoice?: LanguageChoice;
     spellcheck?: boolean;
-    onLanguageChange?: (lang: string) => void;
+    onLanguageChange?: (lang: LanguageChoice) => void;
     onSpellcheckChange?: (on: boolean) => void;
     exportBaseName: string;
     toasts: Toasts;
@@ -103,13 +104,13 @@
     selectValue = value;
     if (value !== 'custom') {
       customValue = '';
-      onLanguageChange?.(value);
+      onLanguageChange?.(parseLanguageChoice(value));
     }
   }
 
   function onCustomLanguage(value: string) {
     customValue = value;
-    if (value.trim()) onLanguageChange?.(value.trim());
+    if (value.trim()) onLanguageChange?.(parseLanguageChoice(value));
   }
 
   let clearing = $state(false);
