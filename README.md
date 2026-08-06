@@ -39,8 +39,9 @@ flowchart LR
     Storage --> Backends[("Dropbox · pCloud · WebDAV\nGitHub · GitLab · S3 · SharePoint\nGoogle Drive · OneDrive · Local file")]
 ```
 
-Two ports, each with swappable adapters — see [`CLAUDE.md`](CLAUDE.md) for the full
-port/adapter table and the type system that keeps them honest:
+Two ports, each with swappable adapters — see
+[`docs/architecture.md`](docs/architecture.md) for the full port/adapter table
+and the type system that keeps them honest:
 
 - **`Collab`** — [Yjs](https://github.com/yjs/yjs) CRDT state over
   [y-webrtc](https://github.com/yjs/y-webrtc) (P2P, default, optionally end-to-end
@@ -69,8 +70,9 @@ port/adapter table and the type system that keeps them honest:
 Each adapter implements `Storage` (`src/storage/types.ts`); auth is a separate
 `StorageAuth` port so `Editor.svelte` never sees credentials. Config fields (app
 keys) live in Settings ⚙ or a `VITE_*` env override — see the table in
-[`CLAUDE.md`](CLAUDE.md#environment-variables). Adding a backend means writing one
-adapter and registering it in `src/storage/index.ts`; nothing else changes.
+[`docs/architecture.md`](docs/architecture.md#environment-variables). Adding a
+backend means writing one adapter and registering it in `src/storage/index.ts`;
+nothing else changes.
 
 Backends without native CORS go through [`deploy/proxy-worker/`](deploy/proxy-worker/), a
 generic forward proxy (set `VITE_PROXY_URL`, restrict `ALLOWED_HOSTS`). Runs free on
@@ -113,7 +115,7 @@ provider's developer console alongside your production URL).
    Sidestep it entirely with the WebSocket transport.
 4. **(Optional) proxy** — `cd deploy/proxy-worker && npx wrangler deploy`.
 
-Full env var reference: [`CLAUDE.md`](CLAUDE.md#environment-variables).
+Full env var reference: [`docs/architecture.md`](docs/architecture.md#environment-variables).
 
 ## Known limitations
 
@@ -130,8 +132,8 @@ Full env var reference: [`CLAUDE.md`](CLAUDE.md#environment-variables).
 ## Project layout
 
 Architecture, ports/adapters, and the type system are documented in
-[`CLAUDE.md`](CLAUDE.md) — that file, not this one, is the source of truth for how
-the codebase fits together.
+[`docs/architecture.md`](docs/architecture.md) — that file, not this one, is the
+source of truth for how the codebase fits together.
 
 ```
 src/

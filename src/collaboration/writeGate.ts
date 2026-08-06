@@ -36,7 +36,7 @@ export interface WriteGateOpen {
 export interface WriteGateHeld {
   readonly status: 'held';
 }
-/** Discriminated union — never a bare boolean (CLAUDE.md "screaming names"). */
+/** Discriminated union — never a bare boolean (AGENTS.md "screaming names"). */
 export type WriteGate = WriteGateOpen | WriteGateHeld;
 
 const OPEN: WriteGateOpen = { status: 'open' };
