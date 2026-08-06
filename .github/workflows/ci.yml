@@ -23,6 +23,9 @@ jobs:
       # Type-check .svelte files
       - run: npm run check
 
+      # AGENTS.md's mechanically-checkable rules (see eslint.config.js)
+      - run: npm run lint
+
       # Unit tests (schema + storage adapters)
       - run: npm test
 
