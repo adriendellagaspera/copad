@@ -8,12 +8,12 @@ import { localStore } from '../persistence/local.js';
 import { nsKey } from '../config.js';
 
 /** 'auto' defers to navigator.language; any other value is a BCP-47 tag. */
-export type LanguageChoice = string;
-export const LANGUAGE_AUTO: LanguageChoice = 'auto';
+export type LanguageChoice = string & { readonly _brand: 'LanguageChoice' };
+export const LANGUAGE_AUTO = 'auto' as LanguageChoice;
 
-function parseLanguageChoice(raw: string | null): LanguageChoice {
+export function parseLanguageChoice(raw: string | null): LanguageChoice {
   const s = raw?.trim();
-  return s && s.length > 0 ? s : LANGUAGE_AUTO;
+  return s && s.length > 0 ? (s as LanguageChoice) : LANGUAGE_AUTO;
 }
 
 function parseSpellcheck(raw: string | null): boolean {
