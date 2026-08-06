@@ -283,6 +283,6 @@ Two traps: Zoom meeting ids are enumerable, so the canonical form must include `
 6. **The waiting room** — banner tiers, pill labels, `Reaching`, hysteresis.
 7. **The unlock moment** (§4.1). ~~**Export**~~ (§4.3) — done.
 8. **The hub's own contract** — its settle/linger values, its copy, no escape hatch.
-9. **Docs** — README repositioning; `CLAUDE.md` is drifting and needs a pass (two of two spot-checks were stale).
+9. ~~**Docs**~~ — `AGENTS.md` is now the single source of contribution rules, `docs/architecture.md` the reference doc, `CLAUDE.md` a pointer to both — done. README still deserves a repositioning pass toward this contract's thesis (§1.2).
 
 Steps 2 and 3 are risk-free and separately testable. Step 4 is the one that changes behaviour.

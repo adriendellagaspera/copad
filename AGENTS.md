@@ -1,5 +1,27 @@
 # Copad — rules for AI agents
 
+**Keep this file lean.** It's imported wholesale into every Claude Code
+session via `CLAUDE.md`'s `@AGENTS.md` — an import loads at launch same as
+inline content, so it doesn't dodge Claude Code's own guidance to target
+under 200 lines of loaded memory before adherence drops. Add a rule only if
+it's general (applies across the codebase, not one file) and relevant on
+nearly every task; anything narrower belongs as an in-code comment (see
+Comments below) or in `docs/architecture.md`.
+
+## Commands
+
+- `npm run lint` — ESLint; enforces the gated rules below.
+- `npm run check` — svelte-check; type-checks `.svelte` and `.ts`.
+- `npm test` — vitest, the full unit suite.
+- `npm run build` — production build.
+- `npm run docs` — regenerates the API reference into `docs/api/` (git-ignored).
+- `npm run dev` — Vite dev server; needs `npm run signaling` (WebRTC, default)
+  or `npm run collab` (WebSocket transport) running alongside it for
+  collaboration to work locally.
+
+Run lint + check + test before calling anything done; CI runs all of the
+above plus the build and Playwright e2e suite (`npm run e2e`).
+
 ## The contract comes first
 
 - [`docs/contract.md`](docs/contract.md) is **binding, not indicative**. Read it
@@ -7,9 +29,12 @@
   room identifiers, or what the editor allows when alone.
 - Changing behaviour it describes means updating it **in the same commit**. A
   spec that lags the code is worse than no spec: it is read as true.
-- The same holds for `CLAUDE.md` and `README.md`. When you touch an area they
-  describe, bring their description back in line — these files brief every
-  agent, so a stale line propagates into work that was never wrong on purpose.
+- The same holds for [`docs/architecture.md`](docs/architecture.md) and
+  `README.md`. When you touch an area they describe, bring their description
+  back in line — these files brief every agent, so a stale line propagates
+  into work that was never wrong on purpose. (`CLAUDE.md` carries no
+  description of its own — it only points here — so there's nothing in it to
+  go stale.)
 
 ## Type system rules
 
@@ -83,6 +108,13 @@
 - Name branded types after what the value **is**: `RoomId` not `id`,
   `CursorColor` not `color`, `FileExtension` not `ext`.
 - Brand names must be unambiguous under `grep` across the whole codebase.
+
+## Svelte rules
+
+- Use `$state.raw()` for ProseMirror objects (`EditorView`, `EditorState`) —
+  they aren't designed to be deeply proxied, and `$state()` would try.
+- Use `untrack()` when a prop is intentionally read once at component init,
+  not tracked reactively.
 
 ## Discriminated unions
 
