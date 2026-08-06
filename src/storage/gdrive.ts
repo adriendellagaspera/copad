@@ -210,8 +210,7 @@ export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Stora
           body: bytes as unknown as BodyInit,
         });
         if (!res.ok) {
-          // A stale cached fileId (file deleted/moved since) should be re-resolved
-          // next attempt rather than repeating the same failing upload target.
+          // 404 means the cached fileId is stale — clear it so the next attempt re-resolves.
           if (res.status === 404) fileId = null;
           throw writeFailure(classifyHttpStatus(res.status), `Google Drive save failed: ${res.status}`);
         }

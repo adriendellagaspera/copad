@@ -375,11 +375,9 @@ export function parseS3KeyPrefix(raw: string): S3KeyPrefix {
   return (raw.trim() || S3_PREFIX) as S3KeyPrefix;
 }
 
-/** Single narrowing site for an unknown `save()` rejection → {@link WriteFailureKind}
- *  (`docs/contract.md` §3.2). A migrated adapter throws {@link ClassifiedWriteError};
- *  an unmigrated one throws a bare `Error` or a DOM exception, which falls back to a
- *  best-effort guess from `DOMException.name` and finally `Unknown` — never locks on
- *  ignorance (persistHealth.ts). */
+/** Single narrowing site for an unknown `save()` rejection → {@link WriteFailureKind}.
+ *  A bare `Error` or unrecognised `DOMException` falls back to `Unknown`, which
+ *  never locks on its own (persistHealth.ts). */
 export function parseWriteFailure(err: unknown): WriteFailureKind {
   if (err instanceof ClassifiedWriteError) return err.kind;
   if (err instanceof DOMException) {

@@ -149,8 +149,7 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
 
     if (!res.ok) {
       const err = parseGitHubErrorBody(await res.json().catch(() => ({})));
-      // 409 means our cached sha is stale — clear it, or every retry resends the
-      // same sha and conflicts forever instead of self-healing on the next attempt.
+      // 409 means our cached sha is stale — clear it so the next retry re-resolves.
       if (res.status === 409) fileSha = null;
       throw writeFailure(classifyHttpStatus(res.status), String(err['message'] ?? res.status));
     }

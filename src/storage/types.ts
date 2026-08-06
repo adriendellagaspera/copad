@@ -141,13 +141,8 @@ export interface Storage {
 
   readonly contentFormat: DocFormat;
   load(): Promise<DocContent | null>;
-  /**
-   * A resolved promise alone used to be read as proof of a write — "didn't throw"
-   * ≠ "the bytes arrived" (docs/contract.md §3.2). Every adapter now reports a
-   * {@link WriteReceipt} (`src/storage/writeOutcome.ts`): `landed()` on a confirmed
-   * write, `skipped()` when nothing was attempted (e.g. coalesced into an
-   * in-flight write), and a thrown {@link ClassifiedWriteError} on failure.
-   */
+  /** "Didn't throw" ≠ "the bytes arrived" (docs/contract.md §3.2) — the
+   *  {@link WriteReceipt} (`src/storage/writeOutcome.ts`) says which. */
   save(content: DocContent): Promise<WriteReceipt>;
 
   /**

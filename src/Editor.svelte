@@ -125,18 +125,13 @@
   // True while every accompanying peer shares our own browserId — a second tab, not a stranger.
   let soloBrowser = $state(false);
   let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
-  // Branch (b)'s own state machine (docs/contract.md §3.2/§3.3) — constates what
-  // save()/load() actually observed, and the Cold/Warm regime (first local edit
-  // this session) that decides whether a Broken result may lock the write gate.
+  // Branch (b)'s state machine (docs/contract.md §3.2/§3.3, persistHealth.ts).
   let persistHealth = $state<PersistHealth>(UNPROVEN);
   let regime = $state<PersistRegime>(PersistRegime.Cold);
   let loadedFrom = $state<StorageId | null>(null);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let savedTimer: ReturnType<typeof setTimeout> | undefined;
-  // A failed flush is otherwise only retried on the next document edit — silent
-  // if the failure lands on the very last keystroke of a session (ConnectionDialog
-  // used to claim "Copad keeps retrying" with nothing behind it). Backoff is capped,
-  // not infinite, and any successful flush resets it.
+  // Otherwise a failure on the session's last keystroke is never retried.
   const RETRY_BACKOFF_MS = [3_000, 6_000, 12_000, 30_000];
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let retryAttempt = 0;
@@ -300,9 +295,7 @@
       .catch((e: unknown) => {
         console.warn('Copad: load failed, starting with current state', e);
         toasts.error(`Couldn't load from ${label}: ${(e as Error).message}`);
-        // load() proves read-access only — it can't prove write-access — except
-        // for one falsifier: a Denied failure here means write is broken too,
-        // observable before the first keystroke (docs/contract.md §3.2).
+        // A Denied load() falsifies write-access too — usable before the first keystroke.
         const kind = parseWriteFailure(e);
         if (kind === WriteFailureKind.Denied) {
           persistHealth = nextPersistHealth(persistHealth, { ok: false, kind }, Date.now());
@@ -429,10 +422,6 @@
         const next = self.state.apply(tr);
         self.updateState(next);
         editorState = next;
-        // Cold → Warm the first time *this user* changes the doc (docs/contract.md
-        // §3.3) — the transition rule itself is nextRegime() (persistHealth.ts),
-        // a pure typed reducer; this call site only narrows the ProseMirror
-        // transaction into the two facts it needs.
         regime = nextRegime(regime, {
           docChanged: tr.docChanged,
           isChangeOrigin: !!tr.getMeta(ySyncPluginKey)?.isChangeOrigin,

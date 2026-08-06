@@ -181,9 +181,7 @@ export function gitlabStorage(room: RoomId): { auth: StorageAuth; storage: Stora
     });
 
     if (!res.ok) {
-      // A stale `fileExists` guess picked the wrong verb (PUT on a since-deleted
-      // file, POST on one created meanwhile) — clear it so the next attempt
-      // re-resolves instead of repeating the same wrong verb forever.
+      // Our fileExists guess may have picked the wrong verb — clear it to re-resolve.
       fileExists = null;
       throw writeFailure(classifyHttpStatus(res.status), `GitLab save failed: ${res.status}`);
     }

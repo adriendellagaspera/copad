@@ -405,12 +405,9 @@
   // false lockout is the costly failure here, not a false few extra seconds of
   // solo writing (contract §2.2). It only closes on positive, settled absence.
   //
-  // Branch (b) itself is `durabilityHolds` (contract §3.2/§3.3), not the bare
-  // `savedHere` declarative fact — `Broken ∧ Cold` is the one case it can still
-  // fail even though `savedHere` is true. `savedHere` stays the read everywhere
-  // else (the `storage` prop below, dialogs' labels): swapping it there too would
-  // make `Broken` absorbing, cutting the Editor off from the very `flush()` calls
-  // that could prove it healthy again.
+  // Branch (b) is `durabilityHolds` (contract §3.2/§3.3), not the bare `savedHere`
+  // fact — do not swap it in for `savedHere` at the `storage` prop below, or a
+  // `Broken` room loses the very `flush()` calls that could prove it healthy again.
   const durabilityHolds = $derived(
     computeDurabilityHolds(savedHere, sessionState.persistHealth, sessionState.regime),
   );

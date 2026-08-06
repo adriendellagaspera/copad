@@ -145,9 +145,7 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
         }
         case LocalMode.Imported:
         case LocalMode.New:
-          // Structurally can't write back — no File System Access API on this
-          // browser/device. Terminal, not a transient hiccup: classify it so it
-          // locks the durability branch instead of silently reading as healthy.
+          // Structurally can't write back — terminal, not a transient hiccup.
           throw writeFailure(
             WriteFailureKind.Rejected,
             'this browser can\'t write files back (no File System Access API). ' +

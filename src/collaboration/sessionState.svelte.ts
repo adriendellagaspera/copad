@@ -27,10 +27,7 @@ let presence = $state<RoomPresence>({ kind: PresenceKind.Unknown });
 // True while every accompanying peer shares our own browserId — a second tab, not a stranger.
 let soloBrowser = $state(false);
 let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
-// Branch (b)'s own state machine (docs/contract.md §3.2/§3.3) — constates what a
-// real save() attempt observed, and the Cold/Warm regime that decides whether a
-// Broken result may lock. Defaults are the honest starting point: nothing
-// attempted yet, nothing local written yet.
+// Branch (b)'s state machine (docs/contract.md §3.2/§3.3, persistHealth.ts).
 let persistHealth = $state<PersistHealth>(UNPROVEN);
 let regime = $state<PersistRegime>(PersistRegime.Cold);
 let users = $state<PeerUser[]>([]);

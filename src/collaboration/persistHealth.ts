@@ -1,9 +1,7 @@
 /**
- * Branch (b)'s own state machine (`docs/contract.md` §3.2/§3.3). `savedHere` is
- * declarative — configured, logged in, claims this room — and never consults the
- * world. `PersistHealth` *constates* what a real `save()`/`load()` attempt observed;
- * it never predicts or decays with time. Pure, no clock reads — the caller supplies
- * `now` (same split as `writeGate.ts` / `roomLock.ts` / `leader.ts`).
+ * Branch (b)'s state machine (docs/contract.md §3.2/§3.3) — constates what a real
+ * `save()`/`load()` observed, never predicts or decays with time. Pure, no clock
+ * reads: the caller supplies `now` (same split as writeGate.ts / roomLock.ts / leader.ts).
  */
 
 import { WriteFailureKind, WriteLanding, type WriteReceipt } from '../storage/writeOutcome.js';
@@ -42,18 +40,13 @@ export type WriteOutcome =
   | { readonly ok: true; readonly receipt: WriteReceipt }
   | { readonly ok: false; readonly kind: WriteFailureKind };
 
-/**
- * Reduces the current health against one observed `save()` outcome. `now` is a
- * timestamp, not a duration — freshness is deliberately not part of this machine
- * (§3.2: "the machine's promise is not 'your backend is healthy'").
- */
+/** `now` is a timestamp, not a duration — freshness plays no part in this machine. */
 export function nextPersistHealth(current: PersistHealth, outcome: WriteOutcome, now: number): PersistHealth {
   if (outcome.ok) {
     if (outcome.receipt.landing === WriteLanding.Landed) {
       return { kind: PersistHealthKind.Proven, at: now };
     }
-    // Skipped/Coalesced: another write is already in flight and will produce its
-    // own receipt — this attempt observed nothing, so health is left unchanged.
+    // Coalesced: another write is already in flight and will produce its own receipt.
     return current;
   }
   if (LOCKING_KINDS.has(outcome.kind)) {
@@ -70,13 +63,9 @@ export function nextPersistHealth(current: PersistHealth, outcome: WriteOutcome,
 export const PersistRegime = { Cold: 'cold', Warm: 'warm' } as const;
 export type PersistRegime = (typeof PersistRegime)[keyof typeof PersistRegime];
 
-/**
- * What one ProseMirror transaction tells the regime, narrowed to exactly the two
- * facts the transition rule needs — not a raw `Transaction`, so this stays testable
- * without a ProseMirror/y-prosemirror runtime. `isChangeOrigin` is y-prosemirror's own
- * convention for "this transaction was synthesized from a remote Y update", read via
- * `tr.getMeta(ySyncPluginKey)?.isChangeOrigin` at the call site (`Editor.svelte`).
- */
+/** Narrowed from a ProseMirror `Transaction` at the call site (`Editor.svelte`) so this
+ *  stays testable without a ProseMirror/y-prosemirror runtime. `isChangeOrigin` is
+ *  y-prosemirror's own meta key marking a transaction synthesized from a remote Y update. */
 export interface LocalEditSignal {
   readonly docChanged: boolean;
   readonly isChangeOrigin: boolean;
