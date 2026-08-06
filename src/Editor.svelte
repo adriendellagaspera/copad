@@ -37,7 +37,7 @@
   import { ConnStatus, PresenceKind, SessionRole } from './collaboration/types.js';
   import type { RoomName, PersistTarget } from './collaboration/types.js';
   import { parsePeerAwarenessState, parseRoomName } from './collaboration/parse.js';
-  import { nextPersistHealth, UNPROVEN, PersistRegime, type PersistHealth } from './collaboration/persistHealth.js';
+  import { nextPersistHealth, nextRegime, UNPROVEN, PersistRegime, type PersistHealth } from './collaboration/persistHealth.js';
   import { browserId } from './collaboration/browserId.js';
   import { persistTargetKey, isPersistLeader } from './collaboration/leader.js';
   import { trackPresenceActivity } from './collaboration/presenceActivity.js';
@@ -429,13 +429,14 @@
         const next = self.state.apply(tr);
         self.updateState(next);
         editorState = next;
-        // Cold → Warm the first time *this user* changes the doc — an event, not
-        // a clock (docs/contract.md §3.3). y-prosemirror marks a transaction it
-        // synthesized from a remote Y update with this meta; anything else that
-        // actually changed the doc came from typing here.
-        if (regime === PersistRegime.Cold && tr.docChanged && !tr.getMeta(ySyncPluginKey)?.isChangeOrigin) {
-          regime = PersistRegime.Warm;
-        }
+        // Cold → Warm the first time *this user* changes the doc (docs/contract.md
+        // §3.3) — the transition rule itself is nextRegime() (persistHealth.ts),
+        // a pure typed reducer; this call site only narrows the ProseMirror
+        // transaction into the two facts it needs.
+        regime = nextRegime(regime, {
+          docChanged: tr.docChanged,
+          isChangeOrigin: !!tr.getMeta(ySyncPluginKey)?.isChangeOrigin,
+        });
       },
     });
 

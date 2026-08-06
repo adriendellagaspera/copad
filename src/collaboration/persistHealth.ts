@@ -71,6 +71,28 @@ export const PersistRegime = { Cold: 'cold', Warm: 'warm' } as const;
 export type PersistRegime = (typeof PersistRegime)[keyof typeof PersistRegime];
 
 /**
+ * What one ProseMirror transaction tells the regime, narrowed to exactly the two
+ * facts the transition rule needs — not a raw `Transaction`, so this stays testable
+ * without a ProseMirror/y-prosemirror runtime. `isChangeOrigin` is y-prosemirror's own
+ * convention for "this transaction was synthesized from a remote Y update", read via
+ * `tr.getMeta(ySyncPluginKey)?.isChangeOrigin` at the call site (`Editor.svelte`).
+ */
+export interface LocalEditSignal {
+  readonly docChanged: boolean;
+  readonly isChangeOrigin: boolean;
+}
+
+/**
+ * Cold → Warm on this user's own first doc-changing transaction; Warm is absorbing
+ * for the rest of the session (docs/contract.md §3.3 — the boundary is an event,
+ * not a clock, and never un-happens once there is something to lose).
+ */
+export function nextRegime(current: PersistRegime, signal: LocalEditSignal): PersistRegime {
+  if (current === PersistRegime.Warm) return current;
+  return signal.docChanged && !signal.isChangeOrigin ? PersistRegime.Warm : current;
+}
+
+/**
  * `durabilityHolds = savedHere && (health ∈ {Proven, Unproven, Failing} || regime === Warm)`
  * — false only when `savedHere` and the room is `Broken ∧ Cold` (`docs/contract.md` §3.4).
  */

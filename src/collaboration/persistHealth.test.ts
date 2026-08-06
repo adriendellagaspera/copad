@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   nextPersistHealth,
+  nextRegime,
   durabilityHolds,
   PersistHealthKind,
   PersistRegime,
@@ -57,6 +58,25 @@ describe('nextPersistHealth', () => {
     const failing = nextPersistHealth(UNPROVEN, { ok: false, kind: WriteFailureKind.Transient }, 1);
     const next = nextPersistHealth(failing, { ok: true, receipt: landed() }, 2);
     expect(next).toEqual({ kind: PersistHealthKind.Proven, at: 2 });
+  });
+});
+
+describe('nextRegime', () => {
+  it('stays Cold on a selection-only transaction (no doc change)', () => {
+    expect(nextRegime(PersistRegime.Cold, { docChanged: false, isChangeOrigin: false })).toBe(PersistRegime.Cold);
+  });
+
+  it('stays Cold on a remote sync transaction, even though the doc changed', () => {
+    expect(nextRegime(PersistRegime.Cold, { docChanged: true, isChangeOrigin: true })).toBe(PersistRegime.Cold);
+  });
+
+  it('warms on this user\'s own doc-changing transaction', () => {
+    expect(nextRegime(PersistRegime.Cold, { docChanged: true, isChangeOrigin: false })).toBe(PersistRegime.Warm);
+  });
+
+  it('Warm is absorbing for the rest of the session', () => {
+    expect(nextRegime(PersistRegime.Warm, { docChanged: false, isChangeOrigin: false })).toBe(PersistRegime.Warm);
+    expect(nextRegime(PersistRegime.Warm, { docChanged: true, isChangeOrigin: true })).toBe(PersistRegime.Warm);
   });
 });
 
