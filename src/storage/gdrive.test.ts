@@ -3,6 +3,7 @@ import { gdriveStorage } from './gdrive.js';
 import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
 import type { RoomId } from '../collaboration/types.js';
+import { ClassifiedWriteError, WriteFailureKind } from './writeOutcome.js';
 
 // Room stem is 'document', matching the plain default filename ('document.yjs') asserted below.
 const TEST_ROOM = 'document' as RoomId;
@@ -122,11 +123,34 @@ describe('gdriveStorage save', () => {
     const first = storage.save({ format: 'binary', bytes: new Uint8Array([9]) });
     const second = storage.save({ format: 'binary', bytes: new Uint8Array([9]) }); // dropped: committing already true
     resolveSearch({});
-    await Promise.all([first, second]);
+    const [firstReceipt, secondReceipt] = await Promise.all([first, second]);
 
     // Exactly one search + one create + one PATCH — never a second create.
     expect(mockFetch).toHaveBeenCalledTimes(3);
     expect(mockFetch.mock.calls.filter(c => c[1]?.method === 'POST')).toHaveLength(1);
+    expect(firstReceipt).toEqual({ landing: 'landed' });
+    expect(secondReceipt).toEqual({ landing: 'skipped', why: 'coalesced' });
+  });
+
+  it('reports a WriteReceipt landing on success', async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ files: [{ id: 'fid' }] }) } as unknown as Response)
+      .mockResolvedValueOnce({ ok: true, status: 200 } as Response);
+    await expect(storage.save({ format: 'binary', bytes: new Uint8Array([9]) })).resolves.toEqual({ landing: 'landed' });
+  });
+
+  it('classifies a create failure and a media-upload failure', async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ files: [] }) } as unknown as Response)
+      .mockResolvedValueOnce({ ok: false, status: 403 } as Response);
+    let thrown: unknown;
+    try {
+      await storage.save({ format: 'binary', bytes: new Uint8Array([9]) });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(ClassifiedWriteError);
+    expect((thrown as InstanceType<typeof ClassifiedWriteError>).kind).toBe(WriteFailureKind.Denied);
   });
 });
 

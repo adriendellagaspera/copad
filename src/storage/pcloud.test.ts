@@ -88,7 +88,7 @@ describe('pcloudStorage', () => {
 
   it('save resolves when pCloud confirms a stored file', async () => {
     const { storage } = await connected(replying({ result: 0, fileids: [98765] }));
-    await expect(storage.save(DOC)).resolves.toBeUndefined();
+    await expect(storage.save(DOC)).resolves.toEqual({ landing: 'landed' });
   });
 
   it('save still reports a transport-level failure', async () => {

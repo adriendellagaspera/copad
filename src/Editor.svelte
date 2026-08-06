@@ -3,7 +3,7 @@
   import { EditorState } from 'prosemirror-state';
   import type { Transaction } from 'prosemirror-state';
   import { EditorView } from 'prosemirror-view';
-  import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from 'y-prosemirror';
+  import { ySyncPlugin, ySyncPluginKey, yCursorPlugin, yUndoPlugin } from 'y-prosemirror';
   import { schema } from './editor/schema.js';
   import { buildPlugins } from './editor/plugins.js';
   import { slashMenuPlugin } from './editor/ui/slashMenu.js';
@@ -24,6 +24,8 @@
   import type { Toasts } from './ui/toasts.svelte.js';
   import type { Storage, DocContent, Filename, StorageId } from './storage/types.js';
   import { StorageAccess, DocFormat } from './storage/types.js';
+  import { WriteFailureKind } from './storage/writeOutcome.js';
+  import { parseWriteFailure } from './storage/parse.js';
   import type {
     CollabConnect,
     RoomId,
@@ -35,6 +37,7 @@
   import { ConnStatus, PresenceKind, SessionRole } from './collaboration/types.js';
   import type { RoomName, PersistTarget } from './collaboration/types.js';
   import { parsePeerAwarenessState, parseRoomName } from './collaboration/parse.js';
+  import { nextPersistHealth, nextRegime, UNPROVEN, PersistRegime, type PersistHealth } from './collaboration/persistHealth.js';
   import { browserId } from './collaboration/browserId.js';
   import { persistTargetKey, isPersistLeader } from './collaboration/leader.js';
   import { trackPresenceActivity } from './collaboration/presenceActivity.js';
@@ -46,6 +49,8 @@
     sessionState,
     setSessionConn,
     setSessionSave,
+    setSessionPersistHealth,
+    setSessionRegime,
     setSessionPresence,
     setSessionRoomPresence,
     setSessionSoloBrowser,
@@ -120,9 +125,16 @@
   // True while every accompanying peer shares our own browserId — a second tab, not a stranger.
   let soloBrowser = $state(false);
   let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
+  // Branch (b)'s state machine (docs/contract.md §3.2/§3.3, persistHealth.ts).
+  let persistHealth = $state<PersistHealth>(UNPROVEN);
+  let regime = $state<PersistRegime>(PersistRegime.Cold);
   let loadedFrom = $state<StorageId | null>(null);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let savedTimer: ReturnType<typeof setTimeout> | undefined;
+  // Otherwise a failure on the session's last keystroke is never retried.
+  const RETRY_BACKOFF_MS = [3_000, 6_000, 12_000, 30_000];
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let retryAttempt = 0;
 
   // Whether this peer can write to its own storage backend for this file.
   // Updated asynchronously when the storage prop changes (backends with access()
@@ -218,6 +230,8 @@
   });
   $effect(() => setSessionConn(conn));
   $effect(() => setSessionSave(saveStatus));
+  $effect(() => setSessionPersistHealth(persistHealth));
+  $effect(() => setSessionRegime(regime));
   $effect(() => setSessionPresence(users, peers));
   $effect(() => setSessionRoomPresence(roomPresence));
   $effect(() => setSessionSoloBrowser(soloBrowser));
@@ -281,6 +295,11 @@
       .catch((e: unknown) => {
         console.warn('Copad: load failed, starting with current state', e);
         toasts.error(`Couldn't load from ${label}: ${(e as Error).message}`);
+        // A Denied load() falsifies write-access too — usable before the first keystroke.
+        const kind = parseWriteFailure(e);
+        if (kind === WriteFailureKind.Denied) {
+          persistHealth = nextPersistHealth(persistHealth, { ok: false, kind }, Date.now());
+        }
       });
   });
 
@@ -303,6 +322,7 @@
   const flush = (): void => {
     const s = storage;
     if (!s || !isLeader()) return;
+    clearTimeout(retryTimer);
     const codec = codecForFilename(s.filename?.() ?? 'document.yjs');
     const label = s.label;
     saveStatus = SaveStatus.Saving;
@@ -313,19 +333,25 @@
           : { format: DocFormat.Binary, bytes };
         return s.save(content);
       })
-      .then(() => {
+      .then((receipt) => {
+        retryAttempt = 0;
+        persistHealth = nextPersistHealth(persistHealth, { ok: true, receipt }, Date.now());
         saveStatus = SaveStatus.Saved;
         clearTimeout(savedTimer);
         savedTimer = setTimeout(() => {
           if (saveStatus === SaveStatus.Saved) saveStatus = SaveStatus.Idle;
         }, 2_500);
       })
-      .catch((e: Error) => {
+      .catch((e: unknown) => {
         // A repeat failure is already carried by StatusPill's durable state; toast only the transition into it.
         const wasAlreadyFailing = saveStatus === SaveStatus.Error;
         saveStatus = SaveStatus.Error;
+        persistHealth = nextPersistHealth(persistHealth, { ok: false, kind: parseWriteFailure(e) }, Date.now());
         console.warn('Copad: autosave failed', e);
-        if (!wasAlreadyFailing) toasts.error(`Couldn't save to ${label}: ${e.message}`);
+        if (!wasAlreadyFailing) toasts.error(`Couldn't save to ${label}: ${(e as Error).message}`);
+        const backoff = RETRY_BACKOFF_MS[Math.min(retryAttempt, RETRY_BACKOFF_MS.length - 1)];
+        retryAttempt++;
+        retryTimer = setTimeout(flush, backoff);
       });
   };
 
@@ -396,6 +422,10 @@
         const next = self.state.apply(tr);
         self.updateState(next);
         editorState = next;
+        regime = nextRegime(regime, {
+          docChanged: tr.docChanged,
+          isChangeOrigin: !!tr.getMeta(ySyncPluginKey)?.isChangeOrigin,
+        });
       },
     });
 
@@ -414,6 +444,7 @@
   onDestroy(() => {
     clearTimeout(saveTimer);
     clearTimeout(savedTimer);
+    clearTimeout(retryTimer);
     clearInterval(fadeTimer);
     presenceActivity.destroy();
     offStatus();

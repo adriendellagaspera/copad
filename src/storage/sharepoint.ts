@@ -13,6 +13,7 @@ import {
 } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
+import { landed, writeFailure, classifyHttpStatus, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import { STORAGE_ID, DEFAULT_FILENAME, GRAPH_API_URL, SHAREPOINT_FOLDER, SHAREPOINT_KEY } from './constants.js';
 
 // Microsoft Graph — SharePoint / OneDrive for Business.
@@ -159,9 +160,9 @@ export function sharepointStorage(room: RoomId): { auth: StorageAuth; storage: S
       return { format: DocFormat.Binary, bytes };
     },
 
-    async save(content: DocContent): Promise<void> {
+    async save(content: DocContent): Promise<WriteReceipt> {
       const c = conf();
-      if (!c) throw new Error('SharePoint: not connected');
+      if (!c) throw writeFailure(WriteFailureKind.Denied, 'SharePoint: not connected');
 
       const bytes =
         content.format === DocFormat.Text
@@ -176,7 +177,8 @@ export function sharepointStorage(room: RoomId): { auth: StorageAuth; storage: S
         headers: { ...authHeaders(c.token), 'Content-Type': mime },
         body: bytes as unknown as BodyInit,
       });
-      if (!res.ok) throw new Error(`SharePoint save failed: ${res.status}`);
+      if (!res.ok) throw writeFailure(classifyHttpStatus(res.status), `SharePoint save failed: ${res.status}`);
+      return landed();
     },
 
     async access(): Promise<StorageAccess> {

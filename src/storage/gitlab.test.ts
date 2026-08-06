@@ -3,6 +3,7 @@ import { gitlabStorage } from './gitlab.js';
 import type { StorageAuth } from './auth.js';
 import type { Storage } from './types.js';
 import type { RoomId } from '../collaboration/types.js';
+import { ClassifiedWriteError, WriteFailureKind } from './writeOutcome.js';
 
 // Room stem is 'notes', matching the default filename ('notes.md') the tests below assert on.
 const TEST_ROOM = 'notes' as RoomId;
@@ -184,6 +185,42 @@ describe('gitlabStorage load/save', () => {
     mockFetch.mockResolvedValueOnce({ ok: false, status: 404 } as Response); // existence
     mockFetch.mockResolvedValueOnce({ ok: false, status: 403 } as Response); // POST fails
     await expect(storage.save({ format: 'text', text: 'x' })).rejects.toThrow('GitLab save failed: 403');
+  });
+
+  it('classifies a save failure as a ClassifiedWriteError and invalidates the stale existence cache', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 404 } as Response); // existence
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 403 } as Response); // POST fails
+    let thrown: unknown;
+    try {
+      await storage.save({ format: 'text', text: 'x' });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(ClassifiedWriteError);
+    expect((thrown as InstanceType<typeof ClassifiedWriteError>).kind).toBe(WriteFailureKind.Denied);
+
+    // The stale `fileExists` guess is cleared on failure — the next save re-probes.
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200 } as Response); // existence probe again
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 201 } as Response); // save
+    await storage.save({ format: 'text', text: 'y' });
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+  });
+
+  it('reports a WriteReceipt landing on success', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 404 } as Response);
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 201 } as Response);
+    await expect(storage.save({ format: 'text', text: 'hello' })).resolves.toEqual({ landing: 'landed' });
+  });
+
+  it('coalesces a concurrent save into a Skipped receipt', async () => {
+    let resolveExistence!: (r: unknown) => void;
+    mockFetch.mockImplementationOnce(() => new Promise((resolve) => { resolveExistence = resolve; }));
+    const first = storage.save({ format: 'text', text: 'a' });
+    const second = await storage.save({ format: 'text', text: 'b' });
+    expect(second).toEqual({ landing: 'skipped', why: 'coalesced' });
+    resolveExistence({ ok: false, status: 404 });
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 201 } as Response);
+    await first;
   });
 });
 

@@ -13,6 +13,7 @@ import {
 } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
+import { landed, writeFailure, classifyHttpStatus, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import {
   STORAGE_ID,
   DEFAULT_FILENAME,
@@ -170,9 +171,9 @@ export function onedriveStorage(room: RoomId): { auth: StorageAuth; storage: Sto
       return { format: DocFormat.Binary, bytes };
     },
 
-    async save(content: DocContent): Promise<void> {
+    async save(content: DocContent): Promise<WriteReceipt> {
       const tok = token();
-      if (!tok) throw new Error('OneDrive: not connected');
+      if (!tok) throw writeFailure(WriteFailureKind.Denied, 'OneDrive: not connected');
 
       const bytes =
         content.format === DocFormat.Text
@@ -187,7 +188,8 @@ export function onedriveStorage(room: RoomId): { auth: StorageAuth; storage: Sto
         headers: { ...authHeaders(tok), 'Content-Type': mime },
         body: bytes as unknown as BodyInit,
       });
-      if (!res.ok) throw new Error(`OneDrive save failed: ${res.status}`);
+      if (!res.ok) throw writeFailure(classifyHttpStatus(res.status), `OneDrive save failed: ${res.status}`);
+      return landed();
     },
 
     async access(): Promise<StorageAccess> {

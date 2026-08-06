@@ -1,4 +1,5 @@
 import type { Filename } from './types.js';
+import { ClassifiedWriteError, WriteFailureKind } from './writeOutcome.js';
 import type { GitHubRepo, GitHubBranch, GitHubFileSha } from './github.js';
 import type { DropboxToken, DropboxAppKey } from './dropbox.js';
 import type { WebDavBaseUrl, WebDavAuthHeader } from './webdav.js';
@@ -372,4 +373,25 @@ export function parseS3SecretAccessKey(raw: string): S3SecretAccessKey | null {
 
 export function parseS3KeyPrefix(raw: string): S3KeyPrefix {
   return (raw.trim() || S3_PREFIX) as S3KeyPrefix;
+}
+
+/** Single narrowing site for an unknown `save()` rejection → {@link WriteFailureKind}.
+ *  A bare `Error` or unrecognised `DOMException` falls back to `Unknown`, which
+ *  never locks on its own (persistHealth.ts). */
+export function parseWriteFailure(err: unknown): WriteFailureKind {
+  if (err instanceof ClassifiedWriteError) return err.kind;
+  if (err instanceof DOMException) {
+    switch (err.name) {
+      case 'NotAllowedError':
+        return WriteFailureKind.Denied;
+      case 'NotFoundError':
+        return WriteFailureKind.Missing;
+      case 'NoModificationAllowedError':
+      case 'QuotaExceededError':
+        return WriteFailureKind.Rejected;
+      default:
+        return WriteFailureKind.Unknown;
+    }
+  }
+  return WriteFailureKind.Unknown;
 }

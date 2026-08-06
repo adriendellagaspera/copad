@@ -3,6 +3,7 @@ import { DocFormat, OpenMode, LoginKind } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { knownExtensions } from '../format/index.js';
 import { STORAGE_ID } from './constants.js';
+import { landed, writeFailure, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 
 // Not yet in TypeScript's lib.dom.d.ts.
 declare global {
@@ -133,24 +134,26 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
       }
     },
 
-    async save(content: DocContent): Promise<void> {
-      if (content.format !== DocFormat.Binary) throw new Error('Local storage expects binary content');
+    async save(content: DocContent): Promise<WriteReceipt> {
+      if (content.format !== DocFormat.Binary) throw writeFailure(WriteFailureKind.Rejected, 'Local storage expects binary content');
       switch (state.mode) {
         case LocalMode.Native: {
           const writable = await state.handle.createWritable();
           await writable.write(content.bytes as unknown as FileSystemWriteChunkType);
           await writable.close();
-          return;
+          return landed();
         }
         case LocalMode.Imported:
         case LocalMode.New:
-          throw new Error(
+          // Structurally can't write back — terminal, not a transient hiccup.
+          throw writeFailure(
+            WriteFailureKind.Rejected,
             'this browser can\'t write files back (no File System Access API). ' +
               'Changes stay in the session and the local cache — connect a cloud ' +
               'backend or export the document to keep them.'
           );
         case LocalMode.Idle:
-          throw new Error('Local: not connected');
+          throw writeFailure(WriteFailureKind.Denied, 'Local: not connected');
       }
     },
   };

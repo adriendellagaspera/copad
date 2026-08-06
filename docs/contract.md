@@ -1,7 +1,8 @@
 # The Copad contract
 
 > Specification. Unimplemented except where a section says otherwise (§4.3, §4.4,
-> §5 have shipped; §2.2/§3.1/§3.4's presence model and write gate are wired).
+> §5 have shipped; §2.2/§3.1/§3.4's presence model and write gate are wired; §3.2/§3.3's
+> `WriteReceipt`/`PersistHealth` machine is wired).
 > This is the spine — the part that has to stay coherent, self-sufficient, on its own.
 > Where it cites a mechanism, the citation is to this repo's code or to the upstream
 > project that owns that mechanism — never to an issue tracker or a pull request.
@@ -91,11 +92,11 @@ Two independent axes. The lock closes only when **both** branches fail.
 
 **`Reaching` does not lock.** The contract's premise — someone is here — is *proven*: we heard their announce. The failure is **ours** (NAT traversal), not theirs. Locking someone out because our own traversal failed is exactly the hard incident this design exists to avoid.
 
-### 3.2 Persistence — branch (b)
+### 3.2 Persistence — branch (b) — wired
 
-`savedHere` today means *a backend is configured, logged in, and claims this room*. All three conjunctions are **declarative** — configuration read from `localStorage` and a token-presence boolean. **None consults the world.** A dead token leaves all three true.
+`savedHere` means *a backend is configured, logged in, and claims this room*. All three conjunctions are **declarative** — configuration read from `localStorage` and a token-presence boolean. **None consults the world.** A dead token leaves all three true; that gap is exactly why the rest of this section exists.
 
-So branch (b) gets its own state machine, `PersistHealth`, which **constates rather than predicts**:
+So branch (b) gets its own state machine, `PersistHealth` (`src/collaboration/persistHealth.ts`), which **constates rather than predicts**:
 
 | Kind | Meaning |
 |---|---|
@@ -108,11 +109,11 @@ A **state machine, not a freshness criterion.** Freshness ("the last write succe
 
 The machine's promise is not *"your backend is healthy"*. It is **"I will never assert a durability I have not observed."**
 
-This requires the `Storage` port to be able to say what it did. `save(): Promise<void>` is a validator: it reports *threw / didn't throw*, and "didn't throw" does not mean the bytes arrived. Five of ten adapters can currently resolve without writing. The port becomes `Promise<WriteReceipt | void>` — an assignable widening, so **zero adapters break at compile time**, with `void` meaning "presumed landing" (today's behaviour) and each migration adding only protection.
+This requires the `Storage` port to be able to say what it did. `save(): Promise<void>` was a validator: it reports *threw / didn't throw*, and "didn't throw" does not mean the bytes arrived. The port is now `save(): Promise<WriteReceipt>` (`src/storage/writeOutcome.ts`) — every adapter reports `landed()` on a confirmed write, `skipped(Coalesced)` when a concurrent write already covered it, and throws a `ClassifiedWriteError` (a `WriteFailureKind`) instead of a bare `Error` on failure, so `parseWriteFailure()` (`src/storage/parse.ts`) has a real signal to classify. All ten adapters (`local`, `github`, `gitlab`, `gdrive`, `pcloud`, `dropbox`, `webdav`, `s3`, `sharepoint`, `onedrive`) are migrated — there is no `void` escape hatch left in the port, and `parseWriteFailure()`'s `DOMException`/fallback branches exist only for the truly unclassifiable case, not for an adapter that hasn't been touched yet.
 
-### 3.3 Cold and Warm — the lock protects a session's start, not its middle
+### 3.3 Cold and Warm — the lock protects a session's start, not its middle — wired
 
-The boundary is an **event, not a clock**: the first local modification in this session. That is what creates something to lose.
+The boundary is an **event, not a clock**: the first local modification in this session (`Editor.svelte`'s ProseMirror `dispatchTransaction`, keyed off `docChanged` and the absence of y-prosemirror's `isChangeOrigin` transaction meta — a remote peer's edit doesn't warm the regime, only this user's own does). That is what creates something to lose.
 
 | | **Cold** (nothing written yet) | **Warm** (has written) |
 |---|---|---|
@@ -144,12 +145,16 @@ Held otherwise. ⟺ Alone, confirmed, past grace, out of hysteresis, and not dur
 
 Implemented in `src/collaboration/writeGate.ts` (`writeGateFor()`), a pure
 function — no timers, no clocks, no DOM — with `docs/contract.md`'s truth table
-unit-tested branch by branch. `durabilityHolds` is currently just `savedHere`:
-the full `PersistHealth`/`regime` machine (§3.2) hasn't shipped yet (§8 step 5),
-so `Broken`/`Cold` can't be observed — until it does, "configured, logged in,
-and claims this room" is the honest, if coarser, approximation. The clocks for
-the settle and linger windows live in `App.svelte` (two small `$effect`s), which
-feed `writeGateFor()` pre-computed booleans (`aloneSettled`,
+unit-tested branch by branch. `durabilityHolds` (`src/collaboration/persistHealth.ts`)
+is `savedHere && (health ∈ {Proven, Unproven, Failing} || regime === Warm)` — App.svelte
+computes it from `savedHere` plus the Editor-reported `persistHealth`/`regime`
+(bridged through `sessionState.svelte.ts`, same pattern as `saveStatus`) and feeds
+*that*, not the bare `savedHere`, into `writeGateFor()`'s branch-(b) input. The one
+read site that deliberately keeps the bare `savedHere` is the `storage` prop passed
+to the Editor: gating that on health too would make `Broken` absorbing, since a
+`storage = null` Editor never calls `save()` again and so could never prove itself
+healthy. The clocks for the settle and linger windows live in `App.svelte` (two small
+`$effect`s), which feed `writeGateFor()` pre-computed booleans (`aloneSettled`,
 `withinDepartureLinger`) rather than raw timestamps — keeping the decision
 function itself clock-free.
 
@@ -279,7 +284,7 @@ Two traps: Zoom meeting ids are enumerable, so the canonical form must include `
 2. ~~**Presence model**~~ — `RoomPresence`, the new core hooks, memoised emission — done (§3.1).
 3. ~~**`writeGate.ts`**~~ — pure decision function with a full truth table — done (§3.4).
 4. ~~**Wire the gate**~~ — the commit that inverts the polarity — done (§2.2, §4.4's escape hatch). The waiting-room polish in step 6 below (banner tiers per `RoomPresence` kind, pill labels, the `Reaching` UI treatment, typing-extended departure hysteresis) is deliberately left for that step — this one only inverts the lock's polarity and replaces the silent yield with the named escape hatch.
-5. **Write outcome** — `WriteReceipt`, `PersistHealth`, adapter migration one at a time.
+5. ~~**Write outcome**~~ — `WriteReceipt`, `PersistHealth`, all ten adapters migrated — done (§3.2/§3.3). Non-leader diffusion of a broken leader's health across same-browser tabs (a `BroadcastChannel`, mirroring the leader-election scoping) is left for a follow-up — a non-leader tab simply stays `Unproven`, which never locks on its own, so this is a UX gap (no passive warning shown), not a soundness one.
 6. **The waiting room** — banner tiers, pill labels, `Reaching`, hysteresis.
 7. **The unlock moment** (§4.1). ~~**Export**~~ (§4.3) — done.
 8. **The hub's own contract** — its settle/linger values, its copy, no escape hatch.

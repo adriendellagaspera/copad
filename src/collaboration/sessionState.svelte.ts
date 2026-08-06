@@ -11,6 +11,7 @@ import type { PeerUser } from '../ui/types.js';
 import { SaveStatus } from '../ui/types.js';
 import { ConnStatus, PresenceKind, Transport } from './types.js';
 import type { Diagnostics, RoomPresence } from './types.js';
+import { UNPROVEN, PersistRegime, type PersistHealth } from './persistHealth.js';
 
 /** Diagnostics access for the connection dialog — present only while a session
  *  is live, and only on transports that expose it (WebRTC). */
@@ -26,6 +27,9 @@ let presence = $state<RoomPresence>({ kind: PresenceKind.Unknown });
 // True while every accompanying peer shares our own browserId — a second tab, not a stranger.
 let soloBrowser = $state(false);
 let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
+// Branch (b)'s state machine (docs/contract.md §3.2/§3.3, persistHealth.ts).
+let persistHealth = $state<PersistHealth>(UNPROVEN);
+let regime = $state<PersistRegime>(PersistRegime.Cold);
 let users = $state<PeerUser[]>([]);
 let peers = $state(1);
 let diag = $state<SessionDiagnostics>({ transport: Transport.P2P });
@@ -54,6 +58,12 @@ export const sessionState = {
   },
   get saveStatus(): SaveStatus {
     return saveStatus;
+  },
+  get persistHealth(): PersistHealth {
+    return persistHealth;
+  },
+  get regime(): PersistRegime {
+    return regime;
   },
   get users(): PeerUser[] {
     return users;
@@ -84,6 +94,12 @@ export function setSessionSoloBrowser(value: boolean): void {
 export function setSessionSave(value: SaveStatus): void {
   saveStatus = value;
 }
+export function setSessionPersistHealth(value: PersistHealth): void {
+  persistHealth = value;
+}
+export function setSessionRegime(value: PersistRegime): void {
+  regime = value;
+}
 export function setSessionPresence(nextUsers: PeerUser[], nextPeers: number): void {
   users = nextUsers;
   peers = nextPeers;
@@ -104,6 +120,8 @@ export function resetSessionState(): void {
   presence = { kind: PresenceKind.Unknown };
   soloBrowser = false;
   saveStatus = SaveStatus.Idle;
+  persistHealth = UNPROVEN;
+  regime = PersistRegime.Cold;
   users = [];
   peers = 1;
   diag = { transport: Transport.P2P };

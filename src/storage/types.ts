@@ -1,3 +1,5 @@
+import type { WriteReceipt } from './writeOutcome.js';
+
 /** Opaque identifier for a storage backend instance (e.g. `'dropbox'`, `'local'`). */
 export type StorageId = string & { readonly _brand: 'StorageId' };
 
@@ -139,7 +141,9 @@ export interface Storage {
 
   readonly contentFormat: DocFormat;
   load(): Promise<DocContent | null>;
-  save(content: DocContent): Promise<void>;
+  /** "Didn't throw" ≠ "the bytes arrived" (docs/contract.md §3.2) — the
+   *  {@link WriteReceipt} (`src/storage/writeOutcome.ts`) says which. */
+  save(content: DocContent): Promise<WriteReceipt>;
 
   /**
    * The authenticated user's access level on this specific file/resource.

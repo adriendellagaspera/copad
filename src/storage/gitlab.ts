@@ -6,6 +6,7 @@ import { filenameStore } from './filename.js';
 import { extensionOf } from '../format/types.js';
 import { localStore } from '../persistence/local.js';
 import type { RoomId } from '../collaboration/types.js';
+import { landed, skipped, writeFailure, classifyHttpStatus, WriteSkip, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import {
   parseProject,
   parseGitLabHost,
@@ -179,7 +180,11 @@ export function gitlabStorage(room: RoomId): { auth: StorageAuth; storage: Stora
       }),
     });
 
-    if (!res.ok) throw new Error(`GitLab save failed: ${res.status}`);
+    if (!res.ok) {
+      // Our fileExists guess may have picked the wrong verb — clear it to re-resolve.
+      fileExists = null;
+      throw writeFailure(classifyHttpStatus(res.status), `GitLab save failed: ${res.status}`);
+    }
     fileExists = true;
   }
 
@@ -269,15 +274,16 @@ export function gitlabStorage(room: RoomId): { auth: StorageAuth; storage: Stora
       return { format: DocFormat.Binary, bytes };
     },
 
-    async save(content: DocContent): Promise<void> {
-      if (committing) return;
+    async save(content: DocContent): Promise<WriteReceipt> {
+      if (committing) return skipped(WriteSkip.Coalesced);
       const tok = resolvedToken();
       const project = resolvedProject();
-      if (!tok) throw new Error('GitLab: not connected');
-      if (!project) throw new Error('GitLab: project not configured');
+      if (!tok) throw writeFailure(WriteFailureKind.Denied, 'GitLab: not connected');
+      if (!project) throw writeFailure(WriteFailureKind.Missing, 'GitLab: project not configured');
       committing = true;
       try {
         await commitFile(tok, resolvedHost(), project, resolvedBranch(), content);
+        return landed();
       } finally {
         committing = false;
       }
