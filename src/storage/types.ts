@@ -142,13 +142,13 @@ export interface Storage {
   readonly contentFormat: DocFormat;
   load(): Promise<DocContent | null>;
   /**
-   * `Promise<void>` is a validator — "didn't throw" ≠ "the bytes arrived" (five
-   * adapters could resolve without writing; see `docs/notes` history / #216).
-   * `WriteReceipt` (`src/storage/writeOutcome.ts`) lets a migrated adapter say what
-   * actually happened; `void` is an assignable widening, so an unmigrated adapter
-   * still compiles and is read as "presumed landing" (today's behaviour).
+   * A resolved promise alone used to be read as proof of a write — "didn't throw"
+   * ≠ "the bytes arrived" (docs/contract.md §3.2). Every adapter now reports a
+   * {@link WriteReceipt} (`src/storage/writeOutcome.ts`): `landed()` on a confirmed
+   * write, `skipped()` when nothing was attempted (e.g. coalesced into an
+   * in-flight write), and a thrown {@link ClassifiedWriteError} on failure.
    */
-  save(content: DocContent): Promise<WriteReceipt | void>;
+  save(content: DocContent): Promise<WriteReceipt>;
 
   /**
    * The authenticated user's access level on this specific file/resource.

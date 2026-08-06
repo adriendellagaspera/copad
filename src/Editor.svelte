@@ -24,7 +24,7 @@
   import type { Toasts } from './ui/toasts.svelte.js';
   import type { Storage, DocContent, Filename, StorageId } from './storage/types.js';
   import { StorageAccess, DocFormat } from './storage/types.js';
-  import { landed, WriteFailureKind } from './storage/writeOutcome.js';
+  import { WriteFailureKind } from './storage/writeOutcome.js';
   import { parseWriteFailure } from './storage/parse.js';
   import type {
     CollabConnect,
@@ -342,7 +342,7 @@
       })
       .then((receipt) => {
         retryAttempt = 0;
-        persistHealth = nextPersistHealth(persistHealth, { ok: true, receipt: receipt ?? landed() }, Date.now());
+        persistHealth = nextPersistHealth(persistHealth, { ok: true, receipt }, Date.now());
         saveStatus = SaveStatus.Saved;
         clearTimeout(savedTimer);
         savedTimer = setTimeout(() => {
