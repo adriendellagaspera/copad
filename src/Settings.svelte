@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { SessionCredentials, LoginOptions } from './storage/types.js';
+  import type { SessionCredentials, LoginOptions, StorageId } from './storage/types.js';
   import { OpenMode, InputType, LoginKind } from './storage/types.js';
   import type { StorageBackend } from './storage/index.js';
   import { isConfigured } from './storage/auth.js';
@@ -24,7 +24,7 @@
   let {
     backends,
     open = $bindable(false),
-    focusId = '',
+    focusId,
     theme,
     localCache = true,
     onCacheChange,
@@ -43,7 +43,7 @@
   }: {
     backends: StorageBackend[];
     open?: boolean;
-    focusId?: string;
+    focusId?: StorageId;
     theme: Theme;
     localCache?: boolean;
     onCacheChange?: (on: boolean) => void;
@@ -193,24 +193,24 @@
 
   // Which tile is expanded — a backend deep-link (focusId) opens dropped
   // straight to it; otherwise every tile starts collapsed.
-  let expandedId = $state(focusId);
+  let expandedId = $state<StorageId | undefined>(focusId);
   $effect(() => {
     if (open) expandedId = focusId;
   });
-  function toggleExpanded(id: string) {
-    expandedId = expandedId === id ? '' : id;
+  function toggleExpanded(id: StorageId) {
+    expandedId = expandedId === id ? undefined : id;
   }
   function monogram(label: string): string {
     return label.charAt(0).toUpperCase();
   }
 
   // Per-backend busy/error state — keyed by backend id.
-  let busy = $state<Record<string, boolean>>({});
-  let errors = $state<Record<string, string>>({});
+  let busy = $state<Record<StorageId, boolean>>({});
+  let errors = $state<Record<StorageId, string>>({});
   // Per-backend credential inputs — keyed by backend id then field name.
-  let creds = $state<Record<string, SessionCredentials>>({});
+  let creds = $state<Record<StorageId, SessionCredentials>>({});
   // Per-backend filename overrides — keyed by backend id (cloud backends).
-  let fnames = $state<Record<string, string>>({});
+  let fnames = $state<Record<StorageId, string>>({});
 
   // Bumped after any write to a backend's plain-localStorage-backed config or
   // session state (configStore, credential store). That storage isn't Svelte

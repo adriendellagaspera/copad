@@ -4,7 +4,7 @@
   import type { StorageBackend } from './storage/index.js';
   import { savedRoomsStore } from './storage/savedRooms.js';
   import { filenameForRoom, firstFileCollision } from './storage/filename.js';
-  import type { Filename } from './storage/types.js';
+  import type { Filename, StorageId } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
   import { websocketCollab } from './collaboration/websocket.js';
   import {
@@ -323,9 +323,9 @@
   // ── Settings ───────────────────────────────────────────────────────────────
 
   let settingsOpen = $state(false);
-  let settingsFocus = $state('');
+  let settingsFocus = $state<StorageId | undefined>(undefined);
 
-  function openSettings(id = '') {
+  function openSettings(id?: StorageId) {
     settingsFocus = id;
     settingsOpen = true;
   }
