@@ -114,4 +114,28 @@ describe('linkAround (whole-link range from a bare caret mid-link)', () => {
     state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 6)));
     expect(linkAround(state)).toBeNull();
   });
+
+  it('detects a link that is the first word of a paragraph, caret at its very start', () => {
+    // Regression: $from.marks() has no preceding sibling to compare against
+    // at a parent's own start, so it drops an inclusive:false mark there too
+    // — not just past the link's trailing edge. "hello" is the whole doc, so
+    // pos 1 is both the paragraph's start AND the link's start.
+    let state = selectAll(stateWith('hello'));
+    setLink('example.com')(state, (tr) => (state = state.apply(tr)));
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1)));
+    const found = linkAround(state);
+    expect(found).not.toBeNull();
+    expect(found!.from).toBe(1);
+    expect(found!.to).toBe(6);
+  });
+
+  it('detects a link that is the last word of a paragraph, caret at its very end', () => {
+    let state = selectAll(stateWith('hello'));
+    setLink('example.com')(state, (tr) => (state = state.apply(tr)));
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 6)));
+    const found = linkAround(state);
+    expect(found).not.toBeNull();
+    expect(found!.from).toBe(1);
+    expect(found!.to).toBe(6);
+  });
 });

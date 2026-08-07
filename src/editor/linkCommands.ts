@@ -78,7 +78,16 @@ export function linkAround(state: EditorState): { href: string; from: number; to
   // after a link is not misdetected as "on" it. storedMarks takes priority
   // when the user just toggled a mark at the caret, same as ProseMirror's
   // own convention for "marks new input would get".
-  const mark = linkType.isInSet(state.storedMarks ?? $from.marks());
+  let mark = linkType.isInSet(state.storedMarks ?? $from.marks());
+  // $from.marks() also drops an inclusive:false mark when there's simply no
+  // sibling to compare against — a caret at the very start/end of its parent
+  // (the link is the first or last child, e.g. the first word of a
+  // paragraph). That's a missing-neighbour artifact, not a real link
+  // boundary, so fall back to the one neighbour that does exist.
+  if (!mark && $from.textOffset === 0) {
+    if (index === 0) mark = linkType.isInSet(parent.maybeChild(0)?.marks ?? []);
+    else if (index === parent.childCount) mark = linkType.isInSet(parent.maybeChild(index - 1)?.marks ?? []);
+  }
   if (!mark) return null;
   const startOfParent = $from.start();
   // Expand left/right over every adjacent child carrying this exact link mark.
