@@ -69,6 +69,7 @@
     background: none;
     flex: none;
     overflow: visible;
+    margin: 0; /* cancels editor.css's mobile full-bleed negative margins */
   }
   .content {
     flex: none;
