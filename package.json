@@ -17,6 +17,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "docx": "^9.7.1",
     "pcloud-sdk-js": "^2.0.0",
     "prosemirror-commands": "^1.7.1",
     "prosemirror-inputrules": "^1.5.1",
@@ -46,6 +47,7 @@
     "eslint-plugin-svelte": "^3.22.0",
     "globals": "^17.9.0",
     "happy-dom": "^20.10.6",
+    "jszip": "^3.10.1",
     "svelte-check": "^4.7.0",
     "svelte-eslint-parser": "^1.8.0",
     "typedoc": "^0.28.20",

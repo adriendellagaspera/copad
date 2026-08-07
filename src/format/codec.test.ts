@@ -236,7 +236,7 @@ describe('codec registry', () => {
     ]));
   });
 
-  it('offers text/markdown/html/json for export, excluding the native yjs snapshot', () => {
-    expect(exportCodecs.map((c) => c.id)).toEqual(['text', 'markdown', 'html', 'json']);
+  it('offers text/markdown/html/json/docx for export, excluding the native yjs snapshot', () => {
+    expect(exportCodecs.map((c) => c.id)).toEqual(['text', 'markdown', 'html', 'json', 'docx']);
   });
 });
