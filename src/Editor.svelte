@@ -45,7 +45,7 @@
   import { roomName, renameRoom, bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
   import { bindExport, unbindExport } from './editor/exportBridge.svelte.js';
   import DocTitle from './editor/ui/DocTitle.svelte';
-  import { now, type Milliseconds } from './time.js';
+  import { now, type Milliseconds, type EpochMs } from './time.js';
   import {
     sessionState,
     setSessionConn,
@@ -75,16 +75,20 @@
     /** When true the editor is read-only — the write gate (`writeGateFor()` in
      *  `App.svelte`) is holding. This component only reflects it. */
     writeLocked?: boolean;
+    /** Stamped by `App.svelte` only on an explicit "Write alone anyway" click
+     *  — never by `writeLocked` itself going false, which also happens when a
+     *  peer joins or durability proves out. Drives the focus-on-unlock effect
+     *  below; a natural unlock must never steal focus (contract §4.1). */
+    writeSoloAt?: EpochMs | null;
   };
 
-  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, writeLocked = false }: Props =
+  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, writeLocked = false, writeSoloAt = null }: Props =
     $props();
 
-  // Plain (non-reactive) tracking var — detects the writeLocked true→false
-  // transition in the effect below without refocusing on every unrelated
-  // re-render. See that effect's doc comment. untrack: intentionally read
-  // once (the gate's state at mount), not a live reactive binding.
-  let wasWriteLocked = untrack(() => writeLocked);
+  // Plain (non-reactive) tracking var — detects a new `writeSoloAt` stamp in
+  // the effect below. untrack: intentionally read once (its value at mount),
+  // not a live reactive binding.
+  let lastWriteSoloAt = untrack(() => writeSoloAt);
 
   const SAVE_DEBOUNCE = 3_000 as Milliseconds;
 
@@ -386,22 +390,19 @@
   // Toggle editability when the write-gate opens/closes. ProseMirror re-reads the
   // `editable` prop on each state update, so re-setting it (setProps triggers one)
   // is what actually flips contentEditable — the gate lifts the moment a peer joins.
-  //
-  // Also focuses the view the moment the gate transitions from locked to
-  // unlocked: the yield-on-write listener below already covers "click or type
-  // *in the editor* while the gate is up" (focus lands there naturally, as
-  // part of that click/keydown), but the WriteGateIntro dialog's own "Write
-  // here anyway" button lifts the gate from *outside* the editor entirely —
-  // without this, dismissing that dialog left the view unfocused and the
-  // very next keystrokes went nowhere, a bad first impression in the single
-  // most common fresh-room scenario. `wasWriteLocked` (a plain, non-reactive
-  // tracking variable) detects the true→false transition rather than
-  // refocusing on every unrelated re-render.
   $effect(() => {
     const locked = writeLocked;
     if (view) view.setProps({ editable: () => role === SessionRole.Writer && !locked });
-    if (wasWriteLocked && !locked) view?.focus();
-    wasWriteLocked = locked;
+  });
+
+  // Focuses the view on an explicit "Write alone anyway" click — the
+  // yield-on-write listener below already covers typing/clicking *in* the
+  // editor, but that button lifts the gate from outside it, leaving the next
+  // keystroke to go nowhere. Keyed off `writeSoloAt`, not `writeLocked`
+  // itself, so a peer joining (a natural unlock) never steals focus.
+  $effect(() => {
+    if (writeSoloAt !== null && writeSoloAt !== lastWriteSoloAt) view?.focus();
+    lastWriteSoloAt = writeSoloAt;
   });
 
   onMount(() => {

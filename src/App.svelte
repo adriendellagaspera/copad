@@ -425,8 +425,15 @@
   const soloOptIn = $derived((sessionState.diagnostics.transport === Transport.P2P &&
     soloRooms.includes(room)) as SoloOptIn);
 
+  // Stamped only by the explicit click below — never by `writeLocked` itself
+  // going false, which also happens when a peer joins or durability proves
+  // out. Editor's own focus-on-unlock effect keys off this timestamp so a
+  // natural unlock never steals focus (contract §4.1's "never steal focus").
+  let writeSoloAt = $state<EpochMs | null>(null);
+
   function allowWriteSolo(): void {
     if (!soloRooms.includes(room)) soloRooms = [...soloRooms, room];
+    writeSoloAt = now();
   }
 
   // The waiting tier's primary action (§4.2): copying the link *is* how you
@@ -937,6 +944,7 @@
       lang={language.resolved}
       spellcheck={language.spellcheck}
       {writeLocked}
+      {writeSoloAt}
     />
     <!-- The waiting state itself teaches the contract now — see SyncBanner's
          `gated` tier — instead of a separate one-time explainer dialog

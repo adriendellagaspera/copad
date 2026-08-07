@@ -35,6 +35,34 @@ test('a solo peer-to-peer room gates writing after the settle window, then opens
   await expect(banner).toBeVisible();
 });
 
+test('the explicit "Write alone anyway" click focuses the editor', async ({ page }) => {
+  await page.goto('/?room=intro-solo-focus');
+  const banner = page.locator('.sync-banner');
+  await expect(banner).toBeVisible({ timeout: 20_000 });
+
+  await banner.getByRole('button', { name: 'Write alone anyway' }).click();
+  await expect(page.locator('.ProseMirror')).toBeFocused();
+});
+
+test('a peer joining opens the gate without stealing focus (contract §4.1)', async ({ page, context }) => {
+  await page.goto('/?room=intro-peer-join');
+  const banner = page.locator('.sync-banner');
+  await expect(banner).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
+
+  // Focus something outside the editor before the natural unlock fires below.
+  const roomName = page.getByLabel('Room name');
+  await roomName.click();
+  await expect(roomName).toBeFocused();
+
+  const page2 = await context.newPage();
+  await page2.goto('/?room=intro-peer-join');
+  await expect(page2.locator('.ProseMirror')).toBeVisible();
+
+  await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'true', { timeout: 20_000 });
+  await expect(roomName).toBeFocused();
+});
+
 test('a read-only link never offers the write-alone escape hatch', async ({ page }) => {
   // Storage-backed "never gated" is covered by unit tests (`writeGate.test.ts`,
   // the `savedHere` branch) — no backend is easy to wire in this harness. This
