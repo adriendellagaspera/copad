@@ -50,19 +50,62 @@ export function isValidHref(input: string): boolean {
   }
 }
 
+/** The full span and href of the link mark touching the current caret/
+ *  selection, or null. For a bare caret resting anywhere *on* a link (not
+ *  just at its trailing edge), this walks the contiguous run of text carrying
+ *  the same link mark and returns the whole link's `from`/`to` — so the link
+ *  popover can be opened to *edit* an existing link even when the caret
+ *  arrived by click or arrow, and Update/Unlink then act on the whole link
+ *  rather than a zero-width point (the standard get-mark-range algorithm). */
+export function linkAround(state: EditorState): { href: string; from: number; to: number } | null {
+  const { $from, from, to, empty } = state.selection;
+  if (!empty) {
+    let href: string | null = null;
+    state.doc.nodesBetween(from, to, (node) => {
+      if (href) return;
+      const mark = node.marks.find((m) => m.type === linkType);
+      const h = mark ? linkHref(mark) : null;
+      if (h) href = h;
+    });
+    // For a real selection, act on exactly what the user selected.
+    return href ? { href, from, to } : null;
+  }
+  const parent = $from.parent;
+  const index = $from.index();
+  // $from.marks() (not a raw neighbouring-node lookup) is what respects the
+  // link mark's `inclusive: false`: at a boundary between linked and
+  // unlinked text it correctly drops the mark, so a caret resting right
+  // after a link is not misdetected as "on" it. storedMarks takes priority
+  // when the user just toggled a mark at the caret, same as ProseMirror's
+  // own convention for "marks new input would get".
+  let mark = linkType.isInSet(state.storedMarks ?? $from.marks());
+  // $from.marks() also drops an inclusive:false mark when there's simply no
+  // sibling to compare against — a caret at the very start/end of its parent
+  // (the link is the first or last child, e.g. the first word of a
+  // paragraph). That's a missing-neighbour artifact, not a real link
+  // boundary, so fall back to the one neighbour that does exist.
+  if (!mark && $from.textOffset === 0) {
+    if (index === 0) mark = linkType.isInSet(parent.maybeChild(0)?.marks ?? []);
+    else if (index === parent.childCount) mark = linkType.isInSet(parent.maybeChild(index - 1)?.marks ?? []);
+  }
+  if (!mark) return null;
+  const startOfParent = $from.start();
+  // Expand left/right over every adjacent child carrying this exact link mark.
+  let startIndex = $from.textOffset > 0 ? index : Math.max(0, index - 1);
+  let endIndex = startIndex;
+  while (startIndex > 0 && mark.isInSet(parent.child(startIndex - 1).marks)) startIndex--;
+  while (endIndex < parent.childCount && mark.isInSet(parent.child(endIndex).marks)) endIndex++;
+  let fromPos = startOfParent;
+  for (let i = 0; i < startIndex; i++) fromPos += parent.child(i).nodeSize;
+  let toPos = fromPos;
+  for (let i = startIndex; i < endIndex; i++) toPos += parent.child(i).nodeSize;
+  const href = linkHref(mark);
+  return href ? { href, from: fromPos, to: toPos } : null;
+}
+
 /** The href of the link mark touching the current selection, or null. */
 export function currentLinkHref(state: EditorState): string | null {
-  const { from, $from, to, empty } = state.selection;
-  if (empty) {
-    const mark = linkType.isInSet(state.storedMarks ?? $from.marks());
-    return mark ? linkHref(mark) : null;
-  }
-  let href: string | null = null;
-  state.doc.nodesBetween(from, to, (node) => {
-    const mark = node.marks.find((m) => m.type === linkType);
-    if (mark) href = linkHref(mark);
-  });
-  return href;
+  return linkAround(state)?.href ?? null;
 }
 
 /** True when the selection sits on or within a link. */

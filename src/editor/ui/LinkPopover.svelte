@@ -2,7 +2,7 @@
   import type { EditorView } from 'prosemirror-view';
   import type { EditorState } from 'prosemirror-state';
   import { TextSelection } from 'prosemirror-state';
-  import { setLink, removeLink, currentLinkHref, normalizeHref, isValidHref } from '../linkCommands.js';
+  import { setLink, removeLink, linkAround, normalizeHref, isValidHref } from '../linkCommands.js';
   import { runCommand } from '../commands.js';
 
   let { view, editorState }: { view: EditorView | null; editorState: EditorState | null } = $props();
@@ -29,11 +29,15 @@
     if (!view) return;
     const state = view.state;
     const { from, to, empty } = state.selection;
-    const existing = currentLinkHref(state);
+    // `linkAround` finds the *whole* link the caret rests on (even mid-link,
+    // reached by click or arrow — not just at its trailing edge), so opening
+    // Mod-K on an existing link edits it (Update/Unlink acting on the full
+    // span) instead of blankly offering to create a new one.
+    const existing = linkAround(state);
     wasLinked = existing !== null;
-    href = existing ?? '';
-    linkFrom = from;
-    linkTo = to;
+    href = existing?.href ?? '';
+    linkFrom = existing ? existing.from : from;
+    linkTo = existing ? existing.to : to;
     openDoc = state.doc;
     try {
       const c = view.coordsAtPos(from);
@@ -106,6 +110,13 @@
     if (!view) return;
     const h = href.trim();
     if (!h) {
+      // Empty input = remove the link. Act on the captured link range, not
+      // the live (collapsed) caret — otherwise removeLink only clears stored
+      // marks and leaves the link on the surrounding text intact.
+      const { from, to } = currentLinkRange();
+      if (from !== to) {
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
+      }
       runCommand(view, removeLink);
       close();
       return;
@@ -193,11 +204,28 @@
         <span class="link-error">That doesn't look like a valid link</span>
       {/if}
     </div>
-    <button class="primary" disabled={invalid} onmousedown={(e) => { e.preventDefault(); apply(); }}>
+    <!-- Act on mousedown for the mouse (preventDefault so the press never
+         blurs/dismisses the popover first — that blur is what silently broke
+         mouse-unlink) AND on Enter/Space keydown for the keyboard, so a
+         keyboard user can Tab here and Update/Unlink too. Deliberately NOT
+         plain onclick: a click here fires *after* the blur race and proved
+         unreliable. apply()/unlink() act on the captured linkFrom/linkTo
+         range regardless of which path fires. -->
+    <button
+      class="primary"
+      disabled={invalid}
+      onmousedown={(e) => { e.preventDefault(); apply(); }}
+      onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); apply(); } }}
+    >
       {wasLinked ? 'Update' : 'Link'}
     </button>
     {#if wasLinked}
-      <button class="ghost" onmousedown={(e) => { e.preventDefault(); unlink(); }} title="Remove link">
+      <button
+        class="ghost"
+        title="Remove link"
+        onmousedown={(e) => { e.preventDefault(); unlink(); }}
+        onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); unlink(); } }}
+      >
         Unlink
       </button>
     {/if}
