@@ -12,6 +12,7 @@
 
 import type { Filename, StorageId } from './types.js';
 import { storageKey, type StorageKey } from '../persistence/local.js';
+import type { Milliseconds } from '../time.js';
 
 // ── Backend ids (single source of truth) ──────────────────────────────────────
 
@@ -237,7 +238,7 @@ export const WEBDAV_KEY: StorageKey = backendKey(STORAGE_ID.webdav, 'conf');
 // ── OAuth popup ───────────────────────────────────────────────────────────────
 
 /** How long to wait for the OAuth popup to post its code back before giving up. */
-export const OAUTH_TIMEOUT_MS = envInt(import.meta.env.VITE_OAUTH_TIMEOUT_MS, 5 * 60_000);
+export const OAUTH_TIMEOUT_MS = envInt(import.meta.env.VITE_OAUTH_TIMEOUT_MS, 5 * 60_000) as Milliseconds;
 
 /** Popup window features for the OAuth flow. */
 export const OAUTH_POPUP_FEATURES = envStr(import.meta.env.VITE_OAUTH_POPUP_FEATURES, 'width=520,height=640');

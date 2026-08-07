@@ -87,7 +87,13 @@ export default tseslint.config(
     // now() may call Date.now() directly, so every timestamp is branded at
     // one boundary. Scoped to the files that have adopted the convention so
     // far, not app-wide yet.
-    files: ['src/collaboration/**/*.ts', 'src/Editor.svelte', 'src/App.svelte'],
+    files: [
+      'src/collaboration/**/*.ts',
+      'src/storage/**/*.ts',
+      'src/ui/toasts.svelte.ts',
+      'src/Editor.svelte',
+      'src/App.svelte',
+    ],
     ignores: ['src/**/*.test.ts'],
     rules: {
       'no-restricted-syntax': [

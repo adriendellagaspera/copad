@@ -51,9 +51,10 @@ above plus the build and Playwright e2e suite (`npm run e2e`).
   that immediately narrows (not gated: the "unless" makes this a review call).
 - A duration is `Milliseconds`, a point in time is `EpochMs` (`src/time.ts`) —
   never a bare `number` for either. Construct an `EpochMs` only via `now()`
-  there. **Gated** for `src/collaboration/**`, `Editor.svelte`, `App.svelte`
-  (`no-restricted-syntax` bans `Date.now()` outside `src/time.ts` in those);
-  other verticals haven't adopted the brand yet, so it isn't gated app-wide.
+  there. **Gated** for `src/collaboration/**`, `src/storage/**`,
+  `src/ui/toasts.svelte.ts`, `Editor.svelte`, `App.svelte` (`no-restricted-syntax`
+  bans `Date.now()` outside `src/time.ts` in those); other verticals haven't
+  adopted the brand yet, so it isn't gated app-wide.
 
 ## IO boundary rules (parse, don't validate)
 
