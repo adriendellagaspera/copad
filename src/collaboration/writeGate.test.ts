@@ -1,6 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { writeGateFor, type WriteGateInput, type SoloOptIn } from './writeGate.js';
-import { PresenceKind, SessionRole } from './types.js';
+import {
+  writeGateFor,
+  gateSettleMs,
+  gateLingerMs,
+  GATE_SETTLE_HUB_MS,
+  GATE_SETTLE_P2P_MS,
+  GATE_LINGER_HUB_MS,
+  GATE_LINGER_P2P_MS,
+  type WriteGateInput,
+  type SoloOptIn,
+} from './writeGate.js';
+import { PresenceKind, SessionRole, Transport } from './types.js';
 import type { RoomPresence } from './types.js';
 
 const SOLO_ON = true as SoloOptIn;
@@ -107,5 +117,27 @@ describe('writeGateFor — unlock is immediate, lock is deferred (the core asymm
     expect(writeGateFor({ ...BASE, collabUnavailable: true }).status).toBe('open');
     expect(writeGateFor({ ...BASE, soloOptIn: SOLO_ON }).status).toBe('open');
     expect(writeGateFor({ ...BASE, savedHere: true }).status).toBe('open');
+  });
+});
+
+// docs/contract.md §2.1's inversion: the transport with the better detection
+// (the hub) gets to trust it faster; P2P's structurally unbounded false
+// negatives mean it must wait longer before concluding "alone".
+describe('gateSettleMs / gateLingerMs — the hub’s stricter contract (docs/contract.md §8)', () => {
+  it('settles faster on the hub than on P2P', () => {
+    expect(gateSettleMs(Transport.Hub)).toBe(GATE_SETTLE_HUB_MS);
+    expect(gateSettleMs(Transport.P2P)).toBe(GATE_SETTLE_P2P_MS);
+    expect(GATE_SETTLE_HUB_MS).toBeLessThan(GATE_SETTLE_P2P_MS);
+  });
+
+  it('lingers longer on the hub than on P2P — it has to outlast the awareness sweep', () => {
+    expect(gateLingerMs(Transport.Hub)).toBe(GATE_LINGER_HUB_MS);
+    expect(gateLingerMs(Transport.P2P)).toBe(GATE_LINGER_P2P_MS);
+    expect(GATE_LINGER_HUB_MS).toBeGreaterThan(GATE_LINGER_P2P_MS);
+  });
+
+  it('hub linger covers y-protocols\' 30s outdatedTimeout sweep, or the gate would lock on stale data', () => {
+    const AWARENESS_OUTDATED_TIMEOUT_MS = 30_000;
+    expect(GATE_LINGER_HUB_MS).toBeGreaterThanOrEqual(AWARENESS_OUTDATED_TIMEOUT_MS);
   });
 });

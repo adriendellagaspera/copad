@@ -1,8 +1,9 @@
 # The Copad contract
 
 > Specification. Unimplemented except where a section says otherwise (§4.3, §4.4,
-> §5 have shipped; §2.2/§3.1/§3.4's presence model and write gate are wired; §3.2/§3.3's
-> `WriteReceipt`/`PersistHealth` machine is wired).
+> §5 have shipped; §2.1's hub/P2P settle-linger split, §2.2/§3.1/§3.4's presence
+> model and write gate, and §4/§4.1/§4.2's waiting room and unlock moment are
+> wired; §3.2/§3.3's `WriteReceipt`/`PersistHealth` machine is wired).
 > This is the spine — the part that has to stay coherent, self-sufficient, on its own.
 > Where it cites a mechanism, the citation is to this repo's code or to the upstream
 > project that owns that mechanism — never to an issue tracker or a pull request.
@@ -49,14 +50,21 @@ Presence detection is the load-bearing input of branch (a), and the two transpor
 
 Under this contract those two errors cost wildly different amounts. A P2P false negative **locks you out of your own document for an unbounded time**. A hub false positive lets you write for ≤30 s into a room that just emptied — bounded, and the CRDT converges on reconnect.
 
-### 2.1 The inversion
+### 2.1 The inversion — wired
 
 **The transport with the better detection gets the stricter contract.**
 
-- **Hub — strict, no escape hatch.** *"This document opens for writing when someone else is here. The server keeps the list of who's present: when it says you're alone, you are."* Honest because the registry is authoritative. The stated cost: the server sees everything.
+- **Hub — strict, no escape hatch.** *"This document opens for writing when someone else is here. The server keeps the list of who's present: when it says you're alone, you are."* Honest because the registry is authoritative. The stated cost: the server sees everything. `SyncBanner`'s gated tier states this, and its "Write alone anyway" button is gated on `transport === Transport.P2P` — the hub never renders it.
 - **P2P — default, never absolute.** *"In peer-to-peer, nobody keeps the list. Copad can only know you're alone by hearing no one. When we aren't sure, we let you write. And you can always override."* An explicit, named escape hatch exists permanently.
 
-The hub is not a degraded P2P and P2P is not an approximate hub. Each promises exactly what its mechanics allow.
+The hub is not a degraded P2P and P2P is not an approximate hub. Each promises exactly what its mechanics allow. That inversion carries into the write gate's own clocks (`src/collaboration/writeGate.ts`), not just its copy:
+
+| | Settle (`gateSettleMs`) | Departure linger (`gateLingerMs`) |
+|---|---|---|
+| **Hub** | `GATE_SETTLE_HUB_MS` = 1.5 s — the registry is authoritative, so a settled "alone" is trustworthy almost immediately. | `GATE_LINGER_HUB_MS` = 30 s — must cover y-protocols' `outdatedTimeout` awareness sweep (§2's own table), or the gate would lock while the server's own roster hasn't caught up yet. A correction, not a courtesy. |
+| **P2P** | `GATE_SETTLE_P2P_MS` = 6 s — discovery is one-directional and never retried; a slow announce must not read as a locked-out room. | `GATE_LINGER_P2P_MS` = 3 s — a peer-close event is immediate and reliable, so this is a short courtesy grace window for a mid-sentence writer, not a wait for stale data to expire. |
+
+Both share one cap, `GATE_LINGER_CAP_MS` = 120 s (`src/collaboration/departureHysteresis.ts`) — the typing-extension ceiling, deliberately larger than either base window so a single extension is never clamped away on the hub.
 
 ### 2.2 The uncertainty rule, and its inversion — wired
 
@@ -285,9 +293,9 @@ Two traps: Zoom meeting ids are enumerable, so the canonical form must include `
 3. ~~**`writeGate.ts`**~~ — pure decision function with a full truth table — done (§3.4).
 4. ~~**Wire the gate**~~ — the commit that inverts the polarity — done (§2.2, §4.4's escape hatch). The waiting-room polish in step 6 below (banner tiers per `RoomPresence` kind, pill labels, the `Reaching` UI treatment, typing-extended departure hysteresis) is deliberately left for that step — this one only inverts the lock's polarity and replaces the silent yield with the named escape hatch.
 5. ~~**Write outcome**~~ — `WriteReceipt`, `PersistHealth`, all ten adapters migrated — done (§3.2/§3.3). Non-leader diffusion of a broken leader's health across same-browser tabs (a `BroadcastChannel`, mirroring the leader-election scoping) is left for a follow-up — a non-leader tab simply stays `Unproven`, which never locks on its own, so this is a UX gap (no passive warning shown), not a soundness one.
-6. **The waiting room** — banner tiers, pill labels, `Reaching`, hysteresis.
-7. **The unlock moment** (§4.1). ~~**Export**~~ (§4.3) — done.
-8. **The hub's own contract** — its settle/linger values, its copy, no escape hatch.
+6. ~~**The waiting room**~~ — banner tiers, pill labels, `Reaching`, hysteresis — done (§4, §4.2).
+7. ~~**The unlock moment**~~ (§4.1). ~~**Export**~~ (§4.3) — done.
+8. ~~**The hub's own contract**~~ — its settle/linger values, its copy, no escape hatch — done (§2.1).
 9. ~~**Docs**~~ — `AGENTS.md` is now the single source of contribution rules, `docs/architecture.md` the reference doc, `CLAUDE.md` a pointer to both — done. README still deserves a repositioning pass toward this contract's thesis (§1.2).
 
 Steps 2 and 3 are risk-free and separately testable. Step 4 is the one that changes behaviour.

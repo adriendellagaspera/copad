@@ -80,7 +80,7 @@ test('export a copy is reachable from the read-only band while write-gated', asy
   await page.locator('.ProseMirror').waitFor();
 
   // Solo + P2P + live-only: the gate holds once presence has settled Alone
-  // (GATE_SETTLE_MS) — wait it out without clicking into the editor, since a
+  // (GATE_SETTLE_P2P_MS) — wait it out without clicking into the editor, since a
   // click no longer silently opts into writing solo (contract §4.4's explicit
   // escape hatch replaced that).
   const banner = page.locator('.sync-banner');

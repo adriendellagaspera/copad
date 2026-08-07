@@ -3,16 +3,38 @@
  *  (`aloneSettled`, `withinDepartureLinger`) — same split as `roomLock.ts` / `leader.ts`. */
 
 import type { RoomPresence } from './types.js';
-import { PresenceKind, SessionRole } from './types.js';
+import { PresenceKind, SessionRole, Transport } from './types.js';
 
 /** The user's explicit "Write alone anyway" choice — never a bare boolean. */
 export type SoloOptIn = boolean & { readonly _brand: 'SoloOptIn' };
 
-/** How long presence must stay `Alone` before the gate may lock. */
-export const GATE_SETTLE_MS = 3_000;
+/** How long presence must stay `Alone` before the gate may lock, per transport
+ *  (docs/contract.md §2.1 — the transport with the better detection gets to
+ *  trust its own "alone" faster). The hub's registry is authoritative, so a
+ *  settled hub absence is trustworthy almost immediately. P2P discovery is
+ *  one-directional and never retried — a slow announce must not read as a
+ *  locked-out room, so it waits substantially longer before concluding alone. */
+export const GATE_SETTLE_HUB_MS = 1_500;
+export const GATE_SETTLE_P2P_MS = 6_000;
 
-/** How long after a peer's departure the room still counts as "just left". */
-export const GATE_LINGER_MS = 3_000;
+export function gateSettleMs(transport: Transport): number {
+  return transport === Transport.Hub ? GATE_SETTLE_HUB_MS : GATE_SETTLE_P2P_MS;
+}
+
+/** How long after a peer's departure the room still counts as "just left", per
+ *  transport. The hub's own awareness registry can keep reporting a departed
+ *  peer as present for up to ~30s (y-protocols' `outdatedTimeout` sweep) —
+ *  hub linger must cover that window or the gate would lock while the
+ *  server's own list hasn't caught up, so it's a correction, not a courtesy.
+ *  P2P's peer-close event is immediate and reliable, so its linger is a much
+ *  shorter grace window for a mid-sentence writer, not a wait for stale data
+ *  to expire. */
+export const GATE_LINGER_HUB_MS = 30_000;
+export const GATE_LINGER_P2P_MS = 3_000;
+
+export function gateLingerMs(transport: Transport): number {
+  return transport === Transport.Hub ? GATE_LINGER_HUB_MS : GATE_LINGER_P2P_MS;
+}
 
 export interface WriteGateInput {
   readonly role: SessionRole;
@@ -23,10 +45,10 @@ export interface WriteGateInput {
   readonly soloOptIn: SoloOptIn;
   /** Branch (b): a storage backend of the user's own durably keeps this room. */
   readonly savedHere: boolean;
-  /** True once the current `Alone` presence has held for `GATE_SETTLE_MS`; ignored
-   *  outside `presence.kind === Alone`. */
+  /** True once the current `Alone` presence has held for `gateSettleMs(transport)`;
+   *  ignored outside `presence.kind === Alone`. */
   readonly aloneSettled: boolean;
-  /** True while still within `GATE_LINGER_MS` of a peer's departure. */
+  /** True while still within `gateLingerMs(transport)` of a peer's departure. */
   readonly withinDepartureLinger: boolean;
 }
 

@@ -225,10 +225,15 @@
       <span class="msg">
         <strong>You're the only one here.</strong>
         {#if waitingSinceLabel}Waiting since {waitingSinceLabel}.{/if}
-        Copad opens the document when someone joins — until then you can read,
-        copy and export it, but not write. In peer-to-peer mode nothing you write
-        leaves this device until it's received, so writing alone here would just
-        be lost.
+        {#if isP2P}
+          Copad opens the document when someone joins — until then you can read,
+          copy and export it, but not write. In peer-to-peer mode nothing you write
+          leaves this device until it's received, so writing alone here would just
+          be lost.
+        {:else}
+          The server confirms it — Copad opens the document the instant someone
+          joins. Until then you can read, copy and export it, but not write.
+        {/if}
       </span>
       <span class="actions">
         {#if onCopyInviteLink}
