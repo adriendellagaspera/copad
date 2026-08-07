@@ -6,21 +6,23 @@
  *  caller (`gateLingerMs(transport)`) since the base window itself differs
  *  per transport (§2.1) — this module only owns the shared cap. */
 
+import type { Milliseconds, EpochMs } from '../time.js';
+
 /** However much typing keeps happening, the linger never outlives this many
  *  ms past the actual departure — the contract is a grace window, not an
  *  indefinite hold. Same cap for both transports; it must exceed the larger
  *  of the two base linger windows (`GATE_LINGER_HUB_MS`) or a single
  *  extension would already clamp away on the hub. */
-export const GATE_LINGER_CAP_MS = 120_000;
+export const GATE_LINGER_CAP_MS = 120_000 as Milliseconds;
 
 /** The timestamp at which the departure linger lifts. Extends while the user
  *  keeps typing (`lastTypedAt` after `departedAt`), clamped to the cap. */
 export function departureLingerDeadline(
-  departedAt: number,
-  lastTypedAt: number | null,
-  lingerMs: number,
-): number {
+  departedAt: EpochMs,
+  lastTypedAt: EpochMs | null,
+  lingerMs: Milliseconds,
+): EpochMs {
   const base = departedAt + lingerMs;
   const extended = lastTypedAt !== null && lastTypedAt > departedAt ? lastTypedAt + lingerMs : base;
-  return Math.min(extended, departedAt + GATE_LINGER_CAP_MS);
+  return Math.min(extended, departedAt + GATE_LINGER_CAP_MS) as EpochMs;
 }

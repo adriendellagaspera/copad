@@ -4,6 +4,7 @@
 
 import type { RoomPresence } from './types.js';
 import { PresenceKind, SessionRole, Transport } from './types.js';
+import type { Milliseconds } from '../time.js';
 
 /** The user's explicit "Write alone anyway" choice — never a bare boolean. */
 export type SoloOptIn = boolean & { readonly _brand: 'SoloOptIn' };
@@ -14,11 +15,18 @@ export type SoloOptIn = boolean & { readonly _brand: 'SoloOptIn' };
  *  settled hub absence is trustworthy almost immediately. P2P discovery is
  *  one-directional and never retried — a slow announce must not read as a
  *  locked-out room, so it waits substantially longer before concluding alone. */
-export const GATE_SETTLE_HUB_MS = 1_500;
-export const GATE_SETTLE_P2P_MS = 6_000;
+export const GATE_SETTLE_HUB_MS = 1_500 as Milliseconds;
+export const GATE_SETTLE_P2P_MS = 6_000 as Milliseconds;
 
-export function gateSettleMs(transport: Transport): number {
-  return transport === Transport.Hub ? GATE_SETTLE_HUB_MS : GATE_SETTLE_P2P_MS;
+/** `Record`, not a ternary — adding a third `Transport` without an entry here
+ *  fails to compile instead of silently falling through to a wrong default. */
+const SETTLE_MS: Record<Transport, Milliseconds> = {
+  [Transport.Hub]: GATE_SETTLE_HUB_MS,
+  [Transport.P2P]: GATE_SETTLE_P2P_MS,
+};
+
+export function gateSettleMs(transport: Transport): Milliseconds {
+  return SETTLE_MS[transport];
 }
 
 /** How long after a peer's departure the room still counts as "just left", per
@@ -29,11 +37,16 @@ export function gateSettleMs(transport: Transport): number {
  *  P2P's peer-close event is immediate and reliable, so its linger is a much
  *  shorter grace window for a mid-sentence writer, not a wait for stale data
  *  to expire. */
-export const GATE_LINGER_HUB_MS = 30_000;
-export const GATE_LINGER_P2P_MS = 3_000;
+export const GATE_LINGER_HUB_MS = 30_000 as Milliseconds;
+export const GATE_LINGER_P2P_MS = 3_000 as Milliseconds;
 
-export function gateLingerMs(transport: Transport): number {
-  return transport === Transport.Hub ? GATE_LINGER_HUB_MS : GATE_LINGER_P2P_MS;
+const LINGER_MS: Record<Transport, Milliseconds> = {
+  [Transport.Hub]: GATE_LINGER_HUB_MS,
+  [Transport.P2P]: GATE_LINGER_P2P_MS,
+};
+
+export function gateLingerMs(transport: Transport): Milliseconds {
+  return LINGER_MS[transport];
 }
 
 export interface WriteGateInput {

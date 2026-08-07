@@ -8,6 +8,7 @@
 import type { SignalingUrl, RoomId } from './types.js';
 import { nsKey, NS_PREFIX } from '../config.js';
 import { storageKey, type StorageKey } from '../persistence/local.js';
+import type { Milliseconds } from '../time.js';
 
 // ── Connection defaults ───────────────────────────────────────────────────────
 
@@ -31,12 +32,13 @@ export const DEFAULT_ROOM_NAME = 'copad-demo' as RoomId;
  * different idle window; an unset/invalid value keeps the default.
  */
 const rawKeepalive = Number(import.meta.env.VITE_SIGNALING_KEEPALIVE_MS);
-export const SIGNALING_KEEPALIVE_MS =
-  Number.isInteger(rawKeepalive) && rawKeepalive > 0 ? rawKeepalive : 4 * 60_000;
+export const SIGNALING_KEEPALIVE_MS = (
+  Number.isInteger(rawKeepalive) && rawKeepalive > 0 ? rawKeepalive : 4 * 60_000
+) as Milliseconds;
 
 /** How long a single keep-alive GET may run before it's aborted — bounded so a
  *  hung request can't leak across the ping interval. */
-export const SIGNALING_KEEPALIVE_TIMEOUT_MS = 10_000;
+export const SIGNALING_KEEPALIVE_TIMEOUT_MS = 10_000 as Milliseconds;
 
 /**
  * How long to wait for the ICE-servers endpoint (`VITE_ICE_SERVERS_URL`) before
@@ -48,8 +50,9 @@ export const SIGNALING_KEEPALIVE_TIMEOUT_MS = 10_000;
  * value keeps the default.
  */
 const rawIceTimeout = Number(import.meta.env.VITE_ICE_FETCH_TIMEOUT_MS);
-export const ICE_FETCH_TIMEOUT_MS =
-  Number.isInteger(rawIceTimeout) && rawIceTimeout > 0 ? rawIceTimeout : 5_000;
+export const ICE_FETCH_TIMEOUT_MS = (
+  Number.isInteger(rawIceTimeout) && rawIceTimeout > 0 ? rawIceTimeout : 5_000
+) as Milliseconds;
 
 /**
  * How long a transport may sit not-attached before `createCollabCore` reports
@@ -61,8 +64,9 @@ export const ICE_FETCH_TIMEOUT_MS =
  * via `VITE_CONNECT_TIMEOUT_MS`; an unset/invalid value keeps the default.
  */
 const rawConnectTimeout = Number(import.meta.env.VITE_CONNECT_TIMEOUT_MS);
-export const CONNECT_TIMEOUT_MS =
-  Number.isInteger(rawConnectTimeout) && rawConnectTimeout > 0 ? rawConnectTimeout : 8_000;
+export const CONNECT_TIMEOUT_MS = (
+  Number.isInteger(rawConnectTimeout) && rawConnectTimeout > 0 ? rawConnectTimeout : 8_000
+) as Milliseconds;
 
 // ── Browser-local keys ────────────────────────────────────────────────────────
 

@@ -7,18 +7,19 @@
  */
 
 import type { Awareness } from 'y-protocols/awareness';
+import { now, type Milliseconds, type EpochMs } from '../time.js';
 
 /** Idle-time thresholds (ms) — below FADE_START a peer renders at full
  *  strength; between FADE_START and FADE_DONE it fades; at/after FADE_DONE
  *  it's settled at its faintest (still present — only leaving removes it). */
-export const FADE_START_MS = 20_000;
-export const FADE_DONE_MS = 5 * 60_000;
+export const FADE_START_MS = 20_000 as Milliseconds;
+export const FADE_DONE_MS = (5 * 60_000) as Milliseconds;
 
 export interface PresenceActivity {
   /** Milliseconds since this client's awareness state last changed (cursor
    *  moved, selection changed, …). A client never observed reports 0 — treat
    *  first sight as "active now" so a peer doesn't render pre-faded. */
-  idleMs(clientId: number): number;
+  idleMs(clientId: number): Milliseconds;
   destroy(): void;
 }
 
@@ -31,7 +32,7 @@ export interface PresenceActivity {
  *  idle time never accumulates. So we compare the cursor value itself and
  *  only touch the timestamp when it actually differs from what we last saw. */
 export function trackPresenceActivity(awareness: Awareness): PresenceActivity {
-  const lastActive = new Map<number, number>();
+  const lastActive = new Map<number, EpochMs>();
   const lastCursor = new Map<number, string>();
 
   const cursorKey = (clientId: number): string | undefined => {
@@ -40,7 +41,7 @@ export function trackPresenceActivity(awareness: Awareness): PresenceActivity {
   };
 
   const touch = (clientId: number): void => {
-    lastActive.set(clientId, Date.now());
+    lastActive.set(clientId, now());
     const key = cursorKey(clientId);
     if (key !== undefined) lastCursor.set(clientId, key);
   };
@@ -59,7 +60,7 @@ export function trackPresenceActivity(awareness: Awareness): PresenceActivity {
   return {
     idleMs(clientId) {
       const t = lastActive.get(clientId);
-      return t == null ? 0 : Date.now() - t;
+      return (t == null ? 0 : now() - t) as Milliseconds;
     },
     destroy() {
       awareness.off('change', onChange);
@@ -69,7 +70,7 @@ export function trackPresenceActivity(awareness: Awareness): PresenceActivity {
 
 /** Idle → fade tier, `0` (fresh) to `1` (fully faded). Linear ramp between the
  *  two thresholds so CSS can interpolate opacity/size smoothly. */
-export function fadeTier(idleMs: number): number {
+export function fadeTier(idleMs: Milliseconds): number {
   if (idleMs <= FADE_START_MS) return 0;
   if (idleMs >= FADE_DONE_MS) return 1;
   return (idleMs - FADE_START_MS) / (FADE_DONE_MS - FADE_START_MS);

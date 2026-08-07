@@ -59,6 +59,7 @@
   import { SessionRole, PresenceKind, Transport } from './collaboration/types.js';
   import { writeGateFor, gateSettleMs, gateLingerMs, type SoloOptIn } from './collaboration/writeGate.js';
   import { departureLingerDeadline } from './collaboration/departureHysteresis.js';
+  import { now, type EpochMs } from './time.js';
   import { copyText } from './ui/clipboard.js';
   import { durabilityHolds as computeDurabilityHolds } from './collaboration/persistHealth.js';
   import type { PeerUser } from './ui/types.js';
@@ -273,7 +274,7 @@
   const COLORS: CursorColor[] = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'] as CursorColor[];
   // Editable from the identity menu (avatar) in the header; seeds to a rotating
   // default. Passed to the Editor, which broadcasts it in awareness to peers.
-  let color = $state<CursorColor>(COLORS[Math.floor((Date.now() / 1000) % COLORS.length)]);
+  let color = $state<CursorColor>(COLORS[Math.floor((now() / 1000) % COLORS.length)]);
 
   // ── Document / room ────────────────────────────────────────────────────────
   // Resolved before `backends()` below: each backend targets `room`'s document,
@@ -451,14 +452,14 @@
   // When this stretch of solitude began — drives the waiting tier's "Waiting since
   // 14:02" (docs/contract.md §4.2: a fixed clock time, not a ticking duration, so no
   // interval is needed to keep it current).
-  let waitingSince = $state<number | null>(null);
+  let waitingSince = $state<EpochMs | null>(null);
   $effect(() => {
     if (sessionState.presence.kind !== PresenceKind.Alone) {
       aloneSettled = false;
       waitingSince = null;
       return;
     }
-    waitingSince = Date.now();
+    waitingSince = now();
     const t = setTimeout(() => (aloneSettled = true), gateSettleMs(sessionState.diagnostics.transport));
     return () => clearTimeout(t);
   });
@@ -482,7 +483,7 @@
 
   // Hysteresis so a peer who just left doesn't instantly lock a mid-sentence writer.
   let withinDepartureLinger = $state(false);
-  let departedAt = $state<number | null>(null);
+  let departedAt = $state<EpochMs | null>(null);
   let departedPeerName = $state<string | null>(null);
   let wasAccompanied = false;
   $effect(() => {
@@ -496,7 +497,7 @@
     }
     if (!wasAccompanied) return;
     wasAccompanied = false;
-    departedAt = Date.now();
+    departedAt = now();
     departedPeerName = lastPeers[0]?.name ?? null;
   });
 
@@ -510,7 +511,7 @@
       sessionState.lastLocalEditAt,
       gateLingerMs(sessionState.diagnostics.transport),
     );
-    const remaining = deadline - Date.now();
+    const remaining = deadline - now();
     if (remaining <= 0) {
       withinDepartureLinger = false;
       return;

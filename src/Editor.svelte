@@ -45,6 +45,7 @@
   import { roomName, renameRoom, bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
   import { bindExport, unbindExport } from './editor/exportBridge.svelte.js';
   import DocTitle from './editor/ui/DocTitle.svelte';
+  import { now, type Milliseconds } from './time.js';
   import {
     sessionState,
     setSessionConn,
@@ -79,7 +80,7 @@
   let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, writeLocked = false }: Props =
     $props();
 
-  const SAVE_DEBOUNCE = 3_000;
+  const SAVE_DEBOUNCE = 3_000 as Milliseconds;
 
   // Collab session — created once for the lifetime of this component.
   // untrack: both props are intentionally read once — `room` is fixed for the
@@ -92,7 +93,7 @@
   // so a peer who parked their cursor and stepped away fades instead of
   // cluttering the doc forever (SOTA: Figma fades after ~5 min idle).
   const presenceActivity = trackPresenceActivity(collab.awareness);
-  const REMOTE_CURSOR_FADE_TICK = 15_000;
+  const REMOTE_CURSOR_FADE_TICK = 15_000 as Milliseconds;
   let fadeTimer: ReturnType<typeof setInterval> | undefined;
 
   // Shared, editable room name. It lives in a dedicated Y.Map — NOT the
@@ -133,7 +134,7 @@
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let savedTimer: ReturnType<typeof setTimeout> | undefined;
   // Otherwise a failure on the session's last keystroke is never retried.
-  const RETRY_BACKOFF_MS = [3_000, 6_000, 12_000, 30_000];
+  const RETRY_BACKOFF_MS = [3_000, 6_000, 12_000, 30_000] as Milliseconds[];
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let retryAttempt = 0;
 
@@ -299,7 +300,7 @@
         // A Denied load() falsifies write-access too — usable before the first keystroke.
         const kind = parseWriteFailure(e);
         if (kind === WriteFailureKind.Denied) {
-          persistHealth = nextPersistHealth(persistHealth, { ok: false, kind }, Date.now());
+          persistHealth = nextPersistHealth(persistHealth, { ok: false, kind }, now());
         }
       });
   });
@@ -336,7 +337,7 @@
       })
       .then((receipt) => {
         retryAttempt = 0;
-        persistHealth = nextPersistHealth(persistHealth, { ok: true, receipt }, Date.now());
+        persistHealth = nextPersistHealth(persistHealth, { ok: true, receipt }, now());
         saveStatus = SaveStatus.Saved;
         clearTimeout(savedTimer);
         savedTimer = setTimeout(() => {
@@ -347,7 +348,7 @@
         // A repeat failure is already carried by StatusPill's durable state; toast only the transition into it.
         const wasAlreadyFailing = saveStatus === SaveStatus.Error;
         saveStatus = SaveStatus.Error;
-        persistHealth = nextPersistHealth(persistHealth, { ok: false, kind: parseWriteFailure(e) }, Date.now());
+        persistHealth = nextPersistHealth(persistHealth, { ok: false, kind: parseWriteFailure(e) }, now());
         console.warn('Copad: autosave failed', e);
         if (!wasAlreadyFailing) toasts.error(`Couldn't save to ${label}: ${(e as Error).message}`);
         const backoff = RETRY_BACKOFF_MS[Math.min(retryAttempt, RETRY_BACKOFF_MS.length - 1)];
@@ -425,7 +426,7 @@
         editorState = next;
         const isChangeOrigin = !!tr.getMeta(ySyncPluginKey)?.isChangeOrigin;
         regime = nextRegime(regime, { docChanged: tr.docChanged, isChangeOrigin });
-        if (tr.docChanged && !isChangeOrigin) setSessionLocalEdit(Date.now());
+        if (tr.docChanged && !isChangeOrigin) setSessionLocalEdit(now());
       },
     });
 

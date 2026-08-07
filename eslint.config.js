@@ -80,4 +80,29 @@ export default tseslint.config(
       ],
     },
   },
+
+  {
+    // AGENTS.md "Type system rules": these files brand timing values as
+    // Milliseconds/EpochMs (src/time.ts) instead of bare numbers — only
+    // now() may call Date.now() directly, so every timestamp is branded at
+    // one boundary. Scoped to the files that have adopted the convention so
+    // far, not app-wide yet.
+    files: [
+      'src/collaboration/**/*.ts',
+      'src/storage/**/*.ts',
+      'src/ui/toasts.svelte.ts',
+      'src/Editor.svelte',
+      'src/App.svelte',
+    ],
+    ignores: ['src/**/*.test.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.object.name='Date'][callee.property.name='now']",
+          message: 'Use now() from src/time.ts instead of Date.now(), so the result is EpochMs-branded.',
+        },
+      ],
+    },
+  },
 );
