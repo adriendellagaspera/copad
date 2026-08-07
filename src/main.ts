@@ -4,6 +4,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/app.css';
 import './styles/editor.css';
+import './styles/print.css';
 import 'prosemirror-view/style/prosemirror.css';
 
 mount(App, { target: document.getElementById('root')! });

@@ -97,3 +97,63 @@ test('export a copy is reachable from the read-only band while write-gated', asy
   ]);
   expect(download.suggestedFilename()).toBe('pw-export-gated.md');
 });
+
+test('PDF (print) export opens the browser print flow', async ({ page }) => {
+  await page.goto('/?room=pw-print');
+  const ed = page.locator('.ProseMirror');
+  await ed.waitFor();
+  await ed.click();
+  await page.keyboard.type('# Print me');
+
+  const printCalled = page.evaluate(
+    () => new Promise<void>((resolve) => { window.print = () => resolve(); }),
+  );
+  await page.locator('.cap-btn[title="Settings"]').click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button', { name: 'PDF (print)' }).click();
+  await printCalled;
+});
+
+test('print output hides the room-name field and the caret block-context hint', async ({ page }) => {
+  // Regression: DocTitle's `<input>` and the line-hint decoration both live
+  // inside `.content`/`.ProseMirror`, so the app-chrome exclusion rule
+  // (`.editor > :not(.content)`) can't reach them — they'd otherwise bleed
+  // into the printed output as garbled/overlapping text on top of the real
+  // heading.
+  await page.goto('/?room=pw-print-clean');
+  const ed = page.locator('.ProseMirror');
+  await ed.waitFor();
+  await ed.click();
+  await page.keyboard.type('# Bonjour');
+  await page.waitForTimeout(100); // let the focused-caret line-hint decoration mount
+
+  await page.emulateMedia({ media: 'print' });
+  const docTitle = page.locator('.doc-title');
+  const lineHint = page.locator('.line-hint-inline');
+  await expect(docTitle).toHaveCSS('display', 'none');
+  await expect(lineHint).toHaveCSS('display', 'none');
+  // display:none elements still carry text in the DOM (textContent doesn't
+  // reflect paint), so the real proof is zero rendered client rects.
+  expect(await docTitle.evaluate((el) => el.getClientRects().length)).toBe(0);
+  expect(await lineHint.evaluate((el) => el.getClientRects().length)).toBe(0);
+});
+
+test('print output stays white-background even in dark theme', async ({ page }) => {
+  await page.goto('/?room=pw-print-dark');
+  const ed = page.locator('.ProseMirror');
+  await ed.waitFor();
+
+  const theme = await page.evaluate(() => document.documentElement.dataset.theme);
+  if (theme !== 'dark') {
+    await page.locator('header button[aria-label*="theme"]').click();
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe(
+      'dark',
+    );
+  }
+
+  await page.emulateMedia({ media: 'print' });
+  // body's background-color transitions (base.css); let it settle before reading.
+  await expect
+    .poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor))
+    .toBe('rgb(255, 255, 255)');
+});
