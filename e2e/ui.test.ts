@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import JSZip from 'jszip';
 import { test, expect } from './fixtures';
 
 /** UI/UX regression tests for the redesigned chrome and editor features. */
@@ -96,6 +97,27 @@ test('export a copy is reachable from the read-only band while write-gated', asy
     })(),
   ]);
   expect(download.suggestedFilename()).toBe('pw-export-gated.md');
+});
+
+test('export a copy (Settings) exports the document as a Word (.docx) file', async ({ page }) => {
+  await page.addInitScript(() => { delete (window as { showSaveFilePicker?: unknown }).showSaveFilePicker; });
+  await page.goto('/?room=pw-docx');
+  const ed = page.locator('.ProseMirror');
+  await ed.waitFor();
+  await ed.click();
+  await page.keyboard.type('# Export me');
+
+  await page.locator('.cap-btn[title="Settings"]').click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: /Word \(\.docx\)/ }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe('pw-docx.docx');
+  const path = await download.path();
+  const bytes = readFileSync(path!);
+  const xml = await (await JSZip.loadAsync(bytes)).file('word/document.xml')?.async('string');
+  expect(xml).toContain('Export me');
 });
 
 test('PDF (print) export opens the browser print flow', async ({ page }) => {

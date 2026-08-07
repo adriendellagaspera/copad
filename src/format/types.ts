@@ -27,6 +27,22 @@ export interface Codec {
   encode(doc: Y.Doc): Uint8Array | Promise<Uint8Array>;
 }
 
+/**
+ * A one-way export format (#181) — turns the shared {@link Y.Doc} into bytes
+ * for an outbound copy (DOCX, …), with no `decode` back into the doc.
+ * Deliberately NOT a {@link Codec}: those round-trip bytes ⟷ Y.Doc for backend
+ * persistence, while an export format is never a save target. Every `Codec`
+ * structurally satisfies this shape too (it just also happens to decode), so
+ * `exportCodecs` can combine both kinds in one list.
+ */
+export interface ExportCodec {
+  readonly id: string;
+  readonly label: string;
+  readonly extensions: FileExtension[];
+  /** Serialise the shared doc's current content into file bytes. */
+  encode(doc: Y.Doc): Uint8Array | Promise<Uint8Array>;
+}
+
 /** The extension of a filename, lower-cased and including the dot (e.g. `.md`). */
 export function extensionOf(filename: string): FileExtension {
   const dot = filename.lastIndexOf('.');
