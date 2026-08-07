@@ -45,7 +45,7 @@
   import { roomName, renameRoom, bindRoomName, unbindRoomName, setRoomNameLocal } from './collaboration/roomName.svelte.js';
   import { bindExport, unbindExport } from './editor/exportBridge.svelte.js';
   import DocTitle from './editor/ui/DocTitle.svelte';
-  import { now, type Milliseconds } from './time.js';
+  import { now, type Milliseconds, type EpochMs } from './time.js';
   import {
     sessionState,
     setSessionConn,
@@ -75,10 +75,20 @@
     /** When true the editor is read-only — the write gate (`writeGateFor()` in
      *  `App.svelte`) is holding. This component only reflects it. */
     writeLocked?: boolean;
+    /** Stamped by `App.svelte` only on an explicit "Write alone anyway" click
+     *  — never by `writeLocked` itself going false, which also happens when a
+     *  peer joins or durability proves out. Drives the focus-on-unlock effect
+     *  below; a natural unlock must never steal focus (contract §4.1). */
+    writeSoloAt?: EpochMs | null;
   };
 
-  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, writeLocked = false }: Props =
+  let { storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true, writeLocked = false, writeSoloAt = null }: Props =
     $props();
+
+  // Plain (non-reactive) tracking var — detects a new `writeSoloAt` stamp in
+  // the effect below. untrack: intentionally read once (its value at mount),
+  // not a live reactive binding.
+  let lastWriteSoloAt = untrack(() => writeSoloAt);
 
   const SAVE_DEBOUNCE = 3_000 as Milliseconds;
 
@@ -383,6 +393,16 @@
   $effect(() => {
     const locked = writeLocked;
     if (view) view.setProps({ editable: () => role === SessionRole.Writer && !locked });
+  });
+
+  // Focuses the view on an explicit "Write alone anyway" click — the
+  // yield-on-write listener below already covers typing/clicking *in* the
+  // editor, but that button lifts the gate from outside it, leaving the next
+  // keystroke to go nowhere. Keyed off `writeSoloAt`, not `writeLocked`
+  // itself, so a peer joining (a natural unlock) never steals focus.
+  $effect(() => {
+    if (writeSoloAt !== null && writeSoloAt !== lastWriteSoloAt) view?.focus();
+    lastWriteSoloAt = writeSoloAt;
   });
 
   onMount(() => {
