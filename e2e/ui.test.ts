@@ -137,3 +137,23 @@ test('print output hides the room-name field and the caret block-context hint', 
   expect(await docTitle.evaluate((el) => el.getClientRects().length)).toBe(0);
   expect(await lineHint.evaluate((el) => el.getClientRects().length)).toBe(0);
 });
+
+test('print output stays white-background even in dark theme', async ({ page }) => {
+  await page.goto('/?room=pw-print-dark');
+  const ed = page.locator('.ProseMirror');
+  await ed.waitFor();
+
+  const theme = await page.evaluate(() => document.documentElement.dataset.theme);
+  if (theme !== 'dark') {
+    await page.locator('header button[aria-label*="theme"]').click();
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe(
+      'dark',
+    );
+  }
+
+  await page.emulateMedia({ media: 'print' });
+  // body's background-color transitions (base.css); let it settle before reading.
+  await expect
+    .poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor))
+    .toBe('rgb(255, 255, 255)');
+});

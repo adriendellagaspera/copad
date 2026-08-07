@@ -12,6 +12,35 @@
    ────────────────────────────────────────────────────────────────────────── */
 
 @media print {
+  /* Print always uses the light palette, independent of the active theme —
+     `[data-theme="dark"]` (tokens.css) has higher specificity than `:root`,
+     so it must be overridden here explicitly, not merely left uninherited.
+     Without this, dark mode prints a dark background (or none, depending on
+     the browser's "background graphics" setting) with light-on-light ink. */
+  :root[data-theme='dark'] {
+    --bg: #f6f6f4;
+    --surface: #ffffff;
+    --surface-2: #faf9f7;
+    --surface-3: #f0efeb;
+    --border: #e6e4e0;
+    --border-strong: #d3d0ca;
+    --text: #1d1c1a;
+    --text-muted: #6b6862;
+    --text-faint: #9a968e;
+    --code-bg: #f3f2ef;
+    --code-fg: #9333ea;
+    --codeblock-bg: #1e293b;
+    --codeblock-fg: #e2e8f0;
+  }
+
+  html,
+  body,
+  .app,
+  .editor,
+  .content {
+    background: #ffffff !important;
+  }
+
   header.capsule,
   .mobile-dock,
   .sync-banner,
