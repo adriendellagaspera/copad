@@ -72,6 +72,13 @@ async function documentXml(bytes: Uint8Array): Promise<string> {
   return xml;
 }
 
+async function stylesXml(bytes: Uint8Array): Promise<string> {
+  const zip = await JSZip.loadAsync(bytes);
+  const xml = await zip.file('word/styles.xml')?.async('string');
+  if (!xml) throw new Error('word/styles.xml missing from generated .docx');
+  return xml;
+}
+
 describe('encodeDocx', () => {
   it('produces a valid .docx (zip) archive containing word/document.xml', async () => {
     const bytes = await encodeDocx(seeded());
@@ -110,6 +117,24 @@ describe('encodeDocx', () => {
     expect(xml).toContain('<w:tbl>');
     expect(xml).toContain('A');
     expect(xml).toContain('1');
+  });
+
+  it('sizes table columns as an equal percentage of the full table width', async () => {
+    // Regression: an unset table/cell width falls back to a handful of twips
+    // (near-zero), collapsing every column to unreadable slivers.
+    const xml = await documentXml(await encodeDocx(seeded()));
+    expect(xml).toContain('<w:tblW w:type="pct" w:w="100%"/>');
+    const cellWidths = [...xml.matchAll(/<w:tcW w:type="pct" w:w="([\d.]+)%"\/>/g)].map((m) => Number(m[1]));
+    expect(cellWidths.length).toBeGreaterThan(0);
+    for (const w of cellWidths) expect(w).toBeCloseTo(50, 0); // seeded() is a 2-column table
+  });
+
+  it('sets a legible default body font/size, not OOXML\'s bare 10pt fallback', async () => {
+    // Regression: an empty docDefaults leaves body text at the spec's own
+    // fallback (10pt, no named font), reading as illegibly small.
+    const xml = await stylesXml(await encodeDocx(seeded()));
+    expect(xml).toContain('<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Georgia"');
+    expect(xml).toContain('<w:sz w:val="24"/>');
   });
 
   it('joins code_block lines with an explicit line break', async () => {
