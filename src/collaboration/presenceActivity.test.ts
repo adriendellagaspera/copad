@@ -2,10 +2,13 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
 import { trackPresenceActivity, fadeTier, FADE_START_MS, FADE_DONE_MS } from './presenceActivity.js';
+import type { Milliseconds } from '../time.js';
 
 function newAwareness(): Awareness {
   return new Awareness(new Y.Doc());
 }
+
+const ms = (n: number): Milliseconds => n as Milliseconds;
 
 describe('trackPresenceActivity', () => {
   afterEach(() => vi.useRealTimers());
@@ -71,17 +74,17 @@ describe('trackPresenceActivity', () => {
 
 describe('fadeTier', () => {
   it('is 0 before the fade starts', () => {
-    expect(fadeTier(0)).toBe(0);
+    expect(fadeTier(ms(0))).toBe(0);
     expect(fadeTier(FADE_START_MS)).toBe(0);
   });
 
   it('is 1 once fully idle', () => {
     expect(fadeTier(FADE_DONE_MS)).toBe(1);
-    expect(fadeTier(FADE_DONE_MS + 1_000_000)).toBe(1);
+    expect(fadeTier(ms(FADE_DONE_MS + 1_000_000))).toBe(1);
   });
 
   it('ramps linearly between the thresholds', () => {
-    const mid = FADE_START_MS + (FADE_DONE_MS - FADE_START_MS) / 2;
+    const mid = ms(FADE_START_MS + (FADE_DONE_MS - FADE_START_MS) / 2);
     expect(fadeTier(mid)).toBeCloseTo(0.5);
   });
 });

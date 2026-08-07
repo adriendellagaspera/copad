@@ -49,6 +49,11 @@ above plus the build and Playwright e2e suite (`npm run e2e`).
 - Do not add `any` — **gated**, `@typescript-eslint/no-explicit-any` in
   `eslint.config.js`. Do not widen to `unknown` unless you are writing a parser
   that immediately narrows (not gated: the "unless" makes this a review call).
+- A duration is `Milliseconds`, a point in time is `EpochMs` (`src/time.ts`) —
+  never a bare `number` for either. Construct an `EpochMs` only via `now()`
+  there. **Gated** for `src/collaboration/**`, `Editor.svelte`, `App.svelte`
+  (`no-restricted-syntax` bans `Date.now()` outside `src/time.ts` in those);
+  other verticals haven't adopted the brand yet, so it isn't gated app-wide.
 
 ## IO boundary rules (parse, don't validate)
 
@@ -145,7 +150,8 @@ a self-check, but a violation cannot silently merge):
 
 - [ ] `npm run lint` passes with zero errors (no `any`; no class implementing a
       port; no `localStorage` outside `src/persistence/local.ts`; no adapter
-      import inside `Editor.svelte` or `src/format/**`).
+      import inside `Editor.svelte` or `src/format/**`; no `Date.now()` outside
+      `src/time.ts` within `src/collaboration/**`/`Editor.svelte`/`App.svelte`).
 - [ ] `npm run check` passes with zero errors.
 
 Not mechanically checkable — review judgment only:

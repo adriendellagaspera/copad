@@ -2,6 +2,7 @@
   import { slide } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { ConnStatus, PresenceKind, Transport } from '../collaboration/types.js';
+  import type { EpochMs } from '../time.js';
 
   let {
     conn,
@@ -54,7 +55,7 @@
     collabUnavailable?: boolean;
     /** When this stretch of solitude began, for "Waiting since 14:02" (§4.2). Null
      *  outside the waiting tier. */
-    waitingSince?: number | null;
+    waitingSince?: EpochMs | null;
     /** Name of the peer who just left, for "{name} left" (§4, row ⑥). Null when
      *  unknown or not applicable. */
     departedPeerName?: string | null;

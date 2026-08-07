@@ -12,6 +12,7 @@ import { SaveStatus } from '../ui/types.js';
 import { ConnStatus, PresenceKind, Transport } from './types.js';
 import type { Diagnostics, RoomPresence } from './types.js';
 import { UNPROVEN, PersistRegime, type PersistHealth } from './persistHealth.js';
+import type { EpochMs } from '../time.js';
 
 /** Diagnostics access for the connection dialog — present only while a session
  *  is live, and only on transports that expose it (WebRTC). */
@@ -34,7 +35,7 @@ let regime = $state<PersistRegime>(PersistRegime.Cold);
 // `regime`, a one-way Cold→Warm latch, this repeats on every keystroke. Read by the
 // write gate's departure hysteresis to extend the linger window while typing
 // continues (docs/contract.md §4, "extended by typing — never close mid-sentence").
-let lastLocalEditAt = $state<number | null>(null);
+let lastLocalEditAt = $state<EpochMs | null>(null);
 let users = $state<PeerUser[]>([]);
 let peers = $state(1);
 let diag = $state<SessionDiagnostics>({ transport: Transport.P2P });
@@ -70,7 +71,7 @@ export const sessionState = {
   get regime(): PersistRegime {
     return regime;
   },
-  get lastLocalEditAt(): number | null {
+  get lastLocalEditAt(): EpochMs | null {
     return lastLocalEditAt;
   },
   get users(): PeerUser[] {
@@ -108,7 +109,7 @@ export function setSessionPersistHealth(value: PersistHealth): void {
 export function setSessionRegime(value: PersistRegime): void {
   regime = value;
 }
-export function setSessionLocalEdit(value: number): void {
+export function setSessionLocalEdit(value: EpochMs): void {
   lastLocalEditAt = value;
 }
 export function setSessionPresence(nextUsers: PeerUser[], nextPeers: number): void {

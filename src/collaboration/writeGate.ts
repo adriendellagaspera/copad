@@ -2,8 +2,9 @@
  *  §3.4). No timers/DOM/`Date.now()` inside; time-dependent inputs arrive pre-computed
  *  (`aloneSettled`, `withinDepartureLinger`) — same split as `roomLock.ts` / `leader.ts`. */
 
-import type { RoomPresence, Milliseconds } from './types.js';
+import type { RoomPresence } from './types.js';
 import { PresenceKind, SessionRole, Transport } from './types.js';
+import type { Milliseconds } from '../time.js';
 
 /** The user's explicit "Write alone anyway" choice — never a bare boolean. */
 export type SoloOptIn = boolean & { readonly _brand: 'SoloOptIn' };

@@ -5,6 +5,7 @@
  */
 
 import { WriteFailureKind, WriteLanding, type WriteReceipt } from '../storage/writeOutcome.js';
+import type { EpochMs } from '../time.js';
 
 export const PersistHealthKind = {
   Unproven: 'unproven',
@@ -16,11 +17,11 @@ export type PersistHealthKind = (typeof PersistHealthKind)[keyof typeof PersistH
 
 export type PersistHealth =
   | { readonly kind: typeof PersistHealthKind.Unproven }
-  | { readonly kind: typeof PersistHealthKind.Proven; readonly at: number }
+  | { readonly kind: typeof PersistHealthKind.Proven; readonly at: EpochMs }
   | { readonly kind: typeof PersistHealthKind.Failing; readonly streak: number }
   | {
       readonly kind: typeof PersistHealthKind.Broken;
-      readonly since: number;
+      readonly since: EpochMs;
       readonly cause: WriteFailureKind;
     };
 
@@ -41,7 +42,7 @@ export type WriteOutcome =
   | { readonly ok: false; readonly kind: WriteFailureKind };
 
 /** `now` is a timestamp, not a duration — freshness plays no part in this machine. */
-export function nextPersistHealth(current: PersistHealth, outcome: WriteOutcome, now: number): PersistHealth {
+export function nextPersistHealth(current: PersistHealth, outcome: WriteOutcome, now: EpochMs): PersistHealth {
   if (outcome.ok) {
     if (outcome.receipt.landing === WriteLanding.Landed) {
       return { kind: PersistHealthKind.Proven, at: now };
