@@ -1,0 +1,82 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Print stylesheet — the "PDF (print)" export path (#181): trigger the
+   browser's native print dialog and let the user "Save as PDF", instead of
+   shipping a client-side PDF-rendering library. Real text, real fonts, no
+   rasterization — the trade-off is an extra manual step in the print dialog.
+
+   Strategy: hide every piece of app chrome and float over content (header,
+   docks, banners, toasts, the editor's own toolbar/status bar/popovers) and
+   let only the document content — `.editor > .content` — flow across pages.
+   `.content`/`.ProseMirror` selectors are a contract with e2e/collab.test.ts
+   (see editor.css) — this file only adds rules, never renames them.
+   ────────────────────────────────────────────────────────────────────────── */
+
+@media print {
+  header.capsule,
+  .mobile-dock,
+  .sync-banner,
+  .toasts,
+  .ice-gate,
+  .editor > :not(.content) {
+    display: none !important;
+  }
+
+  /* The room-name field (DocTitle) — an editable `<input>` living inside
+     `.content` as the app's own identifier UI, not authored document
+     content (see DocTitle.svelte's own comment). Form controls also don't
+     print reliably across engines (inconsistent placeholder/value/border
+     rendering). */
+  .doc-title {
+    display: none !important;
+  }
+
+  /* Everything below lives *inside* `.content`/`.ProseMirror` as ProseMirror
+     decorations, not Svelte chrome, so `.editor > :not(.content)` above
+     can't reach it — each is a live editing/collaboration affordance that
+     has no business in an exported copy: the caret's block-context badge
+     (only gated by `pointer: fine`, which print doesn't reliably clear), a
+     remote peer's cursor flag or selection highlight, and the empty-block
+     placeholder's ghost text. */
+  .line-hint-inline,
+  .ProseMirror-yjs-cursor,
+  .ProseMirror-yjs-selection {
+    display: none !important;
+  }
+  .ProseMirror .is-empty::before {
+    content: none !important;
+  }
+
+  /* Defensive catch-all: no dialog/popover/menu should ever be open when
+     print fires (it's triggered from a menu item that already closes
+     itself), but if one is, it must not end up in the printed output. */
+  [class*='backdrop'],
+  [role='dialog'] {
+    display: none !important;
+  }
+
+  /* `.app`/`.editor`/`.content` are sized (and scroll internally) to fit one
+     screen viewport (see app.css / editor.css) — print needs the opposite:
+     natural document flow so the browser can paginate the full document. */
+  .app {
+    height: auto;
+    min-height: 0;
+    max-width: none;
+    padding: 0;
+  }
+  .editor {
+    border: none;
+    box-shadow: none;
+    background: none;
+    flex: none;
+    overflow: visible;
+  }
+  .content {
+    flex: none;
+    overflow: visible;
+    padding: 0;
+  }
+
+  @page {
+    margin: 2cm;
+  }
+}

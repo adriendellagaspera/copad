@@ -18,6 +18,17 @@
     }
     ondone?.();
   }
+
+  // No client-side PDF library: window.print() + the dedicated print
+  // stylesheet (src/styles/print.css) gives real, selectable text via the
+  // browser's own renderer — "Save as PDF" in the native print dialog — for
+  // zero bundle cost and better fidelity than an HTML-to-canvas library. Not
+  // a Codec (there's nothing to encode ahead of time), so it's a plain
+  // action alongside the codec-driven ones rather than another list item.
+  function printToPdf(): void {
+    ondone?.();
+    window.print();
+  }
 </script>
 
 <div class="export-formats">
@@ -27,6 +38,13 @@
       <span class="ext">{codec.extensions[0]}</span>
     </button>
   {/each}
+  <button
+    class="export-item"
+    onclick={printToPdf}
+    title="Opens the browser print dialog — choose “Save as PDF”"
+  >
+    PDF (print)
+  </button>
 </div>
 
 <style>
