@@ -12,9 +12,11 @@ import {
   HeadingLevel,
   LevelFormat,
   BorderStyle,
+  WidthType,
   convertInchesToTwip,
   type IRunStylePropertiesOptions,
   type IParagraphPropertiesOptions,
+  type ITableWidthProperties,
   type ParagraphChild,
 } from 'docx';
 import { readPmDoc } from './pm.js';
@@ -27,6 +29,13 @@ const HEADING_LEVELS = [
 const MAX_LIST_LEVEL = 5; // docx numbering levels are 0-indexed; we define 6 (0-5)
 const ORDERED_REF = 'copad-ordered';
 const LIST_INDENT_IN = 0.25; // extra indent per nesting level, matching a typical Word list
+
+/** The `docx` package leaves body text at OOXML's own bare-spec fallback
+ *  (10pt, no named font) when docDefaults is left empty — reads as
+ *  illegibly small next to the editor's own 18px/13.5pt reading font.
+ *  12pt/Georgia (a serif Word actually ships) is the closest sane match. */
+const BODY_FONT = 'Georgia';
+const BODY_SIZE_HALF_PT = 24; // 12pt
 
 /** `level` 0-5 cycles decimal → lowerLetter → lowerRoman, matching Word's own
  *  default multi-level list style, so nested ordered lists read distinctly. */
@@ -184,18 +193,25 @@ function blockOf(node: PMNode, counter: OrderedCounter, depth: number, orderedIn
     }
 
     case 'table': {
+      // Word/the docx package fall back to ~0-width columns when no width is
+      // given (`w:tblW`/`w:gridCol` default to a handful of twips) — every
+      // cell gets an explicit equal share of the table's own 100% width so
+      // columns render at a readable size instead of collapsing to nothing.
+      const colCount = node.firstChild?.childCount ?? 1;
+      const colWidth: ITableWidthProperties = { size: `${100 / colCount}%`, type: WidthType.PERCENTAGE };
       const rows: TableRow[] = [];
       node.forEach((row) => {
         const cells: TableCell[] = [];
         row.forEach((cell) => {
           const isHeader = cell.type.name === 'table_header';
           cells.push(new TableCell({
+            width: colWidth,
             children: [new Paragraph({ children: runsOf(cell, isHeader ? { bold: true } : {}) })],
           }));
         });
         rows.push(new TableRow({ children: cells }));
       });
-      return [new Table({ rows })];
+      return [new Table({ rows, width: { size: '100%', type: WidthType.PERCENTAGE } })];
     }
 
     default:
@@ -236,6 +252,7 @@ function listItemOf(
 export async function encodeDocx(doc: Y.Doc): Promise<Uint8Array> {
   const root = readPmDoc(doc);
   const document = new Document({
+    styles: { default: { document: { run: { font: BODY_FONT, size: BODY_SIZE_HALF_PT } } } },
     numbering: { config: [orderedNumberingConfig()] },
     sections: [{ children: blocksOf(root, { next: 1 }) }],
   });
