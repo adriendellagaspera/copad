@@ -57,7 +57,7 @@
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
   import { SessionRole, PresenceKind, Transport } from './collaboration/types.js';
-  import { writeGateFor, GATE_SETTLE_MS, type SoloOptIn } from './collaboration/writeGate.js';
+  import { writeGateFor, gateSettleMs, gateLingerMs, type SoloOptIn } from './collaboration/writeGate.js';
   import { departureLingerDeadline } from './collaboration/departureHysteresis.js';
   import { copyText } from './ui/clipboard.js';
   import { durabilityHolds as computeDurabilityHolds } from './collaboration/persistHealth.js';
@@ -459,7 +459,7 @@
       return;
     }
     waitingSince = Date.now();
-    const t = setTimeout(() => (aloneSettled = true), GATE_SETTLE_MS);
+    const t = setTimeout(() => (aloneSettled = true), gateSettleMs(sessionState.diagnostics.transport));
     return () => clearTimeout(t);
   });
 
@@ -505,7 +505,11 @@
   // see departureHysteresis.ts. Capped there, so it can't be extended indefinitely.
   $effect(() => {
     if (departedAt === null) return;
-    const deadline = departureLingerDeadline(departedAt, sessionState.lastLocalEditAt);
+    const deadline = departureLingerDeadline(
+      departedAt,
+      sessionState.lastLocalEditAt,
+      gateLingerMs(sessionState.diagnostics.transport),
+    );
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
       withinDepartureLinger = false;
