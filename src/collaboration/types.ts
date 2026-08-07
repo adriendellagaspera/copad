@@ -6,6 +6,10 @@ import type { BrowserId } from './browserId.js';
 export const SessionRole = { Writer: 'writer', Reader: 'reader' } as const;
 export type SessionRole = (typeof SessionRole)[keyof typeof SessionRole];
 
+/** A duration in milliseconds — branded so it can't be confused with an epoch
+ *  timestamp or any other bare number at a function boundary. */
+export type Milliseconds = number & { readonly _brand: 'Milliseconds' };
+
 /** A collaboration room identifier, derived from the URL or generated randomly.
  *  This is the room's immutable identity — it is never changed by a rename. */
 export type RoomId = string & { readonly _brand: 'RoomId' };
