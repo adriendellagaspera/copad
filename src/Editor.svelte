@@ -14,7 +14,6 @@
   import SelectionToolbar from './editor/ui/SelectionToolbar.svelte';
   import CaretFormatHint from './editor/ui/CaretFormatHint.svelte';
   import { codecForFilename, extensionOf, knownExtensions } from './format/index.js';
-  import { pickFile } from './format/filePicker.js';
   import SlashMenu from './editor/ui/SlashMenu.svelte';
   import LinkPopover from './editor/ui/LinkPopover.svelte';
   import WordCount from './editor/ui/WordCount.svelte';
@@ -81,23 +80,18 @@
      *  peer joins or durability proves out. Drives the focus-on-unlock effect
      *  below; a natural unlock must never steal focus (contract §4.1). */
     writeSoloAt?: EpochMs | null;
-    /** A file picked elsewhere (Settings' Browse dialog — Phase 2 import) waiting
-     *  to be decoded into this document. Distinct from the local one-shot picker
-     *  in `importFile` below, which never leaves this component. */
+    /** A file picked in App.svelte — its own header button, or Settings' Browse
+     *  dialog — waiting to be decoded into this document. App owns every import
+     *  entry point; this is their one hand-off into the live `collab.doc`. */
     importRequest?: { bytes: Uint8Array; filename: Filename } | null;
     /** Called once `importRequest` has been applied (success or failure), so the
      *  parent can clear it and this effect doesn't re-fire on the next render. */
     onImportHandled?: () => void;
-    /** Opens `App.svelte`'s `ExportDialog` — a read, so unlike `importFile`
-     *  it isn't gated on `canImport`/`writeLocked` and needs no local state
-     *  here at all; this toolbar button is a third entry point alongside the
-     *  read-only band and Settings (contract §4.3). */
-    onExport?: () => void;
   };
 
   let {
     storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true,
-    writeLocked = false, writeSoloAt = null, importRequest = null, onImportHandled, onExport,
+    writeLocked = false, writeSoloAt = null, importRequest = null, onImportHandled,
   }: Props = $props();
 
   // Plain (non-reactive) tracking var — detects a new `writeSoloAt` stamp in
@@ -328,13 +322,13 @@
   });
 
   // Import of an arbitrary file into the current document — no backend
-  // involved for this write itself (see #190/#16 for the local one-shot
-  // picker below, #190-phase-2 for the Browse-a-connected-backend path via
-  // `importRequest`). `codec.decode` writes straight into `collab.doc` via
-  // `writePmDoc`/`prosemirrorToYXmlFragment` rather than a ProseMirror
-  // transaction, so it bypasses `view.editable` entirely: the write-gate has
-  // to be re-checked here explicitly, and the button below stays disabled
-  // otherwise.
+  // involved for this write itself. App.svelte owns every entry point (its
+  // own header button, Settings' Browse-a-connected-backend dialog) and
+  // hands the picked bytes down via `importRequest`; this is only where the
+  // decode actually happens, since `collab.doc` lives here. `codec.decode`
+  // writes straight into it via `writePmDoc`/`prosemirrorToYXmlFragment`
+  // rather than a ProseMirror transaction, so it bypasses `view.editable`
+  // entirely — the write-gate has to be re-checked here explicitly.
   const canImport = $derived(role === SessionRole.Writer && !writeLocked);
 
   async function applyImport(bytes: Uint8Array, filename: Filename): Promise<void> {
@@ -357,25 +351,14 @@
     }
   }
 
-  async function importFile(): Promise<void> {
-    if (!canImport) return;
-    let file: File;
-    try {
-      file = await pickFile();
-    } catch {
-      return; // cancelled
-    }
-    await applyImport(new Uint8Array(await file.arrayBuffer()), file.name as Filename);
-  }
-
-  // A file picked in a connected backend's Browse dialog (Settings, via
-  // App.svelte — see `importRequest` prop above) arrives here once per
-  // distinct request; `onImportHandled` lets the parent clear it so this
-  // effect doesn't re-fire on the next unrelated render. Settings has no
-  // write-gate awareness of its own (it's rendered regardless of role), so
-  // — unlike the toolbar's disabled button — a request can arrive here from
-  // a reader; always resolve it (never leave it dangling for a later gate
-  // change to silently pick up) and say why nothing happened.
+  // A file picked in App.svelte (its header button or Settings' Browse
+  // dialog — see `importRequest` prop above) arrives here once per distinct
+  // request; `onImportHandled` lets the parent clear it so this effect
+  // doesn't re-fire on the next unrelated render. Settings has no write-gate
+  // awareness of its own (it's rendered regardless of role), so a request
+  // can arrive here from a reader even though App's own header button stays
+  // disabled for one — always resolve it (never leave it dangling for a
+  // later gate change to silently pick up) and say why nothing happened.
   $effect(() => {
     const req = importRequest;
     if (!req) return;
@@ -568,7 +551,7 @@
     class:editing={sessionState.editing}
     style="--kb-inset: {keyboardInset.px}px"
   >
-    <Toolbar {view} {editorState} {toasts} {canImport} onImport={importFile} {onExport} />
+    <Toolbar {view} {editorState} {toasts} />
   </div>
   <!-- DocTitle renders inside `.content` (not as a sibling) so it scrolls away
        with the rest of the document instead of costing permanent chrome —
@@ -586,7 +569,7 @@
     <WordCount {editorState} />
     <Outline {view} {editorState} />
   </div>
-  <SelectionToolbar {view} {editorState} {toasts} {canImport} onImport={importFile} {onExport} />
+  <SelectionToolbar {view} {editorState} {toasts} />
   <CaretFormatHint {view} {editorState} />
   <SlashMenu {view} {editorState} />
   <LinkPopover {view} {editorState} />

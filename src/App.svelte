@@ -2,6 +2,7 @@
   import { tick as nextTick, untrack } from 'svelte';
   import { fade } from 'svelte/transition';
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
+  import { pickFile } from './format/filePicker.js';
   import type { StorageBackend } from './storage/index.js';
   import { savedRoomsStore } from './storage/savedRooms.js';
   import { filenameForRoom, firstFileCollision } from './storage/filename.js';
@@ -318,9 +319,10 @@
   // Cast at the IO boundary: user-typed strings enter the domain as DisplayName here.
   let name = $state<DisplayName>('Anonymous' as DisplayName);
 
-  // A file picked in Settings' Browse dialog (Phase 2 import), waiting to be
-  // decoded into the live doc. Settings and Editor are siblings — `collab.doc`
-  // only exists inside Editor — so this is the hand-off between them.
+  // A file picked in Settings' Browse dialog (Phase 2 import) or the header's
+  // own local-file picker below, waiting to be decoded into the live doc.
+  // App and Editor are siblings — `collab.doc` only exists inside Editor —
+  // so this is the hand-off between them.
   let pendingImport = $state<{ bytes: Uint8Array; filename: Filename } | null>(null);
 
   // Bumped when localStorage state changes (config saved, auth token stored).
@@ -570,6 +572,24 @@
   );
   const writeLocked = $derived(gate.status === 'held');
 
+  // Import bypasses ProseMirror's own `editable` check entirely (`codec.decode`
+  // writes straight into `collab.doc`), so the header button's own enabled
+  // state has to re-derive the write gate independently — Editor re-checks it
+  // again on the `pendingImport` hand-off (see its `importRequest` effect),
+  // this is only the header's own visible affordance.
+  const canImportHere = $derived(sessionRole === SessionRole.Writer && !writeLocked);
+
+  async function importLocalFile(): Promise<void> {
+    if (!canImportHere) return;
+    let file: File;
+    try {
+      file = await pickFile();
+    } catch {
+      return; // cancelled
+    }
+    pendingImport = { bytes: new Uint8Array(await file.arrayBuffer()), filename: file.name as Filename };
+  }
+
   // Superset of `writeLocked` — drives `SyncBanner`'s tiering during the pre-lock
   // grace window, before the clocks let `writeGateFor` actually return `held`.
   const gateEligible = $derived(
@@ -767,6 +787,23 @@
       </svg>
     </button>
 
+    <button
+      class="cap-btn"
+      onclick={importLocalFile}
+      disabled={!canImportHere}
+      title="Import a file into this document"
+      aria-label="Import a file into this document"
+    >
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12m0 0l-4-4m4 4l4-4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+      </svg>
+    </button>
+    <button class="cap-btn" onclick={() => (exportOpen = true)} title="Export a copy of this document" aria-label="Export a copy of this document">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 15V3m0 0l-4 4m4-4l4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+      </svg>
+    </button>
+
     <div class="cap-fill"></div>
 
     <div class="session">
@@ -852,6 +889,16 @@
     <button class="dock-btn" onclick={newRoom} title="New document (opens in a new tab)" aria-label="New document (opens in a new tab)">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 5v14M5 12h14" />
+      </svg>
+    </button>
+    <button class="dock-btn" onclick={importLocalFile} disabled={!canImportHere} title="Import a file into this document" aria-label="Import a file into this document">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12m0 0l-4-4m4 4l4-4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+      </svg>
+    </button>
+    <button class="dock-btn" onclick={() => (exportOpen = true)} title="Export a copy of this document" aria-label="Export a copy of this document">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 15V3m0 0l-4 4m4-4l4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
     </button>
     <button class="dock-share" onclick={() => (shareOpen = true)} title="Share / invite collaborators" aria-label="Share / invite collaborators">
@@ -952,7 +999,6 @@
       {writeSoloAt}
       importRequest={pendingImport}
       onImportHandled={() => (pendingImport = null)}
-      onExport={() => (exportOpen = true)}
     />
     <!-- The waiting state itself teaches the contract now — see SyncBanner's
          `gated` tier — instead of a separate one-time explainer dialog
