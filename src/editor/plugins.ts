@@ -1,5 +1,5 @@
 import { keymap } from 'prosemirror-keymap';
-import { baseKeymap, chainCommands, toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
+import { baseKeymap, chainCommands, toggleMark, setBlockType, wrapIn, lift, selectTextblockStart, selectTextblockEnd } from 'prosemirror-commands';
 import { splitListItem, liftListItem, sinkListItem, wrapInList } from 'prosemirror-schema-list';
 import {
   inputRules,
@@ -7,21 +7,25 @@ import {
   textblockTypeInputRule,
   InputRule,
 } from 'prosemirror-inputrules';
-import { undo, redo } from 'y-prosemirror';
+import { undo, redo, yUndoPluginKey } from 'y-prosemirror';
 import { findWrapping } from 'prosemirror-transform';
 import {
   goToNextCell,
   columnResizing,
   tableEditing,
-  addRowAfter,
+  addRowAfter as addRowAfterRaw,
+  deleteRow as deleteRowRaw,
+  addColumnAfter as addColumnAfterRaw,
+  deleteColumn as deleteColumnRaw,
+  toggleHeaderRow as toggleHeaderRowRaw,
+  deleteTable as deleteTableRaw,
   CellSelection,
-  selectedRect,
-  deleteTable,
   cellAround,
   nextCell,
   TableMap,
 } from 'prosemirror-tables';
-import type { MarkType, Node as PMNode, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
+import { Fragment, Slice } from 'prosemirror-model';
+import type { Attrs, MarkType, Node as PMNode, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
 import { Selection, TextSelection, PluginKey, Plugin } from 'prosemirror-state';
 import type { Command, EditorState, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
@@ -186,6 +190,50 @@ export function toggleBlockType(type: NodeType, paragraph: NodeType): Command {
   };
 }
 
+/** True when some ancestor of the caret (up to the doc) is a `type` node with
+ *  matching `attrs` — the wrapping-node counterpart to `hasMarkup`, which only
+ *  ever sees the immediate textblock. Used both to light a toolbar button and
+ *  to decide a toggle's direction. */
+function ancestorHasType(state: EditorState, type: NodeType, attrs?: Attrs | null): boolean {
+  const { $from, to } = state.selection;
+  if (to > $from.end($from.depth)) return false;
+  for (let d = $from.depth; d >= 0; d--) {
+    if ($from.node(d).hasMarkup(type, attrs ?? null)) return true;
+  }
+  return false;
+}
+
+/** Heading toggle: turn the line into a heading at `level`, or back to a plain
+ *  paragraph if it already *is* that exact level — so re-pressing Mod-Alt-1 (or
+ *  re-clicking H1) reverts to body text, the Docs/Notion convention. Switching
+ *  between levels still just re-levels (H2 → H1), it only toggles off when the
+ *  level already matches. */
+export function toggleHeading(headingType: NodeType, paragraphType: NodeType, level: number): Command {
+  return (state, dispatch, view) => {
+    const active = ancestorHasType(state, headingType, { level });
+    return (active ? setBlockType(paragraphType) : setBlockType(headingType, { level }))(state, dispatch, view);
+  };
+}
+
+/** List toggle: wrap the block in `listType`, or lift it back out to a plain
+ *  paragraph if it already lives in that list type — so the list shortcut/
+ *  button is a real toggle (Docs/Notion), not a one-way trip. */
+export function toggleList(listType: NodeType, itemType: NodeType): Command {
+  const wrap = wrapInList(listType);
+  const off = liftListItem(itemType);
+  return (state, dispatch, view) =>
+    (ancestorHasType(state, listType) ? off : wrap)(state, dispatch, view);
+}
+
+/** Wrap toggle (blockquote): wrap the block, or lift it out if already wrapped
+ *  — stops the "re-invoke nests another blockquote forever, no way back out"
+ *  trap and gives a keyboard/button path to un-quote. */
+export function toggleWrap(wrapType: NodeType): Command {
+  const wrap = wrapIn(wrapType);
+  return (state, dispatch, view) =>
+    (ancestorHasType(state, wrapType) ? lift : wrap)(state, dispatch, view);
+}
+
 type RuleHandler = (
   state: EditorState,
   match: RegExpMatchArray,
@@ -235,7 +283,15 @@ export function linkRuleHandler(markType: MarkType): RuleHandler {
     const matchEnd = matchStart + whole.length;
     tr.delete(matchStart, matchEnd);
     tr.insertText(text, matchStart);
-    tr.addMark(matchStart, matchStart + text.length, markType.create({ href }));
+    const textEnd = matchStart + text.length;
+    tr.addMark(matchStart, textEnd, markType.create({ href }));
+    // Park the caret explicitly right after the link text. Without this the
+    // mapped selection biases *past* the insertion, which lands it in the
+    // next cell when the rule fires inside a table (the cell boundary sits
+    // one position beyond the text) — silently scattering further typing
+    // into the wrong cell. An explicit in-cell caret keeps it put, in a
+    // table or a paragraph alike.
+    tr.setSelection(TextSelection.create(tr.doc, textEnd));
     tr.removeStoredMark(markType);
     return tr;
   };
@@ -261,6 +317,8 @@ export const LINK_RULE = /(?:^|\s)(\[([^\]]+)\]\(([^)\s]+)\))$/;
  *  the bullet-list rule above already fires on `- ` alone, so a dash-prefixed
  *  trigger could never be typed before that rule pre-empts it. */
 export const CHECKLIST_RULE = /^\s*\[([ xX]?)\]\s$/;
+/** Horizontal rule: bare `---`, `***` or `___` on their own line. */
+export const HORIZONTAL_RULE_RULE = /^(?:---|___|\*\*\*)$/;
 
 /**
  * Handles both checklist shapes a plain `wrappingInputRule` can't tell apart:
@@ -297,27 +355,62 @@ export function checklistRuleHandler(s: Schema): RuleHandler {
   };
 }
 
-/** Swallow Enter inside a table cell instead of letting `baseKeymap`'s
- *  `splitBlock` split the cell itself in two — GFM-shaped cells are
- *  single-line (`cellContent: 'inline*'`, see schema.ts), so there's no
- *  "new paragraph within the cell" to make room for. Only reached once
- *  {@link exitTableAtBoundary} has already ruled out an actual escape. */
-function preventEnterInTableCell(s: Schema): Command {
-  return (state) => {
-    const { parent } = state.selection.$from;
-    return parent.type === s.nodes.table_cell || parent.type === s.nodes.table_header;
+/**
+ * If a horizontal rule just landed as the *last* child of a table cell
+ * (confirmed live: this happens whenever a cell's trailing content closes
+ * into an hr — including a cell whose entire content was just the `---`
+ * trigger, leaving the rule as its only child), ProseMirror's own
+ * NodeSelection-around-the-rule lands right at the cell's outer edge —
+ * typing further doesn't insert locally the way it does for an hr *outside*
+ * any table (where it just replaces the selected node); instead it's been
+ * observed to jump to the *next* cell entirely, silently losing whatever
+ * was typed from the cell it visually looks like you're still in. Appending
+ * an empty paragraph after the rule keeps a normal typable position inside
+ * the same cell, the same shape {@link exitTableAtBoundary} used to give an
+ * escape route — except this one never leaves the cell at all. A no-op
+ * outside any table, or when the rule isn't actually the cell's last child
+ * (e.g. `a---b`, which already keeps its own trailing "b" paragraph).
+ */
+export function keepCellTypableAfterHr(tr: Transaction, s: Schema, mappedPos: number): void {
+  const $pos = tr.doc.resolve(mappedPos);
+  const $cell = cellAround($pos);
+  const cellNode = $cell?.nodeAfter;
+  if (!$cell || !cellNode || cellNode.lastChild?.type !== s.nodes.horizontal_rule) return;
+  const para = s.nodes.paragraph.createAndFill();
+  if (!para) return;
+  const insertAt = $cell.pos + 1 + cellNode.content.size;
+  tr.insert(insertAt, para);
+  // Without this, the transaction's own NodeSelection (still wrapping the
+  // rule from before this fresh paragraph existed) is what the caret
+  // inherits — confirmed live that typing against that stale selection
+  // jumps to a different cell entirely rather than landing in the new
+  // paragraph right next to it.
+  tr.setSelection(Selection.near(tr.doc.resolve(insertAt + 1), 1));
+}
+
+/**
+ * Handles `---`/`___`/`***` closing into a horizontal rule. `horizontal_rule`
+ * is a valid sibling wherever ordinary block content is (including inside a
+ * table cell, which now holds real block content — see schema.ts):
+ * `replaceRangeWith` splits the enclosing paragraph in two and inserts the
+ * rule between the halves, exactly as it already does for a plain paragraph
+ * outside any table — confirmed this stays schema-valid and doesn't disturb
+ * the table's own structure (still one row, one cell, same column count).
+ * See {@link keepCellTypableAfterHr} for the one follow-up fixup this needs.
+ */
+export function horizontalRuleHandler(s: Schema): RuleHandler {
+  return (state, _match, start, end) => {
+    const tr = state.tr.replaceRangeWith(start, end, s.nodes.horizontal_rule.create());
+    keepCellTypableAfterHr(tr, s, tr.mapping.map(start));
+    return tr;
   };
 }
 
 /**
  * Shift-Enter inserts a hard line break in the current block — the Slack/
  * Docs/Notion convention for "new line, not a new paragraph" — wherever the
- * schema allows one. `hard_break` ships as part of `prosemirror-schema-basic`'s
- * inline group, so it's already valid inside a GFM table cell's `inline*`
- * content (see schema.ts) without any schema change; this is what actually
- * wires it up, as the one schema-safe middle ground between swallowing Enter
- * in a cell entirely and allowing full multi-paragraph cells (which would
- * break lossless GFM round-trip — see the markdown codec's `cellText`).
+ * schema allows one, table cell or not (`hard_break` ships as part of
+ * `prosemirror-schema-basic`'s inline group, valid inside any textblock).
  * Returns `false` in a code block, where Shift-Enter falls through to the
  * browser's native newline-in-`<pre>` handling instead, same as plain Enter
  * already does via `newlineInCode`.
@@ -330,86 +423,69 @@ export const insertHardBreak: Command = (state, dispatch) => {
 };
 
 /**
- * Enter at the very start of any cell in a table's top row, or the very end
- * of any cell in its bottom row, escapes the table instead of being
- * swallowed like every other Enter inside a cell (see
- * {@link preventEnterInTableCell}) — otherwise a table that opens or closes
- * the document traps the caret with no keyboard way out (cells can't grow a
- * new line to push past it, unlike a paragraph). Keyed off `rowIndex` only
- * (top/bottom), not `cellIndex`, matching {@link tableArrowVertical}'s
- * escape branch — arrowing up from anywhere in the top row already exits
- * above (the Word/Docs/Excel convention), so Enter doing the same only from
- * the literal corner cell would be an inconsistency a keyboard user could
- * easily notice. Moves into whichever block already sits next to the table
- * if there is one, or inserts a fresh paragraph there otherwise — the same
- * "reuse a neighbour, else make one" shape as {@link exitCodeBlock}, just
- * usable in both directions since a table (unlike a code block) can trap
- * the caret from either end.
+ * Tab in a plain paragraph — nowhere left in the chain to sink a list item
+ * or move to another table cell — inserts a literal tab character instead
+ * of falling through to the browser's default tab-out-of-the-editor
+ * behavior. Tab must always mean something inside the editor (the same
+ * restraint already applied to a table's own Tab handling, see
+ * {@link tabAddsRowAtEnd}'s doc comment): a document editor that lets a
+ * stray Tab press silently yank focus onto page chrome is a keyboard trap,
+ * not a keyboard shortcut. Always handled, so it's the final entry in the
+ * 'Tab' keymap chain.
  */
-export function exitTableAtBoundary(s: Schema, dir: 1 | -1): Command {
+export const insertTabCharacter: Command = (state, dispatch) => {
+  if (dispatch) dispatch(state.tr.insertText('\t').scrollIntoView());
+  return true;
+};
+
+/**
+ * Shift-Tab's mirror: removes a single tab character immediately before the
+ * caret if one is there (undoing {@link insertTabCharacter}'s indent), and
+ * swallows the key either way — never falling through to the browser's
+ * reverse-tab-order default, which would be exactly the same focus-escape
+ * `insertTabCharacter` exists to prevent, just in the other direction.
+ */
+export const removeTabCharacterBefore: Command = (state, dispatch) => {
+  const { $from, empty } = state.selection;
+  if (empty && $from.parentOffset > 0 && $from.parent.textBetween($from.parentOffset - 1, $from.parentOffset) === '\t') {
+    if (dispatch) dispatch(state.tr.delete($from.pos - 1, $from.pos).scrollIntoView());
+  }
+  return true;
+};
+
+/**
+ * Backspace at the very start of a table's top row (any column, any block
+ * within the top-left cell) — reaching before the table's `isolating`
+ * boundary (prosemirror-tables' own schema), which is exactly right for
+ * preventing `baseKeymap`'s default `joinBackward` from welding a preceding
+ * paragraph's text into table structure — but also means Backspace there
+ * silently does nothing at all, with no way to reach or remove whatever
+ * sits just above the table without first clicking directly on it. If the
+ * preceding block is empty, delete it outright — the concrete case a user
+ * actually wants Backspace for here (an unwanted blank line pinned directly
+ * above the table, otherwise removable only by precisely clicking that
+ * one-line target). If it has content, move the caret to its end instead of
+ * merging anything — putting the caret exactly "in front of" the table,
+ * from which a second, ordinary Backspace behaves normally. No-op with
+ * nothing before the table at all (matches the default behavior at the
+ * very start of the document). Uses {@link cellAround}/
+ * {@link cellContentRange} rather than a fixed depth offset, since a cell
+ * can now hold several blocks (see schema.ts) — "the very start of the
+ * cell" is the start of its full content span, not just of whichever inner
+ * block the caret happens to be in.
+ */
+export function backspaceAtTableStart(): Command {
   return (state, dispatch) => {
     const { $from, empty } = state.selection;
     if (!empty) return false;
-    const depth = $from.depth;
-    const cell = depth >= 0 ? $from.node(depth) : null;
-    if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
-    if (depth < 2) return false;
-    const table = $from.node(depth - 2);
-    const rowIndex = $from.index(depth - 2);
+    const $cell = cellAround($from);
+    if (!$cell) return false;
+    const { start } = cellContentRange($cell);
+    if ($from.pos !== start) return false;
+    const rowDepth = $cell.depth;
+    if ($cell.index(rowDepth - 1) !== 0) return false;
 
-    if (dir === -1) {
-      if ($from.parentOffset !== 0 || rowIndex !== 0) return false;
-    } else {
-      if ($from.parentOffset !== cell.content.size || rowIndex !== table.childCount - 1) return false;
-    }
-
-    if (dispatch) {
-      const tr = state.tr;
-      const boundary = dir === -1 ? $from.before(depth - 2) : $from.after(depth - 2);
-      const $boundary = tr.doc.resolve(boundary);
-      const hasNeighbour = dir === -1 ? $boundary.nodeBefore : $boundary.nodeAfter;
-      if (!hasNeighbour) {
-        const para = s.nodes.paragraph.createAndFill();
-        if (!para) return false;
-        tr.insert(boundary, para);
-      }
-      const pos = hasNeighbour ? boundary + dir : boundary + 1;
-      tr.setSelection(Selection.near(tr.doc.resolve(pos), dir));
-      dispatch(tr.scrollIntoView());
-    }
-    return true;
-  };
-}
-
-/**
- * Backspace at the very start of any cell in a table's top row — the mirror
- * image of {@link exitTableAtBoundary}'s dir=-1 case, but for Backspace
- * instead of Enter, and (like {@link tableArrowVertical}) not limited to
- * the literal first cell. A table is `isolating` (prosemirror-tables' own
- * schema), which is exactly right for preventing `baseKeymap`'s default
- * `joinBackward` from welding a preceding paragraph's text into table
- * structure — but it also means Backspace there silently does nothing at
- * all, with no way to reach or remove whatever sits just above the table
- * without first clicking directly on it. If the preceding block is empty,
- * delete it outright — the concrete case a user actually wants Backspace
- * for here (an unwanted blank line pinned directly above the table,
- * otherwise removable only by precisely clicking that one-line target). If
- * it has content, move the caret to its end instead of merging anything —
- * putting the caret exactly "in front of" the table, from which a second,
- * ordinary Backspace behaves normally. No-op with nothing before the table
- * at all (matches the default behavior at the very start of the document).
- */
-export function backspaceAtTableStart(s: Schema): Command {
-  return (state, dispatch) => {
-    const { $from, empty } = state.selection;
-    if (!empty || $from.parentOffset !== 0) return false;
-    const depth = $from.depth;
-    const cell = depth >= 0 ? $from.node(depth) : null;
-    if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
-    if (depth < 2) return false;
-    if ($from.index(depth - 2) !== 0) return false;
-
-    const before = $from.before(depth - 2);
+    const before = $cell.before(rowDepth - 1);
     const $before = state.doc.resolve(before);
     const prev = $before.nodeBefore;
     if (!prev) return false;
@@ -428,11 +504,11 @@ export function backspaceAtTableStart(s: Schema): Command {
 }
 
 /**
- * Forward-Delete at the very end of any cell in a table's bottom row — the
- * mirror image of {@link backspaceAtTableStart}, but for Delete instead of
- * Backspace, reaching forward past the table's `isolating` boundary instead
- * of backward. Without this, Delete at the end of the last cell silently
- * does nothing (`baseKeymap`'s default `joinForward` is blocked the same way
+ * Forward-Delete at the very end of a table's bottom row — the mirror image
+ * of {@link backspaceAtTableStart}, but for Delete instead of Backspace,
+ * reaching forward past the table's `isolating` boundary instead of
+ * backward. Without this, Delete at the end of the last cell silently does
+ * nothing (`baseKeymap`'s default `joinForward` is blocked the same way
  * `joinBackward` is), with no way to reach or remove a stray blank paragraph
  * sitting directly after the table short of clicking it directly. If the
  * following block is empty, delete it outright; if it has content, move the
@@ -440,19 +516,19 @@ export function backspaceAtTableStart(s: Schema): Command {
  * exactly "behind" the table, from which a second, ordinary Delete behaves
  * normally. No-op with nothing after the table at all.
  */
-export function deleteAtTableEnd(s: Schema): Command {
+export function deleteAtTableEnd(): Command {
   return (state, dispatch) => {
     const { $from, empty } = state.selection;
     if (!empty) return false;
-    const depth = $from.depth;
-    const cell = depth >= 0 ? $from.node(depth) : null;
-    if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
-    if (depth < 2) return false;
-    if ($from.parentOffset !== cell.content.size) return false;
-    const table = $from.node(depth - 2);
-    if ($from.index(depth - 2) !== table.childCount - 1) return false;
+    const $cell = cellAround($from);
+    if (!$cell) return false;
+    const { end } = cellContentRange($cell);
+    if ($from.pos !== end) return false;
+    const rowDepth = $cell.depth;
+    const table = $cell.node(rowDepth - 1);
+    if ($cell.index(rowDepth - 1) !== table.childCount - 1) return false;
 
-    const after = $from.after(depth - 2);
+    const after = $cell.after(rowDepth - 1);
     const $after = state.doc.resolve(after);
     const next = $after.nodeAfter;
     if (!next) return false;
@@ -471,26 +547,38 @@ export function deleteAtTableEnd(s: Schema): Command {
 }
 
 /**
- * Backspace or Delete with the *entire* table selected — a `CellSelection`
- * spanning every row and column — deletes the whole table. This is the
- * confirmed convention in both Word and Google Docs: selecting the whole
- * table (its move-handle/four-arrow icon, or dragging across every cell)
- * and pressing Backspace or Delete removes the table outright, while
- * selecting only *some* cells clears just their content — which
- * prosemirror-tables' own default `deleteSelection` handling already does
- * correctly and this leaves untouched. Requires an actual `CellSelection`,
- * not just a bare collapsed caret: a 1×1 table's only cell technically
- * "covers the whole table" by dimension alone, but a single keystroke with
- * nothing selected must never destroy a table (same restraint as
- * {@link backspaceAtTableStart}).
+ * Drops any `table` node that would land inside a `table_cell`/`table_header`
+ * from a pasted slice, at any depth — schema content rules can only say "not
+ * as a cell's direct child" (`insertTable`'s `isInTable` guard covers that
+ * path), not "not nested inside a cell at all", since blockquote/list_item/
+ * task_item legitimately admit a table everywhere else. External HTML can
+ * still carry that deeper nesting straight through the schema's own paste
+ * parser. Slice-local only — never touches a synced Yjs transaction, so
+ * collaborative convergence is unaffected.
  */
-export const deleteWholeTableSelection: Command = (state, dispatch) => {
-  if (!(state.selection instanceof CellSelection)) return false;
-  const rect = selectedRect(state);
-  const wholeTable = rect.left === 0 && rect.top === 0 && rect.right === rect.map.width && rect.bottom === rect.map.height;
-  if (!wholeTable) return false;
-  return deleteTable(state, dispatch);
-};
+export function stripNestedTables(slice: Slice, s: Schema): Slice {
+  function strip(fragment: Fragment, insideCell: boolean): Fragment {
+    let changed = false;
+    const kept: PMNode[] = [];
+    fragment.forEach((node) => {
+      if (insideCell && node.type === s.nodes.table) {
+        changed = true;
+        return;
+      }
+      const isCell = node.type === s.nodes.table_cell || node.type === s.nodes.table_header;
+      const content = strip(node.content, insideCell || isCell);
+      if (content === node.content) {
+        kept.push(node);
+      } else {
+        changed = true;
+        kept.push(node.copy(content));
+      }
+    });
+    return changed ? Fragment.fromArray(kept) : fragment;
+  }
+  const content = strip(slice.content, false);
+  return content === slice.content ? slice : new Slice(content, slice.openStart, slice.openEnd);
+}
 
 /**
  * Remembers which table column a vertical Arrow move last left from, so
@@ -546,40 +634,85 @@ function adjacentTableCellPos(table: PMNode, boundary: number, dir: 1 | -1, col:
 }
 
 /**
+ * The full content span of the cell `cellAround` found — from just after
+ * the cell node opens to just before it closes — spanning every nested
+ * block inside it, not just the caret's own immediate textblock. Comparing
+ * a position against `start`/`end` is how {@link tableArrowVertical} and
+ * {@link tableArrowHorizontal} tell "at the true edge of the *cell*" apart
+ * from "at the edge of one paragraph among several in the same cell" now
+ * that cells hold real block content (see schema.ts).
+ *
+ * The raw arithmetic boundary (cell-depth, right before/after the cell's
+ * first/last child opens/closes) is one depth level too shallow whenever
+ * that child is an *empty* textblock — exactly a freshly-inserted table's
+ * cells (see `insertTable` in commands.ts), before anyone has typed a
+ * character. A caret can never actually rest at that cell-depth position;
+ * clicking (or `Selection.near`) resolves one level deeper, *inside* the
+ * empty paragraph, which is a different integer position — so the naive
+ * comparison silently never matched on a fresh table (confirmed live:
+ * ArrowUp/ArrowDown at the boundary fell through to the browser's own
+ * unreliable native handling instead of escaping, trapping the caret with
+ * no way out top or bottom). Passing each raw boundary through
+ * `TextSelection.near` snaps it to wherever a caret would actually land —
+ * the same depth-correct resolution `Selection.near` already does for
+ * every other position in this file — so the comparison always matches
+ * the real resting position, however many (or few) levels deep the cell's
+ * first/last child happens to be.
+ */
+function cellContentRange($cell: ResolvedPos): { start: number; end: number } {
+  const node = $cell.nodeAfter;
+  const rawStart = $cell.pos + 1;
+  const rawEnd = rawStart + (node ? node.content.size : 0);
+  const doc = $cell.doc;
+  const start = TextSelection.near(doc.resolve(rawStart), 1).from;
+  const end = TextSelection.near(doc.resolve(rawEnd), -1).from;
+  return { start, end };
+}
+
+/**
  * ArrowUp/ArrowDown move between cells vertically (same column, row above
- * or below) — prosemirror-tables' own vertical-arrow heuristic
- * (`atEndOfCell`) assumes the library's default `block+` cell content
- * model (cell → paragraph → inline), one depth level deeper than our
- * `cellContent: 'inline*'` cells (see schema.ts, a deliberate GFM-shaped
- * choice: no wrapping paragraph). Its ancestor walk looks for a
- * `cell`/`header_cell` node exactly one level above the caret's textblock,
- * which for our flatter schema is the *row*, not a cell — so the check
- * never resolves, silently falls through to the browser's native Up/Down
- * handling, which (crossing a table's row boundaries) ends up reading as
- * "the same as Left/Right" instead of true vertical movement. Since a
- * cell here is *always* exactly one line — wrapping is impossible — there
- * is no visual-line ambiguity to resolve in the first place; go straight
- * to `nextCell` via `TableMap`. At the table's top/bottom edge, moves into
- * whatever block already sits next to the table (regardless of *which*
- * column, matching Word/Docs/Excel — arrowing up from anywhere in the top
- * row exits above, not just the first cell) — but, unlike
- * {@link exitTableAtBoundary}'s Enter handling, never *creates* one: Enter
- * is inherently an insert gesture, so conjuring a paragraph there is
- * expected, but Arrow keys are pure navigation everywhere else in the
- * editor (arrowing past the start/end of the document just stops) and
- * silently mutating the document on a plain caret move would be exactly
- * the kind of surprise that convention exists to avoid. With nothing to
- * move into, this simply does nothing, same as arrowing at the document's
- * own start/end. Records the column being left in
- * {@link tableGoalColumnKey} whenever it does move, so a later
+ * or below) — but only once the caret has nowhere further to go *within*
+ * the current cell: table cells hold real block content (paragraphs,
+ * lists, headings — see schema.ts), so a cell can now span several lines,
+ * and ArrowDown from its first paragraph must move to its second paragraph
+ * before ever reaching the row below. `cellContentRange` gives the cell's
+ * full content span (every nested block, not just the caret's own
+ * immediate textblock); only a caret sitting exactly at that span's start
+ * (dir -1) or end (dir 1) counts as "at the cell's true edge" — anywhere
+ * else falls through (`return false`) to ordinary vertical caret movement,
+ * which already handles moving between lines/blocks within one cell
+ * correctly (cells are `isolating`, so it can't leak out of the cell by
+ * itself). This intentionally doesn't chase the *visual* last line of a
+ * wrapped paragraph the way prosemirror-tables' own (unexported)
+ * `atEndOfCell` does via `view.endOfTextblock` — a structural check alone
+ * is exactly right for the overwhelmingly common case (single short line,
+ * or the caret literally at the last character) and needs no live
+ * `EditorView` to test; the one narrow gap is a caret on the *bottom*
+ * visual line of a wrapped paragraph but not at its very last character,
+ * which falls through to native handling instead of escaping the cell —
+ * a minor imprecision, not a correctness bug.
+ *
+ * At the table's top/bottom edge, moves into whatever block already sits
+ * next to the table (regardless of *which* column, matching Word/Docs/
+ * Excel — arrowing up from anywhere in the top row exits above, not just
+ * the first cell) — but never *creates* one: Arrow keys are pure
+ * navigation everywhere else in the editor (arrowing past the start/end of
+ * the document just stops) and silently mutating the document on a plain
+ * caret move would be exactly the kind of surprise that convention exists
+ * to avoid. With nothing to move into, this simply does nothing, same as
+ * arrowing at the document's own start/end. Records the column being left
+ * in {@link tableGoalColumnKey} whenever it does move, so a later
  * escape-then-return round trip lands back in the same column.
  */
 export function tableArrowVertical(dir: 1 | -1): Command {
   return (state, dispatch) => {
     const { selection } = state;
     if (!(selection instanceof TextSelection) || !selection.empty) return false;
-    const $cell = cellAround(selection.$head);
+    const $head = selection.$head;
+    const $cell = cellAround($head);
     if (!$cell) return false;
+    const { start, end } = cellContentRange($cell);
+    if (dir === -1 ? $head.pos !== start : $head.pos !== end) return false;
     const table = $cell.node(-1);
     const map = TableMap.get(table);
     const tableStart = $cell.start(-1);
@@ -602,8 +735,7 @@ export function tableArrowVertical(dir: 1 | -1): Command {
     // Nothing to escape into (the table opens/closes the doc): swallow the
     // event rather than return false — falling through would hand the key
     // to prosemirror-tables' own vertical-arrow handler (registered later,
-    // by tableEditing()), which is broken for this schema (see this
-    // function's doc comment) and ends up mimicking horizontal movement
+    // by tableEditing()), which would otherwise mimic horizontal movement
     // instead of doing nothing, the one behavior a boundary arrow-press
     // should have.
     if (!hasNeighbour) return true;
@@ -622,6 +754,55 @@ export function tableArrowVertical(dir: 1 | -1): Command {
         .setMeta(tableGoalColumnKey, colIndex)
         .scrollIntoView();
       dispatch(tr);
+    }
+    return true;
+  };
+}
+
+/**
+ * ArrowLeft/ArrowRight at the table's outer horizontal boundary — the very
+ * start of the first cell (top-left), or the very end of the last cell
+ * (bottom-right) — escapes instead of leaving the browser's native caret
+ * movement to improvise there. Ordinary cell-to-cell movement, and ordinary
+ * movement *between blocks within one cell* now that cells hold real block
+ * content (see schema.ts), already work correctly without any help here —
+ * moving from the end of one paragraph to the start of the next is native
+ * document-flow behavior everywhere, table cell or not (cells are
+ * `isolating`, so it can't leak past the cell either way). Only the true
+ * outer corners of the whole cell — `cellContentRange`'s `start`/`end`, not
+ * just the caret's own immediate textblock's edge — are actually broken:
+ * with no further position for the *browser's* native caret to move to, the
+ * fallback behaviour (browser- and position-dependent, not anything this
+ * app codes) has been observed to either wrap the caret back to the first
+ * cell (ArrowRight, no neighbour) or escape the ProseMirror view entirely
+ * onto unrelated page chrome, silently swallowing the next keystroke
+ * (ArrowRight, WITH a neighbouring paragraph) — both confirmed live. Same
+ * shape and same restraint as {@link tableArrowVertical}: moves into an
+ * existing neighbouring block if there is one, otherwise swallows the key
+ * and does nothing (arrows are pure navigation, never an insert gesture).
+ */
+export function tableArrowHorizontal(dir: 1 | -1): Command {
+  return (state, dispatch) => {
+    const { selection } = state;
+    if (!(selection instanceof TextSelection) || !selection.empty) return false;
+    const $head = selection.$head;
+    const $cell = cellAround($head);
+    if (!$cell) return false;
+    const { start, end } = cellContentRange($cell);
+    if (dir === -1 ? $head.pos !== start : $head.pos !== end) return false;
+    const table = $cell.node(-1);
+    const map = TableMap.get(table);
+    const tableStart = $cell.start(-1);
+    const rect = map.findCell($cell.pos - tableStart);
+    const atOuterCorner = dir === -1 ? rect.left === 0 && rect.top === 0 : rect.right === map.width && rect.bottom === map.height;
+    if (!atOuterCorner) return false;
+
+    const boundary = dir === -1 ? $cell.before(-1) : $cell.after(-1);
+    const $boundary = state.doc.resolve(boundary);
+    const hasNeighbour = dir === -1 ? $boundary.nodeBefore : $boundary.nodeAfter;
+    if (!hasNeighbour) return true; // swallow — nothing to move into, same restraint as tableArrowVertical
+    if (dispatch) {
+      dispatch(state.tr.setSelection(Selection.near(state.doc.resolve(boundary + dir), dir)).scrollIntoView());
     }
     return true;
   };
@@ -674,6 +855,20 @@ export function tableArrowFromOutside(dir: 1 | -1): Command {
  * doing nothing). `nextCell` via `TableMap` sidesteps `atEndOfCell`
  * entirely and is deterministic on every axis, mirroring the library's
  * own `shiftArrow` shape.
+ *
+ * From a bare caret, a cross-cell `CellSelection` only starts once that
+ * caret sits at the cell's own content edge in the direction of travel —
+ * the same `cellContentRange` gate the plain Arrow commands use to tell
+ * "at the true edge of the *cell*" apart from "mid-content". Without it, a
+ * Shift-Arrow from anywhere inside a cell jumps straight to a whole-cell
+ * selection, making it impossible to extend an ordinary text selection
+ * *within* a cell's now-multi-block content (see schema.ts). Anywhere but
+ * the edge we return false, so the browser extends the text selection
+ * inside the cell natively (cells are `isolating`, so it can't leak out) —
+ * exactly as {@link tableArrowVertical}/{@link tableArrowHorizontal} defer
+ * to native movement until the caret reaches the cell edge. An existing
+ * `CellSelection` always extends, no gate: it's already a cell-range
+ * gesture, so every further Shift-Arrow grows it.
  */
 export function tableShiftArrow(axis: 'horiz' | 'vert', dir: 1 | -1): Command {
   return (state, dispatch) => {
@@ -687,6 +882,8 @@ export function tableShiftArrow(axis: 'horiz' | 'vert', dir: 1 | -1): Command {
       if (!(sel instanceof TextSelection) || !sel.empty) return false;
       const $cell = cellAround(sel.$head);
       if (!$cell) return false;
+      const { start, end } = cellContentRange($cell);
+      if (dir === -1 ? sel.$head.pos !== start : sel.$head.pos !== end) return false;
       anchorCell = $cell;
       headCell = $cell;
     }
@@ -698,28 +895,78 @@ export function tableShiftArrow(axis: 'horiz' | 'vert', dir: 1 | -1): Command {
 }
 
 /**
+ * Wraps a table-structure command so its transaction always starts a fresh
+ * undo step, never silently merging backward into whatever happened just
+ * before it. Undo/redo here goes through Yjs's `UndoManager` (see
+ * `yUndoPlugin` in Editor.svelte), which coalesces consecutive changes
+ * within a short time window (~500ms) the same way it coalesces keystrokes
+ * into word-ish chunks — right for typing, but wrong for a discrete,
+ * repeatable structural edit: mashing "add row" five times quickly and then
+ * undoing once must undo exactly one row, not silently merge five additions
+ * (or five deletions) into a single step. `stopCapturing()` resets that
+ * merge window immediately before the command's own transaction is
+ * captured, so it can never merge with whatever preceded it — a no-op
+ * outside a real collab session (no `yUndoPlugin` installed, e.g. in tests).
+ */
+function freshUndoStep(cmd: Command): Command {
+  return (state, dispatch, view) => {
+    if (dispatch) yUndoPluginKey.getState(state)?.undoManager.stopCapturing();
+    return cmd(state, dispatch, view);
+  };
+}
+
+export const addRowAfter = freshUndoStep(addRowAfterRaw);
+export const addColumnAfter = freshUndoStep(addColumnAfterRaw);
+export const deleteRow = freshUndoStep(deleteRowRaw);
+export const deleteColumn = freshUndoStep(deleteColumnRaw);
+export const toggleHeaderRow = freshUndoStep(toggleHeaderRowRaw);
+// Deleting the whole table (the panel's trash button) is a discrete
+// structural edit too — same `freshUndoStep` guarantee as its siblings, so
+// it never merges backward into a just-typed edit within the UndoManager's
+// coalescing window.
+export const deleteTable = freshUndoStep(deleteTableRaw);
+
+/**
  * Tab in the very last cell of a table's last row adds a new row and moves
  * into its first cell, instead of doing nothing (`goToNextCell(1)` returns
- * `false` there — there's no next cell to go to). Matches the near-universal
- * convention across Word, Google Docs and Notion: Tab at a table's last cell
- * keeps you typing by growing the table, the same way Tab at the end of the
- * last row of a spreadsheet does.
+ * `false` there — there's no next cell to go to). Matches Google Docs
+ * exactly (confirmed against Google's own support docs): Tab at the last
+ * cell keeps you typing by growing the table, the same way Tab at the end
+ * of the last row of a spreadsheet does — and, also matching Docs,
+ * repeating it keeps adding rows one at a time.
+ *
+ * That last part is also the one documented irritant of this exact
+ * convention (see e.g. long-running "stop Tab from adding a row" threads
+ * for Word): tabbing through an already-empty last row for any other
+ * reason (habit, a stray extra press) piles up empty rows with no way to
+ * ask for one back short of the mouse. Since an empty row is already
+ * available to type into, growing the table further only makes sense once
+ * that row actually has content — so this only fires when the *current*
+ * last row isn't entirely empty, a small deliberate deviation from strict
+ * Docs parity in favor of not compounding an accidental keystroke. Still
+ * swallows the key when it declines to grow the table (returns `true` with
+ * nothing dispatched) rather than returning `false` — falling through to
+ * the browser's own default Tab handling here would tab focus *out of the
+ * editor entirely*, undoing the very thing Tab-adds-row exists to prevent
+ * (Tab always meaning something inside a table, never an escape hatch).
  */
-export function tabAddsRowAtEnd(s: Schema): Command {
+export function tabAddsRowAtEnd(): Command {
   return (state, dispatch) => {
     const { $from, empty } = state.selection;
     if (!empty) return false;
-    const depth = $from.depth;
-    const cell = depth >= 0 ? $from.node(depth) : null;
-    if (cell?.type !== s.nodes.table_cell && cell?.type !== s.nodes.table_header) return false;
-    if (depth < 2) return false;
-    const row = $from.node(depth - 1);
-    const table = $from.node(depth - 2);
-    if ($from.index(depth - 1) !== row.childCount - 1 || $from.index(depth - 2) !== table.childCount - 1) {
+    const $cell = cellAround($from);
+    if (!$cell) return false;
+    const { end } = cellContentRange($cell);
+    if ($from.pos !== end) return false;
+    const rowDepth = $cell.depth;
+    const row = $cell.node(rowDepth);
+    const table = $cell.node(rowDepth - 1);
+    if ($cell.index(rowDepth) !== row.childCount - 1 || $cell.index(rowDepth - 1) !== table.childCount - 1) {
       return false;
     }
+    if (!row.textContent) return true;
     if (!dispatch) return true;
-    const tablePos = $from.before(depth - 2);
+    const tablePos = $cell.before(rowDepth - 1);
     return addRowAfter(state, (tr) => {
       const grownTable = tr.doc.nodeAt(tablePos);
       if (!grownTable) return;
@@ -751,24 +998,45 @@ export function buildPlugins(s: Schema): Plugin[] {
       },
       // Block-type shortcuts — the Google Docs / Notion convention (Mod-Alt-0
       // is "normal text", Mod-Alt-1..3 the heading levels), so the floating
-      // toolbar is never the only way to reach these while writing.
+      // toolbar is never the only way to reach these while writing. All are
+      // toggles: re-pressing the active one reverts to a plain paragraph, so
+      // there's always a keyboard path back to body text (matches Docs/Notion,
+      // and stops blockquote nesting forever on repeated Mod-Shift-9).
       'Mod-Alt-0': setBlockType(s.nodes.paragraph),
-      'Mod-Alt-1': setBlockType(s.nodes.heading, { level: 1 }),
-      'Mod-Alt-2': setBlockType(s.nodes.heading, { level: 2 }),
-      'Mod-Alt-3': setBlockType(s.nodes.heading, { level: 3 }),
+      'Mod-Alt-1': toggleHeading(s.nodes.heading, s.nodes.paragraph, 1),
+      'Mod-Alt-2': toggleHeading(s.nodes.heading, s.nodes.paragraph, 2),
+      'Mod-Alt-3': toggleHeading(s.nodes.heading, s.nodes.paragraph, 3),
       'Mod-Alt-c': toggleBlockType(s.nodes.code_block, s.nodes.paragraph),
       // 6 slots in next to 7/8/9 (ordered/bullet/quote) for the one other
       // list-shaped block type — checklist.
-      'Mod-Shift-6': wrapInList(s.nodes.task_list),
-      'Mod-Shift-7': wrapInList(s.nodes.ordered_list),
-      'Mod-Shift-8': wrapInList(s.nodes.bullet_list),
-      'Mod-Shift-9': wrapIn(s.nodes.blockquote),
+      'Mod-Shift-6': toggleList(s.nodes.task_list, s.nodes.task_item),
+      'Mod-Shift-7': toggleList(s.nodes.ordered_list, s.nodes.list_item),
+      'Mod-Shift-8': toggleList(s.nodes.bullet_list, s.nodes.list_item),
+      'Mod-Shift-9': toggleWrap(s.nodes.blockquote),
       'Mod-z': undo,
       'Mod-y': redo,
+      // Redo also on Mod-Shift-z (the macOS default). Known, accepted gap: on
+      // an AZERTY Mac the Z key sits at the physical US-W position, so
+      // prosemirror-keymap's keyCode fallback resolves it to `w`, not `z`, and
+      // this binding doesn't fire there. Left as-is deliberately — redo stays
+      // fully reachable via Mod-y on every layout, and hardcoding the physical
+      // key (`event.code === 'KeyW'`) would be a layout-specific special case
+      // for no real gain. Mod-Shift-z still works on QWERTY Macs.
       'Mod-Shift-z': redo,
       'Escape': escapeCodeBlock,
+      // Bound explicitly (not left to native/browser handling) so the
+      // resulting selection lands synchronously in `state`, in the same
+      // dispatch cycle — a fast Home/End immediately followed by an Arrow
+      // key would otherwise let tableArrowVertical read a stale selection
+      // (the native DOM caret move hasn't reached `state` via the async
+      // `selectionchange` event yet), misjudging a mid-cell caret as
+      // already at the cell's true edge and escaping a row early.
+      'Home': selectTextblockStart,
+      'End': selectTextblockEnd,
       'ArrowUp': chainCommands(tableArrowVertical(-1), tableArrowFromOutside(-1)),
       'ArrowDown': chainCommands(exitCodeBlockDown, tableArrowVertical(1), tableArrowFromOutside(1)),
+      'ArrowLeft': tableArrowHorizontal(-1),
+      'ArrowRight': tableArrowHorizontal(1),
       'Shift-ArrowUp': tableShiftArrow('vert', -1),
       'Shift-ArrowDown': tableShiftArrow('vert', 1),
       'Shift-ArrowLeft': tableShiftArrow('horiz', -1),
@@ -776,29 +1044,87 @@ export function buildPlugins(s: Schema): Plugin[] {
       // The task_item split passes an explicit `checked: false` for the new
       // item — splitListItem otherwise copies the *original* item's attrs
       // onto both halves, so pressing Enter on a checked item would silently
-      // hand the brand-new row a pre-ticked checkbox.
+      // hand the brand-new row a pre-ticked checkbox. Enter inside a table
+      // cell now falls all the way through to baseKeymap's own splitBlock
+      // (registered separately, later, see below) — cells hold real block
+      // content (schema.ts), so Enter there behaves like ordinary paragraph
+      // splitting everywhere else, matching Notion/Docs (no more swallow-or-
+      // escape special case: Arrow keys already handle leaving the table,
+      // see tableArrowVertical/tableArrowHorizontal above).
       'Enter': chainCommands(
-        exitTableAtBoundary(s, -1),
-        exitTableAtBoundary(s, 1),
-        preventEnterInTableCell(s),
         exitCodeBlockOnBlankLine,
         splitListItem(s.nodes.list_item),
         splitListItem(s.nodes.task_item, { checked: false })
       ),
       'Shift-Enter': insertHardBreak,
-      'Backspace': chainCommands(deleteWholeTableSelection, backspaceAtTableStart(s), clearEmptyCodeBlockBackward),
-      'Delete': chainCommands(deleteWholeTableSelection, deleteAtTableEnd(s)),
+      // A CellSelection + Backspace/Delete falls through to baseKeymap's
+      // `deleteSelection`, which clears the selected cells' *content* and
+      // leaves the table structure intact — the Word/Docs/Notion convention.
+      // Deleting whole rows/columns is a deliberate, separate action reached
+      // via Alt-Shift-Backspace / Mod-Alt-Shift-Backspace or the table
+      // panel's own buttons, never a bare Backspace over a cell range.
+      'Backspace': chainCommands(backspaceAtTableStart(), clearEmptyCodeBlockBackward),
+      'Delete': deleteAtTableEnd(),
       'Tab': chainCommands(
         goToNextCell(1),
-        tabAddsRowAtEnd(s),
+        tabAddsRowAtEnd(),
         sinkListItem(s.nodes.list_item),
-        sinkListItem(s.nodes.task_item)
+        sinkListItem(s.nodes.task_item),
+        insertTabCharacter
       ),
       'Shift-Tab': chainCommands(
         goToNextCell(-1),
         liftListItem(s.nodes.list_item),
-        liftListItem(s.nodes.task_item)
+        liftListItem(s.nodes.task_item),
+        removeTabCharacterBefore
       ),
+      // Direct keyboard access to table-structure edits — reaching the
+      // floating table panel first (Shift-F10, then Tab to the right
+      // button) works, but is real friction for a common, repeated action
+      // like removing a row. These are plain prosemirror-tables commands,
+      // which already no-op outside a table, bound straight to the keymap
+      // (the same reliability class as Tab/Enter/Arrow here — unlike a
+      // DOM-level keydown listener racing a browser/OS-level binding, see
+      // the removed Alt-Enter toolbar shortcut this replaced).
+      //
+      // Row/column add share a letter mnemonic (R/C) written as an
+      // EXPLICIT `Alt-Shift-<lowercase letter>`, not the capitalized
+      // `Alt-R` shorthand it might look equivalent to — the two are NOT
+      // interchangeable. `prosemirror-keymap` (`w3c-keyname`) matches
+      // primarily against the literal character `event.key` produces; for
+      // a single shifted letter it also retries via `event.keyCode`
+      // whenever that differs in case from `event.key` (its own built-in
+      // fallback for exactly this class of platform quirk) — and that
+      // retry always reconstructs the binding as `Shift-Alt-<lowercase>`,
+      // never as `Alt-<UPPERCASE>`. On Windows/Linux this fallback fires
+      // too (browsers report the shifted, uppercase letter in `event.key`
+      // even there) and happens to still resolve either way — but on
+      // macOS, Option+Shift+<letter> can compose into an entirely
+      // unrelated accented/special character in `event.key` depending on
+      // keyboard layout (confirmed live for at least one real combination
+      // this session), at which point `Alt-R` has nothing left to match:
+      // the direct comparison fails against the composed character, and
+      // the fallback path — the only thing that could still save it — only
+      // ever reconstructs the `Shift-Alt-r` shape. Verified directly
+      // against `prosemirror-keymap`'s own `keydownHandler`: `Alt-R` matches
+      // a plain `event.key === 'R'` but not a composed character, while
+      // `Alt-Shift-r` matches both. Delete reuses Backspace — a layout-
+      // independent key, unlike Shift-punctuation such as `-`, which
+      // produces a different character across keyboard layouts — with Mod
+      // toggling which axis, mirroring Tab/Shift-Tab's own "same key, one
+      // modifier changes direction" shape (Backspace isn't a printable
+      // character, so it isn't subject to any of the above — `Alt-Shift-
+      // Backspace` matches directly on every platform without needing the
+      // fallback at all). No bare shortcut for deleting the whole table:
+      // that's a single keystroke destroying much more than one row, so it
+      // stays behind the toolbar panel's own trash-icon button (a bare
+      // Backspace over a cell selection only *clears* content, matching
+      // Word/Docs — see the Backspace binding above).
+      'Alt-Shift-r': addRowAfter,
+      'Alt-Shift-c': addColumnAfter,
+      'Alt-Shift-Backspace': deleteRow,
+      'Mod-Alt-Shift-Backspace': deleteColumn,
+      'Alt-Shift-h': toggleHeaderRow,
     }),
     keymap(baseKeymap),
     inputRules({
@@ -813,10 +1139,7 @@ export function buildPlugins(s: Schema): Plugin[] {
         new InputRule(CHECKLIST_RULE, checklistRuleHandler(s)),
         wrappingInputRule(/^\s*([-+*])\s$/, s.nodes.bullet_list),
         wrappingInputRule(/^(\d+)\.\s$/, s.nodes.ordered_list),
-        // `---`, `***` or `___` on their own line → horizontal rule.
-        new InputRule(/^(?:---|___|\*\*\*)$/, (state, _match, start, end) => {
-          return state.tr.replaceRangeWith(start, end, s.nodes.horizontal_rule.create());
-        }),
+        new InputRule(HORIZONTAL_RULE_RULE, horizontalRuleHandler(s)),
         // Inline mark syntax — bold before italic so `**x**` can't be read as
         // a dangling `*x*` (see markRuleHandler's delimiter-length math).
         new InputRule(BOLD_STAR_RULE, markRuleHandler(s.marks.strong)),

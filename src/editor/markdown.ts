@@ -1,6 +1,7 @@
 import type { Node as PMNode, Mark } from 'prosemirror-model';
 import { schema } from './schema.js';
 import { headingLevel, linkHref, taskItemChecked } from './parse.js';
+import { richTableToHtml } from '../format/tableMarkdown.js';
 
 /** Serialize inline content (text + marks) of a textblock to Markdown.
  *  `hardBreak` is the text a `hard_break` node becomes — the standard
@@ -32,6 +33,47 @@ export function serializeInline(node: PMNode, hardBreak = '  \n'): string {
     out += text;
   });
   return out;
+}
+
+/** A cell counts as "simple" — expressible as one line of a GFM pipe-table
+ *  row — only when its sole child is a single plain paragraph (no lists,
+ *  headings, quotes, code blocks, dividers, or multiple paragraphs). Shared
+ *  with the lossless round-trip `Codec` in `format/markdown.ts`, so the
+ *  simple/rich decision lives in exactly one place. */
+function isSimpleCell(cell: PMNode): boolean {
+  return cell.childCount === 1 && cell.firstChild!.type.name === 'paragraph';
+}
+
+/** True when every cell of every row is simple. */
+export function isTableSimple(table: PMNode): boolean {
+  let simple = true;
+  table.forEach((row) => row.forEach((cell) => {
+    if (!isSimpleCell(cell)) simple = false;
+  }));
+  return simple;
+}
+
+/** GFM pipe-table lines for a table whose every cell is simple (see
+ *  `isTableSimple`). Reads each cell's sole paragraph directly
+ *  (`cell.firstChild`) rather than the cell itself, since every cell wraps
+ *  its content in a paragraph (`cellContent: 'block+'`, see schema.ts) even
+ *  in the simple case. */
+export function simpleTableToMarkdownLines(table: PMNode): string[] {
+  const rows: string[][] = [];
+  table.forEach((row) => {
+    const cells: string[] = [];
+    row.forEach((cell) => {
+      const para = cell.firstChild;
+      cells.push(para ? serializeInline(para, '<br>').replace(/\|/g, '\\|').trim() : '');
+    });
+    rows.push(cells);
+  });
+  const colCount = rows[0]?.length ?? 0;
+  return [
+    `| ${(rows[0] ?? []).join(' | ')} |`,
+    `| ${Array(colCount).fill('---').join(' | ')} |`,
+    ...rows.slice(1).map((cells) => `| ${cells.join(' | ')} |`),
+  ];
 }
 
 function serializeBlock(node: PMNode, indent = ''): string {
@@ -76,20 +118,13 @@ function serializeBlock(node: PMNode, indent = ''): string {
       });
       return lines.join('\n');
     }
-    case 'table': {
-      const rows: string[][] = [];
-      node.forEach((row) => {
-        const cells: string[] = [];
-        row.forEach((cell) => cells.push(serializeInline(cell, '<br>').replace(/\|/g, '\\|').trim()));
-        rows.push(cells);
-      });
-      const colCount = rows[0]?.length ?? 0;
-      return [
-        `| ${(rows[0] ?? []).join(' | ')} |`,
-        `| ${Array(colCount).fill('---').join(' | ')} |`,
-        ...rows.slice(1).map((cells) => `| ${cells.join(' | ')} |`),
-      ].join('\n');
-    }
+    case 'table':
+      // Rich (multi-block) cell content has no GFM pipe-table equivalent —
+      // fall back to an embedded raw HTML block, same as the lossless
+      // round-trip Codec (format/markdown.ts) does, and safe to call
+      // unconditionally here since this function only ever runs in the
+      // browser (the "Copy as Markdown" toolbar button).
+      return isTableSimple(node) ? simpleTableToMarkdownLines(node).join('\n') : richTableToHtml(node);
     default:
       return serializeInline(node);
   }

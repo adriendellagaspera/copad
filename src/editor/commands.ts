@@ -1,29 +1,40 @@
-import { toggleMark, setBlockType, wrapIn } from 'prosemirror-commands';
-import { wrapInList } from 'prosemirror-schema-list';
+import { toggleMark, setBlockType } from 'prosemirror-commands';
 import { undo, redo } from 'y-prosemirror';
+import { tableNodeTypes, isInTable } from 'prosemirror-tables';
+import type { MarkType, NodeType, Attrs } from 'prosemirror-model';
+import { TextSelection, type EditorState, type Command } from 'prosemirror-state';
+import type { EditorView } from 'prosemirror-view';
+import { schema } from './schema.js';
 import {
-  tableNodeTypes,
-  isInTable,
+  toggleBlockType,
+  toggleHeading,
+  toggleList,
+  toggleWrap,
   addRowAfter,
   addColumnAfter,
   deleteRow,
   deleteColumn,
   deleteTable,
   toggleHeaderRow,
-} from 'prosemirror-tables';
-import type { MarkType, NodeType, Attrs } from 'prosemirror-model';
-import { TextSelection, type EditorState, type Command } from 'prosemirror-state';
-import type { EditorView } from 'prosemirror-view';
-import { schema } from './schema.js';
-import { toggleBlockType } from './plugins.js';
+  keepCellTypableAfterHr,
+} from './plugins.js';
 
-/** Insert a horizontal rule at the selection. */
+/** Insert a horizontal rule at the selection — including inside a table
+ *  cell, which now holds real block content (see schema.ts): confirmed
+ *  `replaceSelectionWith` splits the enclosing paragraph and inserts the
+ *  rule as a sibling within the cell, leaving the table's own structure
+ *  untouched, exactly as it already does for a plain paragraph outside any
+ *  table. This is the command reached from the slash menu and the toolbar
+ *  divider button — `insertTable`'s own no-nested-table guard is unrelated
+ *  and stays. `keepCellTypableAfterHr` covers the one follow-up fixup a
+ *  cell needs when the rule lands as its last child (see plugins.ts). */
 const insertHorizontalRule: Command = (state, dispatch) => {
   if (!schema.nodes.horizontal_rule) return false;
   if (dispatch) {
-    dispatch(
-      state.tr.replaceSelectionWith(schema.nodes.horizontal_rule.create()).scrollIntoView()
-    );
+    const { from } = state.selection;
+    const tr = state.tr.replaceSelectionWith(schema.nodes.horizontal_rule.create());
+    keepCellTypableAfterHr(tr, schema, tr.mapping.map(from));
+    dispatch(tr.scrollIntoView());
   }
   return true;
 };
@@ -38,8 +49,13 @@ const insertTable: Command = (state, dispatch) => {
   const types = tableNodeTypes(state.schema);
   if (!types.table || !types.row || !types.cell || !types.header_cell) return false;
   if (dispatch) {
-    const headerCells = Array.from({ length: TABLE_COLS }, () => types.header_cell.create());
-    const bodyCells = Array.from({ length: TABLE_COLS }, () => types.cell.create());
+    // createAndFill (not create) — cells now hold real block content
+    // (`block+`, see schema.ts), so an empty cell needs a default child (an
+    // empty paragraph) to stay schema-valid; a bare `.create()` would (since
+    // it skips content validation) silently produce a structurally invalid,
+    // childless cell with no textblock to land a selection in at all.
+    const headerCells = Array.from({ length: TABLE_COLS }, () => types.header_cell.createAndFill()!);
+    const bodyCells = Array.from({ length: TABLE_COLS }, () => types.cell.createAndFill()!);
     const rows = [types.row.create(null, headerCells)];
     for (let i = 1; i < TABLE_ROWS; i += 1) rows.push(types.row.create(null, bodyCells));
     const table = types.table.create(null, rows);
@@ -58,6 +74,25 @@ const insertTable: Command = (state, dispatch) => {
       if (tablePos === -1 && node.type === types.table) tablePos = pos;
     });
     if (tablePos !== -1) {
+      const paragraphType = state.schema.nodes.paragraph;
+      if (paragraphType) {
+        const tableSize = tr.doc.nodeAt(tablePos)!.nodeSize;
+        // A table landing as the doc's very first or very last node leaves
+        // no neighbouring block for ArrowUp/ArrowDown to escape into (see
+        // tableArrowVertical's "nothing to escape into" branch, which then
+        // swallows the key rather than doing something worse) — exactly
+        // what replaceSelectionWith produces when the table replaces a
+        // doc's sole (empty) paragraph, trapping the caret inside the table
+        // with no way out. Guarantee an escape hatch on whichever side is
+        // missing, same as a doc is never allowed to start/end mid-table.
+        if (tablePos === 0) {
+          tr.insert(0, paragraphType.create());
+          tablePos += paragraphType.create().nodeSize;
+        }
+        if (tablePos + tableSize === tr.doc.content.size) {
+          tr.insert(tablePos + tableSize, paragraphType.create());
+        }
+      }
       // +1 into the table, +1 into the first row, +1 into the first cell.
       tr.setSelection(TextSelection.near(tr.doc.resolve(tablePos + 3)));
     }
@@ -128,7 +163,15 @@ export function isNodeActive(
   attrs?: Attrs
 ): boolean {
   const { $from, to } = state.selection;
-  return to <= $from.end() && $from.parent.hasMarkup(type, attrs);
+  if (to > $from.end($from.depth)) return false;
+  // Walk ancestors, not just the immediate textblock: a list or blockquote
+  // is a *wrapping* node, so `$from.parent` (the inner paragraph) never
+  // matches it — without this, the bullet/ordered/checklist/quote toolbar
+  // buttons could never light up as active.
+  for (let d = $from.depth; d >= 0; d--) {
+    if ($from.node(d).hasMarkup(type, attrs)) return true;
+  }
+  return false;
 }
 
 /** Pre-bound commands used by the Toolbar. */
@@ -138,14 +181,17 @@ export const commands = {
   code: toggleMark(schema.marks.code),
   strike: toggleMark(schema.marks.strike),
   underline: toggleMark(schema.marks.underline),
-  h1: setBlockType(schema.nodes.heading, { level: 1 }),
-  h2: setBlockType(schema.nodes.heading, { level: 2 }),
-  h3: setBlockType(schema.nodes.heading, { level: 3 }),
+  // Toggles (see plugins.ts): re-invoking the active one reverts to a plain
+  // paragraph, so every block button doubles as its own "off" and there's
+  // always a path back to body text.
+  h1: toggleHeading(schema.nodes.heading, schema.nodes.paragraph, 1),
+  h2: toggleHeading(schema.nodes.heading, schema.nodes.paragraph, 2),
+  h3: toggleHeading(schema.nodes.heading, schema.nodes.paragraph, 3),
   paragraph: setBlockType(schema.nodes.paragraph),
-  blockquote: wrapIn(schema.nodes.blockquote),
-  bullet: wrapInList(schema.nodes.bullet_list),
-  ordered: wrapInList(schema.nodes.ordered_list),
-  taskList: wrapInList(schema.nodes.task_list),
+  blockquote: toggleWrap(schema.nodes.blockquote),
+  bullet: toggleList(schema.nodes.bullet_list, schema.nodes.list_item),
+  ordered: toggleList(schema.nodes.ordered_list, schema.nodes.list_item),
+  taskList: toggleList(schema.nodes.task_list, schema.nodes.task_item),
   // A toggle, not a one-way setBlockType: invoking it from inside a code
   // block converts it back to a paragraph — the same command that opens a
   // code block is how you remove one, matching Tiptap's toggleCodeBlock on
