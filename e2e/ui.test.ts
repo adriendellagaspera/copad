@@ -99,29 +99,34 @@ test('export a copy is reachable from the read-only band while write-gated', asy
   expect(download.suggestedFilename()).toBe('pw-export-gated.md');
 });
 
-test('export a copy is reachable from the formatting toolbar', async ({ page }) => {
+test('the header Import button is disabled while write-gated', async ({ page }) => {
+  await page.goto('/?room=pw-import-gated');
+  await page.locator('.ProseMirror').waitFor();
+
+  const banner = page.locator('.sync-banner');
+  await expect(banner).toBeVisible({ timeout: 10_000 });
+  await expect(banner).toContainText("You're the only one here");
+
+  await expect(page.getByRole('button', { name: 'Import a file into this document' })).toBeDisabled();
+});
+
+test('export a copy is reachable from the header', async ({ page }) => {
   await page.addInitScript(() => { delete (window as { showSaveFilePicker?: unknown }).showSaveFilePicker; });
-  await page.goto('/?room=pw-export-toolbar');
+  await page.goto('/?room=pw-export-header');
   const ed = page.locator('.ProseMirror');
   await ed.waitFor();
   await ed.click();
   await page.keyboard.type('Export me');
-  await page.keyboard.press('Home');
-  await page.keyboard.down('Shift');
-  for (let i = 0; i < 9; i++) await page.keyboard.press('ArrowRight');
-  await page.keyboard.up('Shift');
 
-  const bubble = page.locator('.sel-toolbar.visible');
-  await expect(bubble).toBeVisible();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     (async () => {
-      await bubble.getByRole('button', { name: 'Export…' }).click();
+      await page.getByRole('button', { name: 'Export a copy of this document' }).click();
       await expect(page.getByRole('dialog')).toBeVisible();
       await page.getByRole('button', { name: /Markdown/ }).click();
     })(),
   ]);
-  expect(download.suggestedFilename()).toBe('pw-export-toolbar.md');
+  expect(download.suggestedFilename()).toBe('pw-export-header.md');
 });
 
 test('export a copy (Settings) exports the document as a Word (.docx) file', async ({ page }) => {
