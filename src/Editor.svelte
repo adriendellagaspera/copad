@@ -88,11 +88,16 @@
     /** Called once `importRequest` has been applied (success or failure), so the
      *  parent can clear it and this effect doesn't re-fire on the next render. */
     onImportHandled?: () => void;
+    /** Opens `App.svelte`'s `ExportDialog` — a read, so unlike `importFile`
+     *  it isn't gated on `canImport`/`writeLocked` and needs no local state
+     *  here at all; this toolbar button is a third entry point alongside the
+     *  read-only band and Settings (contract §4.3). */
+    onExport?: () => void;
   };
 
   let {
     storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true,
-    writeLocked = false, writeSoloAt = null, importRequest = null, onImportHandled,
+    writeLocked = false, writeSoloAt = null, importRequest = null, onImportHandled, onExport,
   }: Props = $props();
 
   // Plain (non-reactive) tracking var — detects a new `writeSoloAt` stamp in
@@ -563,7 +568,7 @@
     class:editing={sessionState.editing}
     style="--kb-inset: {keyboardInset.px}px"
   >
-    <Toolbar {view} {editorState} {toasts} {canImport} onImport={importFile} />
+    <Toolbar {view} {editorState} {toasts} {canImport} onImport={importFile} {onExport} />
   </div>
   <!-- DocTitle renders inside `.content` (not as a sibling) so it scrolls away
        with the rest of the document instead of costing permanent chrome —
@@ -581,7 +586,7 @@
     <WordCount {editorState} />
     <Outline {view} {editorState} />
   </div>
-  <SelectionToolbar {view} {editorState} {toasts} {canImport} onImport={importFile} />
+  <SelectionToolbar {view} {editorState} {toasts} {canImport} onImport={importFile} {onExport} />
   <CaretFormatHint {view} {editorState} />
   <SlashMenu {view} {editorState} />
   <LinkPopover {view} {editorState} />

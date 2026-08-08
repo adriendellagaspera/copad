@@ -31,9 +31,10 @@
     showTableStructure?: boolean;
     canImport?: boolean;
     onImport?: () => void;
+    onExport?: () => void;
   };
 
-  let { view, editorState, toasts, showTableStructure = true, canImport = false, onImport }: Props = $props();
+  let { view, editorState, toasts, showTableStructure = true, canImport = false, onImport, onExport }: Props = $props();
 
   const bold      = $derived(editorState ? isMarkActive(editorState, schema.marks.strong) : false);
   const italic    = $derived(editorState ? isMarkActive(editorState, schema.marks.em)     : false);
@@ -138,6 +139,7 @@
     <button onclick={run(commands.redo)} title="Redo ({mod}+Y)" aria-label="Redo">↷</button>
     <span class="spacer"></span>
     <button class="md-btn" onclick={onImport} disabled={!canImport} title="Import a file into this document">Import…</button>
+    <button class="md-btn" onclick={onExport} title="Export a copy of this document">Export…</button>
     <button class="md-btn" onclick={copyMarkdown} title="Copy document as Markdown">Copy MD</button>
   </div>
 {/if}
