@@ -68,13 +68,20 @@
 }
 
 .sel-toolbar .toolbar {
-  /* Override the fixed-bar chrome: a self-contained card, single row. */
+  /* Override the fixed-bar chrome: a self-contained card. Wraps (rather than
+     the single forced row this used to be) once the full button set is
+     wider than the viewport has room for — a `position: fixed` box has no
+     ambient width to shrink into on its own, so `max-width` is what actually
+     triggers the wrap; a narrow desktop window (~<820px, the bubble's full
+     natural width) would otherwise overflow the viewport's right edge with
+     no way to reach the clipped buttons. */
   border-bottom: none;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--surface);
   box-shadow: var(--shadow-md);
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  max-width: calc(100vw - 16px);
   padding: var(--sp-1) var(--sp-2);
 }
 
@@ -94,6 +101,68 @@
     position: fixed;
     z-index: var(--z-menu);
     /* top/left are set inline from the selection coords. */
+  }
+}
+
+/* ── Floating table-structure panel (desktop) ── */
+
+/* A second, separate floating card — shown *alongside* .sel-toolbar (never
+   instead of it) only while an empty caret sits in a table, anchored to the
+   table's opposite edge (see positionTablePanel in tableAnchor.ts). Reuses
+   the .toolbar button/sep styling; a leading accent-colored label ("▦
+   Table") is what marks it as a distinct "table" control rather than a
+   continuation of the text-formatting bubble, per Notion/Docs/Word's
+   separation of table structure from text formatting — the border itself
+   stays the same neutral `var(--border)` every other floating panel in the
+   app uses (.sel-toolbar included) at rest, reserving the accent color for
+   the focus state below rather than wearing it permanently regardless of
+   focus, which read as inconsistent with the rest of the design system. */
+.table-toolbar {
+  display: none;
+}
+
+.table-toolbar .toolbar {
+  border-bottom: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  /* Same reasoning as .sel-toolbar .toolbar above: a `position: fixed` card
+     has no ambient width to shrink into, and positionTablePanel only clamps
+     `left` (never the panel's width), so on a narrow desktop window this
+     panel's label + buttons would otherwise run past the viewport's right
+     edge with no way to reach the clipped controls. `max-width` triggers the
+     wrap instead. */
+  flex-wrap: wrap;
+  max-width: calc(100vw - 16px);
+  padding: var(--sp-1) var(--sp-2);
+}
+
+/* Accent border + glow only once a button inside actually has focus (via
+   Shift-F10/Alt-Shift-\ or a click) — distinct from the neutral at-rest
+   state above, so pressing the shortcut is visibly confirmed instead of
+   the panel looking unchanged before and after. */
+.table-toolbar .toolbar:focus-within {
+  border-width: 2px;
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.table-toolbar-label {
+  padding: 0 var(--sp-1);
+  color: var(--accent);
+  font-size: var(--fs-300);
+  font-weight: 600;
+  white-space: nowrap;
+  user-select: none;
+}
+
+@media (pointer: fine) {
+  .table-toolbar.visible {
+    display: block;
+    position: fixed;
+    z-index: var(--z-menu);
+    /* top/left are set inline from the table's bounding box. */
   }
 }
 

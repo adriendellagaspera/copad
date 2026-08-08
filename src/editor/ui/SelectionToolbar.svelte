@@ -2,7 +2,9 @@
   import type { EditorView } from 'prosemirror-view';
   import { TextSelection, type EditorState } from 'prosemirror-state';
   import Toolbar from '../../Toolbar.svelte';
+  import TableToolbar from './TableToolbar.svelte';
   import { isInTable } from '../commands.js';
+  import { tableElementAt, positionTablePanel, choosePanel } from './tableAnchor.js';
   import type { Toasts } from '../../ui/toasts.svelte.js';
 
   type Props = {
@@ -13,41 +15,44 @@
 
   let { view, editorState, toasts }: Props = $props();
 
-  // Floating selection bubble — desktop only (a pointer-fine media query in
-  // editor.css gates visibility; the fixed Toolbar stays on touch devices where
-  // selection bubbles are unreliable). Positioned over the current selection so
-  // formatting is always within reach instead of pinned to the top of the doc.
-  let host = $state<HTMLDivElement | undefined>();
-  let visible = $state(false);
+  // Two floating panels — desktop only (a pointer-fine media query in
+  // editor.css gates visibility; the fixed Toolbar stays on touch devices
+  // where selection bubbles are unreliable): the text-formatting bubble
+  // (`hostText`/`Toolbar`, table-structure buttons excluded — see
+  // `showTableStructure` on Toolbar.svelte) and a *separate* table-structure
+  // panel (`hostTable`/`TableToolbar`) shown only while an empty caret sits
+  // in a table. Kept as two visually distinct cards, not one merged row, per
+  // how Notion/Docs/Word separate table-structure commands from text
+  // formatting even though both are reachable from inside a cell.
+  let hostText = $state<HTMLDivElement | undefined>();
+  let hostTable = $state<HTMLDivElement | undefined>();
+  let textVisible = $state(false);
+  let tableVisible = $state(false);
   let top = $state(0);
   let left = $state(0);
+  let tableTop = $state(0);
+  let tableLeft = $state(0);
 
-  const GAP = 8; // px between the selection and the bubble
+  const GAP = 8; // px between the selection/table and either panel
 
   // Only the desktop pointer profile gets the bubble; touch keeps the fixed bar.
   const isFinePointer = (): boolean =>
     typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
 
-  // True once Tab has moved focus from the editor into one of the bubble's
-  // own buttons — at that point the view itself is blurred, but the bubble
-  // must stay up (hiding it would yank focus off the now-invisible button).
+  // True once Tab has moved focus from the editor into a button in either
+  // panel — at that point the view itself is blurred, but the panel(s) must
+  // stay up (hiding them would yank focus off the now-invisible button).
   const focusInToolbar = (): boolean =>
-    !!host && !!document.activeElement && host.contains(document.activeElement);
-
-  // The nearest <table> ancestor of a document position, if any — used to
-  // anchor the bubble to the table itself rather than the caret's own line
-  // when there's no real selection (see reposition()'s table branch).
-  const tableElementAt = (v: EditorView, pos: number): HTMLElement | null => {
-    const dom = v.domAtPos(pos).node;
-    const el = dom instanceof Element ? dom : dom.parentElement;
-    return el?.closest('table') ?? null;
-  };
+    !!document.activeElement &&
+    ((!!hostText && hostText.contains(document.activeElement)) ||
+      (!!hostTable && hostTable.contains(document.activeElement)));
 
   function reposition(): void {
     const v = view;
     const st = editorState;
     if (!v || !st || !isFinePointer()) {
-      visible = false;
+      textVisible = false;
+      tableVisible = false;
       return;
     }
     const { from, to, empty } = st.selection;
@@ -56,33 +61,52 @@
     // otherwise unreachable by mouse on desktop, since the fixed bar itself is
     // hidden there (see editor.css) and a bare caret has no selection to
     // bubble over. A blurred editor (e.g. focus moved to a dialog) still
-    // hides it, unless focus moved into the bubble itself.
+    // hides it, unless focus moved into a panel itself.
     const inTable = isInTable(st);
     if ((!v.hasFocus() && !focusInToolbar()) || (empty && !inTable)) {
-      visible = false;
+      textVisible = false;
+      tableVisible = false;
       return;
     }
-    const w = host?.offsetWidth ?? 0;
-    const h = host?.offsetHeight ?? 0;
 
-    // A bare caret in a table anchors to the *table's* own bounding box, not
-    // the caret's line — the caret can be on any row, and a line-anchored
-    // bubble that flips below a header row would land on top of row 2,
-    // hiding it. Anchoring to the table's outer edge instead means the
-    // bubble never overlaps a cell, and stays put while Tab/arrows move the
-    // caret between cells of the same table (no per-cell jitter).
+    const tw = hostText?.offsetWidth ?? 0;
+    const th = hostText?.offsetHeight ?? 0;
+
+    // A bare caret in a table anchors the table-structure panel to the
+    // *table's* own bounding box, not the caret's line — the caret can be on
+    // any row, and a line-anchored panel that flips below a header row would
+    // land on top of row 2, hiding it. Anchoring to the table's outer edge
+    // instead means the panel never overlaps a cell, and stays put while
+    // Tab/arrows move the caret between cells of the same table (no
+    // per-cell jitter). The text-formatting bubble never shows for a bare
+    // caret — table or not — matching normal (outside-table) behaviour: it
+    // only ever appears for a real, non-empty selection (see below).
     const tableEl = empty && inTable ? tableElementAt(v, from) : null;
-    if (tableEl) {
-      const rect = tableEl.getBoundingClientRect();
-      let nextLeft = rect.left + rect.width / 2 - w / 2;
-      nextLeft = Math.max(GAP, Math.min(nextLeft, window.innerWidth - w - GAP));
-      let nextTop = rect.top - h - GAP;
-      if (nextTop < GAP) nextTop = rect.bottom + GAP; // flip below if no room above
-      left = nextLeft;
-      top = nextTop;
-      visible = true;
+    const choice = choosePanel(empty, inTable, !!tableEl);
+
+    if (choice === 'none') {
+      textVisible = false;
+      tableVisible = false;
       return;
     }
+
+    if (choice === 'table') {
+      const bw = hostTable?.offsetWidth ?? 0;
+      const bh = hostTable?.offsetHeight ?? 0;
+      const rect = tableEl!.getBoundingClientRect();
+      const panel = positionTablePanel(
+        rect,
+        { width: bw, height: bh },
+        { width: window.innerWidth, height: window.innerHeight },
+        GAP,
+      );
+      tableTop = panel.top;
+      tableLeft = panel.left;
+      textVisible = false;
+      tableVisible = true;
+      return;
+    }
+    tableVisible = false;
 
     // coordsAtPos measures against the *live DOM*, which briefly disagrees
     // with `from`/`to` while a burst of transactions (e.g. rapid undo/redo)
@@ -97,17 +121,25 @@
       start = v.coordsAtPos(from);
       end = v.coordsAtPos(to);
     } catch {
-      visible = false;
+      textVisible = false;
+      return;
+    }
+    // If the selection itself has scrolled entirely out of the viewport
+    // (its own scroller, or the window), hide the bubble instead of
+    // tracking it off-screen — otherwise it drifts over unrelated chrome
+    // (or beyond the viewport edge) while still reporting "visible".
+    if (end.bottom < 0 || start.top > window.innerHeight) {
+      textVisible = false;
       return;
     }
     const centre = (start.left + end.left) / 2;
-    let nextLeft = centre - w / 2;
-    nextLeft = Math.max(GAP, Math.min(nextLeft, window.innerWidth - w - GAP));
-    let nextTop = start.top - h - GAP;
+    let nextLeft = centre - tw / 2;
+    nextLeft = Math.max(GAP, Math.min(nextLeft, window.innerWidth - tw - GAP));
+    let nextTop = start.top - th - GAP;
     if (nextTop < GAP) nextTop = end.bottom + GAP; // flip below if no room above
     left = nextLeft;
     top = nextTop;
-    visible = true;
+    textVisible = true;
   }
 
   // Recompute whenever the selection (editorState) or view changes.
@@ -117,11 +149,12 @@
     reposition();
   });
 
-  // Keep the bubble glued to the selection while the page or any scroller moves
-  // (capture catches nested scrollers, e.g. the editor's internal scroll).
+  // Keep the panels glued to the selection/table while the page or any
+  // scroller moves (capture catches nested scrollers, e.g. the editor's
+  // internal scroll).
   $effect(() => {
     const onMove = () => {
-      if (visible) reposition();
+      if (textVisible || tableVisible) reposition();
     };
     window.addEventListener('scroll', onMove, true);
     window.addEventListener('resize', onMove);
@@ -131,43 +164,80 @@
     };
   });
 
+  const FOCUSABLE_SEL = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+  // The combined tab ring across whichever floating panel(s) are actually
+  // showing — text bubble first, then the table-structure panel. Used both
+  // to find the first button to focus (Shift-F10/ContextMenu) and to wrap
+  // Tab/Shift-Tab across the pair once focus is inside either one (see
+  // attachClosedLoop below). Gated on textVisible/tableVisible (not just
+  // whether the host div exists — it always does, just display:none'd when
+  // hidden): a bare caret in a table shows the table panel alone, and its
+  // hidden sibling's buttons must not be offered as focus targets, or
+  // Shift-F10 would try to focus an unfocusable (display:none) button.
+  const focusableEls = (): HTMLElement[] => [
+    ...(textVisible && hostText ? Array.from(hostText.querySelectorAll<HTMLElement>(FOCUSABLE_SEL)) : []),
+    ...(tableVisible && hostTable ? Array.from(hostTable.querySelectorAll<HTMLElement>(FOCUSABLE_SEL)) : []),
+  ];
+
   // Tab normally leaves the contenteditable entirely (browser default, since
-  // ProseMirror only claims Tab inside a list — see buildPlugins). While the
-  // bubble is showing for a real selection, redirect that Tab into its first
+  // ProseMirror only claims Tab inside a list — see buildPlugins). While a
+  // panel is showing for a real selection, redirect that Tab into its first
   // button instead, so the toolbar is reachable from the keyboard without
   // also stealing Tab when there's nothing to tab into. Inside a table, Tab
   // already has an established meaning (move to the next cell, via
   // goToNextCell in buildPlugins) — a bare caret there must NOT be
-  // hijacked into the toolbar, or Tab-to-next-cell silently breaks and
+  // hijacked into either panel, or Tab-to-next-cell silently breaks and
   // pressing Tab instead yanks focus onto a button.
   //
   // Shift-F10 / the Menu key are the OS-standard keyboard equivalent of a
   // right-click — the same discoverable entry point Word/Excel/Sheets use
-  // to reach a cell's contextual menu — so they always focus the bubble's
-  // first button when it's visible, table caret or not. This is what a
-  // keyboard user reaches for once Tab is unavailable (e.g. inside a table).
+  // to reach a cell's contextual menu — so they always focus the first
+  // button across both panels when either is visible, table caret or not.
+  // This is what a keyboard user reaches for once Tab is unavailable (e.g.
+  // inside a table). Alt-Shift-\ is a second, app-owned entry point for the
+  // same action — most Mac laptop keyboards have no dedicated Menu key and
+  // remap F-keys to hardware functions (volume, brightness…) behind an Fn
+  // lock, so Shift-F10 alone needs Fn+Shift+F10 there, a real irritant.
   //
-  // Alt-Enter is a second, app-owned entry point to the same effect — F-keys
-  // are frequently remapped to hardware functions (brightness/volume) behind
-  // an Fn lock on laptops, making Shift-F10 unreliable exactly for the
-  // keyboard-first users it targets. Alt-Enter collides with nothing else
-  // bound here (plain Enter is table-boundary-escape/list-split, Mod-Enter
-  // is unused) and already reads as "give me more on the thing I'm in" —
-  // Windows Explorer's Alt-Enter for a file's Properties is the same idiom.
+  // Two letter-based alternatives were tried here before this one and both
+  // turned out to already mean something else: a plain Alt-Enter was
+  // captured by the OS/window manager before reaching the page (a common WM
+  // binding for toggling fullscreen), and Alt-Shift-T reopens the last
+  // closed browser tab on at least one real setup (confirmed live) — a
+  // browser-level binding this app's keydown listener never even gets a
+  // chance to see. Punctuation instead of a letter sidesteps that whole
+  // class of tab/window mnemonic collisions (T for tab, W for close, N for
+  // new, …), at the cost of being less mnemonic itself. Matched on `e.code`
+  // ('Backslash', the physical key) rather than `e.key` for the same reason
+  // as before — macOS composes many Option-modified characters at the OS
+  // level depending on keyboard layout, which risks the identical silent-
+  // failure shape as the two rejected attempts above. Direct per-action
+  // shortcuts for the table panel's own commands (Alt-Shift-R/C/Backspace/H,
+  // see buildPlugins) remain the most reliable option of all — plain
+  // ProseMirror keymap bindings, never racing OS/browser chrome — for
+  // anyone who wants to skip the panel entirely.
   $effect(() => {
     const v = view;
     if (!v) return;
     const dom = v.dom;
     const onKeydown = (e: KeyboardEvent) => {
-      const isContextMenuKey = e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey);
-      const isAltEnter = e.key === 'Enter' && e.altKey;
+      // Alt-Shift-\: uses e.code (the physical key, 'Backslash') rather
+      // than e.key — macOS composes Option-modified characters into
+      // accented/special characters at the OS level for many combinations,
+      // the same class of failure that sank the earlier Alt-Enter and
+      // Alt-Shift-T attempts (see the doc comment above). e.code reports
+      // the physical key regardless of what character, if any, the OS
+      // composed from it.
+      const isContextMenuKey =
+        e.key === 'ContextMenu' ||
+        (e.key === 'F10' && e.shiftKey) ||
+        (e.code === 'Backslash' && e.altKey && e.shiftKey);
       const isTabIntoBubble = e.key === 'Tab' && !e.shiftKey;
-      if (!isContextMenuKey && !isAltEnter && !isTabIntoBubble) return;
-      if (!visible) return;
+      if (!isContextMenuKey && !isTabIntoBubble) return;
+      if (!textVisible && !tableVisible) return;
       if (isTabIntoBubble && v.state.selection.empty && isInTable(v.state)) return;
-      const target = host?.querySelector<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
+      const target = focusableEls()[0];
       if (!target) return;
       e.preventDefault();
       target.focus();
@@ -176,21 +246,13 @@
     return () => dom.removeEventListener('keydown', onKeydown);
   });
 
-  const focusableEls = (): HTMLElement[] =>
-    host
-      ? Array.from(
-          host.querySelectorAll<HTMLElement>(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-          ),
-        )
-      : [];
-
-  // Once focus is inside the bubble, it behaves like a closed loop: Escape
-  // hands focus back to the text, and Tab/Shift-Tab wrap at the ends instead
-  // of escaping into whatever follows the bubble in the page's tab order.
-  $effect(() => {
-    const h = host;
-    if (!h) return;
+  // Once focus is inside either panel it behaves like one closed loop:
+  // Escape hands focus back to the text (regardless of which panel it came
+  // from), and Tab/Shift-Tab wrap across the *combined* button list (see
+  // focusableEls) instead of escaping into whatever follows in the page's
+  // tab order — or, with two independent panels, stopping dead at the end
+  // of whichever one focus happens to be in.
+  function attachClosedLoop(el: HTMLDivElement): () => void {
     const onKeydown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -217,20 +279,41 @@
         els[els.length - 1].focus();
       }
     };
-    h.addEventListener('keydown', onKeydown);
-    return () => h.removeEventListener('keydown', onKeydown);
+    el.addEventListener('keydown', onKeydown);
+    return () => el.removeEventListener('keydown', onKeydown);
+  }
+
+  $effect(() => {
+    const cleanups: Array<() => void> = [];
+    if (hostText) cleanups.push(attachClosedLoop(hostText));
+    if (hostTable) cleanups.push(attachClosedLoop(hostTable));
+    return () => cleanups.forEach((c) => c());
   });
 </script>
 
 <!-- preventDefault on mousedown keeps the editor's focus + selection while a
-     bubble button is pressed, so runCommand applies to the right range. -->
+     panel button is pressed, so runCommand applies to the right range. -->
 <div
   class="sel-toolbar"
-  class:visible
-  bind:this={host}
+  class:visible={textVisible}
+  bind:this={hostText}
   style="top: {top}px; left: {left}px;"
   onmousedown={(e) => e.preventDefault()}
   role="presentation"
 >
-  <Toolbar {view} {editorState} {toasts} />
+  <Toolbar {view} {editorState} {toasts} showTableStructure={false} />
+</div>
+<div
+  class="table-toolbar"
+  class:visible={tableVisible}
+  bind:this={hostTable}
+  style="top: {tableTop}px; left: {tableLeft}px;"
+  onmousedown={(e) => e.preventDefault()}
+  role="presentation"
+>
+  <div class="toolbar" role="toolbar" aria-label="Table structure" onpointerdown={(e) => e.preventDefault()}>
+    <span class="table-toolbar-label" aria-hidden="true">▦ Table</span>
+    <span class="sep" role="separator"></span>
+    <TableToolbar {view} />
+  </div>
 </div>
