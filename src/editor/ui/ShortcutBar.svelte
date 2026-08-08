@@ -3,16 +3,37 @@
   // (gated by a pointer:fine media query in editor.css) — touch devices have no
   // physical keyboard, so the footer there keeps just the document meta.
   //
+  // Contextual: swaps in the table-specific set (see shortcuts.ts's
+  // tableShortcuts) while the caret is in a table, instead of appending to
+  // the default list — the two sets serve unrelated moments and showing both
+  // at once would need to be twice as wide for no benefit.
+  //
+  // Even the contextual (single-context) set can still be wider than the
+  // footer's available width once the sibling word-count/outline controls
+  // claim their share of the row — a single-line strip with overflow:hidden
+  // silently clipped or hid whole hints in that case, which is a strictly
+  // worse failure mode than the strip just being two lines tall sometimes.
+  // Wraps (see .shortcut-bar below) instead of clipping, so every hint stays
+  // reachable no matter how narrow the remaining space gets.
+  //
   // Presentation only: the shortcut data (OS-resolved) lives in shortcuts.ts.
-  import { editorShortcuts } from './shortcuts.js';
+  import type { EditorState } from 'prosemirror-state';
+  import { contextualShortcuts } from './shortcuts.js';
+  import { isInTable } from '../commands.js';
 
-  const shortcuts = editorShortcuts();
+  type Props = { editorState: EditorState | null };
+  let { editorState }: Props = $props();
+
+  const shortcuts = $derived(contextualShortcuts(!!editorState && isInTable(editorState)));
 </script>
 
 <div class="shortcut-bar" aria-hidden="true">
   {#each shortcuts as s, i (s.label)}
-    {#if i > 0}<span class="sc-dot">·</span>{/if}
     <span class="sc-hint">
+      <!-- Dot lives inside the same flex item as its hint (not a standalone
+           sibling) so a wrap point can only fall between whole hints — never
+           leaving a lone "·" orphaned at the start of a line. -->
+      {#if i > 0}<span class="sc-dot">·</span>{/if}
       {#each s.keys as k (k)}<kbd>{k}</kbd>{/each}
       <span class="sc-label">{s.label}</span>
     </span>
@@ -23,12 +44,11 @@
   .shortcut-bar {
     display: none; /* revealed on desktop via editor.css @media (pointer: fine) */
     align-items: center;
-    gap: 0.4rem;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.6rem;
     color: var(--text-faint);
     font-size: var(--fs-300);
     min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
   }
   .sc-hint {
     display: inline-flex;
