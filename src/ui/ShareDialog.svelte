@@ -336,7 +336,7 @@
   .persist-note {
     margin: 0 0 var(--sp-4);
     padding: var(--sp-2) var(--sp-3);
-    border-radius: var(--r-2, 6px);
+    border-radius: var(--r-sm);
     background: var(--surface-3);
     color: var(--text-muted);
     font-size: var(--fs-300);
@@ -375,7 +375,7 @@
   .key-badge {
     flex-shrink: 0;
     padding: 0.2rem 0.5rem;
-    border-radius: var(--r-2, 6px);
+    border-radius: var(--r-sm);
     background: var(--accent-soft);
     color: var(--accent);
     font-size: var(--fs-300);
@@ -413,7 +413,7 @@
   .share-security {
     margin-top: var(--sp-4);
     padding-top: var(--sp-4);
-    border-top: 1px solid var(--border, var(--surface-3));
+    border-top: 1px solid var(--border);
   }
   .share-security h3 {
     display: flex;
@@ -427,14 +427,14 @@
   .share-security .lock {
     font-size: var(--fs-300);
     font-weight: 500;
-    color: var(--ok, var(--accent));
+    color: var(--ok);
   }
   .sec-confirm {
     margin: 0 0 var(--sp-3);
     padding: var(--sp-2) var(--sp-3);
-    border-radius: var(--r-2, 6px);
-    background: var(--ok-soft, var(--surface-3));
-    color: var(--ok, var(--text));
+    border-radius: var(--r-sm);
+    background: var(--ok-soft);
+    color: var(--ok);
     font-size: var(--fs-300);
     font-weight: 500;
   }
