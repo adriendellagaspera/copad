@@ -9,7 +9,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { schema } from '../editor/schema.js';
 import { taskItemChecked } from '../editor/parse.js';
 import { writePmDoc, readPmDoc } from './pm.js';
-import { isTableSimple, simpleTableToMarkdownLines } from '../editor/markdown.js';
+import { classifyTable } from '../editor/markdown.js';
 import { richTableToHtml, parseHtmlTable } from './tableMarkdown.js';
 import type { Codec } from './types.js';
 import { extensionOf } from './types.js';
@@ -162,8 +162,9 @@ const serializer = new MarkdownSerializer(
       // *simple* table (every cell just a single paragraph — true for
       // every table before cells held real block content, and still the
       // overwhelmingly common case) keeps the unchanged pipe-table output.
-      const lines = isTableSimple(node)
-        ? simpleTableToMarkdownLines(node)
+      const render = classifyTable(node);
+      const lines = render.kind === 'simple'
+        ? render.lines
         : hasDom()
           ? [richTableToHtml(node)]
           : richTableToPlainTextLines(node);

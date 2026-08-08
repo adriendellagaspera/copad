@@ -37,28 +37,34 @@ export function serializeInline(node: PMNode, hardBreak = '  \n'): string {
 
 /** A cell counts as "simple" — expressible as one line of a GFM pipe-table
  *  row — only when its sole child is a single plain paragraph (no lists,
- *  headings, quotes, code blocks, dividers, or multiple paragraphs). Shared
- *  with the lossless round-trip `Codec` in `format/markdown.ts`, so the
- *  simple/rich decision lives in exactly one place. */
+ *  headings, quotes, code blocks, dividers, or multiple paragraphs). */
 function isSimpleCell(cell: PMNode): boolean {
   return cell.childCount === 1 && cell.firstChild!.type.name === 'paragraph';
 }
 
-/** True when every cell of every row is simple. */
-export function isTableSimple(table: PMNode): boolean {
+/** How a table renders to Markdown, decided once per table rather than
+ *  re-derived at each caller: every cell simple → the GFM pipe-table lines
+ *  themselves; anything richer → `'rich'`, leaving the actual rendering
+ *  (embedded HTML, or a no-DOM plain-text degrade) to the caller, since that
+ *  choice depends on the environment, not the table's own shape. Shared with
+ *  the lossless round-trip `Codec` in `format/markdown.ts`, so the simple/
+ *  rich decision lives in exactly one place. */
+export type TableRender = { kind: 'simple'; lines: string[] } | { kind: 'rich' };
+
+export function classifyTable(table: PMNode): TableRender {
   let simple = true;
   table.forEach((row) => row.forEach((cell) => {
     if (!isSimpleCell(cell)) simple = false;
   }));
-  return simple;
+  return simple ? { kind: 'simple', lines: simpleTableToMarkdownLines(table) } : { kind: 'rich' };
 }
 
 /** GFM pipe-table lines for a table whose every cell is simple (see
- *  `isTableSimple`). Reads each cell's sole paragraph directly
+ *  {@link classifyTable}). Reads each cell's sole paragraph directly
  *  (`cell.firstChild`) rather than the cell itself, since every cell wraps
  *  its content in a paragraph (`cellContent: 'block+'`, see schema.ts) even
  *  in the simple case. */
-export function simpleTableToMarkdownLines(table: PMNode): string[] {
+function simpleTableToMarkdownLines(table: PMNode): string[] {
   const rows: string[][] = [];
   table.forEach((row) => {
     const cells: string[] = [];
@@ -118,13 +124,15 @@ function serializeBlock(node: PMNode, indent = ''): string {
       });
       return lines.join('\n');
     }
-    case 'table':
+    case 'table': {
       // Rich (multi-block) cell content has no GFM pipe-table equivalent —
       // fall back to an embedded raw HTML block, same as the lossless
       // round-trip Codec (format/markdown.ts) does, and safe to call
       // unconditionally here since this function only ever runs in the
       // browser (the "Copy as Markdown" toolbar button).
-      return isTableSimple(node) ? simpleTableToMarkdownLines(node).join('\n') : richTableToHtml(node);
+      const render = classifyTable(node);
+      return render.kind === 'simple' ? render.lines.join('\n') : richTableToHtml(node);
+    }
     default:
       return serializeInline(node);
   }

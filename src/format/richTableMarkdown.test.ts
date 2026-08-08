@@ -4,7 +4,7 @@ import * as Y from 'yjs';
 import { schema } from '../editor/schema.js';
 import { writePmDoc, readPmDoc } from './pm.js';
 import { markdownCodec } from './markdown.js';
-import { isTableSimple, docToMarkdown } from '../editor/markdown.js';
+import { classifyTable, docToMarkdown } from '../editor/markdown.js';
 import { richTableToHtml, parseHtmlTable } from './tableMarkdown.js';
 
 const { table, table_row, table_cell, paragraph, bullet_list, list_item, heading } = schema.nodes;
@@ -17,23 +17,25 @@ function richCell(...blocks: ReturnType<typeof paragraph.create>[]) {
   return table_cell.create(null, blocks);
 }
 
-describe('isTableSimple', () => {
-  it('is true for a table whose every cell is a single plain paragraph', () => {
+describe('classifyTable', () => {
+  it('is simple, with pipe-table lines, for a table whose every cell is a single plain paragraph', () => {
     const t = table.create(null, [table_row.create(null, [simpleCell('A'), simpleCell('B')])]);
-    expect(isTableSimple(t)).toBe(true);
+    const render = classifyTable(t);
+    expect(render.kind).toBe('simple');
+    expect(render.kind === 'simple' && render.lines.join('\n')).toContain('| A | B |');
   });
 
-  it('is false when any cell has more than one paragraph', () => {
+  it('is rich when any cell has more than one paragraph', () => {
     const cell = richCell(paragraph.create(null, schema.text('one')), paragraph.create(null, schema.text('two')));
     const t = table.create(null, [table_row.create(null, [cell, simpleCell('B')])]);
-    expect(isTableSimple(t)).toBe(false);
+    expect(classifyTable(t).kind).toBe('rich');
   });
 
-  it('is false when any cell holds a list', () => {
+  it('is rich when any cell holds a list', () => {
     const item = list_item.create(null, [paragraph.create(null, schema.text('x'))]);
     const cell = richCell(bullet_list.create(null, [item]));
     const t = table.create(null, [table_row.create(null, [cell])]);
-    expect(isTableSimple(t)).toBe(false);
+    expect(classifyTable(t).kind).toBe('rich');
   });
 });
 
