@@ -7,7 +7,7 @@
 // `platform`, then the UA string.
 
 /** Operating-system family. Only the distinction the UI needs is modelled —
- *  Apple platforms use the ⌘ modifier, everything else uses Ctrl. */
+ *  Apple platforms use the ⌘/⌥ modifiers, everything else uses Ctrl/Alt. */
 export const OS = { Apple: 'apple', Other: 'other' } as const;
 export type OS = (typeof OS)[keyof typeof OS];
 
@@ -49,4 +49,10 @@ export function keyCap(literal: string): KeyCap {
  *  The single cast site that brands a modifier glyph. */
 export function modKey(os: OS = parseOS()): KeyCap {
   return (os === OS.Apple ? '⌘' : 'Ctrl') as KeyCap;
+}
+
+/** The OS-resolved secondary modifier cap: ⌥ on Apple platforms, Alt
+ *  elsewhere. `KeyboardEvent.key` still reports `'Alt'` on Apple regardless — this is display only. */
+export function altKey(os: OS = parseOS()): KeyCap {
+  return (os === OS.Apple ? '⌥' : 'Alt') as KeyCap;
 }
