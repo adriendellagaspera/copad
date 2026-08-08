@@ -36,7 +36,8 @@
   } from './collaboration/types.js';
   import { ConnStatus, PresenceKind, SessionRole } from './collaboration/types.js';
   import type { RoomName, PersistTarget } from './collaboration/types.js';
-  import { parsePeerAwarenessState, parseRoomName } from './collaboration/parse.js';
+  import { parsePeerAwarenessState, parseRoomName, parseRoomUrl } from './collaboration/parse.js';
+  import { recentDocsStore } from './collaboration/recentDocs.js';
   import { nextPersistHealth, nextRegime, UNPROVEN, PersistRegime, type PersistHealth } from './collaboration/persistHealth.js';
   import { browserId } from './collaboration/browserId.js';
   import { persistTargetKey, isPersistLeader } from './collaboration/leader.js';
@@ -132,6 +133,14 @@
   roomMeta.observe(onRoomMeta);
 
   bindExport((codec) => Promise.resolve(codec.encode(collab.doc)));
+
+  // Records this room into the recent-docs switcher on mount, then keeps its
+  // title in step as roomName.value changes (local rename or a synced one).
+  const recentDocs = recentDocsStore();
+  $effect(() => {
+    const url = parseRoomUrl(location.href);
+    if (url) recentDocs.record({ room, url, title: roomName.value });
+  });
 
   let editorEl = $state<HTMLDivElement | undefined>();
   // $state.raw: track reference changes for reactivity but don't proxy the

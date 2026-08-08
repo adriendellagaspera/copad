@@ -1,5 +1,5 @@
 import type {
-  DisplayName, CursorColor, PeerAwarenessState, PersistTarget, RoomId, RoomName,
+  DisplayName, CursorColor, PeerAwarenessState, PersistTarget, RoomId, RoomName, RoomUrl,
   SignalingUrl, WebsocketUrl,
   StunUrl, TurnUrl, TurnUsername, TurnCredential, IceServer, IceServersUrl,
 } from './types.js';
@@ -9,6 +9,8 @@ import type { RoomCredential } from './roomAccess.js';
 import type { KeyFingerprint } from './roomCrypto.js';
 import type { LocalCacheEnabled } from './cache.js';
 import type { TurnPrefs } from './turn.js';
+import type { RecentDoc } from './recentDocs.js';
+import type { EpochMs } from '../time.js';
 import { FALLBACK_NAME, FALLBACK_COLOR } from './peerDefaults.js';
 
 /** ws:// or wss:// — the only schemes y-webrtc / y-websocket understand. */
@@ -171,6 +173,38 @@ export function parseRoomList(raw: string | null): RoomId[] {
       .filter((r): r is string => typeof r === 'string')
       .map(parseRoomId)
       .filter((r): r is RoomId => r !== null);
+  } catch {
+    return [];
+  }
+}
+
+/** Parse a raw string as a RoomUrl — the single cast site, used for a room's
+ *  full navigable URL (path + query + secret-link fragment). Empty strings
+ *  are rejected; the value isn't otherwise interpreted. */
+export function parseRoomUrl(raw: string): RoomUrl | null {
+  const trimmed = raw.trim();
+  return trimmed ? (trimmed as RoomUrl) : null;
+}
+
+/** Parse a JSON-encoded recent-docs list from localStorage into typed entries.
+ *  A malformed entry (missing room/url/lastOpened) is dropped rather than
+ *  failing the whole list. */
+export function parseRecentDocs(raw: string | null): RecentDoc[] {
+  try {
+    const list: unknown = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(list)) return [];
+    const docs: RecentDoc[] = [];
+    for (const entry of list) {
+      if (typeof entry !== 'object' || entry === null) continue;
+      const o = entry as Record<string, unknown>;
+      const room = typeof o['room'] === 'string' ? parseRoomId(o['room']) : null;
+      const url = typeof o['url'] === 'string' ? parseRoomUrl(o['url']) : null;
+      const lastOpened = typeof o['lastOpened'] === 'number' ? (o['lastOpened'] as EpochMs) : null;
+      if (!room || !url || lastOpened === null) continue;
+      const title = typeof o['title'] === 'string' ? parseRoomName(o['title']) : null;
+      docs.push({ room, url, lastOpened, title });
+    }
+    return docs;
   } catch {
     return [];
   }

@@ -70,6 +70,7 @@
   import ShareDialog from './ui/ShareDialog.svelte';
   import MeetingJoinDialog from './ui/MeetingJoinDialog.svelte';
   import ExportDialog from './ui/ExportDialog.svelte';
+  import RecentDocs from './ui/RecentDocs.svelte';
   import { roomName } from './collaboration/roomName.svelte.js';
   import SyncBanner from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
@@ -810,6 +811,7 @@
         <path d="M12 15V3m0 0l-4 4m4-4l4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
     </button>
+    <RecentDocs current={room} />
 
     <div class="cap-fill"></div>
 
@@ -908,6 +910,7 @@
         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
       </svg>
     </button>
+    <RecentDocs current={room} buttonClass="dock-btn" />
     <button class="dock-btn" onclick={() => (exportOpen = true)} title="Export a copy of this document" aria-label="Export a copy of this document">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 15V3m0 0l-4 4m4-4l4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />

@@ -15,6 +15,12 @@ export type RoomId = string & { readonly _brand: 'RoomId' };
  *  immutable {@link RoomId}, so renaming a room can't "lose" it. */
 export type RoomName = string & { readonly _brand: 'RoomName' };
 
+/** A room's full navigable URL — path, `?room=`/`?role=` query, and the `#k=`
+ *  secret-link fragment when the room is encrypted. Persisted by recent-docs
+ *  (`src/collaboration/recentDocs.ts`) so a saved entry can be reopened later
+ *  without reconstructing the fragment from parts. Cast only in `parse.ts`. */
+export type RoomUrl = string & { readonly _brand: 'RoomUrl' };
+
 /** A WebRTC signaling server URL (`ws://`/`wss://`) that has passed
  *  `resolveSignaling()` validation — peers use it only to discover each other. */
 export type SignalingUrl = string & { readonly _brand: 'SignalingUrl' };
