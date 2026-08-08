@@ -3,7 +3,9 @@
 > Specification. Unimplemented except where a section says otherwise (§4.3, §4.4,
 > §5 have shipped; §2.1's hub/P2P settle-linger split, §2.2/§3.1/§3.4's presence
 > model and write gate, and §4/§4.1/§4.2's waiting room and unlock moment are
-> wired; §3.2/§3.3's `WriteReceipt`/`PersistHealth` machine is wired).
+> wired; §3.2/§3.3's `WriteReceipt`/`PersistHealth` machine is wired; §6.2's
+> paste-and-go tier is wired — its browser-extension and platform-launcher tiers
+> are not, and §6.1's presence probe remains unimplemented).
 > This is the spine — the part that has to stay coherent, self-sufficient, on its own.
 > Where it cites a mechanism, the citation is to this repo's code or to the upstream
 > project that owns that mechanism — never to an issue tracker or a pull request.
@@ -271,6 +273,8 @@ It is also the purest form of attaching to an existing rendezvous: the meeting *
 Governing principle for everything in this area: **Copad is a launcher, not an embed.** Options that embed Copad in the host (Meet, Teams, Zoom, Discord) damage the architecture most — third-party iframe means partitioned storage and host CSP, and Discord forbids WebRTC outright. Embedding destroys precisely what makes Copad: P2P, E2E, local cache. Options that *launch* Copad leave it in a top-level tab where all of it works untouched.
 
 Two traps: Zoom meeting ids are enumerable, so the canonical form must include `pwd=`; and the derivation must be **versioned**, or a silent update splits one meeting into two pads.
+
+**Paste-and-go — wired.** `meetingLinkFingerprint()` (`src/collaboration/meetingLink.ts`) normalizes a pasted link (unwraps known redirect wrappers, lowercases only the host, drops share-tracking params, sorts what's left, keeps `pwd=`) before hashing, so equivalent links agree; `deriveMeetingRoom()` derives a version-prefixed `room`/`key` via `crypto.subtle.digest`, entirely client-side. `MeetingJoinDialog.svelte` auto-submits on paste — no separate click — and opens the derived room exactly like any other secret-linked room (`?room=…#k=…`), reusing `secretLink()`'s existing hash-fragment handling rather than a new mechanism. The browser-extension and platform-launcher tiers described above remain unbuilt.
 
 ## 7. What we are not doing, and why
 
