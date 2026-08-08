@@ -157,6 +157,21 @@
 
   const copy = () => copyTo(url, inputEl, 'Invite link copied to clipboard', 'invite');
   const copyReader = () => copyTo(readerUrl, readerInputEl, 'View-only link copied to clipboard', 'reader');
+
+  const canShare = typeof navigator !== 'undefined' && 'share' in navigator;
+  const whatsappUrl = $derived(`https://wa.me/?text=${encodeURIComponent(`Join me on Copad: ${url}`)}`);
+
+  async function share(): Promise<void> {
+    if (canShare) {
+      try {
+        await navigator.share({ title: 'Join me on Copad', url });
+      } catch {
+        /* user cancelled, or the target app rejected the share — no toast, matches native share UX */
+      }
+      return;
+    }
+    window.open(whatsappUrl, '_blank', 'noopener');
+  }
 </script>
 
 <Dialog {open} {onclose} title="Share this document">
@@ -190,6 +205,9 @@
       onfocus={(e) => e.currentTarget.select()}
     />
     <button class="primary" onclick={copy}>{copiedButton === 'invite' ? 'Copied ✓' : 'Copy link'}</button>
+    <button onclick={share} aria-label={canShare ? 'Share invite link' : 'Share invite link on WhatsApp'}>
+      {canShare ? '📤 Share' : '💬 WhatsApp'}
+    </button>
   </div>
 
   <details class="reader-section">
