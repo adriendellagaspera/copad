@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { schema } from '../schema.js';
-import { tableElementAt, positionTablePanel, type Rect } from './tableAnchor.js';
+import { tableElementAt, positionTablePanel, choosePanel, type Rect } from './tableAnchor.js';
 
 const VIEWPORT = { width: 1000, height: 800 };
 const GAP = 8;
@@ -107,5 +107,29 @@ describe('positionTablePanel', () => {
     const panel = positionTablePanel(scrolledPastTop, panelSize, VIEWPORT, GAP);
     expect(panel.top).toBeGreaterThanOrEqual(GAP);
     expect(panel.top).toBeLessThanOrEqual(VIEWPORT.height - panelSize.height - GAP);
+  });
+});
+
+describe('choosePanel', () => {
+  it('shows the text panel for any real (non-empty) selection, table or not', () => {
+    expect(choosePanel(false, false, false)).toBe('text');
+    expect(choosePanel(false, true, true)).toBe('text');
+  });
+
+  it('shows the table panel for a bare caret inside a table once a <table> element is actually found', () => {
+    expect(choosePanel(true, true, true)).toBe('table');
+  });
+
+  it('shows nothing for a bare caret outside any table', () => {
+    expect(choosePanel(true, false, false)).toBe('none');
+  });
+
+  it('shows nothing — never the text panel — for a bare caret isInTable says is in a table but no <table> element was resolved for', () => {
+    // Regression: isInTable (doc-structure) and tableElementAt (DOM lookup)
+    // can transiently disagree, e.g. right after a transaction before the
+    // view has re-rendered. Falling through to the text panel here would
+    // show a formatting bubble for an empty selection — the exact bug this
+    // whole split was meant to fix.
+    expect(choosePanel(true, true, false)).toBe('none');
   });
 });

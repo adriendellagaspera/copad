@@ -179,3 +179,36 @@ test('print output stays white-background even in dark theme', async ({ page }) 
     .poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor))
     .toBe('rgb(255, 255, 255)');
 });
+
+test.describe('the floating text/table panel split', () => {
+  test('a bare caret in a table shows only the table-structure panel', async ({ page }) => {
+    await page.goto('/?room=pw-table-panel-caret');
+    const ed = page.locator('.ProseMirror');
+    await ed.waitFor();
+    await ed.click();
+    await page.keyboard.type('/table');
+    await page.getByRole('option', { name: /Table/ }).click();
+    await page.locator('.ProseMirror td, .ProseMirror th').first().click();
+
+    await expect(page.locator('.table-toolbar.visible')).toBeVisible();
+    await expect(page.locator('.sel-toolbar.visible')).toHaveCount(0);
+  });
+
+  test('a real text selection inside a table cell shows only the text-format panel', async ({ page }) => {
+    await page.goto('/?room=pw-table-panel-selection');
+    const ed = page.locator('.ProseMirror');
+    await ed.waitFor();
+    await ed.click();
+    await page.keyboard.type('/table');
+    await page.getByRole('option', { name: /Table/ }).click();
+    const cell = page.locator('.ProseMirror td, .ProseMirror th').first();
+    await cell.click();
+    await page.keyboard.type('hello');
+    await page.keyboard.down('Shift');
+    for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowLeft');
+    await page.keyboard.up('Shift');
+
+    await expect(page.locator('.sel-toolbar.visible')).toBeVisible();
+    await expect(page.locator('.table-toolbar.visible')).toHaveCount(0);
+  });
+});

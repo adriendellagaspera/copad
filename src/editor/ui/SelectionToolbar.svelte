@@ -4,7 +4,7 @@
   import Toolbar from '../../Toolbar.svelte';
   import TableToolbar from './TableToolbar.svelte';
   import { isInTable } from '../commands.js';
-  import { tableElementAt, positionTablePanel } from './tableAnchor.js';
+  import { tableElementAt, positionTablePanel, choosePanel } from './tableAnchor.js';
   import type { Toasts } from '../../ui/toasts.svelte.js';
 
   type Props = {
@@ -82,10 +82,18 @@
     // caret — table or not — matching normal (outside-table) behaviour: it
     // only ever appears for a real, non-empty selection (see below).
     const tableEl = empty && inTable ? tableElementAt(v, from) : null;
-    if (tableEl) {
+    const choice = choosePanel(empty, inTable, !!tableEl);
+
+    if (choice === 'none') {
+      textVisible = false;
+      tableVisible = false;
+      return;
+    }
+
+    if (choice === 'table') {
       const bw = hostTable?.offsetWidth ?? 0;
       const bh = hostTable?.offsetHeight ?? 0;
-      const rect = tableEl.getBoundingClientRect();
+      const rect = tableEl!.getBoundingClientRect();
       const panel = positionTablePanel(
         rect,
         { width: bw, height: bh },

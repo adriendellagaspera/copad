@@ -9,6 +9,24 @@ export type PanelSize = { width: number; height: number };
 export type Viewport = { width: number; height: number };
 export type PanelPosition = { top: number; left: number };
 
+export type PanelChoice = 'none' | 'text' | 'table';
+
+/**
+ * Which floating panel (if any) should show — kept as a pure decision,
+ * separate from DOM measurement, so the two panels' mutual exclusivity is
+ * provable without a live view. A bare caret only shows the table panel when
+ * a `<table>` element was actually resolved for it (`foundTableEl`):
+ * `isInTable` (doc-structure) and `tableElementAt` (DOM lookup) can
+ * transiently disagree — e.g. right after a transaction, before the view has
+ * re-rendered — and a bare caret has no selection of its own to fall back to
+ * bubbling over, so that disagreement must resolve to `'none'`, never
+ * `'text'`.
+ */
+export function choosePanel(empty: boolean, inTable: boolean, foundTableEl: boolean): PanelChoice {
+  if (!empty) return 'text';
+  return inTable && foundTableEl ? 'table' : 'none';
+}
+
 /** The nearest `<table>` ancestor of a document position, if any — used to
  *  anchor the floating panels to the table itself rather than the caret's
  *  own line when there's no real selection (a bare caret can be on any row,
