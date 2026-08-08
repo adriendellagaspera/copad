@@ -1,4 +1,4 @@
-import type { Storage, DocContent } from './types.js';
+import type { Storage, DocContent, Filename } from './types.js';
 import { DocFormat, InputType } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
@@ -14,6 +14,7 @@ import {
   parseGitHubErrorBody,
   parseGitHubCommitResponse,
   parseGitHubLoadResponse,
+  parseGitHubDirectoryListing,
 } from './parse.js';
 import {
   STORAGE_ID,
@@ -263,6 +264,49 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
       } finally {
         committing = false;
       }
+    },
+
+    // ── Browse (Phase 2 import) ─────────────────────────────────────────────
+    // Reuses the same Contents endpoint as load()/save() above — a directory
+    // path (here, the repo root) returns an array instead of a single file, so
+    // listing costs no new endpoint and no broader PAT scope.
+
+    async list(): Promise<Filename[]> {
+      const tok = resolvedToken();
+      const repo = resolvedRepo();
+      if (!tok) throw new Error('GitHub: not connected');
+      if (!repo) throw new Error('GitHub: repository not configured');
+
+      const res = await fetch(
+        `${GITHUB_API_URL}/repos/${repo}/contents?ref=${encodeURIComponent(resolvedBranch())}`,
+        { headers: apiHeaders(tok) },
+      );
+      if (!res.ok) throw new Error(`GitHub list failed: ${res.status}`);
+      return parseGitHubDirectoryListing(await res.json());
+    },
+
+    async loadFrom(filename: Filename): Promise<DocContent | null> {
+      const tok = resolvedToken();
+      const repo = resolvedRepo();
+      if (!tok) throw new Error('GitHub: not connected');
+      if (!repo) throw new Error('GitHub: repository not configured');
+
+      const res = await fetch(
+        `${GITHUB_API_URL}/repos/${repo}/contents/${encodeURIComponent(filename)}?ref=${encodeURIComponent(resolvedBranch())}`,
+        { headers: apiHeaders(tok) },
+      );
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`GitHub load failed: ${res.status}`);
+
+      const data = parseGitHubLoadResponse(await res.json());
+      const raw = atob(data.content.replace(/\n/g, ''));
+      const bytes = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+
+      // Unlike load(), the format is driven by *this* filename's extension —
+      // not the room's separately-configured target file.
+      return extensionOf(filename) === '.yjs'
+        ? { format: DocFormat.Binary, bytes }
+        : { format: DocFormat.Text, text: new TextDecoder().decode(bytes) };
     },
   };
 

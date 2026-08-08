@@ -202,6 +202,20 @@ export function parseGitHubLoadResponse(raw: unknown): { content: string; sha: G
   return { content, sha: sha as GitHubFileSha };
 }
 
+/** The Contents API returns an array (not a single object) when the path is a
+ *  directory — this is that shape, filtered down to regular files. */
+export function parseGitHubDirectoryListing(raw: unknown): Filename[] {
+  if (!Array.isArray(raw)) throw new Error('Unexpected GitHub directory listing');
+  return raw
+    .filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null && e['type'] === 'file')
+    .map((e) => e['name'])
+    .filter((name): name is string => typeof name === 'string')
+    .map((name) => name as Filename);
+}
+
+// ── GitLab API JSON boundaries ────────────────────────────────────────────────
+
+/** Base64 `content` from a Repository Files API response. */
 export function parseGitLabFileContent(raw: unknown): string {
   if (typeof raw !== 'object' || raw === null)
     throw new Error('Unexpected GitLab file response');
@@ -250,6 +264,24 @@ export function parseGraphOwnerId(raw: unknown): GraphUserId | null {
   return typeof id === 'string' ? (id as GraphUserId) : null;
 }
 
+/** A `/children` listing's `value` array, filtered to entries that carry a
+ *  `file` facet (as opposed to a `folder` facet — this backend's folder is
+ *  never nested, but Graph still models every drive item that way). */
+export function parseOneDriveChildren(raw: unknown): Filename[] {
+  if (typeof raw !== 'object' || raw === null)
+    throw new Error('Unexpected OneDrive children response');
+  const value = (raw as Record<string, unknown>)['value'];
+  if (!Array.isArray(value)) throw new Error('OneDrive children response missing value');
+  return value
+    .filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null && 'file' in e)
+    .map((e) => e['name'])
+    .filter((name): name is string => typeof name === 'string')
+    .map((name) => name as Filename);
+}
+
+// ── Google Drive API JSON boundaries ──────────────────────────────────────────
+
+/** OAuth token exchange response. */
 export function parseGDriveTokenResponse(raw: unknown): { access_token: GDriveToken } {
   if (typeof raw !== 'object' || raw === null)
     throw new Error('Unexpected Google Drive token response');

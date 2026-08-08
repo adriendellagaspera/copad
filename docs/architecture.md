@@ -36,7 +36,7 @@ flowchart TB
 
 | Port | File | Description |
 |------|------|-------------|
-| `Storage` | `src/storage/types.ts` | Persist and restore document bytes for a backend's target file (bytes-only, no auth) |
+| `Storage` | `src/storage/types.ts` | Persist and restore document bytes for a backend's target file (bytes-only, no auth). Optional `list()`/`loadFrom()` let a backend also browse and read an arbitrary *other* file within its already-connected scope (e.g. another file in the same GitHub repo or OneDrive AppFolder) — implemented only where listing needs no new API surface or broader auth scope (GitHub, OneDrive personal); a backend without them simply has no "Browse…" entry. |
 | `StorageAuth` | `src/storage/auth.ts` | Authenticate to a cloud storage backend; owns login/logout/config |
 | `Collab` | `src/collaboration/types.ts` | Provide a shared Y.Doc and awareness channel |
 | `CollabConnect` | `src/collaboration/types.ts` | Factory type: `(room: string) => Collab` |

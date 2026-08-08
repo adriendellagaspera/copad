@@ -27,6 +27,13 @@ export type DocContent =
   | { readonly format: typeof DocFormat.Binary; readonly bytes: Uint8Array }
   | { readonly format: typeof DocFormat.Text;   readonly text: string };
 
+/** Extract the raw bytes from a `DocContent`, regardless of which format it carries. */
+export function docContentBytes(content: DocContent): Uint8Array {
+  return content.format === DocFormat.Binary
+    ? content.bytes
+    : new TextEncoder().encode(content.text);
+}
+
 /**
  * The level of access the authenticated user has on this specific file or
  * resource. Absent when the backend has no per-user ACL (Dropbox, WebDAV,
@@ -151,4 +158,22 @@ export interface Storage {
    * Present when the backend can report it (e.g. SharePoint via Graph API).
    */
   access?(): Promise<StorageAccess>;
+
+  // ── Browse (Phase 2 import) ─────────────────────────────────────────────────
+  // Distinct from the fixed per-room target file above — these support
+  // "browse this backend and import an arbitrary file" instead of always
+  // reading/writing one pre-configured filename. Absent where the backend has
+  // no listing capability that preserves its current OAuth scope (e.g. Google
+  // Drive's `drive.file` only sees files Copad itself created/opened, so it
+  // omits these rather than exposing a misleadingly narrow "browse").
+
+  /** List files this backend can currently see, for a browse/import picker. */
+  list?(): Promise<Filename[]>;
+
+  /**
+   * Read an arbitrary file's content once, by name — distinct from `load()`,
+   * which always reads the room's fixed target file. Never changes the room's
+   * persisted target filename. Used only by a `list()`-driven browse flow.
+   */
+  loadFrom?(filename: Filename): Promise<DocContent | null>;
 }
