@@ -952,6 +952,7 @@
       {writeSoloAt}
       importRequest={pendingImport}
       onImportHandled={() => (pendingImport = null)}
+      onExport={() => (exportOpen = true)}
     />
     <!-- The waiting state itself teaches the contract now — see SyncBanner's
          `gated` tier — instead of a separate one-time explainer dialog

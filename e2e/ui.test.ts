@@ -99,6 +99,31 @@ test('export a copy is reachable from the read-only band while write-gated', asy
   expect(download.suggestedFilename()).toBe('pw-export-gated.md');
 });
 
+test('export a copy is reachable from the formatting toolbar', async ({ page }) => {
+  await page.addInitScript(() => { delete (window as { showSaveFilePicker?: unknown }).showSaveFilePicker; });
+  await page.goto('/?room=pw-export-toolbar');
+  const ed = page.locator('.ProseMirror');
+  await ed.waitFor();
+  await ed.click();
+  await page.keyboard.type('Export me');
+  await page.keyboard.press('Home');
+  await page.keyboard.down('Shift');
+  for (let i = 0; i < 9; i++) await page.keyboard.press('ArrowRight');
+  await page.keyboard.up('Shift');
+
+  const bubble = page.locator('.sel-toolbar.visible');
+  await expect(bubble).toBeVisible();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    (async () => {
+      await bubble.getByRole('button', { name: 'Export…' }).click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await page.getByRole('button', { name: /Markdown/ }).click();
+    })(),
+  ]);
+  expect(download.suggestedFilename()).toBe('pw-export-toolbar.md');
+});
+
 test('export a copy (Settings) exports the document as a Word (.docx) file', async ({ page }) => {
   await page.addInitScript(() => { delete (window as { showSaveFilePicker?: unknown }).showSaveFilePicker; });
   await page.goto('/?room=pw-docx');
