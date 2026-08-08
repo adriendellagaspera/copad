@@ -2,11 +2,35 @@
   import Dialog from './Dialog.svelte';
   import type { Toasts } from './toasts.svelte.js';
   import { deriveMeetingRoom } from '../collaboration/meetingLink.js';
+  import { probeWebsocketPresence, HallPresenceKind } from '../collaboration/presenceProbe.js';
+  import type { RoomId, WebsocketUrl } from '../collaboration/types.js';
 
-  let { open, onclose, toasts }: { open: boolean; onclose: () => void; toasts: Toasts } = $props();
+  let {
+    open,
+    onclose,
+    toasts,
+    hallUrl,
+  }: { open: boolean; onclose: () => void; toasts: Toasts; hallUrl?: WebsocketUrl } = $props();
 
   let inputEl = $state<HTMLInputElement | undefined>();
   let pending = $state(false);
+
+  // Best-effort, non-blocking: says who's there without delaying the join
+  // tab. Hub-only — see presenceProbe.ts for the WebRTC gap.
+  function announcePresence(room: RoomId): void {
+    if (!hallUrl) return;
+    const probe = probeWebsocketPresence(room, { url: hallUrl });
+    const unsubscribe = probe.onPresence((presence) => {
+      if (presence.kind === HallPresenceKind.Unknown) return;
+      toasts.info(
+        presence.kind === HallPresenceKind.Someone
+          ? "Someone's already in there"
+          : "Looks empty in there right now",
+      );
+      unsubscribe();
+      probe.stop();
+    });
+  }
 
   async function join(raw: string): Promise<void> {
     const trimmed = raw.trim();
@@ -18,6 +42,7 @@
       toasts.error("That doesn't look like a meeting link");
       return;
     }
+    announcePresence(derived.room);
     window.open(
       `${location.pathname}?room=${encodeURIComponent(derived.room)}#k=${encodeURIComponent(derived.key)}`,
       '_blank',

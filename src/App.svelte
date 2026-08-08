@@ -56,7 +56,7 @@
   import { KEY_COLLAB_UNAVAILABLE_SEEN } from './collaboration/constants.js';
   import { localStore } from './persistence/local.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
-  import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer } from './collaboration/types.js';
+  import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer, WebsocketUrl } from './collaboration/types.js';
   import { SessionRole, PresenceKind, Transport } from './collaboration/types.js';
   import { writeGateFor, gateSettleMs, gateLingerMs, type SoloOptIn } from './collaboration/writeGate.js';
   import { departureLingerDeadline } from './collaboration/departureHysteresis.js';
@@ -117,13 +117,17 @@
     build: (cache: LocalCacheEnabled) => CollabConnect;
     warning?: string;
     technicalWarning?: string;
+    // Set only on the hub transport — presenceProbe.ts has no P2P path yet
+    // (see its module comment), so MeetingJoinDialog's presence toast is
+    // hub-only and silently skips itself when this is undefined.
+    hallUrl?: WebsocketUrl;
   } {
     if (resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket') {
       const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, loc);
       if (ws.url) {
         // TS doesn't carry the narrowing of `ws.url` into the closure below.
         const url = ws.url;
-        return { build: (cache) => websocketCollab({ url, cache }), warning: ws.warning };
+        return { build: (cache) => websocketCollab({ url, cache }), warning: ws.warning, hallUrl: url };
       }
       console.warn('Copad: VITE_COLLAB_TRANSPORT=websocket but VITE_WEBSOCKET_URL is unset, using WebRTC.');
     }
@@ -892,7 +896,7 @@
   {onSecurityChange}
 />
 
-<MeetingJoinDialog open={joinOpen} onclose={() => (joinOpen = false)} {toasts} />
+<MeetingJoinDialog open={joinOpen} onclose={() => (joinOpen = false)} {toasts} hallUrl={collabPlan.hallUrl} />
 
 <ExportDialog
   open={exportOpen}

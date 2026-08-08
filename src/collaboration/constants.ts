@@ -88,6 +88,16 @@ export const CACHE_DB_PREFIX = NS_PREFIX;
  *  one, and both are found and cleared per room. */
 export const ENC_CACHE_DB_PREFIX = `${NS_PREFIX}enc:`;
 
+/**
+ * How long a hub presence probe (`presenceProbe.ts`) waits after its socket
+ * opens before concluding `empty`. The stock server pushes every currently
+ * present peer's awareness state in the same reply that opens the connection
+ * (`setupWSConnection`'s initial `send`) — so if nothing arrives within a
+ * short window, nobody is there. This is a one-shot push, not a poll, so
+ * there is no slow roster to wait out.
+ */
+export const PRESENCE_PROBE_SETTLE_MS = 500 as Milliseconds;
+
 /** Per-room password key for the room-password access strategy. */
 export const roomPasswordKey = (room: RoomId): StorageKey =>
   storageKey(`collab.room-password.${room}`);

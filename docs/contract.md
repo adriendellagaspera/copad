@@ -5,7 +5,8 @@
 > model and write gate, and §4/§4.1/§4.2's waiting room and unlock moment are
 > wired; §3.2/§3.3's `WriteReceipt`/`PersistHealth` machine is wired; §6.2's
 > paste-and-go tier is wired — its browser-extension and platform-launcher tiers
-> are not, and §6.1's presence probe remains unimplemented).
+> are not; §6.1's presence probe is wired for the hub transport only — its P2P
+> path remains unimplemented).
 > This is the spine — the part that has to stay coherent, self-sufficient, on its own.
 > Where it cites a mechanism, the citation is to this repo's code or to the upstream
 > project that owns that mechanism — never to an issue tracker or a pull request.
@@ -235,7 +236,7 @@ Resolved: `newRoomId()` (`src/collaboration/roomId.ts`) draws room ids from `cry
 
 ## 6. Two modules that plug into the contract
 
-### 6.1 The presence probe — making the rendezvous possible
+### 6.1 The presence probe — making the rendezvous possible — hub wired, P2P not
 
 If Copad only writes with company, *"is anyone there?"* becomes its most frequent question, and it must be answerable **without joining**. Otherwise every visit is a coin flip and two people three minutes apart never meet.
 
@@ -259,6 +260,10 @@ The hub row is a real cost, not a footnote: the stock server only frees a room's
 The probe works **without the room key** — presence leaks, content does not. It needs an `unknown` arm distinct from `empty`, which is the same rule as §2.2: "I don't know" must never render as "there is nobody".
 
 Honest limit: with no server, notification exists only while a Copad tab is open. A Service Worker does not change this. The real shape is a **hall page** left open. Arrivals are push (not throttled in background tabs); only the departure poll degrades.
+
+**Hub — wired.** `probeWebsocketPresence()` (`src/collaboration/presenceProbe.ts`) opens a raw `WebSocket` to the room, exactly like `websocketCollab`'s URL construction, but never constructs a `Y.Doc` and never sends a byte itself. `@y/websocket-server`'s `setupWSConnection` pushes two messages to every new connection unprompted: a sync-step-1 (a state *vector*, not content) and, only if peers are already present, their current awareness states. The probe decodes only the second message type — the sync frame is never parsed, so document content, encrypted or not, never reaches the probe. It reports `HallPresence`: `unknown` while connecting, `empty` once a short settle window (`PRESENCE_PROBE_SETTLE_MS`) passes with nothing pushed, `someone` (with a `lastSeen` `EpochMs`) once a non-null awareness state arrives — and keeps listening afterward, so a later arrival or the ~31s server-side awareness timeout on a departure both update it live. Wired into `MeetingJoinDialog.svelte`: pasting a meeting link fires a non-blocking probe of the derived room and toasts "Someone's already in there" / "Looks empty in there right now" once it resolves, without delaying the join tab. The hub-memory cost this section already documents is unmitigated by design (see above); the probe's own `destroy`/`stop()` closes its socket promptly, but the server-side `Y.Doc` it caused to be allocated is not freed by that.
+
+**P2P — not wired.** `y-webrtc`'s signaling server is pure pub/sub with no roster (§2's table), so there is no equivalent "ask the server, get pushed the roster" shortcut — the only way to observe presence is to actually open a `WebrtcProvider` and watch `room.webrtcConns`/`bcConns`, the same mechanism `webrtcCollab()` already wraps a full `Collab` around. Doing that without also standing up the full adapter (and its `Y.Doc`) needs its own design pass; deferred. `MeetingJoinDialog`'s probe call is skipped whenever the deployment is on the WebRTC transport (`hallUrl` is `undefined`).
 
 ### 6.2 Meeting link → room + key
 
