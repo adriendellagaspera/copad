@@ -1,14 +1,36 @@
 <script lang="ts">
   import type { RoomId, RoomName } from '../../collaboration/types.js';
+  import type { Milliseconds } from '../../time.js';
 
   type Props = {
     room: RoomId;
     name: RoomName | null;
     /** Apply a rename to the current room (shared, never changes the id). */
     onRename: (raw: string) => void;
+    /** Focus and select the input on mount (fresh tab from "New document"). */
+    autofocus?: boolean;
   };
 
-  let { room, name, onRename }: Props = $props();
+  let { room, name, onRename, autofocus = false }: Props = $props();
+
+  const RENAME_DEBOUNCE = 400 as Milliseconds;
+  let renameTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function scheduleRename(raw: string): void {
+    clearTimeout(renameTimer);
+    renameTimer = setTimeout(() => onRename(raw), RENAME_DEBOUNCE);
+  }
+
+  function commitRename(raw: string): void {
+    clearTimeout(renameTimer);
+    onRename(raw);
+  }
+
+  function autofocusInput(node: HTMLInputElement): void {
+    if (!autofocus) return;
+    node.focus();
+    node.select();
+  }
 </script>
 
 <!-- Lives inside `.content` (Editor.svelte), above the ProseMirror surface — it's
@@ -23,9 +45,12 @@
   <input
     class="title-input"
     aria-label="Room name"
-    placeholder={room}
+    placeholder="Untitled"
     value={name ?? ''}
-    oninput={(e) => onRename(e.currentTarget.value)}
+    oninput={(e) => scheduleRename(e.currentTarget.value)}
+    onblur={(e) => commitRename(e.currentTarget.value)}
+    onkeydown={(e) => { if (e.key === 'Enter') commitRename(e.currentTarget.value); }}
+    use:autofocusInput
     title={'Room name — the room id (' + room + ') never changes when you rename it'}
   />
 </div>
