@@ -50,13 +50,27 @@ const confStore = localStore<SharePointConf | null>(
 );
 
 const credentialFields: CredentialField[] = [
-  { name: 'token', label: 'Access token', type: InputType.Password, placeholder: 'eyJ0eXAi…' },
+  {
+    name: 'token',
+    label: 'Access token',
+    type: InputType.Password,
+    placeholder: 'eyJ0eXAi…',
+    help: 'A delegated Microsoft Graph token (Files.ReadWrite.All), pasted from Graph ' +
+      'Explorer or your IT admin. Short-lived — expires after about an hour, so you\'ll ' +
+      'need to reconnect with a fresh one periodically.',
+  },
   {
     name: 'siteUrl',
     label: 'SharePoint site URL (blank = OneDrive)',
     placeholder: 'https://contoso.sharepoint.com/sites/mysite',
+    help: 'Leave blank to use your personal OneDrive instead of a SharePoint site.',
   },
-  { name: 'folder', label: 'Folder', placeholder: SHAREPOINT_FOLDER },
+  {
+    name: 'folder',
+    label: 'Folder',
+    placeholder: SHAREPOINT_FOLDER,
+    help: `Drive folder to store the document in. Defaults to "${SHAREPOINT_FOLDER}".`,
+  },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -82,6 +96,14 @@ function driveItemUrl(c: SharePointConf, filename: Filename): string {
 
 function driveContentUrl(c: SharePointConf, filename: Filename): string {
   return `${driveItemUrl(c, filename)}:/content`;
+}
+
+/** 401/403 mid-session means the pasted token (short-lived, ~1h) has expired —
+ *  distinct, actionable copy over the other statuses' generic `${action} failed`. */
+function graphErrorMessage(action: string, status: number): string {
+  return status === 401 || status === 403
+    ? 'SharePoint: your session has expired — reconnect with a fresh access token in Settings.'
+    : `SharePoint ${action} failed: ${status}`;
 }
 
 /** Resolve a SharePoint site URL to its Graph site id. */
@@ -151,7 +173,7 @@ export function sharepointStorage(room: RoomId): { auth: StorageAuth; storage: S
 
       const res = await fetch(driveContentUrl(c, fileName.get()), { headers: authHeaders(c.token) });
       if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`SharePoint load failed: ${res.status}`);
+      if (!res.ok) throw writeFailure(classifyHttpStatus(res.status), graphErrorMessage('load', res.status));
 
       const bytes = new Uint8Array(await res.arrayBuffer());
       if (storage.contentFormat === DocFormat.Text) {
@@ -177,7 +199,7 @@ export function sharepointStorage(room: RoomId): { auth: StorageAuth; storage: S
         headers: { ...authHeaders(c.token), 'Content-Type': mime },
         body: bytes as unknown as BodyInit,
       });
-      if (!res.ok) throw writeFailure(classifyHttpStatus(res.status), `SharePoint save failed: ${res.status}`);
+      if (!res.ok) throw writeFailure(classifyHttpStatus(res.status), graphErrorMessage('save', res.status));
       return landed();
     },
 

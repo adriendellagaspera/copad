@@ -106,6 +106,8 @@ export interface CredentialField {
   label: string;
   type?: InputType;
   placeholder?: string;
+  /** Short hint shown under the input — e.g. where to obtain the value. */
+  help?: string;
 }
 
 /**
