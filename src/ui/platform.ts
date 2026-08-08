@@ -51,14 +51,8 @@ export function modKey(os: OS = parseOS()): KeyCap {
   return (os === OS.Apple ? '⌘' : 'Ctrl') as KeyCap;
 }
 
-/** The OS-resolved secondary modifier cap: ⌥ (Option) on Apple platforms,
- *  Alt elsewhere — the literal word "Alt" doesn't exist on a Mac keyboard
- *  (labelled ⌥/Option), so every displayed shortcut needs this, not a bare
- *  `keyCap('Alt')`, the same way `modKey` already resolves `Mod`. Browsers
- *  still report the Option key as `event.altKey`/`event.key === 'Alt'` in
- *  the DOM `KeyboardEvent` API regardless (that naming is unrelated to what
- *  a user sees on their keyboard or in this UI), so nothing about how keys
- *  are actually matched changes — only how a combo is displayed. */
+/** The OS-resolved secondary modifier cap: ⌥ on Apple platforms, Alt
+ *  elsewhere. `KeyboardEvent.key` still reports `'Alt'` on Apple regardless — this is display only. */
 export function altKey(os: OS = parseOS()): KeyCap {
   return (os === OS.Apple ? '⌥' : 'Alt') as KeyCap;
 }
