@@ -13,7 +13,8 @@
   import Toolbar from './Toolbar.svelte';
   import SelectionToolbar from './editor/ui/SelectionToolbar.svelte';
   import CaretFormatHint from './editor/ui/CaretFormatHint.svelte';
-  import { codecForFilename } from './format/index.js';
+  import { codecForFilename, extensionOf, knownExtensions } from './format/index.js';
+  import { pickFile } from './format/filePicker.js';
   import SlashMenu from './editor/ui/SlashMenu.svelte';
   import LinkPopover from './editor/ui/LinkPopover.svelte';
   import WordCount from './editor/ui/WordCount.svelte';
@@ -315,6 +316,41 @@
       });
   });
 
+  // One-shot import of an arbitrary local file into the current document — no
+  // backend involved (see #190). `codec.decode` writes straight into `collab.doc`
+  // via `writePmDoc`/`prosemirrorToYXmlFragment` rather than a ProseMirror
+  // transaction, so it bypasses `view.editable` entirely: the write-gate has to
+  // be re-checked here explicitly, and the button below stays disabled otherwise.
+  const canImport = $derived(role === SessionRole.Writer && !writeLocked);
+
+  async function importFile(): Promise<void> {
+    if (!canImport) return;
+    let file: File;
+    try {
+      file = await pickFile();
+    } catch {
+      return; // cancelled
+    }
+    const ext = extensionOf(file.name);
+    if (!knownExtensions().includes(ext)) {
+      toasts.error(`Unsupported file type${ext ? ` "${ext}"` : ''} — try .yjs, .md, .txt, .html, or .json`);
+      return;
+    }
+    if (
+      yFragment.length > 0 &&
+      !window.confirm(`Replace the current document with "${file.name}"? This can't be undone for collaborators.`)
+    ) {
+      return;
+    }
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      await codecForFilename(file.name).decode(bytes, collab.doc);
+      toasts.success(`Imported ${file.name}`);
+    } catch (e) {
+      toasts.error(`Couldn't import ${file.name}: ${(e as Error).message}`);
+    }
+  }
+
   // The file this peer would persist to, as a target key (hashed backend +
   // filename + browser install id). Absent when this peer isn't persisting.
   const DEFAULT_TARGET_FILE = 'document.yjs' as Filename;
@@ -496,7 +532,7 @@
     class:editing={sessionState.editing}
     style="--kb-inset: {keyboardInset.px}px"
   >
-    <Toolbar {view} {editorState} {toasts} />
+    <Toolbar {view} {editorState} {toasts} {canImport} onImport={importFile} />
   </div>
   <!-- DocTitle renders inside `.content` (not as a sibling) so it scrolls away
        with the rest of the document instead of costing permanent chrome —
@@ -514,7 +550,7 @@
     <WordCount {editorState} />
     <Outline {view} {editorState} />
   </div>
-  <SelectionToolbar {view} {editorState} {toasts} />
+  <SelectionToolbar {view} {editorState} {toasts} {canImport} onImport={importFile} />
   <CaretFormatHint {view} {editorState} />
   <SlashMenu {view} {editorState} />
   <LinkPopover {view} {editorState} />

@@ -11,9 +11,11 @@
     view: EditorView | null;
     editorState: EditorState | null;
     toasts: Toasts;
+    canImport?: boolean;
+    onImport?: () => void;
   };
 
-  let { view, editorState, toasts }: Props = $props();
+  let { view, editorState, toasts, canImport = false, onImport }: Props = $props();
 
   // Two floating panels — desktop only (a pointer-fine media query in
   // editor.css gates visibility; the fixed Toolbar stays on touch devices
@@ -301,7 +303,7 @@
   onmousedown={(e) => e.preventDefault()}
   role="presentation"
 >
-  <Toolbar {view} {editorState} {toasts} showTableStructure={false} />
+  <Toolbar {view} {editorState} {toasts} showTableStructure={false} {canImport} {onImport} />
 </div>
 <div
   class="table-toolbar"
