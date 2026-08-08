@@ -15,7 +15,7 @@ function requireDom(): void {
 /**
  * Serializes a table with any rich (non-simple) cell content as raw HTML —
  * GFM pipe-table syntax has no way to express a cell holding a list,
- * heading, or more than one paragraph (see `isTableSimple` in
+ * heading, or more than one paragraph (see `classifyTable` in
  * `editor/markdown.ts`, which decides which of the two a given table
  * needs). CommonMark/GFM explicitly permit a raw HTML block in Markdown
  * source (recognized by `markdownCodec`'s tokenizer via `html: true`,
@@ -24,7 +24,7 @@ function requireDom(): void {
  * lossless Markdown for a document that has rich table cells — just not
  * pipe-table syntax for this one table. Requires a DOM (browser only, the
  * same constraint `htmlCodec` already has) — the caller decides per table
- * via `isTableSimple` first, so plain documents with only simple tables
+ * via `classifyTable` first, so plain documents with only simple tables
  * never hit this path.
  */
 export function richTableToHtml(table: PMNode): string {
