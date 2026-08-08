@@ -203,11 +203,17 @@ function blockOf(node: PMNode, counter: OrderedCounter, depth: number, orderedIn
       node.forEach((row) => {
         const cells: TableCell[] = [];
         row.forEach((cell) => {
+          // A cell holds block+ content (paragraphs, lists, headings, …), not
+          // bare inline runs — the common single-paragraph case renders as
+          // before (with header bold forced onto its runs); anything richer
+          // falls through to the general block renderer, same as the top
+          // level, so no cell content is silently dropped.
           const isHeader = cell.type.name === 'table_header';
-          cells.push(new TableCell({
-            width: colWidth,
-            children: [new Paragraph({ children: runsOf(cell, isHeader ? { bold: true } : {}) })],
-          }));
+          const onlyParagraph = cell.childCount === 1 && cell.firstChild!.type.name === 'paragraph';
+          const children: Block[] = onlyParagraph
+            ? [new Paragraph({ children: runsOf(cell.firstChild!, isHeader ? { bold: true } : {}) })]
+            : blocksOf(cell, counter);
+          cells.push(new TableCell({ width: colWidth, children }));
         });
         rows.push(new TableRow({ children: cells }));
       });

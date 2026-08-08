@@ -5,7 +5,7 @@
   import { EditorView } from 'prosemirror-view';
   import { ySyncPlugin, ySyncPluginKey, yCursorPlugin, yUndoPlugin } from 'y-prosemirror';
   import { schema } from './editor/schema.js';
-  import { buildPlugins } from './editor/plugins.js';
+  import { buildPlugins, stripNestedTables } from './editor/plugins.js';
   import { slashMenuPlugin } from './editor/ui/slashMenu.js';
   import { placeholderPlugin } from './editor/ui/placeholder.js';
   import { lineBlockHintPlugin } from './editor/ui/lineBlockHint.js';
@@ -435,6 +435,11 @@
       // reactive dependency inside ProseMirror's render cycle. The write-gate's
       // reactive updates go through the $effect above; this is just the seed value.
       editable: () => untrack(() => role) === SessionRole.Writer && !untrack(() => writeLocked),
+      // Pasted HTML can carry a table nested inside a cell (via an
+      // intermediate blockquote/list, which the schema legitimately allows
+      // everywhere else) straight past the schema's own paste parser — see
+      // stripNestedTables. Local-only; never touches a synced transaction.
+      transformPasted: (slice) => stripNestedTables(slice, schema),
       // ProseMirror calls dispatchTransaction with the EditorView as `this`,
       // so we use `this` here instead of closing over the outer `view` variable.
       // Closing over `view` would fail on the first call because ProseMirror

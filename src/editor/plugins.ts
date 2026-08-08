@@ -1,5 +1,5 @@
 import { keymap } from 'prosemirror-keymap';
-import { baseKeymap, chainCommands, toggleMark, setBlockType, wrapIn, lift } from 'prosemirror-commands';
+import { baseKeymap, chainCommands, toggleMark, setBlockType, wrapIn, lift, selectTextblockStart, selectTextblockEnd } from 'prosemirror-commands';
 import { splitListItem, liftListItem, sinkListItem, wrapInList } from 'prosemirror-schema-list';
 import {
   inputRules,
@@ -24,6 +24,7 @@ import {
   nextCell,
   TableMap,
 } from 'prosemirror-tables';
+import { Fragment, Slice } from 'prosemirror-model';
 import type { Attrs, MarkType, Node as PMNode, NodeType, ResolvedPos, Schema } from 'prosemirror-model';
 import { Selection, TextSelection, PluginKey, Plugin } from 'prosemirror-state';
 import type { Command, EditorState, Transaction } from 'prosemirror-state';
@@ -546,6 +547,40 @@ export function deleteAtTableEnd(): Command {
 }
 
 /**
+ * Drops any `table` node that would land inside a `table_cell`/`table_header`
+ * from a pasted slice, at any depth — schema content rules can only say "not
+ * as a cell's direct child" (`insertTable`'s `isInTable` guard covers that
+ * path), not "not nested inside a cell at all", since blockquote/list_item/
+ * task_item legitimately admit a table everywhere else. External HTML can
+ * still carry that deeper nesting straight through the schema's own paste
+ * parser. Slice-local only — never touches a synced Yjs transaction, so
+ * collaborative convergence is unaffected.
+ */
+export function stripNestedTables(slice: Slice, s: Schema): Slice {
+  function strip(fragment: Fragment, insideCell: boolean): Fragment {
+    let changed = false;
+    const kept: PMNode[] = [];
+    fragment.forEach((node) => {
+      if (insideCell && node.type === s.nodes.table) {
+        changed = true;
+        return;
+      }
+      const isCell = node.type === s.nodes.table_cell || node.type === s.nodes.table_header;
+      const content = strip(node.content, insideCell || isCell);
+      if (content === node.content) {
+        kept.push(node);
+      } else {
+        changed = true;
+        kept.push(node.copy(content));
+      }
+    });
+    return changed ? Fragment.fromArray(kept) : fragment;
+  }
+  const content = strip(slice.content, false);
+  return content === slice.content ? slice : new Slice(content, slice.openStart, slice.openEnd);
+}
+
+/**
  * Remembers which table column a vertical Arrow move last left from, so
  * arrowing back into the table from the paragraph above/below (see
  * {@link tableArrowFromOutside}) returns to that same column instead of
@@ -989,6 +1024,15 @@ export function buildPlugins(s: Schema): Plugin[] {
       // for no real gain. Mod-Shift-z still works on QWERTY Macs.
       'Mod-Shift-z': redo,
       'Escape': escapeCodeBlock,
+      // Bound explicitly (not left to native/browser handling) so the
+      // resulting selection lands synchronously in `state`, in the same
+      // dispatch cycle — a fast Home/End immediately followed by an Arrow
+      // key would otherwise let tableArrowVertical read a stale selection
+      // (the native DOM caret move hasn't reached `state` via the async
+      // `selectionchange` event yet), misjudging a mid-cell caret as
+      // already at the cell's true edge and escaping a row early.
+      'Home': selectTextblockStart,
+      'End': selectTextblockEnd,
       'ArrowUp': chainCommands(tableArrowVertical(-1), tableArrowFromOutside(-1)),
       'ArrowDown': chainCommands(exitCodeBlockDown, tableArrowVertical(1), tableArrowFromOutside(1)),
       'ArrowLeft': tableArrowHorizontal(-1),

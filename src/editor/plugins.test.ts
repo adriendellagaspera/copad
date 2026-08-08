@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { Fragment, Slice } from 'prosemirror-model';
 import { EditorState, TextSelection, Plugin } from 'prosemirror-state';
 import type { Command, Transaction } from 'prosemirror-state';
 import { tableNodeTypes, CellSelection, selectedRect } from 'prosemirror-tables';
@@ -38,6 +39,7 @@ import {
   CHECKLIST_RULE,
   HORIZONTAL_RULE_RULE,
   buildPlugins,
+  stripNestedTables,
 } from './plugins.js';
 
 /** A bare 1×1 table (one header cell, no body row) — the smallest doc shape
@@ -1601,5 +1603,44 @@ describe('table-structure keymap survives macOS Option-key character composition
     const handled = handleKeyDown(view, fakeEvent({ key: 'R', keyCode: 82, altKey: true, shiftKey: true }));
     expect(handled).toBe(true);
     expect(view.state.doc.firstChild!.childCount).toBe(rowsBefore + 1);
+  });
+});
+
+describe('stripNestedTables', () => {
+  function tableCount(slice: Slice): number {
+    let count = 0;
+    schema.topNodeType.create(null, slice.content).descendants((n) => {
+      if (n.type === schema.nodes.table) count++;
+    });
+    return count;
+  }
+
+  it('drops a table reachable only via an intermediate blockquote inside a cell', () => {
+    const { table, table_row, table_cell, blockquote, paragraph } = schema.nodes;
+    const innerTable = table.createAndFill()!;
+    const cell = table_cell.create(null, [
+      paragraph.create(null, schema.text('before')),
+      blockquote.create(null, [paragraph.create(null, schema.text('quoted')), innerTable]),
+    ]);
+    const outer = table.create(null, [table_row.create(null, [cell])]);
+    const slice = new Slice(Fragment.from(outer), 0, 0);
+
+    const stripped = stripNestedTables(slice, schema);
+    expect(tableCount(stripped)).toBe(1); // only the outer table remains
+  });
+
+  it('leaves a table nested in a blockquote OUTSIDE any cell untouched', () => {
+    const { table, blockquote, paragraph } = schema.nodes;
+    const innerTable = table.createAndFill()!;
+    const bq = blockquote.create(null, [paragraph.create(null, schema.text('quoted')), innerTable]);
+    const slice = new Slice(Fragment.from(bq), 0, 0);
+
+    const stripped = stripNestedTables(slice, schema);
+    expect(tableCount(stripped)).toBe(1);
+  });
+
+  it('returns the same slice instance when nothing needs stripping', () => {
+    const slice = new Slice(Fragment.from(schema.nodes.paragraph.create(null, schema.text('hello'))), 0, 0);
+    expect(stripNestedTables(slice, schema)).toBe(slice);
   });
 });

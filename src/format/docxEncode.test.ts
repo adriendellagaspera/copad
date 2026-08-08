@@ -52,12 +52,12 @@ function seeded() {
       horizontal_rule.create(),
       table.create(null, [
         table_row.create(null, [
-          table_header.create(null, schema.text('A')),
-          table_header.create(null, schema.text('B')),
+          table_header.create(null, paragraph.create(null, schema.text('A'))),
+          table_header.create(null, paragraph.create(null, schema.text('B'))),
         ]),
         table_row.create(null, [
-          table_cell.create(null, schema.text('1')),
-          table_cell.create(null, schema.text('2')),
+          table_cell.create(null, paragraph.create(null, schema.text('1'))),
+          table_cell.create(null, paragraph.create(null, schema.text('2'))),
         ]),
       ]),
     ])
@@ -117,6 +117,34 @@ describe('encodeDocx', () => {
     expect(xml).toContain('<w:tbl>');
     expect(xml).toContain('A');
     expect(xml).toContain('1');
+  });
+
+  it('renders a cell holding more than a single paragraph (list, heading, …)', async () => {
+    // Regression: a cell is block+ content, not bare inline text — a cell
+    // renderer that assumes the latter silently drops every character.
+    const { paragraph, heading, bullet_list, list_item, table, table_row, table_header, table_cell } = schema.nodes;
+    const doc = new Y.Doc();
+    writePmDoc(
+      doc,
+      schema.topNodeType.create(null, [
+        table.create(null, [
+          table_row.create(null, [table_header.create(null, paragraph.create(null, schema.text('Col')))]),
+          table_row.create(null, [
+            table_cell.create(null, [
+              heading.create({ level: 2 }, schema.text('Rich cell')),
+              bullet_list.create(null, [
+                list_item.create(null, paragraph.create(null, schema.text('one'))),
+                list_item.create(null, paragraph.create(null, schema.text('two'))),
+              ]),
+            ]),
+          ]),
+        ]),
+      ]),
+    );
+    const xml = await documentXml(await encodeDocx(doc));
+    expect(xml).toContain('Rich cell');
+    expect(xml).toContain('one');
+    expect(xml).toContain('two');
   });
 
   it('sizes table columns as an equal percentage of the full table width', async () => {

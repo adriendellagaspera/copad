@@ -98,7 +98,7 @@ A backend moves *bytes*; a **codec** (`src/format/`) turns those bytes into the 
 |-------|-----------|-------|
 | `yjsCodec` | `.yjs` | **Native default.** Full CRDT state (history + content) — the only format that round-trips collaborative merge. Fallback for unknown extensions. |
 | `textCodec` | `.txt`, `.log`, `.csv` and ~90 source-code extensions — the list lives in `src/format/text.ts` | Plain text and source files; one paragraph per line. Formatting flattened. |
-| `markdownCodec` | `.md`, `.markdown` | CommonMark + GFM strikethrough (`~~`), checklists (`- [ ]`/`- [x]`), and tables. No native underline syntax — that mark is flattened to plain text on export. |
+| `markdownCodec` | `.md`, `.markdown` | CommonMark + GFM strikethrough (`~~`), checklists (`- [ ]`/`- [x]`), and tables. No native underline syntax — that mark is flattened to plain text on export. Table cells hold real block content (paragraphs, lists, headings, quotes, code blocks — see `schema.ts`'s `cellContent`), which GFM's pipe-table syntax can't express; such a table round-trips as an embedded raw HTML block (`format/tableMarkdown.ts`) instead, with a plain-text degrade when no DOM is available to build it. A table with only single-paragraph cells still stays plain GFM pipe syntax. |
 | `htmlCodec` | `.html`, `.htm` | ProseMirror DOM parser/serializer; **needs a DOM** (browser only). |
 | `jsonCodec` | `.json` | ProseMirror document JSON; lossless for our schema. |
 
