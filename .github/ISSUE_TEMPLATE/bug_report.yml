@@ -1,0 +1,34 @@
+name: Bug report
+description: Report something that's broken
+title: "<short imperative title>"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep it short — a scannable issue gets triaged, a long one doesn't. Cite `file:line` instead of describing code in prose.
+
+        **Labels** (maintainer sets these on triage): one area — `editor` / `storage` / `ux` / `mobile-ux` / `presence` / `contract` — plus `P0`–`P3` only if priority is already known, otherwise leave it unset.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What's broken. Cite file:line if it sharpens the claim.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Repro
+      description: Minimal steps to reproduce, or the failing input/state.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance
+      description: 1-3 checkbox bullets describing the fixed behavior.
+      value: |
+        - [ ]
+    validations:
+      required: true
