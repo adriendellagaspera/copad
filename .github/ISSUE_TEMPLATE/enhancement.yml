@@ -1,0 +1,35 @@
+name: Enhancement
+description: Propose a feature or improvement
+title: "<short imperative title>"
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep it short — a scannable issue gets triaged, a long one doesn't. No "Motivation"/"SOTA"/"Context" essays; cite `file:line` instead of describing code in prose.
+
+        **Labels** (maintainer sets these on triage): one area — `editor` / `storage` / `ux` / `mobile-ux` / `presence` / `contract` / `epic` — plus `P0`–`P3` only if priority is already known, otherwise leave it unset.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: 1-2 sentences. What's broken or missing. Cite file:line if it sharpens the claim.
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: Fix
+      description: 1-3 short bullets. Concrete approach, not a design essay.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance
+      description: 2-4 checkbox bullets.
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
