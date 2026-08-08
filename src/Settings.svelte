@@ -246,6 +246,20 @@
     onchange?.();
   }
 
+  // Turns a raw login() rejection into copy a user can act on. `TypeError:
+  // Failed to fetch` is the browser's undifferentiated network-error message —
+  // for a connect request it's almost always the backend's CORS policy not
+  // allowing this origin, so that gets named explicitly rather than shown raw.
+  function friendlyConnectError(e: unknown): string {
+    if (e instanceof TypeError && /fetch/i.test(e.message)) {
+      return "Couldn't reach the server — this usually means the backend's CORS " +
+        'settings don\'t allow requests from this origin. Check the backend\'s CORS ' +
+        'configuration, or open the browser console for the underlying network error.';
+    }
+    if (e instanceof Error) return e.message;
+    return 'Connection failed.';
+  }
+
   async function connect(b: StorageBackend, opts?: LoginOptions) {
     busy = { ...busy, [b.storage.id]: true };
     errors = { ...errors, [b.storage.id]: '' };
@@ -253,7 +267,7 @@
       await b.auth.login(opts);
       onconnect?.(b);
     } catch (e) {
-      errors = { ...errors, [b.storage.id]: (e as Error).message };
+      errors = { ...errors, [b.storage.id]: friendlyConnectError(e) };
     } finally {
       busy = { ...busy, [b.storage.id]: false };
       stateVersion += 1;
@@ -487,11 +501,11 @@
           {#if authed}
             <span class="badge ok">Connected</span>
           {:else if hasConfigFields}
-            <span class="badge">{ready ? 'Ready' : 'Needs setup'}</span>
+            <span class="badge {ready ? 'ready' : 'warn'}">{ready ? 'Ready' : 'Needs setup'}</span>
           {:else if !b.storage.availability.ok}
             <span class="badge unavailable">Unavailable</span>
           {:else}
-            <span class="badge">Ready</span>
+            <span class="badge ready">Ready</span>
           {/if}
         </button>
 
@@ -558,6 +572,7 @@
                           value={creds[b.storage.id]?.[f.name] ?? ''}
                           oninput={e => { creds = { ...creds, [b.storage.id]: { ...(creds[b.storage.id] ?? {}), [f.name]: e.currentTarget.value } }; }}
                         />
+                        {#if f.help}<small class="field-help">{f.help}</small>{/if}
                       </label>
                     {/each}
                     <div class="backend-actions">

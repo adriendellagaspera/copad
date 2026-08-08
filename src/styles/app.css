@@ -570,6 +570,16 @@ button.status-link {
   background: var(--ok-soft);
   border-color: color-mix(in srgb, var(--ok) 30%, var(--border));
 }
+.badge.warn {
+  background: var(--warn-soft);
+  color: var(--warn-text);
+  border-color: var(--warn-border);
+}
+.badge.ready {
+  color: var(--accent-soft-text);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+}
 .badge.unavailable {
   color: var(--text-muted);
   background: var(--surface-3);
