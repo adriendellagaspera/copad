@@ -5,10 +5,12 @@
     roomHistory,
     forgetRoom,
     roomVisitUrl,
+    openedLabel,
     type RoomVisit,
     type PagePath,
+    type OpenedLabel,
   } from '../collaboration/roomHistory.js';
-  import type { EpochMs } from '../time.js';
+  import { now } from '../time.js';
   import Dialog from './Dialog.svelte';
 
   let {
@@ -28,10 +30,17 @@
     onNew: () => void;
   } = $props();
 
+  interface LibraryRow {
+    readonly visit: RoomVisit;
+    readonly opened: OpenedLabel;
+  }
+
   let forgotten = $state(0);
-  const visits = $derived.by((): RoomVisit[] => {
+  const rows = $derived.by((): LibraryRow[] => {
     void forgotten;
-    return open ? roomHistory() : [];
+    if (!open) return [];
+    const reference = now();
+    return roomHistory().map((visit) => ({ visit, opened: openedLabel(visit.openedAt, reference) }));
   });
 
   function forget(room: RoomId): void {
@@ -44,29 +53,21 @@
   function roomTail(room: RoomId): string {
     return room.slice(-4);
   }
-
-  function openedLabel(at: EpochMs): string {
-    const when = new Date(at);
-    const sameDay = new Date().toDateString() === when.toDateString();
-    return sameDay
-      ? when.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-      : when.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-  }
 </script>
 
 <Dialog {open} {onclose} title="Your documents">
   <p class="lib-intro">
-    Rooms this browser has opened. The list is kept on this device only — nobody
-    else sees it, and clearing your browser data clears it.
+    Rooms this browser has opened, each in a new tab. The list is kept on this
+    device only: nobody else sees it, and clearing your browser data clears it.
   </p>
 
-  {#if visits.length === 0}
+  {#if rows.length === 0}
     <p class="lib-empty">Nothing here yet. Documents you open show up in this list.</p>
   {:else}
     <ul class="lib-list">
-      {#each visits as visit (visit.room)}
+      {#each rows as { visit, opened } (visit.room)}
         <li class:lib-current={visit.room === current}>
-          <a class="lib-open" href={roomVisitUrl(visit, page)}>
+          <a class="lib-open" href={roomVisitUrl(visit, page)} target="_blank" rel="noopener">
             <span class="lib-name">
               {visit.name ?? 'Untitled'}
               {#if !visit.name}<span class="lib-discriminator">{roomTail(visit.room)}</span>{/if}
@@ -74,7 +75,7 @@
             <span class="lib-meta">
               {#if visit.key}<span title="End-to-end encrypted" aria-label="Encrypted">🔒</span>{/if}
               {#if visit.role === SessionRole.Reader}<span class="lib-tag">View-only</span>{/if}
-              <span>{visit.room === current ? 'Open here' : openedLabel(visit.openedAt)}</span>
+              <span>{visit.room === current ? 'Open here' : opened}</span>
             </span>
           </a>
           <button

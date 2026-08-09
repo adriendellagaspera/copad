@@ -29,3 +29,12 @@ test('the library lists a room this browser has opened', async ({ page }) => {
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('a[href*="room=pw-library"]')).toHaveCount(1);
 });
+
+test('a view-only visit is remembered as view-only, never reopened as a writer', async ({ page }) => {
+  await page.goto('/?room=pw-reader&role=reader');
+  await page.locator('.ProseMirror').waitFor();
+
+  await page.getByRole('button', { name: 'Your documents' }).first().click();
+  const row = page.getByRole('dialog').locator('a[href*="room=pw-reader"]');
+  await expect(row).toHaveAttribute('href', /role=reader/);
+});

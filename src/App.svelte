@@ -21,7 +21,7 @@
     type PageHostname,
   } from './collaboration/config.js';
   import { fetchIceServers } from './collaboration/iceServers.js';
-  import { parseRoomId, parseRoomCredential, parseSelfProbeMarker } from './collaboration/parse.js';
+  import { parseRoomCredential, parseSelfProbeMarker } from './collaboration/parse.js';
   import type { SelfProbeMarker } from './collaboration/selfProbeMarker.js';
   import { sessionState } from './collaboration/sessionState.svelte.js';
   import { keyboardInset } from './ui/keyboardInset.svelte.js';

@@ -7,6 +7,7 @@ import {
   forgetRoom,
   clearRoomHistory,
   roomVisitUrl,
+  openedLabel,
   type RoomVisit,
   type PagePath,
 } from './roomHistory.js';
@@ -198,5 +199,35 @@ describe('roomVisitUrl', () => {
   it('escapes a room id that would otherwise alter the query', () => {
     const url = roomVisitUrl(visit('a&role=writer', 1, { role: SessionRole.Reader }), PAGE);
     expect(url).toBe('/?room=a%26role%3Dwriter&role=reader');
+  });
+});
+
+describe('openedLabel', () => {
+  const at = Date.parse('2026-03-04T09:00:00Z') as EpochMs;
+  const after = (ms: number): EpochMs => (at + ms) as EpochMs;
+
+  it('reads a visit within the minute as just now', () => {
+    expect(openedLabel(at, after(0))).toBe('just now');
+    expect(openedLabel(at, after(59_000))).toBe('just now');
+  });
+
+  it('counts minutes within the hour', () => {
+    expect(openedLabel(at, after(60_000))).toBe('1m ago');
+    expect(openedLabel(at, after(59 * 60_000))).toBe('59m ago');
+  });
+
+  it('counts hours within the day', () => {
+    expect(openedLabel(at, after(60 * 60_000))).toBe('1h ago');
+    expect(openedLabel(at, after(23 * 60 * 60_000))).toBe('23h ago');
+  });
+
+  it('falls back to a date once elapsed time stops placing the visit', () => {
+    const label = openedLabel(at, after(63 * 24 * 60 * 60_000));
+    expect(label).not.toMatch(/ago|just now/);
+    expect(label).toBe(new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }));
+  });
+
+  it('reads a timestamp from the future as just now rather than a negative age', () => {
+    expect(openedLabel(after(60_000), at)).toBe('just now');
   });
 });
