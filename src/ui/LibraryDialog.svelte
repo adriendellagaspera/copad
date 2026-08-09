@@ -39,6 +39,12 @@
     forgotten += 1;
   }
 
+  // Unnamed rooms are all "Untitled"; without this the list is rows of the same
+  // word and picking one is guesswork.
+  function roomTail(room: RoomId): string {
+    return room.slice(-4);
+  }
+
   function openedLabel(at: EpochMs): string {
     const when = new Date(at);
     const sameDay = new Date().toDateString() === when.toDateString();
@@ -61,7 +67,10 @@
       {#each visits as visit (visit.room)}
         <li class:lib-current={visit.room === current}>
           <a class="lib-open" href={roomVisitUrl(visit, page)}>
-            <span class="lib-name">{visit.name ?? 'Untitled'}</span>
+            <span class="lib-name">
+              {visit.name ?? 'Untitled'}
+              {#if !visit.name}<span class="lib-discriminator">{roomTail(visit.room)}</span>{/if}
+            </span>
             <span class="lib-meta">
               {#if visit.key}<span title="End-to-end encrypted" aria-label="Encrypted">🔒</span>{/if}
               {#if visit.role === SessionRole.Reader}<span class="lib-tag">View-only</span>{/if}
@@ -130,6 +139,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .lib-discriminator {
+    margin-left: var(--sp-1);
+    color: var(--text-faint);
+    font-family: var(--font-mono);
+    font-size: var(--fs-300);
   }
   .lib-meta {
     display: flex;
