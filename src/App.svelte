@@ -304,6 +304,19 @@
   const room: RoomId = roomFromUrl();
   const sessionRole: SessionRole = roleFromUrl();
 
+  // One-shot marker set by `newRoom()` below on the tab it opens; consumed and
+  // stripped here so a later reload of this same tab doesn't re-trigger it.
+  function autofocusTitleFromUrl(): boolean {
+    const params = new URLSearchParams(location.search);
+    if (!params.has('new')) return false;
+    params.delete('new');
+    const query = params.toString();
+    history.replaceState(null, '', `${location.pathname}${query ? `?${query}` : ''}${location.hash}`);
+    return true;
+  }
+
+  const autofocusTitle: boolean = autofocusTitleFromUrl();
+
   const storageBackends = backends(room);
 
   // Start with whichever backend is already authenticated (returning user),
@@ -740,7 +753,7 @@
     const r = newRoomId();
     const key = mintSecretKey();
     window.open(
-      `${location.pathname}?room=${encodeURIComponent(r)}#k=${encodeURIComponent(key)}`,
+      `${location.pathname}?room=${encodeURIComponent(r)}&new=1#k=${encodeURIComponent(key)}`,
       '_blank',
       'noopener',
     );
@@ -1011,6 +1024,7 @@
       {writeSoloAt}
       importRequest={pendingImport}
       onImportHandled={() => (pendingImport = null)}
+      {autofocusTitle}
     />
     <!-- The waiting state itself teaches the contract now — see SyncBanner's
          `gated` tier — instead of a separate one-time explainer dialog

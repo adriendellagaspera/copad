@@ -1,31 +1,54 @@
 <script lang="ts">
   import type { RoomId, RoomName } from '../../collaboration/types.js';
+  import type { Milliseconds } from '../../time.js';
 
   type Props = {
     room: RoomId;
     name: RoomName | null;
     /** Apply a rename to the current room (shared, never changes the id). */
     onRename: (raw: string) => void;
+    autofocus?: boolean;
   };
 
-  let { room, name, onRename }: Props = $props();
+  let { room, name, onRename, autofocus = false }: Props = $props();
+
+  const RENAME_DEBOUNCE = 400 as Milliseconds;
+  let renameTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function scheduleRename(raw: string): void {
+    clearTimeout(renameTimer);
+    renameTimer = setTimeout(() => onRename(raw), RENAME_DEBOUNCE);
+  }
+
+  function commitRename(raw: string): void {
+    clearTimeout(renameTimer);
+    onRename(raw);
+  }
+
+  const isFinePointer = (): boolean =>
+    typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
+
+  function autofocusInput(node: HTMLInputElement): void {
+    // Skip on touch: autofocusing here would pop the keyboard on a tab the user didn't tap into.
+    if (!autofocus || !isFinePointer()) return;
+    node.focus();
+    node.select();
+  }
 </script>
 
-<!-- Lives inside `.content` (Editor.svelte), above the ProseMirror surface — it's
-     the first thing in the document, not header chrome, so it scrolls away with
-     the rest of the page instead of costing permanent space. Muted rather than
-     full ink so it never reads as a heading *authored* in the document itself
-     (a real H1 the user types keeps normal text color); the "#" sigil + mono
-     face carry over from the old header field, marking this as an identifier,
-     not prose. -->
+<!-- Rendered inside `.content` (Editor.svelte), not header chrome, so it scrolls
+     away with the document instead of occupying permanent header space. -->
 <div class="doc-title">
   <span class="sigil" aria-hidden="true">#</span>
   <input
     class="title-input"
     aria-label="Room name"
-    placeholder={room}
+    placeholder="Untitled"
     value={name ?? ''}
-    oninput={(e) => onRename(e.currentTarget.value)}
+    oninput={(e) => scheduleRename(e.currentTarget.value)}
+    onblur={(e) => commitRename(e.currentTarget.value)}
+    onkeydown={(e) => { if (e.key === 'Enter') commitRename(e.currentTarget.value); }}
+    use:autofocusInput
     title={'Room name — the room id (' + room + ') never changes when you rename it'}
   />
 </div>

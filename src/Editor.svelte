@@ -87,11 +87,13 @@
     /** Called once `importRequest` has been applied (success or failure), so the
      *  parent can clear it and this effect doesn't re-fire on the next render. */
     onImportHandled?: () => void;
+    /** Set by App.svelte's one-shot `?new=1` marker for a freshly opened tab. */
+    autofocusTitle?: boolean;
   };
 
   let {
     storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true,
-    writeLocked = false, writeSoloAt = null, importRequest = null, onImportHandled,
+    writeLocked = false, writeSoloAt = null, importRequest = null, onImportHandled, autofocusTitle = false,
   }: Props = $props();
 
   // Plain (non-reactive) tracking var — detects a new `writeSoloAt` stamp in
@@ -561,7 +563,7 @@
        `new EditorView(editorEl!, …)` runs in onMount below, so its dom lands
        after (visually below) this, not before. -->
   <div class="content" bind:this={editorEl}>
-    <DocTitle {room} name={roomName.value} onRename={(raw) => renameRoom(parseRoomName(raw))} />
+    <DocTitle {room} name={roomName.value} onRename={(raw) => renameRoom(parseRoomName(raw))} autofocus={autofocusTitle} />
   </div>
   <div class="status">
     <ShortcutBar {editorState} />
