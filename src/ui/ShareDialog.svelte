@@ -153,18 +153,31 @@
   const copyReader = () => copyTo(readerUrl, readerInputEl, 'View-only link copied to clipboard', 'reader');
 
   const canShare = typeof navigator !== 'undefined' && 'share' in navigator;
-  const whatsappUrl = $derived(`https://wa.me/?text=${encodeURIComponent(`Join me on Copad: ${url}`)}`);
+  const shareText = $derived(`Join me on Copad: ${url}`);
+  const whatsappUrl = $derived(`https://wa.me/?text=${encodeURIComponent(shareText)}`);
+  const smsUrl = $derived(`sms:?body=${encodeURIComponent(shareText)}`);
+  const emailUrl = $derived(
+    `mailto:?subject=${encodeURIComponent('Join me on Copad')}&body=${encodeURIComponent(shareText)}`,
+  );
 
   async function share(): Promise<void> {
-    if (canShare) {
-      try {
-        await navigator.share({ title: 'Join me on Copad', url });
-      } catch {
-        /* navigator.share() rejects on cancel; no toast, matches native share UX */
-      }
-      return;
+    try {
+      await navigator.share({ title: 'Join me on Copad', url });
+    } catch {
+      /* navigator.share() rejects on cancel; no toast, matches native share UX */
     }
+  }
+
+  function shareViaWhatsapp(): void {
     window.open(whatsappUrl, '_blank', 'noopener');
+  }
+
+  function shareViaSms(): void {
+    location.href = smsUrl;
+  }
+
+  function shareViaEmail(): void {
+    location.href = emailUrl;
   }
 </script>
 
@@ -199,9 +212,15 @@
       onfocus={(e) => e.currentTarget.select()}
     />
     <button class="primary" onclick={copy}>{copiedButton === 'invite' ? 'Copied ✓' : 'Copy link'}</button>
-    <button onclick={share} aria-label={canShare ? 'Share invite link' : 'Share invite link on WhatsApp'}>
-      {canShare ? '📤 Share' : '💬 WhatsApp'}
-    </button>
+    {#if canShare}
+      <button onclick={share} aria-label="Share invite link">📤 Share</button>
+    {:else}
+      <div class="share-fallbacks" role="group" aria-label="Share via">
+        <button onclick={shareViaWhatsapp} aria-label="Share via WhatsApp" title="WhatsApp">💬</button>
+        <button onclick={shareViaSms} aria-label="Share via SMS" title="SMS">📱</button>
+        <button onclick={shareViaEmail} aria-label="Share via email" title="Email">✉️</button>
+      </div>
+    {/if}
   </div>
 
   <details class="reader-section">
@@ -344,6 +363,14 @@
   }
   .share-row button {
     flex-shrink: 0;
+  }
+  .share-fallbacks {
+    display: flex;
+    gap: var(--sp-1, 0.25rem);
+    flex-shrink: 0;
+  }
+  .share-fallbacks button {
+    padding: 0.4rem 0.55rem;
   }
   .key-badge {
     flex-shrink: 0;
