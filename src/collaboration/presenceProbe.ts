@@ -19,14 +19,33 @@
  * configured, and the bundled binary configures none. Every probed room —
  * even briefly — leaks one `Y.Doc` for the life of the server process.
  *
- * The WebRTC/P2P transport has no equivalent gap-free path: `y-webrtc`'s
- * signaling server is pure pub/sub with no roster (docs/contract.md §2), so
- * "is anyone here" can only be answered by actually joining the room's
- * `WebrtcProvider` and watching `room.webrtcConns`/`bcConns` the way
- * `webrtcCollab()` does — which pulls in the same peer-to-peer machinery
- * `webrtcCollab` already builds a full `Collab` around. Doing that safely
- * without a `Y.Doc` attach needs its own investigation; deferred here. This
- * module covers the hub transport only.
+ * The WebRTC/P2P transport was investigated for the same trick (forge a
+ * discovery message, read a real peer's reaction, never open a data channel)
+ * and rejected — not because the signaling server has no roster (it does
+ * relay pub/sub to every topic subscriber, unconditionally: see
+ * `y-webrtc/bin/server.js`'s `'publish'` case, no prior handshake required),
+ * but for two protocol-level reasons proven against `y-webrtc@10.3.0`'s
+ * actual source, see docs/contract.md §6.1 for citations and detail:
+ *
+ * 1. Every signaling message — including the `announce`/`signal` discovery
+ *    traffic itself, not just document content — is AES-encrypted whenever
+ *    the room has a key (`publishSignalingMessage` in `y-webrtc.js`). A
+ *    keyless prober's message is silently dropped by real peers
+ *    (`typeof m.data === 'string'` guard in `SignalingConn`'s `'message'`
+ *    handler), and rooms are encrypted by default in this app (§5). This
+ *    probe's core property — works without the room key — cannot hold here.
+ * 2. Unlike the hub probe (purely passive: never sends a byte), the only way
+ *    to provoke a reply is to publish a forged `announce`, which makes any
+ *    real peer's `Room` spin up a genuine `WebrtcConn` — a real
+ *    `RTCPeerConnection` doing real ICE/STUN gathering, visible to that
+ *    peer's own UI as a phantom "Reaching" connection (`reachingCount()` in
+ *    `webrtc.ts` counts any unconnected `webrtcConns` entry). That side
+ *    effect lands on the probed peer's device and network, is outside the
+ *    prober's control to cancel, and only self-heals on that peer's own ICE
+ *    timeout. This is a materially worse and less honest cost than the hub's
+ *    server-side `Y.Doc` leak, and it contradicts this module's own "peek at
+ *    the handshake, never perturb" design. This module covers the hub
+ *    transport only.
  */
 
 import * as decoding from 'lib0/decoding';
