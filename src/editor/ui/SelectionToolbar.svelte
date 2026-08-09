@@ -30,7 +30,7 @@
   const isFinePointer = (): boolean =>
     typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
 
-  // Once Tab moves focus into a panel button, the view itself is blurred — the panel must stay up regardless.
+  // Once Tab moves focus into a panel button, the view itself is blurred, so the panel must stay up regardless.
   const focusInToolbar = (): boolean =>
     !!document.activeElement &&
     ((!!hostText && hostText.contains(document.activeElement)) ||
