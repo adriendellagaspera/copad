@@ -53,12 +53,44 @@ const confStore = localStore<S3Conf | null>(
 );
 
 const credentialFields: CredentialField[] = [
-  { name: 'endpoint', label: 'Endpoint', placeholder: 'https://s3.eu-west-1.amazonaws.com' },
-  { name: 'bucket', label: 'Bucket', placeholder: 'my-bucket' },
-  { name: 'region', label: 'Region', placeholder: 'eu-west-1 (or "auto" for R2)' },
-  { name: 'prefix', label: 'Key prefix', placeholder: S3_PREFIX },
-  { name: 'accessKeyId', label: 'Access key ID', placeholder: 'AKI…' },
-  { name: 'secretAccessKey', label: 'Secret access key', type: InputType.Password, placeholder: '…' },
+  {
+    name: 'endpoint',
+    label: 'Endpoint',
+    placeholder: 'https://s3.eu-west-1.amazonaws.com',
+    help: 'The service root, without the bucket name — requests are path-style (endpoint/bucket/key), ' +
+      'and the bucket must allow CORS from this origin.',
+  },
+  {
+    name: 'bucket',
+    label: 'Bucket',
+    placeholder: 'my-bucket',
+    help: 'The bucket name only, not a URL — it\'s appended to the endpoint to build each request.',
+  },
+  {
+    name: 'region',
+    label: 'Region',
+    placeholder: 'eu-west-1 (or "auto" for R2)',
+    help: 'Must match the bucket\'s actual region — it\'s signed into every request, so a wrong value fails auth, not just routing.',
+  },
+  {
+    name: 'prefix',
+    label: 'Key prefix',
+    placeholder: S3_PREFIX,
+    help: `Folder-like prefix objects are stored under. Optional — defaults to "${S3_PREFIX}" if left blank.`,
+  },
+  {
+    name: 'accessKeyId',
+    label: 'Access key ID',
+    placeholder: 'AKI…',
+    help: 'Paired with the secret key below to sign requests (AWS Signature V4) — needs at least PutObject/GetObject on this bucket.',
+  },
+  {
+    name: 'secretAccessKey',
+    label: 'Secret access key',
+    type: InputType.Password,
+    placeholder: '…',
+    help: 'Never sent as-is — used locally to derive the SigV4 signature for each request.',
+  },
 ];
 
 // ── AWS Signature V4 ──────────────────────────────────────────────────────────
