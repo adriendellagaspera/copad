@@ -73,16 +73,16 @@
     toasts: Toasts;
     lang?: string;
     spellcheck?: boolean;
-    /** When true the editor is read-only — the write gate (`writeGateFor()` in
+    /** When true the editor is read-only: the write gate (`writeGateFor()` in
      *  `App.svelte`) is holding. This component only reflects it. */
     writeLocked?: boolean;
-    /** Stamped by `App.svelte` only on an explicit "Write alone anyway" click
-     *  — never by `writeLocked` itself going false, which also happens when a
+    /** Stamped by `App.svelte` only on an explicit "Write alone anyway" click,
+     *  never by `writeLocked` itself going false, which also happens when a
      *  peer joins or durability proves out. Drives the focus-on-unlock effect
      *  below; a natural unlock must never steal focus (contract §4.1). */
     writeSoloAt?: EpochMs | null;
-    /** A file picked in App.svelte — its own header button, or Settings' Browse
-     *  dialog — waiting to be decoded into this document. App owns every import
+    /** A file picked in App.svelte (its own header button, or Settings' Browse
+     *  dialog), waiting to be decoded into this document. App owns every import
      *  entry point; this is their one hand-off into the live `collab.doc`. */
     importRequest?: { bytes: Uint8Array; filename: Filename } | null;
     /** Called once `importRequest` has been applied (success or failure), so the
@@ -135,7 +135,7 @@
   let peers = $state(1);
   let conn = $state<ConnStatus>(ConnStatus.Connecting);
   let roomPresence = $state<RoomPresence>({ kind: PresenceKind.Unknown });
-  // True while every accompanying peer shares our own browserId — a second tab, not a stranger.
+  // True while every accompanying peer shares our own browserId: a second tab, not a stranger.
   let soloBrowser = $state(false);
   let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
   // Branch (b)'s state machine (docs/contract.md §3.2/§3.3, persistHealth.ts).
@@ -297,13 +297,13 @@
   });
 
   // `codec.decode` writes straight into `collab.doc`, bypassing `view.editable`
-  // entirely — the write-gate has to be re-checked here explicitly.
+  // entirely: the write-gate has to be re-checked here explicitly.
   const canImport = $derived(role === SessionRole.Writer && !writeLocked);
 
   async function applyImport(bytes: Uint8Array, filename: Filename): Promise<void> {
     const ext = extensionOf(filename);
     if (!knownExtensions().includes(ext)) {
-      toasts.error(`Unsupported file type${ext ? ` "${ext}"` : ''} — try .yjs, .md, .txt, .html, or .json`);
+      toasts.error(`Unsupported file type${ext ? ` "${ext}"` : ''}, try .yjs, .md, .txt, .html, or .json`);
       return;
     }
     if (
@@ -321,7 +321,7 @@
   }
 
   // Settings has no write-gate awareness of its own, so a request can arrive here
-  // from a reader — always resolve it rather than leaving it dangling.
+  // from a reader: always resolve it rather than leaving it dangling.
   $effect(() => {
     const req = importRequest;
     if (!req) return;
@@ -390,7 +390,7 @@
 
   window.addEventListener('beforeunload', flush);
 
-  // setProps({ attributes }) replaces the whole object — direct DOM manipulation
+  // setProps({ attributes }) replaces the whole object; direct DOM manipulation
   // would be patched away by ProseMirror's decoration diffing.
   $effect(() => {
     if (!view) return;
@@ -436,10 +436,10 @@
         spellcheck: untrack(() => spellcheck) ? 'true' : 'false',
         'aria-label': 'Document editor',
       },
-      // Seed value only — the write-gate's reactive updates go through the $effect above.
+      // Seed value only: the write-gate's reactive updates go through the $effect above.
       editable: () => untrack(() => role) === SessionRole.Writer && !untrack(() => writeLocked),
       // A table can be nested inside a cell via an intermediate blockquote/list on
-      // paste, past the schema's own paste parser — see stripNestedTables.
+      // paste, past the schema's own paste parser; see stripNestedTables.
       transformPasted: (slice) => stripNestedTables(slice, schema),
       // ProseMirror calls dispatchTransaction with the view as `this`; closing over
       // the outer `view` would fail on the first call, before it's assigned.
@@ -457,7 +457,7 @@
     editorState = state;
 
     // y-prosemirror reuses each cursor's existing DOM node across decoration
-    // recomputes, so a forced recompute wouldn't re-run remoteCursorBuilder —
+    // recomputes, so a forced recompute wouldn't re-run remoteCursorBuilder;
     // mutate the already-rendered elements directly instead.
     fadeTimer = setInterval(() => {
       if (view) refreshPresenceFade(view.dom, presenceActivity);
@@ -492,7 +492,7 @@
     <Toolbar {view} {editorState} {toasts} />
   </div>
   <!-- DocTitle must already be in the DOM before `new EditorView(editorEl!, …)`
-       runs in onMount — it only ever appendChild()s, never clears the node. -->
+       runs in onMount: it only ever appendChild()s, never clears the node. -->
   <div class="content" bind:this={editorEl}>
     <DocTitle {room} name={roomName.value} onRename={(raw) => renameRoom(parseRoomName(raw))} />
   </div>

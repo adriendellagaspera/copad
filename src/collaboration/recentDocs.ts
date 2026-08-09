@@ -1,13 +1,13 @@
 /**
- * Recent documents — rooms this browser has opened, for the header switcher.
+ * Recent documents: rooms this browser has opened, for the header switcher.
  *
  * There is no in-place room switch (see `App.svelte`'s `room`/`newRoom`):
  * opening a different room always means a new tab, so each entry stores the
  * room's full navigable {@link RoomUrl} (including the `#k=` secret-link
- * fragment for encrypted rooms) rather than just its {@link RoomId} — that
+ * fragment for encrypted rooms) rather than just its {@link RoomId}. That
  * fragment can't be reconstructed later from the id alone.
  *
- * Persisted under a single localStorage key (not per-backend — this list
+ * Persisted under a single localStorage key (not per-backend: this list
  * tracks rooms *opened*, independent of whether any backend saves them).
  */
 

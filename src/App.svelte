@@ -125,7 +125,7 @@
         const url = ws.url;
         return { build: (cache) => websocketCollab({ url, cache }), warning: ws.warning };
       }
-      console.warn('Copad: VITE_COLLAB_TRANSPORT=websocket but VITE_WEBSOCKET_URL is unset — using WebRTC.');
+      console.warn('Copad: VITE_COLLAB_TRANSPORT=websocket but VITE_WEBSOCKET_URL is unset, using WebRTC.');
     }
     const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, loc);
     // Resolved per build (not once) so runtime TURN changes apply on next reconnect.
@@ -176,7 +176,7 @@
   let rebuilding = false;
   /**
    * Reconnect for a same-room config change (TURN/cache/security), remounting
-   * the Editor rather than swapping providers directly — a direct swap can
+   * the Editor rather than swapping providers directly: a direct swap can
    * construct the new provider before y-webrtc's async room deregistration
    * completes, and `openRoom()` throws "already exists" for the same room name.
    */
@@ -227,7 +227,7 @@
     return parseRoomId(new URLSearchParams(location.search).get('room')) ?? DEFAULT_ROOM;
   }
 
-  // Cooperative only — a modified client could ignore ?role=reader.
+  // Cooperative only: a modified client could ignore ?role=reader.
   function roleFromUrl(): SessionRole {
     return new URLSearchParams(location.search).get('role') === SessionRole.Reader
       ? SessionRole.Reader
@@ -278,12 +278,12 @@
   }
 
   function afterDisconnect(_b: StorageBackend) {
-    // Don't clear the saved-room set — re-logging in should restore it, not orphan it.
+    // Don't clear the saved-room set: re-logging in should restore it, not orphan it.
     bump();
   }
 
   // Backend already authenticated but saves no room yet (pre-dates this feature, or
-  // fresh session): adopt the landing room as saved, but only at the default room —
+  // fresh session): adopt the landing room as saved, but only at the default room,
   // never via a shared `?room=` link, which just means a visitor.
   if (!new URLSearchParams(location.search).has('room')) {
     const s = untrack(() => storage);
@@ -292,7 +292,7 @@
     }
   }
 
-  // Per-user fact, not a room-level role — several people can each save their own
+  // Per-user fact, not a room-level role: several people can each save their own
   // copy under per-target autosave.
   const savedHere = $derived.by(() => {
     void tick;
@@ -301,7 +301,7 @@
     return !!s && s.auth.isAuthenticated() && savedRoomsStore(s.storage.id).saves(room);
   });
 
-  // Another saved room resolving to the same file — detectable only within this
+  // Another saved room resolving to the same file, detectable only within this
   // browser, without a server-side coordination point.
   const fileConflict = $derived.by((): RoomId | null => {
     void tick;
@@ -319,15 +319,15 @@
     const s = storage;
     if (!other || !s) return undefined;
     const file = filenameForRoom(s.storage.id, room, s.storage.defaultFilename?.());
-    return `Room “${other}” also saves to ${file} on your ${s.storage.label} — they’ll overwrite each other. Rename this room’s file in Settings.`;
+    return `Room “${other}” also saves to ${file} on your ${s.storage.label}. They’ll overwrite each other. Rename this room’s file in Settings.`;
   });
 
-  // ── Write gate (docs/contract.md §1–§4) ──────────────────────────────────────
+  // ── Write gate (docs/contract.md §1-§4) ──────────────────────────────────────
   // writeGateFor() is pure; this section supplies its inputs and owns its two
-  // clocks (settle + departure-linger). Uncertain presence OPENS the gate — a
+  // clocks (settle + departure-linger). Uncertain presence OPENS the gate: a
   // false lockout is the costly failure (contract §2.2).
   //
-  // durabilityHolds feeds branch (b), not the bare `savedHere` fact — don't swap
+  // durabilityHolds feeds branch (b), not the bare `savedHere` fact. Don't swap
   // it in below, or a Broken room loses the flush() calls that could heal it
   // (contract §3.2/§3.3).
   const durabilityHolds = $derived(
@@ -337,7 +337,7 @@
   const soloOptIn = $derived((sessionState.diagnostics.transport === Transport.P2P &&
     soloRooms.includes(room)) as SoloOptIn);
 
-  // Set only by the explicit click, never when writeLocked flips false on its own —
+  // Set only by the explicit click, never when writeLocked flips false on its own.
   // Editor's focus-on-unlock effect keys off this so it never steals focus (§4.1).
   let writeSoloAt = $state<EpochMs | null>(null);
 
@@ -361,7 +361,7 @@
   }
 
   let aloneSettled = $state(false);
-  // Fixed clock time (contract §4.2), not a ticking duration — no interval needed.
+  // Fixed clock time (contract §4.2), not a ticking duration: no interval needed.
   let waitingSince = $state<EpochMs | null>(null);
   $effect(() => {
     if (sessionState.presence.kind !== PresenceKind.Alone) {
@@ -381,7 +381,7 @@
     document.title = sessionState.presence.kind === PresenceKind.Alone ? `Waiting… · ${baseTitle}` : baseTitle;
   });
 
-  // The last non-empty peer list — names who just left (contract §4, "Ada left").
+  // The last non-empty peer list: names who just left (contract §4, "Ada left").
   let lastPeers: PeerUser[] = [];
   $effect(() => {
     if (sessionState.users.length > 0) lastPeers = sessionState.users;
@@ -426,9 +426,9 @@
     return () => clearTimeout(t);
   });
 
-  // Fires once per arrival (contract §4.1) — a separate flag from the departure
+  // Fires once per arrival (contract §4.1): a separate flag from the departure
   // effect's `wasAccompanied` so the two don't fight over one boolean. Never
-  // calls `.focus()` — never steal focus.
+  // calls `.focus()`; never steal focus.
   let wasUnlockedAccompanied = false;
   let justJoinedIds = $state<number[]>([]);
   let unlockLine = $state<string | null>(null);
@@ -476,7 +476,7 @@
     pendingImport = { bytes: new Uint8Array(await file.arrayBuffer()), filename: file.name as Filename };
   }
 
-  // Superset of `writeLocked` — drives SyncBanner's tiering during the pre-lock
+  // Superset of `writeLocked`: drives SyncBanner's tiering during the pre-lock
   // grace window before the clocks let writeGateFor return `held`.
   const gateEligible = $derived(
     sessionRole === SessionRole.Writer &&
@@ -488,7 +488,7 @@
 
   // ── Collab-unavailable intro: a structurally local-only deployment ─────────
   // One-time acknowledgment on first load of a permanently local-only deployment.
-  // Never blocks writing — purely informational, dismissible like any dialog.
+  // Never blocks writing: purely informational, dismissible like any dialog.
   const collabUnavailableSeenStore = localStore<boolean>(
     KEY_COLLAB_UNAVAILABLE_SEEN,
     (raw) => raw === 'true',
@@ -545,7 +545,7 @@
       lockChecked = true;
       return;
     }
-    // Never overwrite the stored fingerprint here — that's what lets a wrong key
+    // Never overwrite the stored fingerprint here: that's what lets a wrong key
     // be detected instead of silently adopted.
     lockAllowSkip = false;
     lockChecked = false;
@@ -577,7 +577,7 @@
     return true;
   }
 
-  // A new tab, never an in-place room switch — `backends(room)` captures `room`
+  // A new tab, never an in-place room switch: `backends(room)` captures `room`
   // once by closure (storage/filename.ts), so there's no live pointer to retarget.
   // CSPRNG room id (contract §5); the secret-link key encrypts the room by default.
   function newRoom(): void {
@@ -600,10 +600,10 @@
 
 <div class="app">
   <!-- Not a heading: an <h1> here would give screen readers two level-1 titles
-       alongside the document's own (Editor.svelte's DocTitle). Hidden on mobile —
+       alongside the document's own (Editor.svelte's DocTitle). Hidden on mobile;
        actions move to the bottom dock below. -->
   <header class="capsule">
-    <button class="cap-mark" onclick={confirmReload} title="Copad — reload" aria-label="Copad — reload">
+    <button class="cap-mark" onclick={confirmReload} title="Reload Copad" aria-label="Reload Copad">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 19.5V6a2 2 0 0 1 2-2h8l6 6v9.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" /><path d="M14 4v6h6" />
       </svg>
@@ -777,7 +777,7 @@
     onConnectionDetails={() => (diagOpen = true)}
   />
 
-  <!-- The unlock moment's one self-dismissing line (contract §4.1) — never steals focus. -->
+  <!-- The unlock moment's one self-dismissing line (contract §4.1); never steals focus. -->
   {#if unlockLine}
     <div class="unlock-line" role="status" aria-live="polite" transition:fade={{ duration: reducedMotion ? 0 : 200 }}>
       {unlockLine}
