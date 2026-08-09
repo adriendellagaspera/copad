@@ -310,9 +310,19 @@
 
   let settingsOpen = $state(false);
   let settingsFocus = $state<StorageId | undefined>(undefined);
+  let settingsAdvanced = $state(false);
 
   function openSettings(id?: StorageId) {
     settingsFocus = id;
+    settingsAdvanced = false;
+    settingsOpen = true;
+  }
+
+  // A room that can't reach its peers needs the relay controls, which now sit
+  // folded away — so the failure state opens them rather than naming them.
+  function openConnectionSettings(): void {
+    settingsFocus = undefined;
+    settingsAdvanced = true;
     settingsOpen = true;
   }
 
@@ -952,12 +962,14 @@
   reconnect={sessionState.diagnostics.reconnect}
   jumpToPeer={sessionState.jumpToPeer}
   onConnectStorage={() => openSettings()}
+  onOpenConnectionSettings={openConnectionSettings}
 />
 
 <Settings
   backends={storageBackends}
   bind:open={settingsOpen}
   focusId={settingsFocus}
+  focusAdvanced={settingsAdvanced}
   {theme}
   {localCache}
   onCacheChange={setLocalCache}
