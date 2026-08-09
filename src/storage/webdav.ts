@@ -28,9 +28,21 @@ const credentialFields: CredentialField[] = [
     placeholder:
       import.meta.env.VITE_WEBDAV_URL ||
       'https://cloud.example.com/remote.php/dav/files/USER/Collab',
+    help: 'The full DAV endpoint for the target folder, not just your server\'s domain — ' +
+      'e.g. Nextcloud\'s is usually .../remote.php/dav/files/USERNAME/FOLDER.',
   },
-  { name: 'username', label: 'Username' },
-  { name: 'password', label: 'App password', type: InputType.Password },
+  {
+    name: 'username',
+    label: 'Username',
+    help: 'Your WebDAV account username — usually the same one you sign into the server\'s web UI with.',
+  },
+  {
+    name: 'password',
+    label: 'App password',
+    type: InputType.Password,
+    help: 'Most servers reject your account password here — generate a dedicated app password in ' +
+      'its security settings instead.',
+  },
 ];
 
 export function webdavStorage(netFetch: Fetch, room: RoomId): { auth: StorageAuth; storage: Storage } {
