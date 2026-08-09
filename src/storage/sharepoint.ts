@@ -16,17 +16,7 @@ import type { RoomId } from '../collaboration/types.js';
 import { landed, writeFailure, classifyHttpStatus, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import { STORAGE_ID, DEFAULT_FILENAME, GRAPH_API_URL, SHAREPOINT_FOLDER, SHAREPOINT_KEY } from './constants.js';
 
-// Microsoft Graph — SharePoint / OneDrive for Business.
-// Auth: a delegated access token with Files.ReadWrite.All (or Sites.ReadWrite.All)
-// scope, obtained from Graph Explorer or an IT admin. A pasted token is
-// short-lived (like a WebDAV app password); a full MSAL popup flow can be added
-// later behind configFields without changing this port.
-
-// ── Branded types ─────────────────────────────────────────────────────────────
-// Both are a bare Graph `{ id: string }`, but distinct domain concepts — a
-// GraphUserId can never be silently compared against or substituted for a
-// GraphSiteId (see access(), which compares two user ids from different
-// responses).
+// Microsoft Graph auth: a delegated Files.ReadWrite.All/Sites.ReadWrite.All token pasted by the user, short-lived like a WebDAV app password.
 
 /** A Microsoft Graph user id (from `/me` or a drive item's `createdBy.user.id`). */
 export type GraphUserId = string & { readonly _brand: 'GraphUserId' };
@@ -34,10 +24,7 @@ export type GraphUserId = string & { readonly _brand: 'GraphUserId' };
 /** A Microsoft Graph SharePoint site id (from `/sites/{host}:{path}`). */
 export type GraphSiteId = string & { readonly _brand: 'GraphSiteId' };
 
-/** A delegated Microsoft Graph bearer token, pasted in by the user. There's no
- *  separate API-response shape to parse — the token is validated by whether
- *  the `/me` call it's sent with succeeds, so it's branded right after that
- *  check passes in `login()`, the single cast site for user-supplied tokens. */
+/** Branded only after `/me` validates it — the single cast site for user-supplied tokens, in `login()`. */
 export type SharePointToken = string & { readonly _brand: 'SharePointToken' };
 
 /** A drive folder path the user configures (defaults to `SHAREPOINT_FOLDER`). */
@@ -73,8 +60,6 @@ const credentialFields: CredentialField[] = [
   },
 ];
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function authHeaders(token: SharePointToken): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
@@ -98,8 +83,7 @@ function driveContentUrl(c: SharePointConf, filename: Filename): string {
   return `${driveItemUrl(c, filename)}:/content`;
 }
 
-/** 401/403 mid-session means the pasted token (short-lived, ~1h) has expired —
- *  distinct, actionable copy over the other statuses' generic `${action} failed`. */
+/** 401/403 mid-session means the pasted token (short-lived, ~1h) has expired. */
 function graphErrorMessage(action: string, status: number): string {
   return status === 401 || status === 403
     ? 'SharePoint: your session has expired — reconnect with a fresh access token in Settings.'
@@ -116,8 +100,6 @@ async function resolveSiteId(token: SharePointToken, siteUrl: string): Promise<G
   return parseGraphSiteId(await res.json());
 }
 
-// ── Factory ───────────────────────────────────────────────────────────────────
-
 export function sharepointStorage(room: RoomId): { auth: StorageAuth; storage: Storage } {
   const fileName = filenameStore(STORAGE_ID.sharepoint, room);
   const conf = (): SharePointConf | null => confStore.read();
@@ -131,8 +113,7 @@ export function sharepointStorage(room: RoomId): { auth: StorageAuth; storage: S
       const rawToken = token.trim();
       if (!rawToken) throw new Error('An access token is required');
 
-      // Use the raw string here — we are the validation step; SharePointToken
-      // is only produced after a successful response.
+      // Raw string here: this fetch is the validation step SharePointToken depends on.
       const meRes = await fetch(`${GRAPH_API_URL}/me`, { headers: { Authorization: `Bearer ${rawToken}` } });
       if (meRes.status === 401) throw new Error('SharePoint: invalid or expired token');
       if (!meRes.ok) throw new Error(`SharePoint connect failed: ${meRes.status}`);

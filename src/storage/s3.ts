@@ -17,29 +17,20 @@ import type { RoomId } from '../collaboration/types.js';
 import { landed, writeFailure, classifyHttpStatus, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import { STORAGE_ID, DEFAULT_FILENAME, S3_PREFIX, S3_KEY } from './constants.js';
 
-// S3-compatible object storage (AWS S3, Cloudflare R2, MinIO, Backblaze B2…).
-// Path-style addressing: {endpoint}/{bucket}/{key}. Requests are signed with AWS
-// Signature V4 via Web Crypto — no SDK. The bucket must allow CORS from this origin;
-// the request is signed directly (host is part of the signature), so no proxy.
-
-// ── Branded types ─────────────────────────────────────────────────────────────
+// Path-style addressing ({endpoint}/{bucket}/{key}), requests signed with AWS Signature V4 via Web Crypto — no SDK, no proxy.
 
 /** An S3-compatible endpoint URL (e.g. `https://s3.eu-west-1.amazonaws.com`). */
 export type S3Endpoint = string & { readonly _brand: 'S3Endpoint' };
 
-/** A bucket name. */
 export type S3Bucket = string & { readonly _brand: 'S3Bucket' };
 
 /** An AWS region (or `auto` for R2). */
 export type S3Region = string & { readonly _brand: 'S3Region' };
 
-/** An object-key prefix (folder) within the bucket. */
 export type S3KeyPrefix = string & { readonly _brand: 'S3KeyPrefix' };
 
-/** An access key ID credential. */
 export type S3AccessKeyId = string & { readonly _brand: 'S3AccessKeyId' };
 
-/** A secret access key credential. */
 export type S3SecretAccessKey = string & { readonly _brand: 'S3SecretAccessKey' };
 
 /** SHA-256 of an empty body — the payload hash for GET requests. */
@@ -93,15 +84,12 @@ const credentialFields: CredentialField[] = [
   },
 ];
 
-// ── AWS Signature V4 ──────────────────────────────────────────────────────────
-
 function toHex(buf: ArrayBuffer): string {
   return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 async function sha256Hex(data: Uint8Array): Promise<string> {
-  // Pass the view directly (WebCrypto honours byteOffset/byteLength, so a subarray
-  // hashes correctly); cast only to satisfy the ArrayBuffer/SharedArrayBuffer lib type.
+  // WebCrypto honours byteOffset/byteLength, so the cast is only for the BufferSource lib type.
   return toHex(await crypto.subtle.digest('SHA-256', data as unknown as BufferSource));
 }
 
@@ -121,14 +109,8 @@ async function signingKey(secret: S3SecretAccessKey, dateStamp: string, region: 
 }
 
 /**
- * Sign a request, returning the headers to send (host, x-amz-*, Authorization).
- *
- * `host` is included in the canonical request (SigV4 requires it) even though a
- * browser won't let a script actually set the `Host` header — `fetch` silently
- * drops it and sends its own, derived from `url`. That's harmless here: the
- * value we sign is `url.host`, which is exactly the `Host` the browser will
- * send for that same URL, so the signature still matches what the server sees
- * on the wire.
+ * `host` is signed into the canonical request even though `fetch` silently drops
+ * a script-set `Host` header — harmless, since the browser sends `url.host` anyway.
  */
 async function signRequest(
   method: 'GET' | 'PUT' | 'HEAD',
@@ -177,8 +159,6 @@ async function signRequest(
   };
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 /** Object key for the current room: `<prefix>/<filename>` (prefix optional). */
 function objectKey(c: S3Conf, filename: Filename): string {
   const prefix = c.prefix.replace(/^\/+|\/+$/g, '');
@@ -188,8 +168,6 @@ function objectKey(c: S3Conf, filename: Filename): string {
 function objectUrl(c: S3Conf, filename: Filename): URL {
   return new URL(`${c.endpoint}/${c.bucket}/${objectKey(c, filename)}`);
 }
-
-// ── Factory ───────────────────────────────────────────────────────────────────
 
 export function s3Storage(room: RoomId): { auth: StorageAuth; storage: Storage } {
   const fileName = filenameStore(STORAGE_ID.s3, room);
@@ -220,9 +198,8 @@ export function s3Storage(room: RoomId): { auth: StorageAuth; storage: Storage }
         secretAccessKey: secretAccessKeyParsed,
       };
 
-      // Validate credentials with a signed HEAD on the target object. This checks
-      // object-level access (a write-only key may lack bucket-level ListBucket):
-      //   403 → bad credentials / denied, 404 → good creds + object not yet there.
+      // Signed HEAD on the target object, not the bucket — a write-only key may lack ListBucket.
+      // 403 = bad credentials/denied, 404 = good creds and object not yet there.
       const url = objectUrl(c, fileName.get());
       const res = await fetch(url.toString(), {
         method: 'HEAD',
@@ -281,8 +258,7 @@ export function s3Storage(room: RoomId): { auth: StorageAuth; storage: Storage }
       return landed();
     },
 
-    // S3 access is enforced server-side by IAM / bucket policy on the credential;
-    // if the key can PUT, the user effectively has write access.
+    // IAM/bucket policy enforces access server-side; a key that can PUT counts as write access.
     access(): Promise<StorageAccess> {
       return Promise.resolve(StorageAccess.Write);
     },
