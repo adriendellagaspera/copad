@@ -1,8 +1,4 @@
-/* ──────────────────────────────────────────────────────────────────────────
-   Editor — container, toolbar, status bar, the writing surface (ProseMirror),
-   and y-prosemirror remote cursors. The .content/.ProseMirror/.status
-   selectors are a contract with e2e/collab.test.ts — keep them.
-   ────────────────────────────────────────────────────────────────────────── */
+/* .content/.ProseMirror/.status selectors are a contract with e2e/collab.test.ts — keep them. */
 
 .editor {
   display: flex;
@@ -12,13 +8,10 @@
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
-  /* Grow to fill the column the parent .app stretches to 100dvh; min-height:0
-     lets the inner .content scroll instead of pushing the card past the fold. */
+  /* min-height:0 lets .content scroll instead of growing past the fold. */
   flex: 1;
   min-height: 0;
 }
-
-/* ── Toolbar ── */
 
 .toolbar {
   display: flex;
@@ -58,23 +51,12 @@
   flex-shrink: 0;
 }
 
-/* ── Floating selection toolbar (desktop) ── */
-
-/* The bubble reuses the .toolbar markup but floats over the selection. Hidden
-   by default; only the fine-pointer (desktop) media query reveals it, and only
-   when .visible is set by SelectionToolbar. */
 .sel-toolbar {
   display: none;
 }
 
 .sel-toolbar .toolbar {
-  /* Override the fixed-bar chrome: a self-contained card. Wraps (rather than
-     the single forced row this used to be) once the full button set is
-     wider than the viewport has room for — a `position: fixed` box has no
-     ambient width to shrink into on its own, so `max-width` is what actually
-     triggers the wrap; a narrow desktop window (~<820px, the bubble's full
-     natural width) would otherwise overflow the viewport's right edge with
-     no way to reach the clipped buttons. */
+  /* max-width triggers the wrap — a position:fixed box has no ambient width to shrink into on its own. */
   border-bottom: none;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
@@ -85,14 +67,11 @@
   padding: var(--sp-1) var(--sp-2);
 }
 
-/* Drop the auto-margin spacer so the bubble hugs its buttons in one tight row
-   instead of stretching to push "Copy MD" to a far edge. */
 .sel-toolbar .toolbar .spacer {
   display: none;
 }
 
 @media (pointer: fine) {
-  /* On desktop the bubble replaces the fixed bar. */
   .fixed-toolbar {
     display: none;
   }
@@ -104,19 +83,6 @@
   }
 }
 
-/* ── Floating table-structure panel (desktop) ── */
-
-/* A second, separate floating card — shown *alongside* .sel-toolbar (never
-   instead of it) only while an empty caret sits in a table, anchored to the
-   table's opposite edge (see positionTablePanel in tableAnchor.ts). Reuses
-   the .toolbar button/sep styling; a leading accent-colored label ("▦
-   Table") is what marks it as a distinct "table" control rather than a
-   continuation of the text-formatting bubble, per Notion/Docs/Word's
-   separation of table structure from text formatting — the border itself
-   stays the same neutral `var(--border)` every other floating panel in the
-   app uses (.sel-toolbar included) at rest, reserving the accent color for
-   the focus state below rather than wearing it permanently regardless of
-   focus, which read as inconsistent with the rest of the design system. */
 .table-toolbar {
   display: none;
 }
@@ -127,21 +93,12 @@
   border-radius: var(--r-md);
   background: var(--surface);
   box-shadow: var(--shadow-md);
-  /* Same reasoning as .sel-toolbar .toolbar above: a `position: fixed` card
-     has no ambient width to shrink into, and positionTablePanel only clamps
-     `left` (never the panel's width), so on a narrow desktop window this
-     panel's label + buttons would otherwise run past the viewport's right
-     edge with no way to reach the clipped controls. `max-width` triggers the
-     wrap instead. */
+  /* Same as .sel-toolbar .toolbar — max-width triggers the wrap. */
   flex-wrap: wrap;
   max-width: calc(100vw - 16px);
   padding: var(--sp-1) var(--sp-2);
 }
 
-/* Accent border + glow only once a button inside actually has focus (via
-   Shift-F10/Alt-Shift-\ or a click) — distinct from the neutral at-rest
-   state above, so pressing the shortcut is visibly confirmed instead of
-   the panel looking unchanged before and after. */
 .table-toolbar .toolbar:focus-within {
   border-width: 2px;
   border-color: var(--accent);
@@ -166,30 +123,17 @@
   }
 }
 
-/* ── Mobile bottom dock, "format mode" (M3) ──
-   Hidden at rest — it only appears while the document has focus, occupying
-   the same fixed slot as App.svelte's nav-mode dock (.mobile-dock in
-   app.css). The two are mutually exclusive via the same sessionState.editing
-   flag, so formatting controls never cost vertical space until they're
-   actually needed, and always sit right above the keyboard.
-   Same combined pointer:coarse-or-narrow trigger as header.capsule's
+/* Same combined pointer:coarse/max-width:900px trigger as header.capsule's
    collapse in app.css — keep the two in sync; this is the dock the capsule
-   collapses *into*. */
+   collapses into. */
 @media (pointer: coarse), (max-width: 900px) {
   .fixed-toolbar {
     display: none;
     position: fixed;
     left: var(--sp-2);
     right: var(--sp-2);
-    /* --kb-inset (keyboardInset.svelte.ts) rises the bar above an open
-       on-screen keyboard, which shrinks the visual viewport without moving
-       this fixed-to-layout-viewport element on its own. On dismiss, several
-       mobile browsers don't fire visualViewport's resize until the
-       keyboard's own close animation finishes, so the value can jump
-       straight from open-height to 0 in one tick (collapseKeyboardInset in
-       Editor.svelte's focusout handler pulls that jump earlier, but it's
-       still a single jump) — this transition turns that jump into a slide
-       instead of a teleport. */
+    /* --kb-inset can jump straight to 0 on keyboard dismiss instead of
+       animating (mobile browser quirk) — this transition smooths that into a slide. */
     bottom: calc(max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px));
     z-index: var(--z-menu);
     transition: bottom 0.22s ease-out;
@@ -213,12 +157,6 @@
   }
 }
 
-/* ── Armed-formatting caret hint (desktop) ── */
-
-/* A small, non-interactive pill floating over the collapsed caret that names
-   the marks a Mod-B/Mod-I toggle has armed — the desktop counterpart to the
-   fixed bar's pressed buttons, which are hidden here. Only revealed on the
-   fine-pointer profile and only when CaretFormatHint marks it .visible. */
 .caret-hint {
   display: none;
 }
@@ -239,7 +177,6 @@
     box-shadow: var(--shadow-md);
     font-size: var(--fs-300);
     line-height: 1;
-    /* Purely a status readout — never intercept clicks meant for the text. */
     pointer-events: none;
     user-select: none;
   }
@@ -258,15 +195,6 @@
   font-size: 0.85em;
 }
 
-/* ── Line block-context hint (desktop) ── */
-
-/* Names the block the caret's line is in (H1/H2/H3, quote, code) as a real
-   inline element at the start of that line (a widget decoration from
-   lineBlockHint.ts — see its doc comment for why an in-flow element rather
-   than a floating badge: this app's text column has almost no reserved
-   margin to float one in). Sized independently of the surrounding block's
-   own font (a heading's h1-h3 rules would otherwise blow it up) and hidden
-   below pointer-fine, matching .caret-hint / .ch-glyph. */
 .line-hint-inline {
   display: none;
 }
@@ -291,10 +219,7 @@
   }
 }
 
-/* ── Status bar ── */
-
-/* Footer bar at the bottom of the editor — document meta (word count, outline).
-   Session/connection/presence now live in the app header. */
+/* Document meta only — session/connection/presence live in the app header. */
 .status {
   display: flex;
   align-items: center;
@@ -328,7 +253,6 @@
   background: var(--surface-3);
 }
 
-/* Legacy decorative dot kept as a fallback before StatusPill lands. */
 .dot {
   width: 7px;
   height: 7px;
@@ -337,36 +261,23 @@
   flex-shrink: 0;
 }
 
-/* ── Writing surface ── */
-
 .content {
   display: flex;
   flex-direction: column;
   padding: var(--sp-4) var(--sp-5);
-  /* Fill the editor card and scroll internally so the toolbar + status bar
-     stay pinned. min-height:0 is required for the flex child to actually scroll. */
+  /* min-height:0 is required for this flex child to actually scroll. */
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  /* Keep the scroll inside the writing surface: at the top/bottom edge the
-     touch-scroll must not chain out to the frame and drag the page on mobile. */
+  /* Prevents touch-scroll from chaining out to the page at the edges (mobile). */
   overscroll-behavior: contain;
   outline: none;
 }
 
 .ProseMirror {
-  /* Fill the *remaining* content area below DocTitle (a flex sibling, see
-     .content above) so clicking anywhere in the empty space below the text
-     still focuses the editor (Notion-like). flex:1 sizes against space
-     actually left over, unlike min-height:100% (the previous rule), which
-     sized against .content's full box regardless of DocTitle's height above
-     it — that let this element's own bottom edge run past .content's
-     visible bottom by exactly DocTitle's height, and a click's native
-     focus-scroll then dragged DocTitle up and off, clipping it under the
-     app header. No :focus outline reset here — the global :focus-visible /
-     :focus:not(:focus-visible) rules in base.css already give mouse clicks
-     no ring and keyboard focus a visible one; overriding it here used to
-     kill the ring in both cases. */
+  /* flex:1, not min-height:100% — sizes against space actually left below
+     DocTitle so a click in the empty area doesn't drag DocTitle off-screen.
+     No :focus reset: base.css's :focus-visible rules already handle it. */
   flex: 1;
   width: 100%;
   max-width: var(--measure);
@@ -464,9 +375,7 @@
   margin: 1.5em 0;
 }
 
-/* Placeholder for an empty document (set via a ProseMirror plugin / attr).
-   --text-muted, not --text-faint: at the reading font size this is normal-size
-   functional copy (AA needs 4.5:1; --text-faint only clears ~2.9:1). */
+/* --text-muted, not --text-faint: needs AA's 4.5:1 contrast at this size; --text-faint only clears ~2.9:1. */
 .ProseMirror .is-empty::before {
   content: attr(data-placeholder);
   color: var(--text-muted);
@@ -474,8 +383,6 @@
   height: 0;
   float: left;
 }
-
-/* ── Responsive ── */
 
 @media (max-width: 640px) {
   .content {
@@ -490,57 +397,22 @@
   }
 }
 
-/* Reserve room for the fixed bottom dock (nav or format mode, see
-   .mobile-dock in app.css and .fixed-toolbar above) so it never covers the
-   last lines of text — same combined trigger as the dock itself, not just
-   the narrow-viewport breakpoint above (the dock can also be showing on a
-   resized pointer:fine desktop window wider than 640px). No top counterpart
-   needed: the room name is DocTitle now (editor/ui/DocTitle.svelte), the
-   first thing inside `.content` itself, not a separate piece of chrome
-   reserving space above it. */
+/* Same combined trigger as .fixed-toolbar/.mobile-dock (app.css) so this padding tracks the dock exactly. */
 @media (pointer: coarse), (max-width: 900px) {
   .content {
     padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));
   }
 }
 
-/* ── Full-bleed writing surface on mobile ──
-   The bordered "paper card" reads as wasted space once the screen itself is
-   only a few hundred px wide — SOTA mobile document editors (Notion, Bear,
-   iA Writer) run the surface edge-to-edge instead. Cancels .app's own
-   *horizontal* padding (app.css) via matching negative margins so .editor
-   reaches the left/right viewport edges. The two breakpoints mirror .app's
-   own (default vs. its <=720px padding step) so the cancellation always
-   matches exactly.
-   Top is NOT cancelled here with a margin, on purpose — an earlier version
-   did, reasoning it only cancels .app's own top-padding contribution and so
-   "can't under- or over-shoot if a banner happens to be showing". That
-   reasoning was wrong: margin-top shifts an element up from wherever it
-   already sits, and when SyncBanner precedes .editor in the flow, that
-   "wherever" is *below* the banner, not at .app's padding-top at all — so
-   the same negative margin ate into the banner's own margin-bottom instead,
-   collapsing the gap between them to zero. `.app`'s own top padding is 0 on
-   mobile instead (see below) — it only ever affects whichever child ends up
-   first, so the rest of the flow (banner, then editor, or editor alone)
-   keeps its ordinary relative spacing untouched either way.
-   Bottom is untouched on purpose — .app's bottom padding still insets the
-   card there, clearing the fixed mobile dock (.mobile-dock / .fixed-toolbar,
-   both anchored near the viewport's bottom edge).
-   The top corners keep their radius, same as every other corner —
-   border-radius carves *into* the box's own corner rather than extending
-   past it, so it reads fine even flush against the viewport edge (a small,
-   deliberate reveal of the canvas behind it, echoing the device's own
-   rounded screen corners) rather than getting clipped. The border stays
-   too — flush edges still need *some* visible line marking where the
-   document actually starts, or the top reads as an ambiguous color seam
-   against the canvas above rather than a deliberate edge.
-   Width-only trigger — deliberately NOT the .fixed-toolbar/.mobile-dock's
-   `(pointer: coarse), (max-width: 900px)` combo. Reclaiming space only makes
-   sense when the viewport is actually narrow; a coarse-pointer device wider
-   than .app's own 960px cap (a landscape tablet, a touchscreen desktop) has
-   .app centered with room to spare, so the cancelling negative margins would
-   only reach .app's own (inset) edges, not the real viewport edges — reads
-   as broken, not "full-bleed". */
+/* Full-bleed on mobile: cancels .app's own horizontal padding (app.css) via
+   negative margins matching its breakpoints exactly, so .editor reaches the
+   viewport edges.
+   Top is not cancelled via margin — that shifts .editor from wherever it
+   already sits (below SyncBanner when present), not from .app's padding-top;
+   .app's own top padding is 0 on mobile instead.
+   Width-only trigger, not the pointer:coarse combo used elsewhere: a
+   landscape tablet/touchscreen desktop wider than .app's 960px cap has room
+   to spare, so that combo would misfire full-bleed there. */
 @media (max-width: 900px) {
   .editor {
     border: none;
@@ -557,12 +429,7 @@
   }
 }
 
-/* The document-meta footer (shortcuts/words/outline) sits in normal flow at
-   the bottom of the editor card, which now overlaps the fixed mobile dock
-   (.mobile-dock / .fixed-toolbar, both anchored near the viewport's bottom
-   edge). Word count and outline are desktop conveniences; hiding this strip
-   whenever the dock is showing avoids the collision rather than fighting it
-   with more offsets — same combined trigger as the dock itself. */
+/* Hidden whenever the mobile dock is showing (word count/outline are desktop-only) — same combined trigger as the dock. */
 @media (pointer: coarse), (max-width: 900px) {
   .status {
     display: none;
@@ -576,13 +443,8 @@
   }
 }
 
-/* ── y-prosemirror remote cursors ── */
-
-/* Idle fade: `--presence-fade` (0 = active, 1 = fully idle) is set inline per
-   peer by remoteCursorBuilder/remoteSelectionBuilder (src/editor/ui/remoteCursors.ts)
-   and re-evaluated on a timer so a parked cursor dims over ~5 min instead of
-   cluttering the doc forever — capped short of 0 so idle never reads as gone;
-   only the peer actually leaving removes the decoration. */
+/* --presence-fade (0=active, 1=idle) is set inline per peer by
+   remoteCursorBuilder/remoteSelectionBuilder (src/editor/ui/remoteCursors.ts). */
 .ProseMirror-yjs-cursor {
   position: relative;
   margin-left: -1px;
@@ -609,9 +471,7 @@
   color: #fff;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
   white-space: nowrap;
-  /* Defensive cap so a long name can never run unbounded off the editor's
-     horizontally-clipped surface even without the JS clamp below — it just
-     truncates instead of continuing past the edge. */
+  /* Defensive cap even without the JS clamp below. */
   max-width: min(60vw, 260px);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -619,10 +479,7 @@
   pointer-events: none;
   box-shadow: var(--shadow-sm);
 }
-/* Set by clampCursorTag (remoteCursors.ts) when a caret sits close enough to
-   the viewport's right edge that the tag's default left-anchored growth
-   would run past it — hugs the caret's right side instead, mirroring the
-   speech-bubble tail to the opposite corner. */
+/* .presence-tag-right set by clampCursorTag (remoteCursors.ts) near the viewport's right edge. */
 .ProseMirror-yjs-cursor.presence-tag-right > div {
   left: auto;
   right: -2px;
@@ -635,8 +492,7 @@
   transition: opacity 0.6s ease;
 }
 
-/* Touch: no hover to reveal a name on demand, so the label needs to be legible
-   at a glance — bump size/padding on coarse pointers (tablets/phones). */
+/* No hover on touch, so labels need to be legible without it. */
 @media (pointer: coarse) {
   .ProseMirror-yjs-cursor > div {
     font-size: 0.8rem;
@@ -644,13 +500,7 @@
   }
 }
 
-/* Brief highlight when a peer is picked from the presence bar (jumpToPresence
-   in remoteCursors.ts) — a double pulse in the peer's own colour (set inline
-   as --jump-color), so the just-scrolled-to cursor/selection reads as "look
-   here" rather than blending into the idle-fade opacity above. Two pulses
-   (Figma/Live Share's "flash to attention" idiom) read as a deliberate cue
-   even at a glance, where a single fade can be missed if the eye isn't
-   already on that spot when it plays. */
+/* --jump-color set inline by jumpToPresence (remoteCursors.ts). */
 .presence-jump-flash {
   --jump-color: var(--accent);
   position: relative;
@@ -668,8 +518,6 @@
     background-color: color-mix(in srgb, var(--jump-color) 35%, transparent);
   }
 }
-
-/* ── Checklist ── */
 
 .ProseMirror ul[data-type='taskList'] {
   list-style: none;
@@ -702,8 +550,6 @@
   color: var(--text-faint);
   text-decoration: line-through;
 }
-
-/* ── Tables ── */
 
 .ProseMirror .tableWrapper {
   overflow-x: auto;
