@@ -7,7 +7,7 @@
     name: RoomName | null;
     /** Apply a rename to the current room (shared, never changes the id). */
     onRename: (raw: string) => void;
-    /** Focus and select the input on mount (fresh tab from "New document"). */
+    /** Focus and select the input on mount (fresh tab from "New document"); desktop only. */
     autofocus?: boolean;
   };
 
@@ -26,8 +26,11 @@
     onRename(raw);
   }
 
+  const isFinePointer = (): boolean =>
+    typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
+
   function autofocusInput(node: HTMLInputElement): void {
-    if (!autofocus) return;
+    if (!autofocus || !isFinePointer()) return;
     node.focus();
     node.select();
   }
