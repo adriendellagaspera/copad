@@ -7,7 +7,7 @@ export const SessionRole = { Writer: 'writer', Reader: 'reader' } as const;
 export type SessionRole = (typeof SessionRole)[keyof typeof SessionRole];
 
 /** A collaboration room identifier, derived from the URL or generated randomly.
- *  This is the room's immutable identity — it is never changed by a rename. */
+ *  This is the room's immutable identity: it is never changed by a rename. */
 export type RoomId = string & { readonly _brand: 'RoomId' };
 
 /** A human-friendly, editable display name for a room. Collaborative metadata
@@ -15,8 +15,14 @@ export type RoomId = string & { readonly _brand: 'RoomId' };
  *  immutable {@link RoomId}, so renaming a room can't "lose" it. */
 export type RoomName = string & { readonly _brand: 'RoomName' };
 
+/** A room's full navigable URL: path, `?room=`/`?role=` query, and the `#k=`
+ *  secret-link fragment when the room is encrypted. Persisted by recent-docs
+ *  (`src/collaboration/recentDocs.ts`) so a saved entry can be reopened later
+ *  without reconstructing the fragment from parts. Cast only in `parse.ts`. */
+export type RoomUrl = string & { readonly _brand: 'RoomUrl' };
+
 /** A WebRTC signaling server URL (`ws://`/`wss://`) that has passed
- *  `resolveSignaling()` validation — peers use it only to discover each other. */
+ *  `resolveSignaling()` validation. Peers use it only to discover each other. */
 export type SignalingUrl = string & { readonly _brand: 'SignalingUrl' };
 
 /** The HTTP(S) URL of a signaling server, derived from a {@link SignalingUrl}
@@ -26,7 +32,7 @@ export type SignalingUrl = string & { readonly _brand: 'SignalingUrl' };
 export type SignalingPingUrl = string & { readonly _brand: 'SignalingPingUrl' };
 
 /** A y-websocket hub URL (`ws://`/`wss://`) that has passed `resolveWebsocket()`
- *  validation — the central relay that carries edits on the hub transport. */
+ *  validation: the central relay that carries edits on the hub transport. */
 export type WebsocketUrl = string & { readonly _brand: 'WebsocketUrl' };
 
 /** A STUN server URL validated by `parseStunUrl()` in `parse.ts`. STUN only
@@ -37,7 +43,7 @@ export type StunUrl = string & { readonly _brand: 'StunUrl' };
  *  media when direct/STUN paths fail (carrier / symmetric NAT). */
 export type TurnUrl = string & { readonly _brand: 'TurnUrl' };
 
-/** An ICE server descriptor — STUN or TURN — in a domain-typed form.
+/** An ICE server descriptor (STUN or TURN) in a domain-typed form.
  *  Structurally compatible with `RTCIceServer` (branded strings extend `string`)
  *  so it passes straight through to WebRTC APIs without conversion. */
 export interface IceServer {
@@ -65,8 +71,8 @@ export type TurnCredential = string & { readonly _brand: 'TurnCredential' };
  * relay is configured. Richer than a boolean so future relay options can be
  * added without a breaking change.
  *
- * - `'openrelay'` — use the bundled public OpenRelay (best-effort, free tier).
- * - `'none'`      — no fallback; peers on restrictive NATs may fail to connect.
+ * - `'openrelay'`: use the bundled public OpenRelay (best-effort, free tier).
+ * - `'none'`: no fallback; peers on restrictive NATs may fail to connect.
  */
 export const FallbackTurnPolicy = { OpenRelay: 'openrelay', None: 'none' } as const;
 export type FallbackTurnPolicy = (typeof FallbackTurnPolicy)[keyof typeof FallbackTurnPolicy];
@@ -87,7 +93,7 @@ export interface PeerUser {
  * Opaque key identifying the physical file a peer persists to. Used to scope
  * leader election: peers sharing a target elect a single writer (avoiding write
  * races on one file), while peers with distinct targets each persist their own
- * copy independently — so two owners on different backends (or different accounts
+ * copy independently, so two owners on different backends (or different accounts
  * of one backend) never starve each other's autosave. It's a hash of (browser
  * install id + backend id + filename), so the actual location never travels in
  * awareness. Built by `persistTargetKey()` in `src/collaboration/leader.ts`.
@@ -97,15 +103,15 @@ export type PersistTarget = string & { readonly _brand: 'PersistTarget' };
 /**
  * The full awareness state broadcast by each peer.
  *
- * - `user`       — display identity (name + cursor colour).
- * - `role`       — whether this peer may edit locally (cooperative, not enforced).
- * - `canPersist` — whether this peer has authenticated storage access with at
+ * - `user`: display identity (name + cursor colour).
+ * - `role`: whether this peer may edit locally (cooperative, not enforced).
+ * - `canPersist`: whether this peer has authenticated storage access with at
  *                  least write permission. Only `canPersist` peers participate
  *                  in leader election for autosave relay.
- * - `persistTarget` — the file this peer would write to (when `canPersist`).
+ * - `persistTarget`: the file this peer would write to (when `canPersist`).
  *                  Leader election is scoped to it, so peers writing distinct
  *                  files each persist their own copy. Absent when not persisting.
- * - `browserId`  — this peer's `browserId()`, so a peer can tell a second tab of
+ * - `browserId`: this peer's `browserId()`, so a peer can tell a second tab of
  *                  their own browser apart from a stranger's.
  */
 export interface PeerAwarenessState {
@@ -119,18 +125,18 @@ export interface PeerAwarenessState {
 /**
  * Transport-level connection status, surfaced to the UI status pill.
  *
- * - `connecting`   — not yet attached to a signaling server (just started, or
- *                    still within the grace window — see `CONNECT_TIMEOUT_MS`).
- * - `unreachable`  — still not attached after the grace window has elapsed:
+ * - `connecting`: not yet attached to a signaling server (just started, or
+ *                    still within the grace window; see `CONNECT_TIMEOUT_MS`).
+ * - `unreachable`: still not attached after the grace window has elapsed:
  *                    the server is down, misconfigured, or unreachable, as
  *                    opposed to merely slow. Distinct from `connecting` so the
  *                    UI can stop spinning and show an actionable state instead
  *                    of looping forever. Cleared by a successful attach or a
  *                    manual `reconnect()`.
- * - `waiting`      — attached to signaling but no peer is present yet (you're
+ * - `waiting`: attached to signaling but no peer is present yet (you're
  *                    alone in the room; share the link to collaborate).
- * - `connected`    — at least one peer is present, so edits flow in real time.
- * - `offline`      — the browser reports no network connection.
+ * - `connected`: at least one peer is present, so edits flow in real time.
+ * - `offline`: the browser reports no network connection.
  */
 export const ConnStatus = {
   Connecting: 'connecting',
@@ -142,7 +148,7 @@ export const ConnStatus = {
 export type ConnStatus = (typeof ConnStatus)[keyof typeof ConnStatus];
 
 /**
- * Whether branch (a) of the contract — "someone is here" — currently holds.
+ * Whether branch (a) of the contract ("someone is here") currently holds.
  * Beside {@link ConnStatus}, never replacing it; feeds the write gate (`writeGate.ts`).
  * `reaching` is a discovered-but-unconnected peer: proven present, never locks.
  */
@@ -154,32 +160,32 @@ export const PresenceKind = {
 } as const;
 export type PresenceKind = (typeof PresenceKind)[keyof typeof PresenceKind];
 
-/** Emitters must memoise this by `kind` — see `core.ts`. */
+/** Emitters must memoise this by `kind`; see `core.ts`. */
 export interface RoomPresence {
   readonly kind: PresenceKind;
 }
 
 /**
  * Which kind of transport backs a `Collab` session:
- * - `p2p` — WebRTC, edits travel peer-to-peer (no server in the data path).
- * - `hub` — y-websocket, edits are relayed through a central server.
+ * - `p2p`: WebRTC, edits travel peer-to-peer (no server in the data path).
+ * - `hub`: y-websocket, edits are relayed through a central server.
  * Surfaced in the UI so a user knows whether the server sees their content.
  */
 export const Transport = { P2P: 'p2p', Hub: 'hub' } as const;
 export type Transport = (typeof Transport)[keyof typeof Transport];
 
 /** Identifier of a single peer connection, taken from the WebRTC layer's
- *  connection map — branded so it can't be confused with any other id string. */
+ *  connection map; branded so it can't be confused with any other id string. */
 export type PeerConnId = string & { readonly _brand: 'PeerConnId' };
 
 /** Whether a peer connection is carried directly (host/srflx candidate) or
  *  via a TURN relay. `'unknown'` means stats are unavailable or the PC is still
- *  negotiating. Single source of truth — used by both `IceStatsReader` and
+ *  negotiating. Single source of truth: used by both `IceStatsReader` and
  *  `PeerConnectionInfo`. */
 export const IceCandidateType = { Direct: 'direct', Relay: 'relay', Unknown: 'unknown' } as const;
 export type IceCandidateType = (typeof IceCandidateType)[keyof typeof IceCandidateType];
 
-/** How a single peer connection is carried — surfaced in the diagnostics panel. */
+/** How a single peer connection is carried, surfaced in the diagnostics panel. */
 export interface PeerConnectionInfo {
   readonly id: PeerConnId;
   readonly type: IceCandidateType;

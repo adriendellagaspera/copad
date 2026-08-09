@@ -70,6 +70,7 @@
   import ShareDialog from './ui/ShareDialog.svelte';
   import MeetingJoinDialog from './ui/MeetingJoinDialog.svelte';
   import ExportDialog from './ui/ExportDialog.svelte';
+  import RecentDocs from './ui/RecentDocs.svelte';
   import { roomName } from './collaboration/roomName.svelte.js';
   import SyncBanner from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
@@ -87,50 +88,23 @@
   let shareOpen = $state(false);
   let joinOpen = $state(false);
   let exportOpen = $state(false);
-  // Copad's peer-to-peer (no async sync) default used to be explained up front by
-  // a one-time intro modal. That taught the same "solo writing is ephemeral" lesson
-  // as the write-gate below — a wall of text shown before you'd done anything, and
-  // dismissed once. We removed it: the write-gate now carries that lesson just-in-
-  // time, at the moment writing-into-the-void actually becomes true, with the
-  // actions that resolve it (Invite / Connect storage) right there.
 
-  // Effective per-room cipher (WebRTC end-to-end encryption). Resolved fresh on
-  // each connect, in precedence order: secure-link key (#k= in the URL) → per-room
-  // password (set in the Share dialog) → the deployment's configured VITE_ROOM_AUTH
-  // strategy. The Editor remounts on a security change (collabEpoch), so a link or
-  // password set in Share takes effect on the next connection.
   const { access: envAccess, cipher: envCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
   const perRoomPassword = roomPassword();
-  // In `room-password` mode the deployment mandates a per-room password for every
-  // room, so a first-time visitor with none stored should be prompted for it —
-  // deterministically, without needing a prior keyed visit's fingerprint. The
-  // other modes don't need this: `public` isn't gated, `site-password` supplies
-  // the key from env, and `secret-link` mints a fresh key when the URL has none.
   const passwordRequiredMode = envAccess.mode === RoomAccessMode.RoomPassword;
   const roomCipher: RoomCipher = {
     password: (r) => currentSecretKey() ?? perRoomPassword.credential(r) ?? envCipher.password(r),
   };
-  // Cast browser Location to typed PageLocation — single IO-boundary parse site.
   const loc = {
     protocol: location.protocol as PageProtocol,
     hostname: location.hostname as PageHostname,
   };
 
-  // ICE servers fetched at startup from VITE_ICE_SERVERS_URL (a credentials
-  // endpoint that mints short-lived TURN creds server-side). Empty until the
-  // fetch resolves; `buildIce()` prefers these over static env TURN when present.
-  // Only the WebRTC transport uses ICE, so skip the whole dance on WebSocket.
   let fetchedIce = $state<IceServer[]>([]);
   const usesIce = resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) !== 'websocket';
   const iceServersUrl = usesIce ? resolveIceServersUrl(import.meta.env.VITE_ICE_SERVERS_URL) : undefined;
-  // Gate the first Editor mount on the ICE fetch when an endpoint is configured,
-  // so the initial connection already carries the fetched TURN relay. We resolve
-  // ICE *before* the first build rather than reconnecting after: a post-mount
-  // rebuild goes through `rebuildCollab()`'s remount, and a same-room remount races
-  // y-webrtc's global room registry (openRoom throws "already exists" if the old
-  // provider's async teardown hasn't deregistered the room yet, leaving the new
-  // provider unsubscribed). fetchIceServers self-bounds via ICE_FETCH_TIMEOUT_MS,
-  // so this gate always opens — with creds if they arrived, with env/default if not.
+  // Resolved before the first mount, not after: a post-mount rebuild races
+  // y-webrtc's async room deregistration (`openRoom()` throws "already exists").
   let iceReady = $state(!iceServersUrl);
   if (iceServersUrl) {
     void fetchIceServers(iceServersUrl).then((servers) => {
@@ -139,11 +113,6 @@
     });
   }
 
-  // Pick the collaboration transport — chosen explicitly via VITE_COLLAB_TRANSPORT
-  // (default 'webrtc'). 'websocket' routes edits through a central hub server (no
-  // WebRTC, so no STUN/TURN — works on mobile carrier NATs where P2P can't connect).
-  // Transport + its config are decided once; the cache flag is applied per build
-  // so toggling the local cache can rebuild `connect` (and remount the Editor).
   function planCollab(): {
     build: (cache: LocalCacheEnabled) => CollabConnect;
     warning?: string;
@@ -152,23 +121,17 @@
     if (resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket') {
       const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, loc);
       if (ws.url) {
-        // Pin the narrowed (non-empty) WebsocketUrl in a const so it stays branded
-        // inside the build closure — TS won't carry property narrowing into it.
+        // TS doesn't carry the narrowing of `ws.url` into the closure below.
         const url = ws.url;
         return { build: (cache) => websocketCollab({ url, cache }), warning: ws.warning };
       }
-      // Misconfigured: transport selected but no URL — warn and fall back to WebRTC.
-      console.warn('Copad: VITE_COLLAB_TRANSPORT=websocket but VITE_WEBSOCKET_URL is unset — using WebRTC.');
+      console.warn('Copad: VITE_COLLAB_TRANSPORT=websocket but VITE_WEBSOCKET_URL is unset, using WebRTC.');
     }
     const signaling = resolveSignaling(import.meta.env.VITE_SIGNALING_URL, loc);
-    // ICE is resolved per build (not once) so runtime TURN changes from Settings
-    // apply on the next reconnect. Precedence: runtime TURN → env TURN → public default.
+    // Resolved per build (not once) so runtime TURN changes apply on next reconnect.
     const buildIce = (): IceServer[] => {
       const turn = getTurnPrefs();
       const hasRuntimeTurn = turn.urls.length > 0;
-      // Precedence: runtime TURN (user's own, from Settings) → fetched ICE
-      // (short-lived creds from VITE_ICE_SERVERS_URL) → static env / public
-      // default. Runtime always wins; a configured endpoint beats static env.
       if (!hasRuntimeTurn && fetchedIce.length > 0) return fetchedIce;
       return resolveIceServers(
         {
@@ -199,47 +162,29 @@
     console.warn(`Copad: ${collabPlan.technicalWarning ?? collabPlan.warning}`);
   }
   const collabWarning = collabPlan.warning;
-  // Real-time collaboration is compromised on this deployment (no signaling server,
-  // or mixed-content ws:// on an https:// page — peers can't connect). It's static
-  // per session: deployment config doesn't change at runtime. When true, "invite
-  // someone to write together" is a dead end, so it flips the whole presence layer
-  // from "you're alone (invite someone)" to "this site can't sync (keep your own
-  // copy)" — see the write-gate and the banner block below.
   const collabUnavailable = collabWarning !== undefined;
 
-  // Local document cache (IndexedDB). On by default; the Settings toggle flips it.
-  // `connect` is derived so flipping it rebuilds the factory, and `rebuildCollab()`
-  // remounts the Editor so the change takes effect immediately.
   let localCache = $state(localCacheEnabled());
 
-  // Bumped when a TURN/security settings change needs a fresh factory. Read in
-  // `connect` so the derived rebuilds with the new ICE/cipher; the actual remount
-  // is driven by `rebuildCollab()` (a direct swap would race y-webrtc — see below).
   let collabEpoch = $state(0);
   const connect = $derived.by(() => {
     void collabEpoch;
     return collabPlan.build(localCache);
   });
 
-  // The Editor is unmounted only while `editorMounted` is false. `room` is fixed
-  // for the tab's lifetime (see above), so this is the only remount path.
   let editorMounted = $state(true);
   let rebuilding = false;
   /**
-   * Reconnect for a *same-room* config change (TURN/cache/security). Cycle the
-   * Editor off, wait for the old provider to fully tear down — including
-   * y-webrtc's async room deregistration — then remount. A direct {#key} swap can
-   * construct the new provider before the old one deregisters, and y-webrtc's
-   * `openRoom()` throws "already exists" for the same room name, leaving the new
-   * provider unsubscribed (silently no peers). The two-phase mount avoids that.
+   * Reconnect for a same-room config change (TURN/cache/security), remounting
+   * the Editor rather than swapping providers directly: a direct swap can
+   * construct the new provider before y-webrtc's async room deregistration
+   * completes, and `openRoom()` throws "already exists" for the same room name.
    */
   async function rebuildCollab(): Promise<void> {
     if (rebuilding) return;
     rebuilding = true;
     editorMounted = false;
-    await nextTick(); // apply the unmount → Editor.onDestroy → collab.destroy()
-    // Drain microtasks so the provider's async room deregistration completes
-    // before the replacement mounts (setTimeout yields past the microtask queue).
+    await nextTick();
     await new Promise((resolve) => setTimeout(resolve, 0));
     editorMounted = true;
     rebuilding = false;
@@ -248,7 +193,7 @@
   function setLocalCache(on: boolean): void {
     setLocalCacheEnabled(on);
     localCache = localCacheEnabled();
-    void rebuildCollab(); // rebuild `connect` (reads localCache) + safely remount
+    void rebuildCollab();
     if (!on) void clearLocalCache().then(() => toasts.info('Local copies cleared'));
   }
 
@@ -257,31 +202,24 @@
     toasts.success('Cleared local copies of your documents');
   }
 
-  // Runtime TURN config (Settings) — persisted; applied on the next reconnect.
   let turnPrefs = $state<TurnPrefs>(getTurnPrefs());
   function saveTurnPrefs(p: TurnPrefs): void {
     turnPrefs = p;
     setTurnPrefs(p);
-    collabEpoch += 1;      // rebuild the factory with fresh ICE…
-    void rebuildCollab();  // …and safely remount so it takes effect
+    collabEpoch += 1;
+    void rebuildCollab();
     toasts.info('Connection settings applied');
   }
 
-  // Security change from the Share dialog (secure link / room password): rebuild
-  // the factory with the new cipher and safely remount.
   function onSecurityChange(): void {
     collabEpoch += 1;
     void rebuildCollab();
   }
 
   const COLORS: CursorColor[] = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'] as CursorColor[];
-  // Editable from the identity menu (avatar) in the header; seeds to a rotating
-  // default. Passed to the Editor, which broadcasts it in awareness to peers.
   let color = $state<CursorColor>(COLORS[Math.floor((now() / 1000) % COLORS.length)]);
 
   // ── Document / room ────────────────────────────────────────────────────────
-  // Resolved before `backends()` below: each backend targets `room`'s document,
-  // captured once by closure at construction (see storage/filename.ts).
 
   const DEFAULT_ROOM = resolveDefaultRoom(import.meta.env.VITE_DEFAULT_ROOM);
 
@@ -289,18 +227,13 @@
     return parseRoomId(new URLSearchParams(location.search).get('room')) ?? DEFAULT_ROOM;
   }
 
-  // Role is fixed for the session — it comes from the URL so the host can share
-  // a read-only link (?role=reader). Cooperative only: a modified client could
-  // ignore it, but it's appropriate for trusted collaborators.
+  // Cooperative only: a modified client could ignore ?role=reader.
   function roleFromUrl(): SessionRole {
     return new URLSearchParams(location.search).get('role') === SessionRole.Reader
       ? SessionRole.Reader
       : SessionRole.Writer;
   }
 
-  // Fixed for the lifetime of this tab: a new document always opens a new tab
-  // (see `newRoom` below), so `room` never changes in place — there's no
-  // in-tab room switch to react to.
   const room: RoomId = roomFromUrl();
   const sessionRole: SessionRole = roleFromUrl();
 
@@ -319,8 +252,6 @@
 
   const storageBackends = backends(room);
 
-  // Start with whichever backend is already authenticated (returning user),
-  // falling back to the env-var default or the first available.
   function initialStorage(): StorageBackend | null {
     const authed = storageBackends.find(b => b.auth.isAuthenticated());
     if (authed) return authed;
@@ -331,22 +262,15 @@
   }
 
   let storage = $state<StorageBackend | null>(initialStorage());
-  // Cast at the IO boundary: user-typed strings enter the domain as DisplayName here.
   let name = $state<DisplayName>('Anonymous' as DisplayName);
 
-  // A file picked in Settings' Browse dialog (Phase 2 import) or the header's
-  // own local-file picker below, waiting to be decoded into the live doc.
-  // App and Editor are siblings — `collab.doc` only exists inside Editor —
-  // so this is the hand-off between them.
+  // Hand-off to Editor, which owns `collab.doc` and decodes into it.
   let pendingImport = $state<{ bytes: Uint8Array; filename: Filename } | null>(null);
 
-  // Bumped when localStorage state changes (config saved, auth token stored).
   let tick = $state(0);
   const bump = () => { tick += 1; };
 
   // ── Session presence / connection (header) ──────────────────────────────────
-  // The Editor pushes these into the sessionState bridge; the header renders them.
-  // Self is shown by the identity menu, so the presence bar lists only others.
   let diagOpen = $state(false);
   const otherPeers = $derived(sessionState.users.filter((u) => !u.self));
 
@@ -362,40 +286,27 @@
 
   function afterConnect(b: StorageBackend) {
     storage = b;
-    // Connecting a backend saves the room you're in to it: add it to this backend's
-    // saved set (each saved room keeps its own file). Every room it doesn't save
-    // stays live-only for you.
     savedRoomsStore(b.storage.id).add(room);
     bump();
   }
 
   function afterDisconnect(_b: StorageBackend) {
-    // Keep the saved-room set: logging out already makes every room live-only
-    // (savedHere checks isAuthenticated), and retaining it means re-logging in
-    // restores your saved rooms instead of silently orphaning them.
+    // Don't clear the saved-room set: re-logging in should restore it, not orphan it.
     bump();
   }
 
-  // Returning-user default: if a backend is already authenticated but saves no room
-  // yet (authed before this feature existed, or a fresh session), treat the room you
-  // land in as one it saves — but only when you arrived at your own default room,
-  // never via a shared `?room=` link (which means you're just a visitor). This keeps
-  // an existing user's document attached to their home room instead of silently
-  // demoting it to live-only, without ever claiming someone else's room.
+  // Backend already authenticated but saves no room yet (pre-dates this feature, or
+  // fresh session): adopt the landing room as saved, but only at the default room,
+  // never via a shared `?room=` link, which just means a visitor.
   if (!new URLSearchParams(location.search).has('room')) {
-    // untrack: a one-time read at init (not a reactive dependency).
     const s = untrack(() => storage);
     if (s && s.auth.isAuthenticated() && savedRoomsStore(s.storage.id).all().length === 0) {
       savedRoomsStore(s.storage.id).add(room);
     }
   }
 
-  // Whether the current room is saved to *your own* storage: a connected backend of
-  // yours saves it. Otherwise the room is live-only for you — the Editor gets no
-  // Storage (below), so it keeps its own document rather than inheriting this
-  // backend's file. This is a per-user persistence fact, not a room-level role: with
-  // per-target autosave, several people can each save their own copy. `tick` re-reads
-  // the (non-reactive) set after connect/disconnect; `room` is a const, only read here.
+  // Per-user fact, not a room-level role: several people can each save their own
+  // copy under per-target autosave.
   const savedHere = $derived.by(() => {
     void tick;
     void room;
@@ -403,10 +314,8 @@
     return !!s && s.auth.isAuthenticated() && savedRoomsStore(s.storage.id).saves(room);
   });
 
-  // Another room this backend saves that resolves to the *same* file as the current
-  // one — they'd silently overwrite each other. Detectable only within this browser
-  // (a same-account collision on another machine can't be seen without a coordination
-  // point the serverless model deliberately lacks). null when clear.
+  // Another saved room resolving to the same file, detectable only within this
+  // browser, without a server-side coordination point.
   const fileConflict = $derived.by((): RoomId | null => {
     void tick;
     void room;
@@ -423,34 +332,26 @@
     const s = storage;
     if (!other || !s) return undefined;
     const file = filenameForRoom(s.storage.id, room, s.storage.defaultFilename?.());
-    return `Room “${other}” also saves to ${file} on your ${s.storage.label} — they’ll overwrite each other. Rename this room’s file in Settings.`;
+    return `Room “${other}” also saves to ${file} on your ${s.storage.label}. They’ll overwrite each other. Rename this room’s file in Settings.`;
   });
 
-  // ── Write gate (docs/contract.md §1–§4) ──────────────────────────────────────
-  // `writeGateFor()` is the pure decision function; this section only supplies its
-  // inputs and owns the two clocks it needs (settle + departure-linger).
+  // ── Write gate (docs/contract.md §1-§4) ──────────────────────────────────────
+  // writeGateFor() is pure; this section supplies its inputs and owns its two
+  // clocks (settle + departure-linger). Uncertain presence OPENS the gate: a
+  // false lockout is the costly failure (contract §2.2).
   //
-  // Polarity: uncertainty (`RoomPresence.Unknown`, `Reaching`) OPENS the gate — a
-  // false lockout is the costly failure here, not a false few extra seconds of
-  // solo writing (contract §2.2). It only closes on positive, settled absence.
-  //
-  // Branch (b) is `durabilityHolds` (contract §3.2/§3.3), not the bare `savedHere`
-  // fact — do not swap it in for `savedHere` at the `storage` prop below, or a
-  // `Broken` room loses the very `flush()` calls that could prove it healthy again.
+  // durabilityHolds feeds branch (b), not the bare `savedHere` fact. Don't swap
+  // it in below, or a Broken room loses the flush() calls that could heal it
+  // (contract §3.2/§3.3).
   const durabilityHolds = $derived(
     computeDurabilityHolds(savedHere, sessionState.persistHealth, sessionState.regime),
   );
-  //
-  // The escape hatch is `allowWriteSolo()`, surfaced as "Write alone anyway" in
-  // `SyncBanner`'s gated tier — P2P only. Session-scoped, per room.
   let soloRooms = $state<RoomId[]>([]);
   const soloOptIn = $derived((sessionState.diagnostics.transport === Transport.P2P &&
     soloRooms.includes(room)) as SoloOptIn);
 
-  // Stamped only by the explicit click below — never by `writeLocked` itself
-  // going false, which also happens when a peer joins or durability proves
-  // out. Editor's own focus-on-unlock effect keys off this timestamp so a
-  // natural unlock never steals focus (contract §4.1's "never steal focus").
+  // Set only by the explicit click, never when writeLocked flips false on its own.
+  // Editor's focus-on-unlock effect keys off this so it never steals focus (§4.1).
   let writeSoloAt = $state<EpochMs | null>(null);
 
   function allowWriteSolo(): void {
@@ -458,9 +359,6 @@
     writeSoloAt = now();
   }
 
-  // The waiting tier's primary action (§4.2): copying the link *is* how you
-  // unblock, so it's a direct clipboard write, not a detour through the Share
-  // dialog. Same URL shape as ShareDialog's own `url`.
   const inviteUrl = $derived.by((): string => {
     const key = currentSecretKey();
     const base = `${location.origin}${location.pathname}?room=${encodeURIComponent(room)}`;
@@ -475,12 +373,8 @@
     }
   }
 
-  // Keyed on `presence.kind` (primitive), not the `RoomPresence` object, as a
-  // second guard on top of core.ts's own memoisation.
   let aloneSettled = $state(false);
-  // When this stretch of solitude began — drives the waiting tier's "Waiting since
-  // 14:02" (docs/contract.md §4.2: a fixed clock time, not a ticking duration, so no
-  // interval is needed to keep it current).
+  // Fixed clock time (contract §4.2), not a ticking duration: no interval needed.
   let waitingSince = $state<EpochMs | null>(null);
   $effect(() => {
     if (sessionState.presence.kind !== PresenceKind.Alone) {
@@ -493,18 +387,14 @@
     return () => clearTimeout(t);
   });
 
-  // Tab title reflects waiting so it's legible among many tabs (docs/contract.md
-  // §4.2). Captured once — Svelte re-runs this module on room switches within the
-  // same tab, but the browser tab itself doesn't reload, so a module-level `let`
-  // (not `$state`) read on first import is the actual page title to restore to.
+  // Tab title reflects waiting (contract §4.2). Captured once as a plain `let`,
+  // not `$state`, since the browser tab never reloads even though this module re-runs.
   const baseTitle = document.title;
   $effect(() => {
     document.title = sessionState.presence.kind === PresenceKind.Alone ? `Waiting… · ${baseTitle}` : baseTitle;
   });
 
-  // Snapshot of the last non-empty peer list — names who just left (docs/contract.md
-  // §4, "Ada left"). Plain closure, not `$state`: only read at the moment of
-  // departure below, never rendered reactively itself.
+  // The last non-empty peer list: names who just left (contract §4, "Ada left").
   let lastPeers: PeerUser[] = [];
   $effect(() => {
     if (sessionState.users.length > 0) lastPeers = sessionState.users;
@@ -530,9 +420,8 @@
     departedPeerName = lastPeers[0]?.name ?? null;
   });
 
-  // Re-arms on every local keystroke (`sessionState.lastLocalEditAt`), extending the
-  // linger deadline instead of letting a flat timer cut a mid-sentence writer off —
-  // see departureHysteresis.ts. Capped there, so it can't be extended indefinitely.
+  // Re-arms on every keystroke instead of a flat timer, so it never cuts a
+  // mid-sentence writer off; capped in departureHysteresis.ts.
   $effect(() => {
     if (departedAt === null) return;
     const deadline = departureLingerDeadline(
@@ -550,12 +439,9 @@
     return () => clearTimeout(t);
   });
 
-  // The unlock moment (docs/contract.md §4.1) — fires once per arrival, not on every
-  // still-Accompanied re-render. A separate flag from the departure effect's own
-  // `wasAccompanied` above, so the two don't fight over one boolean. Caret + band-fold
-  // are already free (reactive `editable`, SyncBanner's own exit transition); this
-  // only drives the two steps that need new state: the peer's avatar entrance and the
-  // one self-dismissing line. Never calls `.focus()` — never steal focus (§4.1).
+  // Fires once per arrival (contract §4.1): a separate flag from the departure
+  // effect's `wasAccompanied` so the two don't fight over one boolean. Never
+  // calls `.focus()`; never steal focus.
   let wasUnlockedAccompanied = false;
   let justJoinedIds = $state<number[]>([]);
   let unlockLine = $state<string | null>(null);
@@ -587,11 +473,9 @@
   );
   const writeLocked = $derived(gate.status === 'held');
 
-  // Import bypasses ProseMirror's own `editable` check entirely (`codec.decode`
-  // writes straight into `collab.doc`), so the header button's own enabled
-  // state has to re-derive the write gate independently — Editor re-checks it
-  // again on the `pendingImport` hand-off (see its `importRequest` effect),
-  // this is only the header's own visible affordance.
+  // Import bypasses ProseMirror's `editable` check (writes straight into `collab.doc`),
+  // so this button re-derives the gate independently; Editor re-checks it again on
+  // the `pendingImport` hand-off.
   const canImportHere = $derived(sessionRole === SessionRole.Writer && !writeLocked);
 
   async function importLocalFile(): Promise<void> {
@@ -605,8 +489,8 @@
     pendingImport = { bytes: new Uint8Array(await file.arrayBuffer()), filename: file.name as Filename };
   }
 
-  // Superset of `writeLocked` — drives `SyncBanner`'s tiering during the pre-lock
-  // grace window, before the clocks let `writeGateFor` actually return `held`.
+  // Superset of `writeLocked`: drives SyncBanner's tiering during the pre-lock
+  // grace window before the clocks let writeGateFor return `held`.
   const gateEligible = $derived(
     sessionRole === SessionRole.Writer &&
       !collabUnavailable &&
@@ -616,14 +500,8 @@
   );
 
   // ── Collab-unavailable intro: a structurally local-only deployment ─────────
-  // `collabUnavailable` never blocks (see above) — it's an environment fact, not
-  // a transient state the user can resolve. But landing on what looks like a
-  // normal collaborative editor when it's actually permanently local-only is its
-  // own unintuitive surprise, same shape as the write-gate's: nothing signals it
-  // except a neutral SyncBanner tier, easy to miss entirely. So the same
-  // treatment applies — a one-time, deliberate acknowledgment, the first time
-  // this browser ever loads a deployment in this state. Never re-blocks writing;
-  // it's purely informational, dismissible like any other dialog.
+  // One-time acknowledgment on first load of a permanently local-only deployment.
+  // Never blocks writing: purely informational, dismissible like any dialog.
   const collabUnavailableSeenStore = localStore<boolean>(
     KEY_COLLAB_UNAVAILABLE_SEEN,
     (raw) => raw === 'true',
@@ -635,8 +513,6 @@
     collabUnavailableSeen = true;
     collabUnavailableSeenStore.write(true);
   }
-  // Deferred while Share or Settings is open, for the same stacking-collision
-  // reason as `showWriteGateExplainer`.
   const showCollabUnavailableIntro = $derived(
     collabUnavailable && !collabUnavailableSeen && !shareOpen && !settingsOpen && !exportOpen,
   );
@@ -647,31 +523,20 @@
   }
 
   // ── Encrypted-room access gate ───────────────────────────────────────────────
-  // A room is gated when it's known-encrypted (a key fingerprint was remembered
-  // on a prior visit) but the current key is missing or wrong. Encryption is
-  // WebRTC-only, so the gate only applies there. Until the async check resolves
-  // we hold the editor back (lockChecked) so encrypted content never flashes
-  // before the gate — and, crucially, so a locked room never mounts the Editor
-  // (which would connect + write a plaintext cache without the key).
-  const encryptedTransport = usesIce; // WebRTC — the only transport that encrypts
-  // Whether *this* room is end-to-end encrypted right now: a per-room key is in
-  // effect (secure link / room password / mandated strategy) on an encrypting
-  // transport. Drives the status chip's shield segment. Re-evaluated on a security
-  // change (Share dialog / unlock bumps collabEpoch).
+  // Until the async check resolves, `lockChecked` holds the Editor back so a
+  // locked room never mounts it and writes a plaintext cache without the key.
+  const encryptedTransport = usesIce;
   const roomEncrypted = $derived.by((): boolean => {
     void collabEpoch;
     return encryptedTransport && roomCipher.password(room) !== null;
   });
   let lock = $state<RoomLockState>({ locked: false });
   let lockChecked = $state(!encryptedTransport);
-  // Whether the current lock offers a "continue without a password" escape. Only
-  // the deterministic first-visit `room-password` gate does — never a room known
-  // to be encrypted (skipping that would just show an empty, unsynced room).
   let lockAllowSkip = $state(false);
 
   $effect(() => {
     const r = room;
-    void collabEpoch; // re-check after a security change (Share dialog / unlock)
+    void collabEpoch;
     if (!encryptedTransport) {
       lock = { locked: false };
       lockChecked = true;
@@ -682,26 +547,19 @@
     if (!stored) {
       lockAllowSkip = false;
       if (cred) {
-        // First time we see this room *with* a key: remember it's encrypted so a
-        // later keyless visit is gated. Fire-and-forget; we're not locked.
         void rememberRoomEncryption(r, cred);
         lock = { locked: false };
       } else if (passwordRequiredMode && !roomOpenedWithoutPassword(r)) {
-        // No key, none remembered, but the deployment requires one → prompt for it
-        // on this first visit (deterministic, not based on a stored fingerprint).
-        // Offer an escape: the user may deliberately open the room unencrypted.
         lock = { locked: true, reason: 'missing' };
         lockAllowSkip = true;
       } else {
-        // Not known to be encrypted and none required (or the user opted out) → open.
         lock = { locked: false };
       }
       lockChecked = true;
       return;
     }
-    // Known-encrypted → verify the current key against the remembered fingerprint.
-    // Never overwrite the stored fingerprint here — that's what lets a wrong key be
-    // detected (locked) instead of silently adopted. No skip offered here.
+    // Never overwrite the stored fingerprint here: that's what lets a wrong key
+    // be detected instead of silently adopted.
     lockAllowSkip = false;
     lockChecked = false;
     let cancelled = false;
@@ -717,17 +575,11 @@
     };
   });
 
-  // "Continue without a password" from the first-visit gate: remember the choice
-  // for this room and re-run the gate (which now opens it, unencrypted).
   function continueWithoutPassword(): void {
     setRoomOpenedWithoutPassword(room);
     collabEpoch += 1;
   }
 
-  // Unlock the gate by supplying the room key. It's verified against the
-  // remembered fingerprint before we persist anything (a wrong key is rejected,
-  // never stored), then kept as this room's password so the effective cipher
-  // decrypts on reconnect and the encrypted cache can be read back.
   async function tryUnlock(raw: string): Promise<boolean> {
     const cred = parseRoomCredential(raw);
     if (!cred) return false;
@@ -738,17 +590,9 @@
     return true;
   }
 
-  // Creating a new document always opens a fresh browser tab rather than
-  // switching this one in place. Why: each backend's `filenameStore` captures
-  // `room` once, by closure, when `backends(room)` constructs it (see
-  // storage/filename.ts) — there is no live pointer to retarget, so switching
-  // rooms in place would mean rebuilding every backend from scratch. A real tab
-  // sidesteps this for free: each tab gets its own module state built for its
-  // own room, and the per-room-per-backend filename already lives correctly
-  // namespaced in localStorage. A new document means a new tab — never a
-  // second room alongside this one.
-  //
-  // CSPRNG room id (contract §5); a fresh secret-link key rides in `#k=` so the room is encrypted by default.
+  // A new tab, never an in-place room switch: `backends(room)` captures `room`
+  // once by closure (storage/filename.ts), so there's no live pointer to retarget.
+  // CSPRNG room id (contract §5); the secret-link key encrypts the room by default.
   function newRoom(): void {
     const r = newRoomId();
     const key = mintSecretKey();
@@ -759,11 +603,7 @@
     );
   }
 
-  // The wordmark's full reload is a deliberate, legitimate action from a mouse
-  // click — but it also sits in the header's normal tab order, so it can fire
-  // from a stray Enter/Space while tabbing through the page for an unrelated
-  // reason. Confirming preserves the intentional workflow while stopping a
-  // silent, undo-less reload from blind keyboard navigation.
+  // Guards against a stray Enter/Space firing this while tabbing through the page.
   function confirmReload(): void {
     if (confirm('Reload Copad? Any unsaved local state will be lost.')) {
       location.reload();
@@ -772,20 +612,11 @@
 </script>
 
 <div class="app">
-  <!-- Not a heading: an <h1> here would compete with the document's own
-       level-1 heading, giving screen-reader heading nav two page titles —
-       the actual room-name heading now lives in the document itself
-       (Editor.svelte's DocTitle), not here. One capsule, one size grammar
-       (see app.css) — a single floating pill holds every piece of session
-       chrome. On mobile it's hidden entirely; every action moves to the
-       bottom dock below. -->
+  <!-- Not a heading: an <h1> here would give screen readers two level-1 titles
+       alongside the document's own (Editor.svelte's DocTitle). Hidden on mobile;
+       actions move to the bottom dock below. -->
   <header class="capsule">
-    <!-- Reload is destructive (drops focus/selection instantly) and sits in the
-         header's normal tab order, so a stray Enter/Space while tabbing through
-         the page (e.g. to reach the floating selection toolbar) can trigger it
-         with no warning. Confirming keeps the deliberate mouse-click workflow
-         intact while guarding against an accidental keyboard activation. -->
-    <button class="cap-mark" onclick={confirmReload} title="Copad — reload" aria-label="Copad — reload">
+    <button class="cap-mark" onclick={confirmReload} title="Reload Copad" aria-label="Reload Copad">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 19.5V6a2 2 0 0 1 2-2h8l6 6v9.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" /><path d="M14 4v6h6" />
       </svg>
@@ -823,12 +654,12 @@
         <path d="M12 15V3m0 0l-4 4m4-4l4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
     </button>
+    <RecentDocs current={room} />
 
     <div class="cap-fill"></div>
 
     <div class="session">
-      <!-- One status chip: connection (Direct/Alone/…) + durability (Saved/Not saved).
-           Tap opens the detail sheet (connection + where it's kept + connect action). -->
+      <!-- Tap opens the connection/storage detail sheet. -->
       <StatusPill
         conn={sessionState.conn}
         saveStatus={sessionState.saveStatus}
@@ -842,9 +673,7 @@
       {#if otherPeers.length > 0}
         <PresenceBar users={otherPeers} size={24} onSelect={sessionState.jumpToPeer} {justJoinedIds} />
         {#if sessionState.soloBrowser}
-          <!-- Contract §7: a second tab of your own browser really does receive
-               your bytes and satisfies the contract — but naming it stops it
-               reading as "a stranger showed up" or a silent, unexplained loophole. -->
+          <!-- Names a second tab of your own browser so it doesn't read as a stranger (contract §7). -->
           <span class="solo-browser-note">Another tab of yours</span>
         {/if}
       {/if}
@@ -878,11 +707,8 @@
     <div class="cap-theme"><ThemeToggle {theme} /></div>
   </header>
 
-  <!-- Mobile-only "nav mode" dock (M3) — a fixed bottom capsule mirroring the
-       header's actions, since the header itself is hidden entirely on mobile
-       (see header.capsule, app.css). Hidden the instant the document has
-       focus, when editor.css's .fixed-toolbar takes the same slot in "format
-       mode" — the two never show at once (see sessionState.editing). -->
+  <!-- Mobile-only; hidden the instant the document has focus, when editor.css's
+       .fixed-toolbar takes the same slot. -->
   <div
     class="mobile-dock"
     class:dock-hidden={sessionState.editing}
@@ -921,6 +747,7 @@
         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
       </svg>
     </button>
+    <RecentDocs current={room} buttonClass="dock-btn" />
     <button class="dock-btn" onclick={() => (exportOpen = true)} title="Export a copy of this document" aria-label="Export a copy of this document">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 15V3m0 0l-4 4m4-4l4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
@@ -941,26 +768,8 @@
     </button>
   </div>
 
-  <!-- Presence / durability layer — one strip, one surface, never contradictory.
-       Decision 2: the old always-on "Set up a storage backend…" InfoBanner is gone.
-       It duplicated the persistent, clickable status chip ("Not saved" → opens the
-       sheet with the connect action, #105/#124) and stacked on top of SyncBanner's
-       own solo tiers, which already nudge storage. The chip is the single durability
-       actuator; the banners stay contextual and non-duplicative.
-       Decision 3 (revised): collaboration-unavailable is folded into SyncBanner as
-       its own tier instead of a separate InfoBanner. Reasoning: it must NOT block
-       (unlike the write-gate) because it's a *permanent environment fact* the user
-       can't act on right now — you block only for a *transient, user-resolvable*
-       state (someone might still join). But "which component renders it" is a
-       presentation choice, independent of blocking — and two components for one
-       presence/durability concern was the real inconsistency. So it's one strip
-       with an escalation ladder: gated (blocks, transient) → collab-unavailable
-       (never blocks, permanent, its own tier) → solo reminder (never blocks,
-       transient). See SyncBanner's `collabUnavailable` tier for the copy.
-       The collab-unavailable tier also gets the same one-time-dialog treatment
-       as the write-gate (see `CollabUnavailableIntro` below): landing on what
-       looks like a normal collaborative editor that's structurally local-only
-       is its own unintuitive surprise, easy to miss in a banner alone. -->
+  <!-- One strip, escalation ladder: gated (blocks, transient) → collab-unavailable
+       (never blocks, permanent) → solo reminder (never blocks, transient). -->
   <SyncBanner
     conn={sessionState.conn}
     presenceKind={sessionState.presence.kind}
@@ -981,10 +790,7 @@
     onConnectionDetails={() => (diagOpen = true)}
   />
 
-  <!-- The unlock moment's one self-dismissing line (docs/contract.md §4.1) — plain
-       text, no sound/confetti/flash/modal, never steals focus. `prefers-reduced-motion`
-       keeps this step (it's already just text; only the fade becomes instant) and the
-       caret; the avatar-entrance and band-fold durations are what actually drop. -->
+  <!-- The unlock moment's one self-dismissing line (contract §4.1); never steals focus. -->
   {#if unlockLine}
     <div class="unlock-line" role="status" aria-live="polite" transition:fade={{ duration: reducedMotion ? 0 : 200 }}>
       {unlockLine}
@@ -1026,9 +832,6 @@
       onImportHandled={() => (pendingImport = null)}
       {autofocusTitle}
     />
-    <!-- The waiting state itself teaches the contract now — see SyncBanner's
-         `gated` tier — instead of a separate one-time explainer dialog
-         (`WriteGateIntro`, deleted; contract §7). -->
     <CollabUnavailableIntro
       open={showCollabUnavailableIntro}
       saved={savedHere}
@@ -1100,17 +903,12 @@
 <Toast {toasts} />
 
 <style>
-  /* The unlock moment's one self-dismissing line (docs/contract.md §4.1) — quiet
-     text, not a toast: no icon, no dismiss button, no stacking dock. It clears
-     itself; nothing to act on. */
   .unlock-line {
     padding: var(--sp-1) var(--sp-4) 0;
     color: var(--text-muted);
     font-size: var(--fs-300);
   }
 
-  /* Shown only while the startup ICE-credentials fetch is in flight (deployments
-     with VITE_ICE_SERVERS_URL). Bounded by ICE_FETCH_TIMEOUT_MS. */
   .ice-gate {
     display: flex;
     align-items: center;
