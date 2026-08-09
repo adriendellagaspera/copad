@@ -68,12 +68,11 @@ jobs:
           VITE_ICE_SERVERS_URL:   ${{ vars.VITE_ICE_SERVERS_URL }}
           VITE_ICE_FETCH_TIMEOUT_MS: ${{ vars.VITE_ICE_FETCH_TIMEOUT_MS }}
 
-      # keep_files: true preserves pr-<N>/ preview directories from other workflow runs.
-      - uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          keep_files: true
+      # Preserves pr-<N>/ preview directories from other workflow runs.
+      - name: Deploy to gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/deploy-gh-pages.sh ""
 
       # Self-heal the one setting the whole branch-based scheme depends on: make
       # GitHub Pages serve the gh-pages branch at / (root). Without it, every
