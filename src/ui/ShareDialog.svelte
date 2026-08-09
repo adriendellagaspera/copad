@@ -24,11 +24,9 @@
     room: RoomId;
     toasts: Toasts;
     envPassword?: string;
-    /** Whether this room is saved to the local user's own storage backend. */
     saved?: boolean;
-    /** Label of the backend saving it (only meaningful when `saved`). */
+    /** Ignored unless `saved` is true. */
     storageLabel?: string;
-    /** Called after the room's encryption changes, so the Editor can reconnect. */
     onSecurityChange?: () => void;
   } = $props();
 
@@ -61,7 +59,6 @@
 
   const currentKey = (): RoomCredential | null => linkKey ?? storedPw ?? null;
 
-  // Fingerprint + cache migration must both complete before onSecurityChange remounts the editor.
   async function makeSecureLink(): Promise<void> {
     const before = currentKey();
     const key = rotateSecretKey();
@@ -78,8 +75,8 @@
   async function applyPassword(): Promise<void> {
     const before = currentKey();
     const pw = pwInput.trim();
-    const cred = parseRoomCredential(pw); // accept user input into the domain via the canonical parser
-    setRoomPassword(room, pw); // empty string clears the entry
+    const cred = parseRoomCredential(pw);
+    setRoomPassword(room, pw);
     clearSecretKey();
     if (cred) await rememberRoomEncryption(room, cred);
     else forgetRoomEncryption(room);
@@ -104,7 +101,6 @@
     flashSecConfirm('Encryption removed from this document');
   }
 
-  // Two-click confirm: this breaks collaborators' current link/password.
   let confirmingRemove = $state(false);
   let confirmRemoveTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -118,7 +114,6 @@
     confirmRemoveTimer = setTimeout(() => (confirmingRemove = false), 4000);
   }
 
-  // Inline, not a toast: this dialog stays open after these actions, and on mobile a fixed toast would cover the sheet's own content.
   let secConfirm = $state<string | null>(null);
   let secConfirmTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -137,7 +132,6 @@
     copiedTimer = setTimeout(() => (copiedButton = null), 2000);
   }
 
-  // One group so invite/reader copies swap in place instead of stacking.
   const COPY_TOAST_GROUP = 'share-dialog-copy';
 
   async function copyTo(
@@ -157,6 +151,34 @@
 
   const copy = () => copyTo(url, inputEl, 'Invite link copied to clipboard', 'invite');
   const copyReader = () => copyTo(readerUrl, readerInputEl, 'View-only link copied to clipboard', 'reader');
+
+  const canShare = typeof navigator !== 'undefined' && 'share' in navigator;
+  const shareText = $derived(`Join me on Copad: ${url}`);
+  const whatsappUrl = $derived(`https://wa.me/?text=${encodeURIComponent(shareText)}`);
+  const smsUrl = $derived(`sms:?body=${encodeURIComponent(shareText)}`);
+  const emailUrl = $derived(
+    `mailto:?subject=${encodeURIComponent('Join me on Copad')}&body=${encodeURIComponent(shareText)}`,
+  );
+
+  async function share(): Promise<void> {
+    try {
+      await navigator.share({ title: 'Join me on Copad', url });
+    } catch {
+      /* navigator.share() rejects on cancel; no toast, matches native share UX */
+    }
+  }
+
+  function shareViaWhatsapp(): void {
+    window.open(whatsappUrl, '_blank', 'noopener');
+  }
+
+  function shareViaSms(): void {
+    location.href = smsUrl;
+  }
+
+  function shareViaEmail(): void {
+    location.href = emailUrl;
+  }
 </script>
 
 <Dialog {open} {onclose} title="Share this document">
@@ -190,6 +212,15 @@
       onfocus={(e) => e.currentTarget.select()}
     />
     <button class="primary" onclick={copy}>{copiedButton === 'invite' ? 'Copied ✓' : 'Copy link'}</button>
+    {#if canShare}
+      <button onclick={share} aria-label="Share invite link">📤 Share</button>
+    {:else}
+      <div class="share-fallbacks" role="group" aria-label="Share via">
+        <button onclick={shareViaWhatsapp} aria-label="Share via WhatsApp" title="WhatsApp">💬</button>
+        <button onclick={shareViaSms} aria-label="Share via SMS" title="SMS">📱</button>
+        <button onclick={shareViaEmail} aria-label="Share via email" title="Email">✉️</button>
+      </div>
+    {/if}
   </div>
 
   <details class="reader-section">
@@ -325,15 +356,21 @@
   }
   .share-row input {
     flex: 1;
+    min-width: 0;
     font-family: var(--font-mono);
-    /* Not a smaller size: this field select-alls on focus (see onfocus above),
-       so any tap counts as a focus, and iOS Safari auto-zooms the page when a
-       focused field's font-size is under 16px (see app.css's global input
-       rule for the same fix). */
+    /* iOS Safari auto-zooms on focused inputs under 16px font-size. */
     font-size: var(--fs-400);
   }
   .share-row button {
     flex-shrink: 0;
+  }
+  .share-fallbacks {
+    display: flex;
+    gap: var(--sp-1, 0.25rem);
+    flex-shrink: 0;
+  }
+  .share-fallbacks button {
+    padding: 0.4rem 0.55rem;
   }
   .key-badge {
     flex-shrink: 0;
