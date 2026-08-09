@@ -24,14 +24,14 @@
     onConnectionDetails,
   }: {
     conn: ConnStatus;
-    // Distinguishes Alone (gate holds) from Reaching (unreachable, never gates) within ConnStatus.Waiting — docs/contract.md §4.
+    // Distinguishes Alone (gate holds) from Reaching (unreachable, never gates) within ConnStatus.Waiting. docs/contract.md §4.
     presenceKind: PresenceKind;
     transport: Transport;
     // Non-null iff a copy is kept in the user's own storage (driven by savedHere, not merely "backend connected").
     storageLabel: string | null;
-    // docs/contract.md §4.2 — write gate active.
+    // docs/contract.md §4.2: write gate active.
     gated?: boolean;
-    // Pre-arm grace window (P2P + live-only + no peer, not yet opted solo) — nothing shown yet.
+    // Pre-arm grace window (P2P + live-only + no peer, not yet opted solo): nothing shown yet.
     gateEligible?: boolean;
     // Permanent deployment fact (no signaling server, or mixed-content ws://), not a transient "no peer yet" state.
     collabUnavailable?: boolean;
@@ -86,7 +86,7 @@
                   : 'alone',
   );
 
-  // Dismissal is forgotten once `reason` changes — including collapsing to 'hidden' when wantShow goes false — so a recurring tier re-shows.
+  // Dismissal is forgotten once `reason` changes, including collapsing to 'hidden' when wantShow goes false, so a recurring tier re-shows.
   let dismissed = $state(false);
   $effect(() => {
     reason;
@@ -146,7 +146,7 @@
   >
     <span class="ic" class:dot={gated} aria-hidden="true">
       {#if gated}
-        <!-- Calm dot, not a spinner — a spinner promises imminence and lies after 30 seconds (§4.2). -->
+        <!-- Calm dot, not a spinner: a spinner promises imminence and lies after 30 seconds (§4.2). -->
         <span class="waiting-dot"></span>
       {:else}
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -161,12 +161,12 @@
         <strong>You're the only one here.</strong>
         {#if waitingSinceLabel}Waiting since {waitingSinceLabel}.{/if}
         {#if isP2P}
-          Copad opens the document when someone joins — until then you can read,
+          Copad opens the document when someone joins. Until then you can read,
           copy and export it, but not write. In peer-to-peer mode nothing you write
           leaves this device until it's received, so writing alone here would just
           be lost.
         {:else}
-          The server confirms it — Copad opens the document the instant someone
+          The server confirms it: Copad opens the document the instant someone
           joins. Until then you can read, copy and export it, but not write.
         {/if}
       </span>
@@ -190,7 +190,7 @@
       </span>
     {:else if reaching}
       <span class="msg">
-        <strong>Someone's here</strong> — still connecting to them.
+        <strong>Someone's here,</strong> still connecting to them.
       </span>
       <span class="actions">
         {#if onRetry}
@@ -218,7 +218,7 @@
       <span class="msg">
         {#if saved}
           <strong>Real-time sync isn't available on this site.</strong>
-          Kept for you in {storageLabel} — collaborators won't see live edits, but your
+          Kept for you in {storageLabel}, collaborators won't see live edits, but your
           own copy is safe.
         {:else}
           <strong>Real-time sync isn't available on this site.</strong>
@@ -242,7 +242,7 @@
     {:else if saved}
       <span class="msg">
         <strong>You're writing alone.</strong>
-        Kept for you in {storageLabel} — but a copy only you can open. No one sees your
+        Kept for you in {storageLabel}, but a copy only you can open. No one sees your
         edits live until they join. Invite someone to co-edit.
       </span>
       <span class="actions">
