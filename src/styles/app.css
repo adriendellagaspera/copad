@@ -382,6 +382,42 @@ button.status-link {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
+.advanced {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.advanced-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: 44px;
+  padding: var(--sp-3) var(--sp-4);
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+}
+.advanced-summary::-webkit-details-marker {
+  display: none;
+}
+.advanced-summary-label::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: var(--sp-2);
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+.advanced[open] .advanced-summary-label::before {
+  transform: rotate(90deg);
+}
+.advanced-summary:hover {
+  background: var(--surface-3);
+}
+.advanced-body {
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+}
 .tile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
