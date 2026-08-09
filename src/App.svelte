@@ -55,7 +55,7 @@
   import CollabUnavailableIntro from './ui/CollabUnavailableIntro.svelte';
   import StorageIntro from './ui/StorageIntro.svelte';
   import LibraryDialog from './ui/LibraryDialog.svelte';
-  import { rememberRoomVisit, type PagePath } from './collaboration/roomHistory.js';
+  import { rememberRoomVisit, clearRoomHistory, type PagePath } from './collaboration/roomHistory.js';
   import { KEY_COLLAB_UNAVAILABLE_SEEN, KEY_STORAGE_INTRO_SEEN } from './collaboration/constants.js';
   import { localStore } from './persistence/local.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
@@ -258,7 +258,10 @@
 
   async function clearLocalCopies(): Promise<void> {
     await clearLocalCache();
-    toasts.success('Cleared local copies of your documents');
+    // The library holds room keys, so leaving it behind would defeat the point
+    // of clearing on a shared device.
+    clearRoomHistory();
+    toasts.success('Cleared local copies and your document list');
   }
 
   // Runtime TURN config (Settings) — persisted; applied on the next reconnect.
@@ -372,9 +375,19 @@
 
   let settingsOpen = $state(false);
   let settingsFocus = $state<StorageId | undefined>(undefined);
+  let settingsAdvanced = $state(false);
 
   function openSettings(id?: StorageId) {
     settingsFocus = id;
+    settingsAdvanced = false;
+    settingsOpen = true;
+  }
+
+  // A room that can't reach its peers needs the relay controls, which now sit
+  // folded away — so the failure state opens them rather than naming them.
+  function openConnectionSettings(): void {
+    settingsFocus = undefined;
+    settingsAdvanced = true;
     settingsOpen = true;
   }
 
@@ -1016,7 +1029,7 @@
         <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
         <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
       </svg>
-      Share
+      <span class="dock-share-label">Share</span>
     </button>
     <button class="dock-btn" onclick={() => openSettings()} title="Settings" aria-label="Settings">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1146,12 +1159,14 @@
   reconnect={sessionState.diagnostics.reconnect}
   jumpToPeer={sessionState.jumpToPeer}
   onConnectStorage={() => openSettings()}
+  onOpenConnectionSettings={openConnectionSettings}
 />
 
 <Settings
   backends={storageBackends}
   bind:open={settingsOpen}
   focusId={settingsFocus}
+  focusAdvanced={settingsAdvanced}
   {theme}
   {localCache}
   onCacheChange={setLocalCache}

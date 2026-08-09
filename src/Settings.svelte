@@ -359,6 +359,10 @@
         {clearing ? 'Clearing…' : 'Clear local copies'}
       </button>
     </div>
+    <small class="field-help">
+      Also empties your document list, which holds the keys to any encrypted rooms
+      you've opened on this device.
+    </small>
   </section>
 
   {#if onTurnChange}

@@ -27,6 +27,7 @@
     reconnect,
     jumpToPeer,
     onConnectStorage,
+    onOpenConnectionSettings,
   }: {
     open: boolean;
     onclose: () => void;
@@ -50,6 +51,8 @@
     jumpToPeer?: (clientId: number) => void;
     /** Open Settings to connect a backend (shown when the room is not saved). */
     onConnectStorage: () => void;
+    /** Open Settings with the relay controls already unfolded. */
+    onOpenConnectionSettings?: () => void;
   } = $props();
 
   function selectPeer(clientId: number): void {
@@ -273,8 +276,17 @@
       {/if}
       <p class="diag-help">
         "Relayed via TURN" means your network blocked a direct path — common on mobile.
-        If peers can't connect at all, add a TURN relay in Settings.
+        If peers can't connect at all, add a TURN relay.
       </p>
+      {#if onOpenConnectionSettings}
+        <button
+          class="block-cta"
+          type="button"
+          onclick={() => { onOpenConnectionSettings(); onclose(); }}
+        >
+          Set up a relay
+        </button>
+      {/if}
     {/if}
 
     <div class="diag-actions">

@@ -623,6 +623,14 @@ button.status-link {
     border-radius: var(--r-full);
     box-shadow: var(--shadow-md);
     transition: bottom 0.22s ease-out;
+    /* Last resort so no action is ever unreachable: the row carries a status
+       pill that grows with the room's state, so the widest case can still
+       exceed a 390px phone even after the compaction below. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .mobile-dock::-webkit-scrollbar {
+    display: none;
   }
   .mobile-dock.dock-hidden {
     display: none;
@@ -679,6 +687,25 @@ button.status-link {
   }
   .mobile-dock .dock-share svg {
     display: block;
+  }
+}
+
+/* Below ~430px the dock's icons, the Share chip and the status pill no longer
+   fit together, and the item pushed out is whichever sits last — Settings. The
+   chip keeps its accessible name from `aria-label`, so dropping the visible
+   word costs nothing a screen reader or a tooltip user relies on. */
+@media (max-width: 430px) {
+  .mobile-dock .dock-share-label {
+    display: none;
+  }
+  .mobile-dock .dock-share {
+    margin: 0 2px;
+    padding: 0 11px;
+  }
+  /* Only width is under pressure here, so the hit area gives up nothing
+     vertically — the dock is 50px tall either way. */
+  .mobile-dock .dock-btn {
+    width: 34px;
   }
 }
 

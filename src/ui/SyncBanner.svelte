@@ -266,11 +266,14 @@
      surface, not a saturated warning field — the tone is carried by one small
      cue, the icon, rather than by dyeing the whole bar. */
   .sync-banner {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--sp-3);
     flex-wrap: wrap;
     padding: var(--sp-2) var(--sp-4);
+    /* Reserve the corner the dismiss control is pinned to. */
+    padding-right: 44px;
     /* Own margin, not the parent's flex `gap`: `slide` animates a node's margin
        alongside its height, so the trailing gap closes smoothly instead of
        snapping shut when the node is removed. */
@@ -326,14 +329,17 @@
   /* >=44px hit area (WCAG 2.5.5) around a small glyph — grown via padding, not
      by enlarging the ✕ itself. */
   .dismiss {
-    flex-shrink: 0;
+    /* Pinned rather than laid out: as a flex item it wrapped onto a line of its
+       own once the actions filled the row. */
+    position: absolute;
+    top: 0;
+    right: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-width: 44px;
     min-height: 44px;
     padding: 0;
-    margin: calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2)) 0;
     font-size: 0.75rem;
     color: var(--text-faint);
     border: none;
@@ -375,6 +381,13 @@
   }
   .more:hover {
     color: var(--text);
+  }
+  /* Touch needs the full 44px (WCAG 2.5.5); a mouse does not, and growing it
+     everywhere would set the row's height off the other action chips. */
+  @media (pointer: coarse) {
+    .more {
+      min-height: 44px;
+    }
   }
   /* Secondary — a real ghost button (transparent + border), so "Connect storage"
      reads as the alternative button it is, not a floating underlined link. */
