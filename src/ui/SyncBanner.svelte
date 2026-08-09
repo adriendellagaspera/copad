@@ -331,7 +331,7 @@
       aria-label="Dismiss"
       title="Dismiss"
     >
-      ✕
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
     </button>
   </div>
 {/if}
@@ -400,8 +400,8 @@
     flex-wrap: wrap;
     gap: var(--sp-2);
   }
-  /* >=44px hit area (WCAG 2.5.5) around a small glyph — grown via padding, not
-     by enlarging the ✕ itself. Always last, after any tier's own actions. */
+  /* >=44px hit area (WCAG 2.5.5) around a small icon — grown via padding, not
+     by enlarging the icon itself. Always last, after any tier's own actions. */
   .dismiss {
     flex-shrink: 0;
     display: inline-flex;
@@ -411,7 +411,6 @@
     min-height: 44px;
     padding: 0;
     margin: calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2)) 0;
-    font-size: 0.75rem;
     color: var(--text-faint);
     border: none;
   }

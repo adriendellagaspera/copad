@@ -190,18 +190,28 @@
   </p>
 
   <p class="persist-note" class:is-saved={saved}>
+    <span class="persist-icon" aria-hidden="true">
+      {#if saved}
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 0 1 1.5 8.7" /><path d="M9 14.5l2 2 4-4" /></svg>
+      {:else}
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h6l-1 8 9-12h-6z" /></svg>
+      {/if}
+    </span>
     {#if saved}
-      💾 Saved to <strong>your {storageLabel ?? 'storage'}</strong>. Collaborators edit live but
+      Saved to <strong>your {storageLabel ?? 'storage'}</strong>. Collaborators edit live but
       can’t write to your storage; anyone who connects their own backend keeps their own saved copy.
     {:else}
-      ⚡ This document isn’t saved to any storage of yours. It lives in the live session and each
+      This document isn’t saved to any storage of yours: it lives in the live session and each
       device’s local cache only. Connect a backend to save it to your own storage.
     {/if}
   </p>
 
   <div class="share-row">
     {#if linkKey}
-      <span class="key-badge" title="This link includes the encryption key">🔑 Key included</span>
+      <span class="key-badge" title="This link includes the encryption key">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M16 3l3 3M13 6l3 3" /></svg>
+        Key included
+      </span>
     {/if}
     <input
       bind:this={inputEl}
@@ -211,7 +221,14 @@
       aria-label="Invite link"
       onfocus={(e) => e.currentTarget.select()}
     />
-    <button class="primary" onclick={copy}>{copiedButton === 'invite' ? 'Copied ✓' : 'Copy link'}</button>
+    <button class="primary" onclick={copy}>
+      {#if copiedButton === 'invite'}
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
+        Copied
+      {:else}
+        Copy link
+      {/if}
+    </button>
     {#if canShare}
       <button onclick={share} aria-label="Share invite link">📤 Share</button>
     {:else}
@@ -228,7 +245,10 @@
     <div class="reader-body">
       <div class="share-row">
         {#if linkKey}
-          <span class="key-badge" title="This link includes the encryption key">🔑 Key included</span>
+          <span class="key-badge" title="This link includes the encryption key">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M16 3l3 3M13 6l3 3" /></svg>
+            Key included
+          </span>
         {/if}
         <input
           bind:this={readerInputEl}
@@ -238,7 +258,14 @@
           aria-label="View-only invite link"
           onfocus={(e) => e.currentTarget.select()}
         />
-        <button onclick={copyReader}>{copiedButton === 'reader' ? 'Copied ✓' : 'Copy link'}</button>
+        <button onclick={copyReader}>
+          {#if copiedButton === 'reader'}
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
+            Copied
+          {:else}
+            Copy link
+          {/if}
+        </button>
       </div>
       <p class="reader-caveat">
         The view-only role disables editing in the UI, but is not technically enforced:
@@ -251,11 +278,19 @@
   <section class="share-security">
     <h3>
       Document privacy
-      {#if encrypted}<span class="lock" title="End-to-end encrypted">🔒 Encrypted</span>{/if}
+      {#if encrypted}
+        <span class="lock" title="End-to-end encrypted">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></svg>
+          Encrypted
+        </span>
+      {/if}
     </h3>
 
     {#if secConfirm}
-      <p class="sec-confirm" role="status">✓ {secConfirm}</p>
+      <p class="sec-confirm" role="status">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
+        {secConfirm}
+      </p>
     {/if}
 
     {#if envOnly}
@@ -334,6 +369,8 @@
     line-height: 1.5;
   }
   .persist-note {
+    display: flex;
+    gap: var(--sp-2);
     margin: 0 0 var(--sp-4);
     padding: var(--sp-2) var(--sp-3);
     border-radius: var(--r-sm);
@@ -348,6 +385,15 @@
   }
   .persist-note strong {
     font-weight: 600;
+  }
+  .persist-icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    margin-top: 0.2em;
+  }
+  .persist-icon svg {
+    display: block;
   }
   .share-row {
     display: flex;
@@ -374,6 +420,9 @@
   }
   .key-badge {
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
     padding: 0.2rem 0.5rem;
     border-radius: var(--r-sm);
     background: var(--accent-soft);
@@ -381,6 +430,10 @@
     font-size: var(--fs-300);
     font-weight: 500;
     white-space: nowrap;
+  }
+  .key-badge svg {
+    display: block;
+    flex-shrink: 0;
   }
   .reader-section {
     margin-top: var(--sp-4);
@@ -430,6 +483,9 @@
     color: var(--ok);
   }
   .sec-confirm {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
     margin: 0 0 var(--sp-3);
     padding: var(--sp-2) var(--sp-3);
     border-radius: var(--r-sm);
@@ -437,6 +493,10 @@
     color: var(--ok);
     font-size: var(--fs-300);
     font-weight: 500;
+  }
+  .sec-confirm svg {
+    flex-shrink: 0;
+    display: block;
   }
   .sec-note {
     margin: 0 0 var(--sp-3);
