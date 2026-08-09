@@ -219,7 +219,7 @@ Also active while read-only: text selection and copy, scrolling and outline, Sha
 
 The gate used to yield silently on the first keystroke. *"Read-only until you type"* is not a contract, it is a speed bump — right for a warning, self-defeating for a contract.
 
-It is now an explicit, named button, **P2P only**, stating its cost: `Write alone anyway` → *Nothing you write will leave this device until someone joins.* (`SyncBanner.svelte`'s gated tier — rendered only while `transport === Transport.P2P`, since the hub's contract offers no escape hatch, §2.1.) Scope stays per-room, in memory, for the session; every reload re-asserts the contract (`App.svelte`'s `soloRooms`, unpersisted).
+It is now an explicit, named button, **P2P only**, stating its cost as **visible copy beside the button, never a tooltip** (a `title` is invisible on touch, which is where the gate is hardest to understand): `Write alone anyway` → *Nothing you write will leave this device until someone joins.* (`SyncBanner.svelte`'s gated tier — rendered only while `transport === Transport.P2P`, since the hub's contract offers no escape hatch, §2.1.) Scope stays per-room, in memory, for the session; every reload re-asserts the contract (`App.svelte`'s `soloRooms`, unpersisted).
 
 The honest cost, documented in the README: the contract is *read-only when alone by default, deliberately overridable*. That is defensible. The silent version was not.
 
