@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Copad — collaborative writing</title>
+    <meta
+      name="description"
+      content="Copad is a real-time collaborative writing tool. Write together peer-to-peer, no server required, and save to your own cloud storage."
+    />
+    <link rel="icon" type="image/svg+xml" href="/copad/pr-249/favicon.svg" />
+    <link rel="apple-touch-icon" href="/copad/pr-249/icons/icon-192.png" />
+    <link rel="manifest" href="/copad/pr-249/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="Copad" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- `media` can only track the OS, not this app's own theme override, so JS sets theme-color directly. -->
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Runs pre-paint to avoid a theme flash. THEME_COLOR must be kept in sync with ui/theme.svelte.ts by hand: this inline script can't import it. -->
+    <script>
+      (function () {
+        var THEME_COLOR = { light: '#ffffff', dark: '#1e1e24' };
+        try {
+          var choice = localStorage.getItem('copad:theme') || 'system';
+          var dark =
+            choice === 'dark' ||
+            (choice === 'system' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var resolved = dark ? 'dark' : 'light';
+          document.documentElement.dataset.theme = resolved;
+          document
+            .querySelector('meta[name="theme-color"]')
+            .setAttribute('content', THEME_COLOR[resolved]);
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light';
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/copad/pr-249/assets/main-Oza0ciRn.js"></script>
+    <link rel="modulepreload" crossorigin href="/copad/pr-249/assets/lib-D54bnSvk.js">
+    <link rel="stylesheet" crossorigin href="/copad/pr-249/assets/main-tNw2YrAr.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
