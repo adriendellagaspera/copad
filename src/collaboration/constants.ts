@@ -23,7 +23,7 @@ export const SIGNALING_KEEPALIVE_MS = (
 
 export const SIGNALING_KEEPALIVE_TIMEOUT_MS = 10_000 as Milliseconds;
 
-/** Timeout for VITE_ICE_SERVERS_URL; also gates startup — the first connection
+/** Timeout for VITE_ICE_SERVERS_URL; also gates startup: the first connection
  *  waits up to this long for TURN creds before connecting without them. */
 const rawIceTimeout = Number(import.meta.env.VITE_ICE_FETCH_TIMEOUT_MS);
 export const ICE_FETCH_TIMEOUT_MS = (
@@ -52,7 +52,7 @@ export const ENC_CACHE_DB_PREFIX = `${NS_PREFIX}enc:`;
 
 /** Grace window after a hub presence probe's socket opens before concluding
  *  `empty`. The stock server pushes present peers' awareness state once, in
- *  the reply that opens the connection — not a poll, so there's no roster to
+ *  the reply that opens the connection, not a poll, so there's no roster to
  *  wait out. */
 export const PRESENCE_PROBE_SETTLE_MS = 500 as Milliseconds;
 

@@ -146,7 +146,7 @@ export function parseRoomId(raw: string | null): RoomId | null {
   return trimmed ? (trimmed as RoomId) : null;
 }
 
-/** Parse the `?selfProbe=` URL param a `MeetingJoinDialog`-opened tab carries —
+/** Parse the `?selfProbe=` URL param a `MeetingJoinDialog`-opened tab carries:
  *  the single cast site for {@link SelfProbeMarker} from the URL. */
 export function parseSelfProbeMarker(raw: string | null): SelfProbeMarker | null {
   const trimmed = (raw ?? '').trim();

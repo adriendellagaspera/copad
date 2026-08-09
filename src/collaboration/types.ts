@@ -6,7 +6,7 @@ import type { SelfProbeMarker } from './selfProbeMarker.js';
 export const SessionRole = { Writer: 'writer', Reader: 'reader' } as const;
 export type SessionRole = (typeof SessionRole)[keyof typeof SessionRole];
 
-/** A room's immutable identity — never changed by a rename. */
+/** A room's immutable identity, never changed by a rename. */
 export type RoomId = string & { readonly _brand: 'RoomId' };
 
 /** Editable display name for a room; changing it never affects {@link RoomId}. */
@@ -23,7 +23,7 @@ export type SignalingUrl = string & { readonly _brand: 'SignalingUrl' };
 
 /** HTTP(S) form of a {@link SignalingUrl} (ws→http, wss→https), used only for
  *  keep-alive GETs that stop a spin-down-on-idle host (e.g. Render free tier)
- *  from sleeping — never carries signaling traffic. */
+ *  from sleeping; never carries signaling traffic. */
 export type SignalingPingUrl = string & { readonly _brand: 'SignalingPingUrl' };
 
 /** A y-websocket hub URL validated by `resolveWebsocket()`. */
@@ -46,7 +46,7 @@ export interface IceServer {
 }
 
 /** HTTPS endpoint returning ICE servers as JSON, e.g. a Cloudflare TURN
- *  credentials Worker minting short-lived creds — keeps the provider's real
+ *  credentials Worker minting short-lived creds, keeping the provider's real
  *  API token server-side. Validated by `parseIceServersUrl()`. */
 export type IceServersUrl = string & { readonly _brand: 'IceServersUrl' };
 
@@ -59,7 +59,7 @@ export type TurnCredential = string & { readonly _brand: 'TurnCredential' };
 /**
  * Richer than a boolean so future relay options can be added without a
  * breaking change.
- * - `'openrelay'` — bundled public OpenRelay (best-effort, free tier).
+ * - `'openrelay'`: bundled public OpenRelay (best-effort, free tier).
  * - `'none'`      — no fallback; peers on restrictive NATs may fail to connect.
  */
 export const FallbackTurnPolicy = { OpenRelay: 'openrelay', None: 'none' } as const;
@@ -85,13 +85,13 @@ export type PersistTarget = string & { readonly _brand: 'PersistTarget' };
 /**
  * The full awareness state broadcast by each peer.
  *
- * - `canPersist` — has authenticated storage access with at least write
+ * - `canPersist`: has authenticated storage access with at least write
  *                  permission; only these peers join leader election.
- * - `persistTarget` — the file this peer would write to; leader election is
+ * - `persistTarget`: the file this peer would write to; leader election is
  *                  scoped to it. Absent when not persisting.
- * - `browserId`  — this peer's `browserId()`, so a second tab of one's own
+ * - `browserId`: this peer's `browserId()`, so a second tab of one's own
  *                  browser is distinguishable from a stranger's.
- * - `selfProbeMarker` — present only on the tab a `MeetingJoinDialog` join
+ * - `selfProbeMarker`: present only on the tab a `MeetingJoinDialog` join
  *                  just opened, so `presenceProbe.ts` can recognize and
  *                  discard its own self-join instead of reading it as a peer.
  */
@@ -106,10 +106,10 @@ export interface PeerAwarenessState {
 
 /**
  * Transport-level connection status, surfaced to the UI status pill.
- * - `connecting`   — not yet attached; within the grace window (`CONNECT_TIMEOUT_MS`).
- * - `unreachable`  — still not attached after the grace window elapsed.
- * - `waiting`      — attached, but no peer present yet.
- * - `connected`    — at least one peer present.
+ * - `connecting`: not yet attached; within the grace window (`CONNECT_TIMEOUT_MS`).
+ * - `unreachable`: still not attached after the grace window elapsed.
+ * - `waiting`: attached, but no peer present yet.
+ * - `connected`: at least one peer present.
  * - `offline`      — the browser reports no network connection.
  */
 export const ConnStatus = {

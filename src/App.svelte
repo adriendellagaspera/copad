@@ -118,7 +118,7 @@
     build: (cache: LocalCacheEnabled) => CollabConnect;
     warning?: string;
     technicalWarning?: string;
-    // Set only on the hub transport — presenceProbe.ts has no P2P path.
+    // Set only on the hub transport: presenceProbe.ts has no P2P path.
     hallUrl?: WebsocketUrl;
   } {
     if (resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket') {

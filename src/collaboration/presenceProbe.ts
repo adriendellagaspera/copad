@@ -1,5 +1,5 @@
 /**
- * "Is anyone in this room?" without joining it — no `Y.Doc` attach, no content
+ * "Is anyone in this room?" without joining it: no `Y.Doc` attach, no content
  * sync, no room key. See docs/contract.md §6.1.
  *
  * Works because the stock `@y/websocket-server` pushes a room's current
@@ -9,17 +9,17 @@
  * unencrypted (`PresenceBar` already shows it that way).
  *
  * Known cost, out of scope (see §6.1): the stock server only frees a room's
- * `Y.Doc` on disconnect when persistence is configured — the bundled binary
+ * `Y.Doc` on disconnect when persistence is configured; the bundled binary
  * configures none, so every probed room leaks one `Y.Doc` for the server's
  * lifetime.
  *
  * WebRTC/P2P has no equivalent probe (see §6.1 for the full analysis).
  * Signaling messages are AES-encrypted whenever the room has a key
  * (`publishSignalingMessage` in `y-webrtc.js`), so a keyless prober is
- * silently dropped by real peers — this probe's core property cannot hold
+ * silently dropped by real peers, so this probe's core property cannot hold
  * there. Provoking a reply without a key would also mean publishing a forged
  * `announce`, making a real peer spin up a genuine `RTCPeerConnection`
- * visible in its own UI as a phantom "Reaching" connection — a side effect on
+ * visible in its own UI as a phantom "Reaching" connection: a side effect on
  * the probed peer's device this module's design forbids.
  */
 
@@ -31,7 +31,7 @@ import { PRESENCE_PROBE_SETTLE_MS } from './constants.js';
 import type { SelfProbeMarker } from './selfProbeMarker.js';
 import { parsePeerAwarenessState } from './parse.js';
 
-const MESSAGE_AWARENESS = 1; // stock message type 0 is sync — never decoded here
+const MESSAGE_AWARENESS = 1; // stock message type 0 is sync, never decoded here
 
 export const HallPresenceKind = {
   Unknown: 'unknown',
@@ -41,7 +41,7 @@ export const HallPresenceKind = {
 export type HallPresenceKind = (typeof HallPresenceKind)[keyof typeof HallPresenceKind];
 
 /**
- * `unknown` never collapses into `empty` (docs/contract.md §2.2) — connecting
+ * `unknown` never collapses into `empty` (docs/contract.md §2.2): connecting
  * or undetermined stays `unknown`. Peers can take ~89s (P2P) / ~31s (hub) to
  * register as gone, so `lastSeen` must not be read as still-present sooner.
  */
@@ -122,7 +122,7 @@ export function probeWebsocketPresence(
   ws.onmessage = (event: MessageEvent) => {
     const decoder = decoding.createDecoder(new Uint8Array(event.data as ArrayBuffer));
     const messageType = decoding.readVarUint(decoder);
-    if (messageType !== MESSAGE_AWARENESS) return; // never decode MESSAGE_SYNC — no doc content read
+    if (messageType !== MESSAGE_AWARENESS) return; // never decode MESSAGE_SYNC, no doc content read
     clientCount = readAwarenessPeerCount(decoding.readVarUint8Array(decoder), opts.selfMarker);
     emit(
       clientCount > 0
