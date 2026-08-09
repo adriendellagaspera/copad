@@ -340,6 +340,8 @@
 /* ── Writing surface ── */
 
 .content {
+  display: flex;
+  flex-direction: column;
   padding: var(--sp-4) var(--sp-5);
   /* Fill the editor card and scroll internally so the toolbar + status bar
      stay pinned. min-height:0 is required for the flex child to actually scroll. */
@@ -353,12 +355,20 @@
 }
 
 .ProseMirror {
-  /* Fill the content area so clicking anywhere in the empty space below the
-     text still focuses the editor (Notion-like). No :focus outline reset here
-     — the global :focus-visible / :focus:not(:focus-visible) rules in
-     base.css already give mouse clicks no ring and keyboard focus a visible
-     one; overriding it here used to kill the ring in both cases. */
-  min-height: 100%;
+  /* Fill the *remaining* content area below DocTitle (a flex sibling, see
+     .content above) so clicking anywhere in the empty space below the text
+     still focuses the editor (Notion-like). flex:1 sizes against space
+     actually left over, unlike min-height:100% (the previous rule), which
+     sized against .content's full box regardless of DocTitle's height above
+     it — that let this element's own bottom edge run past .content's
+     visible bottom by exactly DocTitle's height, and a click's native
+     focus-scroll then dragged DocTitle up and off, clipping it under the
+     app header. No :focus outline reset here — the global :focus-visible /
+     :focus:not(:focus-visible) rules in base.css already give mouse clicks
+     no ring and keyboard focus a visible one; overriding it here used to
+     kill the ring in both cases. */
+  flex: 1;
+  width: 100%;
   max-width: var(--measure);
   margin: 0 auto;
   font-family: var(--font-read);
