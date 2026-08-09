@@ -24,11 +24,9 @@
     room: RoomId;
     toasts: Toasts;
     envPassword?: string;
-    /** Whether this room is saved to the local user's own storage backend. */
     saved?: boolean;
-    /** Label of the backend saving it (only meaningful when `saved`). */
+    /** Ignored unless `saved` is true. */
     storageLabel?: string;
-    /** Called after the room's encryption changes, so the Editor can reconnect. */
     onSecurityChange?: () => void;
   } = $props();
 
@@ -61,7 +59,6 @@
 
   const currentKey = (): RoomCredential | null => linkKey ?? storedPw ?? null;
 
-  // Fingerprint + cache migration must both complete before onSecurityChange remounts the editor.
   async function makeSecureLink(): Promise<void> {
     const before = currentKey();
     const key = rotateSecretKey();
@@ -78,8 +75,8 @@
   async function applyPassword(): Promise<void> {
     const before = currentKey();
     const pw = pwInput.trim();
-    const cred = parseRoomCredential(pw); // accept user input into the domain via the canonical parser
-    setRoomPassword(room, pw); // empty string clears the entry
+    const cred = parseRoomCredential(pw);
+    setRoomPassword(room, pw);
     clearSecretKey();
     if (cred) await rememberRoomEncryption(room, cred);
     else forgetRoomEncryption(room);
@@ -104,7 +101,6 @@
     flashSecConfirm('Encryption removed from this document');
   }
 
-  // Two-click confirm: this breaks collaborators' current link/password.
   let confirmingRemove = $state(false);
   let confirmRemoveTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -118,7 +114,6 @@
     confirmRemoveTimer = setTimeout(() => (confirmingRemove = false), 4000);
   }
 
-  // Inline, not a toast: this dialog stays open after these actions, and on mobile a fixed toast would cover the sheet's own content.
   let secConfirm = $state<string | null>(null);
   let secConfirmTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -137,7 +132,6 @@
     copiedTimer = setTimeout(() => (copiedButton = null), 2000);
   }
 
-  // One group so invite/reader copies swap in place instead of stacking.
   const COPY_TOAST_GROUP = 'share-dialog-copy';
 
   async function copyTo(
@@ -166,7 +160,7 @@
       try {
         await navigator.share({ title: 'Join me on Copad', url });
       } catch {
-        /* user cancelled, or the target app rejected the share — no toast, matches native share UX */
+        /* navigator.share() rejects on cancel; no toast, matches native share UX */
       }
       return;
     }
@@ -345,10 +339,7 @@
     flex: 1;
     min-width: 0;
     font-family: var(--font-mono);
-    /* Not a smaller size: this field select-alls on focus (see onfocus above),
-       so any tap counts as a focus, and iOS Safari auto-zooms the page when a
-       focused field's font-size is under 16px (see app.css's global input
-       rule for the same fix). */
+    /* iOS Safari auto-zooms on focused inputs under 16px font-size. */
     font-size: var(--fs-400);
   }
   .share-row button {

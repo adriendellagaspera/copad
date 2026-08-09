@@ -24,13 +24,7 @@ function roomLinkIn(candidate: string): { room: RoomId; key: RoomCredential | nu
   return null;
 }
 
-/**
- * Interpret the query params the manifest's `share_target` GET action delivers
- * (`title`/`text`/`url`, per the Web Share Target spec) into a room to open. A
- * shared Copad link resolves to that room; anything else — a WhatsApp contact,
- * arbitrary text, a foreign link — resolves to `none`, which App.svelte's own
- * `roomFromUrl()` already treats as "no room param" and opens the default room.
- */
+/** Web Share Target spec delivers shared content as `title`/`text`/`url` query params. */
 export function parseSharedNavigation(search: string): SharedNavigation {
   const params = new URLSearchParams(search);
   if (!params.has('url') && !params.has('text') && !params.has('title')) return { kind: 'none' };
@@ -43,9 +37,7 @@ export function parseSharedNavigation(search: string): SharedNavigation {
   return { kind: 'none' };
 }
 
-/** Rewrites the current URL from share-target params to Copad's own `?room=…#k=…`
- *  shape (or strips them entirely for the default-room fallback) before App.svelte
- *  reads `location` at mount. */
+/** Must run before App.svelte reads `location` at mount. */
 export function applySharedNavigation(nav: SharedNavigation): void {
   if (typeof location === 'undefined' || typeof history === 'undefined') return;
   if (nav.kind === 'none') {

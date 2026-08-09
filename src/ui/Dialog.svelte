@@ -53,12 +53,8 @@
     };
   });
 
-  // Window-level Escape, not just the dialog div's onkeydown above, because focus
-  // can end up outside the dialog (e.g. a native <details>/<summary> toggle or a
-  // click on non-interactive text) — Escape must still close it either way. Capture
-  // phase so we see it before any other in-page listener (or a browser-extension
-  // content script on an autofocused input, e.g. a password manager) gets a chance
-  // to stopPropagation() or otherwise swallow the first press.
+  // Window-level + capture: focus can land outside the dialog, and capture beats
+  // in-page listeners (e.g. a password-manager content script) to Escape first.
   $effect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent): void => {
@@ -131,8 +127,7 @@
     font-weight: 600;
   }
   .dialog-close {
-    /* >=44px hit area (WCAG 2.5.5) around a small glyph — the button grows via
-       padding, not by enlarging the ✕ itself. */
+    /* min-width/height 44px: WCAG 2.5.5 hit-area minimum. */
     display: inline-flex;
     align-items: center;
     justify-content: center;
