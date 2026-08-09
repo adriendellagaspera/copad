@@ -1,6 +1,7 @@
 import type * as Y from 'yjs';
 import type { Awareness } from 'y-protocols/awareness';
 import type { BrowserId } from './browserId.js';
+import type { SelfProbeMarker } from './selfProbeMarker.js';
 
 /** Whether a peer may edit the document in this session. */
 export const SessionRole = { Writer: 'writer', Reader: 'reader' } as const;
@@ -113,6 +114,11 @@ export type PersistTarget = string & { readonly _brand: 'PersistTarget' };
  *                  files each persist their own copy. Absent when not persisting.
  * - `browserId`: this peer's `browserId()`, so a peer can tell a second tab of
  *                  their own browser apart from a stranger's.
+ * - `selfProbeMarker` — present only on the one tab a `MeetingJoinDialog` join
+ *                  just opened, carrying the marker its presence probe was
+ *                  given so the probe can recognize and discard its own
+ *                  self-join instead of reading it as a peer. See
+ *                  `selfProbeMarker.ts`.
  */
 export interface PeerAwarenessState {
   readonly user: PeerUser;
@@ -120,6 +126,7 @@ export interface PeerAwarenessState {
   readonly canPersist: boolean;
   readonly persistTarget?: PersistTarget;
   readonly browserId?: BrowserId;
+  readonly selfProbeMarker?: SelfProbeMarker;
 }
 
 /**

@@ -3,6 +3,7 @@
   import type { Toasts } from './toasts.svelte.js';
   import { deriveMeetingRoom } from '../collaboration/meetingLink.js';
   import { probeWebsocketPresence, HallPresenceKind } from '../collaboration/presenceProbe.js';
+  import { mintSelfProbeMarker, type SelfProbeMarker } from '../collaboration/selfProbeMarker.js';
   import type { RoomId, WebsocketUrl } from '../collaboration/types.js';
 
   let {
@@ -16,10 +17,12 @@
   let pending = $state(false);
 
   // Best-effort, non-blocking: says who's there without delaying the join
-  // tab. Hub-only — see presenceProbe.ts for the WebRTC gap.
-  function announcePresence(room: RoomId): void {
+  // tab. Hub-only — see presenceProbe.ts for the WebRTC gap. `selfMarker`
+  // lets the probe recognize and discard the new tab's own self-join instead
+  // of reading it as a peer — see selfProbeMarker.ts.
+  function announcePresence(room: RoomId, selfMarker: SelfProbeMarker): void {
     if (!hallUrl) return;
-    const probe = probeWebsocketPresence(room, { url: hallUrl });
+    const probe = probeWebsocketPresence(room, { url: hallUrl, selfMarker });
     const unsubscribe = probe.onPresence((presence) => {
       if (presence.kind === HallPresenceKind.Unknown) return;
       toasts.info(
@@ -42,9 +45,11 @@
       toasts.error("That doesn't look like a meeting link");
       return;
     }
-    announcePresence(derived.room);
+    const selfMarker = mintSelfProbeMarker();
+    announcePresence(derived.room, selfMarker);
     window.open(
-      `${location.pathname}?room=${encodeURIComponent(derived.room)}#k=${encodeURIComponent(derived.key)}`,
+      `${location.pathname}?room=${encodeURIComponent(derived.room)}` +
+        `&selfProbe=${encodeURIComponent(selfMarker)}#k=${encodeURIComponent(derived.key)}`,
       '_blank',
       'noopener',
     );

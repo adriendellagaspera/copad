@@ -34,6 +34,8 @@ import type { RoomId, WebsocketUrl } from './types.js';
 import type { EpochMs, Milliseconds } from '../time.js';
 import { now } from '../time.js';
 import { PRESENCE_PROBE_SETTLE_MS } from './constants.js';
+import type { SelfProbeMarker } from './selfProbeMarker.js';
+import { parsePeerAwarenessState } from './parse.js';
 
 const MESSAGE_AWARENESS = 1; // the other stock message type, 0, is sync — never decoded here
 
@@ -70,6 +72,11 @@ export interface WebsocketPresenceProbeOptions {
   /** Grace window after the socket opens before an empty room is reported.
    *  Defaults to `PRESENCE_PROBE_SETTLE_MS`. */
   settleMs?: Milliseconds;
+  /** The marker this probe's own about-to-open tab was given, so its
+   *  self-join awareness broadcast is recognized and excluded rather than
+   *  read as a peer. See `selfProbeMarker.ts`. Omit when there is no
+   *  matching join in flight. */
+  selfMarker?: SelfProbeMarker;
   /** Inject a `WebSocket` constructor for tests; defaults to the global. */
   webSocketImpl?: typeof WebSocket;
 }
@@ -79,7 +86,16 @@ function hubProbeUrl(url: WebsocketUrl, room: RoomId): string {
   return `${trimmed}/${room as string}`;
 }
 
-function readAwarenessClientCount(buf: Uint8Array): number {
+function isSelfJoinState(stateJson: string, selfMarker: SelfProbeMarker): boolean {
+  try {
+    const parsed: unknown = JSON.parse(stateJson);
+    return parsePeerAwarenessState(parsed).selfProbeMarker === selfMarker;
+  } catch {
+    return false;
+  }
+}
+
+function readAwarenessPeerCount(buf: Uint8Array, selfMarker: SelfProbeMarker | undefined): number {
   const decoder = decoding.createDecoder(buf);
   const len = decoding.readVarUint(decoder);
   let present = 0;
@@ -87,7 +103,9 @@ function readAwarenessClientCount(buf: Uint8Array): number {
     decoding.readVarUint(decoder); // clientID
     decoding.readVarUint(decoder); // clock
     const stateJson = decoding.readVarString(decoder);
-    if (stateJson !== 'null') present += 1;
+    if (stateJson === 'null') continue;
+    if (selfMarker !== undefined && isSelfJoinState(stateJson, selfMarker)) continue;
+    present += 1;
   }
   return present;
 }
@@ -125,7 +143,7 @@ export function probeWebsocketPresence(
     const decoder = decoding.createDecoder(new Uint8Array(event.data as ArrayBuffer));
     const messageType = decoding.readVarUint(decoder);
     if (messageType !== MESSAGE_AWARENESS) return; // never decode MESSAGE_SYNC — no doc content read
-    clientCount = readAwarenessClientCount(decoding.readVarUint8Array(decoder));
+    clientCount = readAwarenessPeerCount(decoding.readVarUint8Array(decoder), opts.selfMarker);
     emit(
       clientCount > 0
         ? { kind: HallPresenceKind.Someone, lastSeen: now() }

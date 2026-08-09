@@ -5,6 +5,7 @@ import type {
 } from './types.js';
 import { SessionRole, FallbackTurnPolicy } from './types.js';
 import type { BrowserId } from './browserId.js';
+import type { SelfProbeMarker } from './selfProbeMarker.js';
 import type { RoomCredential } from './roomAccess.js';
 import type { KeyFingerprint } from './roomCrypto.js';
 import type { LocalCacheEnabled } from './cache.js';
@@ -124,12 +125,18 @@ export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
   const browserIdRaw = obj['browserId'];
   const browserId: BrowserId | undefined =
     typeof browserIdRaw === 'string' && browserIdRaw ? (browserIdRaw as BrowserId) : undefined;
+  const selfProbeMarkerRaw = obj['selfProbeMarker'];
+  const selfProbeMarker: SelfProbeMarker | undefined =
+    typeof selfProbeMarkerRaw === 'string' && selfProbeMarkerRaw
+      ? (selfProbeMarkerRaw as SelfProbeMarker)
+      : undefined;
   return {
     user: { name, color },
     role,
     canPersist,
     ...(persistTarget ? { persistTarget } : {}),
     ...(browserId ? { browserId } : {}),
+    ...(selfProbeMarker ? { selfProbeMarker } : {}),
   };
 }
 
@@ -137,6 +144,13 @@ export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
 export function parseRoomId(raw: string | null): RoomId | null {
   const trimmed = (raw ?? '').trim();
   return trimmed ? (trimmed as RoomId) : null;
+}
+
+/** Parse the `?selfProbe=` URL param a `MeetingJoinDialog`-opened tab carries —
+ *  the single cast site for {@link SelfProbeMarker} from the URL. */
+export function parseSelfProbeMarker(raw: string | null): SelfProbeMarker | null {
+  const trimmed = (raw ?? '').trim();
+  return trimmed ? (trimmed as SelfProbeMarker) : null;
 }
 
 /** Parse a raw string as a RoomName: the single cast site for RoomName, used

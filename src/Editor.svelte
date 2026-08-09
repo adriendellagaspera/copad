@@ -40,6 +40,7 @@
   import { recentDocsStore } from './collaboration/recentDocs.js';
   import { nextPersistHealth, nextRegime, UNPROVEN, PersistRegime, type PersistHealth } from './collaboration/persistHealth.js';
   import { browserId } from './collaboration/browserId.js';
+  import type { SelfProbeMarker } from './collaboration/selfProbeMarker.js';
   import { persistTargetKey, isPersistLeader } from './collaboration/leader.js';
   import { trackPresenceActivity } from './collaboration/presenceActivity.js';
   import { remoteCursorBuilder, remoteSelectionBuilder, refreshPresenceFade, jumpToPresence } from './editor/ui/remoteCursors.js';
@@ -69,6 +70,10 @@
     color: CursorColor;
     room: RoomId;
     role?: SessionRole;
+    /** Set only on a tab `MeetingJoinDialog` just opened, so this tab's own
+     *  awareness broadcast lets that join's presence probe recognize and
+     *  discard its self-join instead of reading it as a peer. */
+    selfProbeMarker?: SelfProbeMarker | null;
     connect: CollabConnect;
     toasts: Toasts;
     lang?: string;
@@ -93,7 +98,8 @@
   };
 
   let {
-    storage, name, color, room, role = SessionRole.Writer, connect, toasts, lang = 'en', spellcheck = true,
+    storage, name, color, room, role = SessionRole.Writer, selfProbeMarker = null, connect, toasts,
+    lang = 'en', spellcheck = true,
     writeLocked = false, writeSoloAt = null, importRequest = null, onImportHandled, autofocusTitle = false,
   }: Props = $props();
 
@@ -270,6 +276,7 @@
       canPersist,
       browserId: browserId(),
       ...(target ? { persistTarget: target } : {}),
+      ...(selfProbeMarker ? { selfProbeMarker } : {}),
     };
     collab.awareness.setLocalState(state);
   });

@@ -21,7 +21,8 @@
     type PageHostname,
   } from './collaboration/config.js';
   import { fetchIceServers } from './collaboration/iceServers.js';
-  import { parseRoomId, parseRoomCredential } from './collaboration/parse.js';
+  import { parseRoomId, parseRoomCredential, parseSelfProbeMarker } from './collaboration/parse.js';
+  import type { SelfProbeMarker } from './collaboration/selfProbeMarker.js';
   import { sessionState } from './collaboration/sessionState.svelte.js';
   import { keyboardInset } from './ui/keyboardInset.svelte.js';
   import IdentityMenu from './ui/IdentityMenu.svelte';
@@ -238,8 +239,19 @@
       : SessionRole.Writer;
   }
 
+  // Set only on a tab `MeetingJoinDialog` just opened (`?selfProbe=`), so its
+  // own awareness broadcast carries the marker that join's presence probe is
+  // watching for — see selfProbeMarker.ts.
+  function selfProbeMarkerFromUrl(): SelfProbeMarker | null {
+    return parseSelfProbeMarker(new URLSearchParams(location.search).get('selfProbe'));
+  }
+
+  // Fixed for the lifetime of this tab: a new document always opens a new tab
+  // (see `newRoom` below), so `room` never changes in place — there's no
+  // in-tab room switch to react to.
   const room: RoomId = roomFromUrl();
   const sessionRole: SessionRole = roleFromUrl();
+  const selfProbeMarker: SelfProbeMarker | null = selfProbeMarkerFromUrl();
 
   // One-shot marker set by `newRoom()` below on the tab it opens; consumed and
   // stripped here so a later reload of this same tab doesn't re-trigger it.
@@ -825,6 +837,7 @@
       {color}
       {room}
       role={sessionRole}
+      {selfProbeMarker}
       {connect}
       {toasts}
       storage={savedHere ? storage!.storage : null}
