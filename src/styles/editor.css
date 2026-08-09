@@ -1,4 +1,4 @@
-/* .content/.ProseMirror/.status selectors are a contract with e2e/collab.test.ts — keep them. */
+/* .content/.ProseMirror/.status selectors are a contract with e2e/collab.test.ts: keep them. */
 
 .editor {
   display: flex;
@@ -56,7 +56,7 @@
 }
 
 .sel-toolbar .toolbar {
-  /* max-width triggers the wrap — a position:fixed box has no ambient width to shrink into on its own. */
+  /* max-width triggers the wrap: a position:fixed box has no ambient width to shrink into on its own. */
   border-bottom: none;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
@@ -93,7 +93,7 @@
   border-radius: var(--r-md);
   background: var(--surface);
   box-shadow: var(--shadow-md);
-  /* Same as .sel-toolbar .toolbar — max-width triggers the wrap. */
+  /* Same as .sel-toolbar .toolbar: max-width triggers the wrap. */
   flex-wrap: wrap;
   max-width: calc(100vw - 16px);
   padding: var(--sp-1) var(--sp-2);
@@ -124,7 +124,7 @@
 }
 
 /* Same combined pointer:coarse/max-width:900px trigger as header.capsule's
-   collapse in app.css — keep the two in sync; this is the dock the capsule
+   collapse in app.css: keep the two in sync. This is the dock the capsule
    collapses into. */
 @media (pointer: coarse), (max-width: 900px) {
   .fixed-toolbar {
@@ -133,7 +133,7 @@
     left: var(--sp-2);
     right: var(--sp-2);
     /* --kb-inset can jump straight to 0 on keyboard dismiss instead of
-       animating (mobile browser quirk) — this transition smooths that into a slide. */
+       animating (mobile browser quirk); this transition smooths that into a slide. */
     bottom: calc(max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px));
     z-index: var(--z-menu);
     transition: bottom 0.22s ease-out;
@@ -219,7 +219,7 @@
   }
 }
 
-/* Document meta only — session/connection/presence live in the app header. */
+/* Document meta only: session/connection/presence live in the app header. */
 .status {
   display: flex;
   align-items: center;
@@ -275,7 +275,7 @@
 }
 
 .ProseMirror {
-  /* flex:1, not min-height:100% — sizes against space actually left below
+  /* flex:1, not min-height:100%: sizes against space actually left below
      DocTitle so a click in the empty area doesn't drag DocTitle off-screen.
      No :focus reset: base.css's :focus-visible rules already handle it. */
   flex: 1;
@@ -407,7 +407,7 @@
 /* Full-bleed on mobile: cancels .app's own horizontal padding (app.css) via
    negative margins matching its breakpoints exactly, so .editor reaches the
    viewport edges.
-   Top is not cancelled via margin — that shifts .editor from wherever it
+   Top is not cancelled via margin: that shifts .editor from wherever it
    already sits (below SyncBanner when present), not from .app's padding-top;
    .app's own top padding is 0 on mobile instead.
    Width-only trigger, not the pointer:coarse combo used elsewhere: a
@@ -429,7 +429,7 @@
   }
 }
 
-/* Hidden whenever the mobile dock is showing (word count/outline are desktop-only) — same combined trigger as the dock. */
+/* Hidden whenever the mobile dock is showing (word count/outline are desktop-only): same combined trigger as the dock. */
 @media (pointer: coarse), (max-width: 900px) {
   .status {
     display: none;
