@@ -111,6 +111,7 @@
   }
   .dialog {
     width: min(440px, 100%);
+    min-width: 0;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
@@ -178,7 +179,8 @@
   }
   @media (max-width: 640px) {
     .dialog-backdrop {
-      place-items: end center;
+      justify-items: stretch;
+      align-items: end;
       padding: 0;
     }
     .dialog {

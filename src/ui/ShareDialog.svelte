@@ -343,6 +343,7 @@
   }
   .share-row input {
     flex: 1;
+    min-width: 0;
     font-family: var(--font-mono);
     /* Not a smaller size: this field select-alls on focus (see onfocus above),
        so any tap counts as a focus, and iOS Safari auto-zooms the page when a
