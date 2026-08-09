@@ -1,10 +1,24 @@
 <script lang="ts">
   import type { EditorView } from 'prosemirror-view';
   import { TextSelection, type EditorState } from 'prosemirror-state';
+  import type { MarkType } from 'prosemirror-model';
   import Toolbar from '../../Toolbar.svelte';
   import TableToolbar from './TableToolbar.svelte';
-  import { isInTable } from '../commands.js';
-  import { tableElementAt, positionTablePanel, choosePanel } from './tableAnchor.js';
+  import { activeInputMarks, isInTable } from '../commands.js';
+  import { schema } from '../schema.js';
+  import { slashKey } from './slashMenu.js';
+  import { tableElementAt, positionTablePanel, type Rect } from './tableAnchor.js';
+  import {
+    chooseSurfaces,
+    placeCaretPill,
+    placeSelectionBubble,
+    PANEL_GAP,
+    type EditorFocus,
+    type PointerProfile,
+    type TableContext,
+    type TableSurface,
+    type TextSurface,
+  } from './floatingSurfaces.js';
   import type { Toasts } from '../../ui/toasts.svelte.js';
 
   type Props = {
@@ -15,146 +29,140 @@
 
   let { view, editorState, toasts }: Props = $props();
 
-  // Two floating panels — desktop only (a pointer-fine media query in
-  // editor.css gates visibility; the fixed Toolbar stays on touch devices
-  // where selection bubbles are unreliable): the text-formatting bubble
-  // (`hostText`/`Toolbar`, table-structure buttons excluded — see
-  // `showTableStructure` on Toolbar.svelte) and a *separate* table-structure
-  // panel (`hostTable`/`TableToolbar`) shown only while an empty caret sits
-  // in a table. Kept as two visually distinct cards, not one merged row, per
-  // how Notion/Docs/Word separate table-structure commands from text
-  // formatting even though both are reachable from inside a cell.
+  // Desktop only — a pointer-fine media query in editor.css gates every
+  // surface below; touch keeps the fixed Toolbar, where selection bubbles are
+  // unreliable. `textSurface` is the formatting state of the caret: either the
+  // interactive bubble over a real selection (`.sel-toolbar`) or the read-only
+  // pill naming the marks a collapsed caret has armed (`.caret-hint`), never
+  // both. `.table-toolbar` is orthogonal and stays a visually distinct card,
+  // per how Notion/Docs/Word separate table structure from text formatting.
   let hostText = $state<HTMLDivElement | undefined>();
+  let hostPill = $state<HTMLDivElement | undefined>();
   let hostTable = $state<HTMLDivElement | undefined>();
-  let textVisible = $state(false);
-  let tableVisible = $state(false);
+  let textSurface = $state<TextSurface>('hidden');
+  let tableSurface = $state<TableSurface>('hidden');
   let top = $state(0);
   let left = $state(0);
   let tableTop = $state(0);
   let tableLeft = $state(0);
 
-  const GAP = 8; // px between the selection/table and either panel
+  const bubbleVisible = $derived(textSurface === 'selection');
+  const pillVisible = $derived(textSurface === 'armed-caret');
+  const tableVisible = $derived(tableSurface === 'shown');
 
-  // Only the desktop pointer profile gets the bubble; touch keeps the fixed bar.
-  const isFinePointer = (): boolean =>
-    typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
+  const MARK_GLYPHS: readonly { type: MarkType; label: string; render: 'b' | 'i' | 's' | 'u' | 'code' | 'link' }[] = [
+    { type: schema.marks.strong, label: 'Bold', render: 'b' },
+    { type: schema.marks.em, label: 'Italic', render: 'i' },
+    { type: schema.marks.strike, label: 'Strikethrough', render: 's' },
+    { type: schema.marks.underline, label: 'Underline', render: 'u' },
+    { type: schema.marks.code, label: 'Code', render: 'code' },
+    { type: schema.marks.link, label: 'Link', render: 'link' },
+  ];
 
-  // True once Tab has moved focus from the editor into a button in either
-  // panel — at that point the view itself is blurred, but the panel(s) must
-  // stay up (hiding them would yank focus off the now-invisible button).
-  const focusInToolbar = (): boolean =>
-    !!document.activeElement &&
-    ((!!hostText && hostText.contains(document.activeElement)) ||
-      (!!hostTable && hostTable.contains(document.activeElement)));
+  const armed = $derived.by(() => {
+    if (!editorState) return [];
+    const active = new Set(activeInputMarks(editorState));
+    return MARK_GLYPHS.filter((m) => active.has(m.type));
+  });
+
+  const pointerProfile = (): PointerProfile =>
+    typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches ? 'fine' : 'coarse';
+
+  // Tab can move focus from the editor into a panel button, blurring the view
+  // while the panel must stay up.
+  const focusOf = (v: EditorView): EditorFocus => {
+    if (v.hasFocus()) return 'editor';
+    const el = document.activeElement;
+    if (el && ((hostText?.contains(el) ?? false) || (hostTable?.contains(el) ?? false))) return 'floating-panel';
+    return 'elsewhere';
+  };
+
+  function hideAll(): void {
+    textSurface = 'hidden';
+    tableSurface = 'hidden';
+  }
 
   function reposition(): void {
     const v = view;
     const st = editorState;
-    if (!v || !st || !isFinePointer()) {
-      textVisible = false;
-      tableVisible = false;
+    if (!v || !st) {
+      hideAll();
       return;
     }
     const { from, to, empty } = st.selection;
-    // Show for a real, focused selection, or a collapsed caret inside a table
-    // — the fixed toolbar's table controls (add/delete row & column…) are
-    // otherwise unreachable by mouse on desktop, since the fixed bar itself is
-    // hidden there (see editor.css) and a bare caret has no selection to
-    // bubble over. A blurred editor (e.g. focus moved to a dialog) still
-    // hides it, unless focus moved into a panel itself.
     const inTable = isInTable(st);
-    if ((!v.hasFocus() && !focusInToolbar()) || (empty && !inTable)) {
-      textVisible = false;
-      tableVisible = false;
-      return;
-    }
-
-    const tw = hostText?.offsetWidth ?? 0;
-    const th = hostText?.offsetHeight ?? 0;
-
-    // A bare caret in a table anchors the table-structure panel to the
-    // *table's* own bounding box, not the caret's line — the caret can be on
-    // any row, and a line-anchored panel that flips below a header row would
-    // land on top of row 2, hiding it. Anchoring to the table's outer edge
-    // instead means the panel never overlaps a cell, and stays put while
-    // Tab/arrows move the caret between cells of the same table (no
-    // per-cell jitter). The text-formatting bubble never shows for a bare
-    // caret — table or not — matching normal (outside-table) behaviour: it
-    // only ever appears for a real, non-empty selection (see below).
     const tableEl = empty && inTable ? tableElementAt(v, from) : null;
-    const choice = choosePanel(empty, inTable, !!tableEl);
+    const table: TableContext = !inTable
+      ? 'outside-table'
+      : tableEl
+        ? 'table-anchored'
+        : 'table-unresolved';
 
-    if (choice === 'none') {
-      textVisible = false;
-      tableVisible = false;
-      return;
-    }
+    const surfaces = chooseSurfaces({
+      pointer: pointerProfile(),
+      focus: focusOf(v),
+      selection: empty ? 'collapsed' : 'ranged',
+      table,
+      armed: armed.length > 0 ? 'some' : 'none',
+      slashMenu: slashKey.getState(st)?.active ? 'open' : 'closed',
+    });
 
-    if (choice === 'table') {
-      const bw = hostTable?.offsetWidth ?? 0;
-      const bh = hostTable?.offsetHeight ?? 0;
-      const rect = tableEl!.getBoundingClientRect();
-      const panel = positionTablePanel(
-        rect,
-        { width: bw, height: bh },
-        { width: window.innerWidth, height: window.innerHeight },
-        GAP,
-      );
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    let tableRect: Rect | null = null;
+
+    if (surfaces.table === 'shown' && tableEl) {
+      const size = { width: hostTable?.offsetWidth ?? 0, height: hostTable?.offsetHeight ?? 0 };
+      const panel = positionTablePanel(tableEl.getBoundingClientRect(), size, viewport, PANEL_GAP);
       tableTop = panel.top;
       tableLeft = panel.left;
-      textVisible = false;
-      tableVisible = true;
+      tableRect = { ...panel, right: panel.left + size.width, bottom: panel.top + size.height, ...size };
+    }
+    tableSurface = surfaces.table;
+
+    if (surfaces.text === 'hidden') {
+      textSurface = 'hidden';
       return;
     }
-    tableVisible = false;
 
-    // coordsAtPos measures against the *live DOM*, which briefly disagrees
-    // with `from`/`to` while a burst of transactions (e.g. rapid undo/redo)
-    // is still being flushed into the view — it can throw a DOM range error
-    // (`setEnd`/`collapse` offset out of bounds) even though `from`/`to` are
-    // perfectly in-bounds for the ProseMirror doc itself. LinkPopover and
-    // SlashMenu already guard their own coordsAtPos calls the same way: skip
-    // this reposition and let the next reactive pass (which always follows
-    // within a tick once things settle) try again.
+    const host = surfaces.text === 'selection' ? hostText : hostPill;
+    const size = { width: host?.offsetWidth ?? 0, height: host?.offsetHeight ?? 0 };
+    // coordsAtPos measures against the live DOM, which briefly disagrees with
+    // `from`/`to` while a burst of transactions is still being flushed into
+    // the view — it throws even for positions in-bounds for the doc itself.
     let start, end;
     try {
       start = v.coordsAtPos(from);
-      end = v.coordsAtPos(to);
+      end = surfaces.text === 'selection' ? v.coordsAtPos(to) : start;
     } catch {
-      textVisible = false;
+      textSurface = 'hidden';
       return;
     }
-    // If the selection itself has scrolled entirely out of the viewport
-    // (its own scroller, or the window), hide the bubble instead of
-    // tracking it off-screen — otherwise it drifts over unrelated chrome
-    // (or beyond the viewport edge) while still reporting "visible".
-    if (end.bottom < 0 || start.top > window.innerHeight) {
-      textVisible = false;
+
+    const placed =
+      surfaces.text === 'selection'
+        ? placeSelectionBubble(start, end, size, viewport, PANEL_GAP)
+        : placeCaretPill(start, size, viewport, PANEL_GAP, tableRect);
+    if (!placed.shown) {
+      textSurface = 'hidden';
       return;
     }
-    const centre = (start.left + end.left) / 2;
-    let nextLeft = centre - tw / 2;
-    nextLeft = Math.max(GAP, Math.min(nextLeft, window.innerWidth - tw - GAP));
-    let nextTop = start.top - th - GAP;
-    if (nextTop < GAP) nextTop = end.bottom + GAP; // flip below if no room above
-    left = nextLeft;
-    top = nextTop;
-    textVisible = true;
+    top = placed.at.top;
+    left = placed.at.left;
+    textSurface = surfaces.text;
   }
 
-  // Recompute whenever the selection (editorState) or view changes.
   $effect(() => {
     void editorState;
     void view;
+    void armed;
     reposition();
   });
 
-  // Keep the panels glued to the selection/table while the page or any
-  // scroller moves (capture catches nested scrollers, e.g. the editor's
-  // internal scroll).
+  // Keep the surfaces glued to the selection/table while the page or any
+  // scroller moves (capture catches nested scrollers, e.g. the editor's own).
   $effect(() => {
     const onMove = () => {
-      if (textVisible || tableVisible) reposition();
+      if (textSurface !== 'hidden' || tableVisible) reposition();
     };
     window.addEventListener('scroll', onMove, true);
     window.addEventListener('resize', onMove);
@@ -166,76 +174,43 @@
 
   const FOCUSABLE_SEL = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
-  // The combined tab ring across whichever floating panel(s) are actually
-  // showing — text bubble first, then the table-structure panel. Used both
-  // to find the first button to focus (Shift-F10/ContextMenu) and to wrap
-  // Tab/Shift-Tab across the pair once focus is inside either one (see
-  // attachClosedLoop below). Gated on textVisible/tableVisible (not just
-  // whether the host div exists — it always does, just display:none'd when
-  // hidden): a bare caret in a table shows the table panel alone, and its
-  // hidden sibling's buttons must not be offered as focus targets, or
-  // Shift-F10 would try to focus an unfocusable (display:none) button.
+  // The combined tab ring across whichever panels are actually showing — text
+  // bubble first, then the table-structure panel. Gated on visibility, not on
+  // whether the host div exists (it always does, just display:none'd), so a
+  // hidden panel's buttons are never offered as focus targets. The armed pill
+  // contributes nothing: it is read-only and pointer-events:none.
   const focusableEls = (): HTMLElement[] => [
-    ...(textVisible && hostText ? Array.from(hostText.querySelectorAll<HTMLElement>(FOCUSABLE_SEL)) : []),
+    ...(bubbleVisible && hostText ? Array.from(hostText.querySelectorAll<HTMLElement>(FOCUSABLE_SEL)) : []),
     ...(tableVisible && hostTable ? Array.from(hostTable.querySelectorAll<HTMLElement>(FOCUSABLE_SEL)) : []),
   ];
 
-  // Tab normally leaves the contenteditable entirely (browser default, since
-  // ProseMirror only claims Tab inside a list — see buildPlugins). While a
-  // panel is showing for a real selection, redirect that Tab into its first
-  // button instead, so the toolbar is reachable from the keyboard without
-  // also stealing Tab when there's nothing to tab into. Inside a table, Tab
-  // already has an established meaning (move to the next cell, via
-  // goToNextCell in buildPlugins) — a bare caret there must NOT be
-  // hijacked into either panel, or Tab-to-next-cell silently breaks and
-  // pressing Tab instead yanks focus onto a button.
+  // Tab normally leaves the contenteditable entirely (ProseMirror only claims
+  // it inside a list — see buildPlugins). While a panel shows for a real
+  // selection, redirect that Tab into its first button, so the toolbar is
+  // keyboard-reachable without stealing Tab when there is nothing to tab into.
+  // Inside a table Tab already means "next cell" (goToNextCell), so a bare
+  // caret there must not be hijacked.
   //
   // Shift-F10 / the Menu key are the OS-standard keyboard equivalent of a
-  // right-click — the same discoverable entry point Word/Excel/Sheets use
-  // to reach a cell's contextual menu — so they always focus the first
-  // button across both panels when either is visible, table caret or not.
-  // This is what a keyboard user reaches for once Tab is unavailable (e.g.
-  // inside a table). Alt-Shift-\ is a second, app-owned entry point for the
-  // same action — most Mac laptop keyboards have no dedicated Menu key and
-  // remap F-keys to hardware functions (volume, brightness…) behind an Fn
-  // lock, so Shift-F10 alone needs Fn+Shift+F10 there, a real irritant.
-  //
-  // Two letter-based alternatives were tried here before this one and both
-  // turned out to already mean something else: a plain Alt-Enter was
-  // captured by the OS/window manager before reaching the page (a common WM
-  // binding for toggling fullscreen), and Alt-Shift-T reopens the last
-  // closed browser tab on at least one real setup (confirmed live) — a
-  // browser-level binding this app's keydown listener never even gets a
-  // chance to see. Punctuation instead of a letter sidesteps that whole
-  // class of tab/window mnemonic collisions (T for tab, W for close, N for
-  // new, …), at the cost of being less mnemonic itself. Matched on `e.code`
-  // ('Backslash', the physical key) rather than `e.key` for the same reason
-  // as before — macOS composes many Option-modified characters at the OS
-  // level depending on keyboard layout, which risks the identical silent-
-  // failure shape as the two rejected attempts above. Direct per-action
-  // shortcuts for the table panel's own commands (Alt-Shift-R/C/Backspace/H,
-  // see buildPlugins) remain the most reliable option of all — plain
-  // ProseMirror keymap bindings, never racing OS/browser chrome — for
-  // anyone who wants to skip the panel entirely.
+  // right-click, so they always focus the first button across both panels when
+  // either is visible. Alt-Shift-\ is a second, app-owned entry point: most Mac
+  // laptops need Fn+Shift+F10 for the former. It matches `e.code`
+  // ('Backslash', the physical key) rather than `e.key` because macOS composes
+  // Option-modified characters at the OS level — a plain Alt-Enter and
+  // Alt-Shift-T were both tried and are swallowed by the window manager and the
+  // browser's reopen-closed-tab binding respectively.
   $effect(() => {
     const v = view;
     if (!v) return;
     const dom = v.dom;
     const onKeydown = (e: KeyboardEvent) => {
-      // Alt-Shift-\: uses e.code (the physical key, 'Backslash') rather
-      // than e.key — macOS composes Option-modified characters into
-      // accented/special characters at the OS level for many combinations,
-      // the same class of failure that sank the earlier Alt-Enter and
-      // Alt-Shift-T attempts (see the doc comment above). e.code reports
-      // the physical key regardless of what character, if any, the OS
-      // composed from it.
       const isContextMenuKey =
         e.key === 'ContextMenu' ||
         (e.key === 'F10' && e.shiftKey) ||
         (e.code === 'Backslash' && e.altKey && e.shiftKey);
       const isTabIntoBubble = e.key === 'Tab' && !e.shiftKey;
       if (!isContextMenuKey && !isTabIntoBubble) return;
-      if (!textVisible && !tableVisible) return;
+      if (!bubbleVisible && !tableVisible) return;
       if (isTabIntoBubble && v.state.selection.empty && isInTable(v.state)) return;
       const target = focusableEls()[0];
       if (!target) return;
@@ -246,21 +221,15 @@
     return () => dom.removeEventListener('keydown', onKeydown);
   });
 
-  // Once focus is inside either panel it behaves like one closed loop:
-  // Escape hands focus back to the text (regardless of which panel it came
-  // from), and Tab/Shift-Tab wrap across the *combined* button list (see
-  // focusableEls) instead of escaping into whatever follows in the page's
-  // tab order — or, with two independent panels, stopping dead at the end
-  // of whichever one focus happens to be in.
+  // Once focus is inside either panel the two behave as one closed loop:
+  // Escape hands focus back to the text, and Tab/Shift-Tab wrap across the
+  // combined button list rather than escaping into the page's tab order.
   function attachClosedLoop(el: HTMLDivElement): () => void {
     const onKeydown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         const v = view;
         if (v) {
-          // Collapse to a caret at the selection's end so the bubble's own
-          // reposition() (empty selection => hide) closes it, instead of
-          // leaving the range selected and the bubble stuck open.
           const { to } = v.state.selection;
           v.dispatch(v.state.tr.setSelection(TextSelection.create(v.state.doc, to)));
           v.focus();
@@ -295,13 +264,34 @@
      panel button is pressed, so runCommand applies to the right range. -->
 <div
   class="sel-toolbar"
-  class:visible={textVisible}
+  class:visible={bubbleVisible}
   bind:this={hostText}
   style="top: {top}px; left: {left}px;"
   onmousedown={(e) => e.preventDefault()}
   role="presentation"
 >
   <Toolbar {view} {editorState} {toasts} showTableStructure={false} />
+</div>
+<!-- Read-only sibling state of the same surface: pointer-events are disabled
+     in CSS so it never steals focus or clicks from the writing surface. -->
+<div
+  class="caret-hint"
+  class:visible={pillVisible}
+  bind:this={hostPill}
+  style="top: {top}px; left: {left}px;"
+  role="status"
+  aria-live="polite"
+>
+  {#each armed as m (m.label)}
+    <span class="ch-glyph" title={m.label} aria-label={m.label}>
+      {#if m.render === 'b'}<b>B</b>
+      {:else if m.render === 'i'}<i>I</i>
+      {:else if m.render === 's'}<s>S</s>
+      {:else if m.render === 'u'}<u>U</u>
+      {:else if m.render === 'code'}<span class="ch-code">{'</>'}</span>
+      {:else}<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M15 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1" /></svg>{/if}
+    </span>
+  {/each}
 </div>
 <div
   class="table-toolbar"
