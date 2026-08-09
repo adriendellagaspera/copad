@@ -9,12 +9,6 @@
   import { modKey, altKey, parseOS } from './ui/platform.js';
   import type { Toasts } from './ui/toasts.svelte.js';
 
-  // Tooltip shortcut hints, resolved for the real OS — the literal words
-  // "Mod"/"Alt" don't exist on a Mac keyboard (⌘/⌥ instead), so hardcoding
-  // them as static text was wrong on Mac regardless of which modifier it
-  // named. Read once: like `src/editor/ui/shortcuts.ts`'s own `parseOS()`
-  // default, this doesn't need to react to a runtime OS change (there isn't
-  // one — the browser doesn't switch operating systems mid-session).
   const os = parseOS();
   const mod = modKey(os);
   const alt = altKey(os);
@@ -23,11 +17,6 @@
     view: EditorView | null;
     editorState: EditorState | null;
     toasts: Toasts;
-    // Desktop's SelectionToolbar shows table-structure commands in their own
-    // floating panel (see TableToolbar.svelte) instead of merged into this
-    // row, so it sets this false on its embedded Toolbar. The mobile fixed
-    // dock has no such second panel, so it leaves this at the default and
-    // keeps everything in one flat row.
     showTableStructure?: boolean;
   };
 
@@ -49,18 +38,6 @@
   const codeblock = $derived(editorState ? isNodeActive(editorState, schema.nodes.code_block)   : false);
   const inTable   = $derived(editorState ? isInTable(editorState) : false);
 
-  // Block-type commands: table cells hold real block content now (see
-  // schema.ts), so most of these apply there too — a blanket "hide all of
-  // this in any table" is no longer right. Each button decides its own
-  // visibility from a dry run of its own command (called with no dispatch,
-  // the standard ProseMirror way to ask "would this apply here?" without
-  // mutating anything) — the same mechanism that already governs whether a
-  // button lights up as *active*, just answering "applicable" instead of
-  // "already on". This also naturally covers other already-existing dead
-  // spots (e.g. inside a code block) with no separate flag needed.
-  // insertTable is the one command that keeps a real, permanent exclusion —
-  // nesting tables isn't supported — but that already lives in the command
-  // itself (isInTable), so its own dry run already reflects it.
   const canH1        = $derived(editorState ? commands.h1(editorState) : false);
   const canH2        = $derived(editorState ? commands.h2(editorState) : false);
   const canH3        = $derived(editorState ? commands.h3(editorState) : false);
@@ -95,10 +72,7 @@
 </script>
 
 {#if view}
-  <!-- Prevent default on pointerdown so tapping a button never blurs the
-       ProseMirror content first: on mobile that blur (via Editor.svelte's
-       focusout tracking) would swap the bottom dock away from this exact
-       toolbar mid-tap. The click still fires and runs the command normally. -->
+  <!-- preventDefault on pointerdown: blurring the editor on mobile swaps this dock away mid-tap (Editor.svelte focusout tracking). -->
   <div class="toolbar" role="toolbar" aria-label="Formatting" onpointerdown={(e) => e.preventDefault()}>
     <button data-active={bold}   aria-pressed={bold}   onclick={run(commands.bold)}   title="Bold ({mod}+B)" aria-label="Bold">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5h5a3 3 0 0 1 0 6H8z" /><path d="M8 11h6a3 3 0 0 1 0 6H8z" /></svg>

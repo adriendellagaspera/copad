@@ -13,14 +13,7 @@
   };
 </script>
 
-<!-- Table-structure controls — add/remove row & column, toggle header, delete
-     table — kept as a bare fragment (no wrapping element) so each caller
-     supplies its own chrome: Toolbar.svelte inserts these flat into its
-     single mobile row (unchanged appearance), while SelectionToolbar.svelte
-     wraps them in their own floating card, visually and conceptually
-     separate from text formatting (the desktop split this component exists
-     for — Notion/Docs/Word all keep table structure out of the text
-     toolbar). -->
+<!-- Bare fragment, no wrapping element: each caller (Toolbar.svelte, SelectionToolbar.svelte) supplies its own chrome. -->
 {#if view}
   <button onclick={run(commands.addRowAfter)}     title="Add row below"     aria-label="Add row below">+Row</button>
   <button onclick={run(commands.addColumnAfter)}  title="Add column right"  aria-label="Add column right">+Col</button>
