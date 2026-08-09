@@ -1,7 +1,4 @@
-/* ──────────────────────────────────────────────────────────────────────────
-   App chrome — layout, header, controls, buttons, connect panel.
-   (Presence, status pill, dialogs and toasts are appended in Phase 2.)
-   ────────────────────────────────────────────────────────────────────────── */
+/* App chrome — layout, header, controls, buttons, connect panel. */
 
 .app {
   max-width: 960px;
@@ -9,31 +6,15 @@
   padding: var(--sp-5) var(--sp-4) var(--sp-8);
   display: flex;
   flex-direction: column;
-  /* Spacing between the header, the (conditionally rendered) SyncBanner, and
-     the content below is carried by margin-bottom on each piece rather than
-     flex `gap`. `gap` doesn't animate — it's constant while the banner's
-     slide-out transition shrinks its height, then vanishes in one frame the
-     instant the node is removed, producing a visible jump right before it
-     disappears. Margin-bottom on the banner's own element is read by Svelte's
-     `slide` transition alongside height, so it shrinks to 0 in step and there's
-     nothing left to collapse when the node goes away. */
-  /* Lock to the viewport so the frame is fixed (not draggable on mobile) and the
-     editor scrolls internally instead of pushing the whole page past the fold.
-     dvh tracks the dynamic viewport (mobile browser chrome) where supported; vh
-     is the floor. min-height keeps the column filled if the content is short. */
+  /* margin-bottom, not gap, spaces .app's children — gap is constant and would jump one frame when SyncBanner's slide-out removes the node; margin-bottom shrinks with it. */
+  /* Fixed to the viewport, editor scrolls internally; dvh tracks mobile browser chrome, vh is the floor. */
   height: 100vh;
   height: 100dvh;
   min-height: 100vh;
   min-height: 100dvh;
 }
 
-/* ── Header — floating command capsule ──
-   One pill, one size grammar: capsule height 52px, icon buttons 36×36,
-   Share 38px tall (the only solid-accent, primary-action treatment). Two gap
-   sizes carry meaning — 2px between buttons in the same functional cluster
-   (Settings/Theme), 8px at every group boundary (around the divider, around
-   Share, around the identity avatar) — replacing the old mix of ad hoc
-   paddings (0.35 / 0.4 / 0.4×0.75rem) and the stray ⚙ glyph. */
+/* Capsule size grammar: 52px height, 36×36 icon buttons, 38px Share; 2px gap within a cluster, 8px at group boundaries. */
 
 header.capsule {
   display: flex;
@@ -41,15 +22,7 @@ header.capsule {
   height: 52px;
   padding: 0 8px;
   margin: 0 auto;
-  /* Hug its content instead of stretching to the column's full cross-axis
-     width (the parent's default align-items:stretch) — a floating command
-     capsule should never carry a dead gap in the middle just because
-     .cap-fill had leftover space to eat. align-self:flex-start pins it to
-     the left, at its natural (fit-content) width; max-width guards very
-     long content (many peers, a translated status label) from overflowing
-     the app column. The width transition — animated via interpolate-size
-     in tokens.css — is what makes a peer joining/leaving or the status
-     label changing length grow/shrink the pill instead of snapping. */
+  /* Hugs its content (flex-start, fit-content) instead of stretching, so there's no dead gap for .cap-fill to eat; width transition (interpolate-size, tokens.css) animates peer/status changes instead of snapping. */
   align-self: flex-start;
   width: fit-content;
   max-width: 100%;
@@ -58,12 +31,7 @@ header.capsule {
   border: 1px solid var(--border);
   border-radius: var(--r-full);
   box-shadow: var(--shadow-md);
-  /* .app spaces its children via margin-bottom on each piece, not flex gap
-     (see .app's comment above) — the SyncBanner's slide-out transition
-     reads its own margin-bottom alongside height, so it shrinks to 0 in
-     step instead of leaving a one-frame jump when gap would've vanished
-     instantly. The header carries the same convention for the gap before
-     whatever renders below it (SyncBanner or the editor directly). */
+  /* margin-bottom, not gap, for the same slide-out-jump reason as .app above. */
   margin-bottom: var(--sp-4);
 }
 
@@ -85,12 +53,7 @@ header.capsule {
   display: block;
 }
 
-/* A fixed gap, not a flex-grow filler — the capsule now hugs its content
-   (see header.capsule above), so there's no leftover space to eat. This is
-   just a wider breather than the 8px used at smaller group boundaries,
-   marking the seam between the "which document" cluster (mark/new — the
-   room name itself lives in the document now, as DocTitle) and the "who's
-   here, what can I do" cluster (status/presence/identity/share). */
+/* Fixed gap, not a flex-grow filler — marks the seam between the doc cluster (mark/new) and the status/identity/share cluster. */
 .cap-fill {
   width: var(--sp-5);
   flex: none;
@@ -156,9 +119,7 @@ header.capsule {
   margin: 0 8px;
 }
 
-/* Session cluster (status + presence) inside the capsule — the .session
-   class name is kept for e2e/collab.test.ts's `.session .presence .avatar`
-   selector. */
+/* .session name kept for e2e/collab.test.ts's `.session .presence .avatar` selector. */
 .session {
   display: flex;
   align-items: center;
@@ -166,27 +127,7 @@ header.capsule {
   flex: none;
 }
 
-/* Mobile: the header disappears entirely. Its last remaining piece of
-   content, the room name, moved into the document itself as DocTitle
-   (editor/ui/DocTitle.svelte) — an inline, muted H1 at the top of `.content`
-   that scrolls away with the rest of the page instead of costing permanent
-   chrome. (Several fixed-position, frosted-pill, blur-under-scroll designs
-   were tried here first — see git history — before landing on "it's just
-   the top of the document," which needed none of that.) Every action was
-   already in the bottom dock (.mobile-dock / .fixed-toolbar.editing, see
-   below and editor.css), so there's nothing left in the capsule to show.
-   Gated on pointer:coarse OR max-width:900px. pointer:coarse is the primary
-   signal (touch devices always get this layout regardless of width — an
-   iPad Pro landscape shouldn't try to cram the full capsule in). The
-   max-width fallback exists because the *open* capsule's content — mark +
-   new-doc + status (worst case "Connecting…" · "Save failed") + divider +
-   identity + Share + settings + theme — measures out wide enough that a
-   resized *mouse-driven* desktop window under ~900px has nowhere for it to
-   shrink to (every capsule child is flex:none — deliberately, so nothing
-   squishes into illegibility) and would otherwise overflow past the
-   viewport, pushing Share off-screen with real horizontal page scroll.
-   Below 900px it gets the same collapsed layout already verified down to
-   320px, rather than silently breaking. */
+/* Header hides on mobile — room name lives in DocTitle, every action moved to the bottom dock. Gated on pointer:coarse OR max-width:900px: touch always gets this layout, and the width fallback covers a narrow mouse-driven window where the open capsule's flex:none content has nowhere left to shrink. */
 @media (pointer: coarse), (max-width: 900px) {
   header.capsule {
     display: none;
@@ -201,8 +142,6 @@ label {
   color: var(--text-muted);
 }
 
-/* ── Form fields ── */
-
 input[type="text"],
 input:not([type]),
 input[type="password"],
@@ -212,32 +151,17 @@ select {
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
   font: inherit;
-  /* iOS Safari auto-zooms the whole page on focus when a field's computed
-     font-size is under 16px — 13px (--fs-300) tripped it on every text input
-     in the app (most noticeably the identity panel's name field, which
-     autofocuses the instant it opens). --fs-400 sits exactly at the
-     threshold, so focusing any field here never triggers it; deliberate
-     pinch-to-zoom by the user is untouched. */
+  /* iOS Safari auto-zooms on focus below 16px font-size — --fs-300 (13px) tripped it, --fs-400 sits at the safe threshold. */
   font-size: var(--fs-400);
   color: var(--text);
   background: var(--surface);
-  /* All four properties share one duration. Split across --dur-fast and
-     --dur-mid, background/color would settle later than border/shadow at
-     the exact moment a theme switch changes all of them at once (border and
-     background/color previously had no shared trigger, since focus only
-     touches border/shadow) — that per-property desync inside one input is
-     what read as the field's text "trembling". Also gives color/background
-     their own transition at all: neither is inherited from body, so without
-     one here they'd otherwise hard-cut instantly while border eased. */
+  /* One shared duration for all four — a split duration desynced border/shadow from background/color at a theme switch, which read as the field "trembling". */
   transition: background-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease),
     box-shadow var(--dur-fast) var(--ease);
 }
-/* Gated on tracked input modality (src/ui/inputModality.ts), not bare
-   :focus-visible — every browser treats a focused text input as
-   :focus-visible even right after a plain mouse click, unlike buttons/links,
-   so this would otherwise show on every click into a field. */
+/* Gated on tracked input modality, not bare :focus-visible — browsers treat any focused text input as :focus-visible even after a mouse click. */
 :root[data-input-modality='keyboard'] input:focus-visible,
 :root[data-input-modality='keyboard'] select:focus-visible {
   outline: none;
@@ -247,8 +171,6 @@ select {
 input::placeholder {
   color: var(--text-faint);
 }
-
-/* ── Buttons ── */
 
 button {
   display: inline-flex;
@@ -264,10 +186,7 @@ button {
   font-size: var(--fs-300);
   line-height: 1.4;
   cursor: pointer;
-  /* color shares background/border's duration (see the form-field rule
-     above for why a per-property mismatch on one element reads as
-     "trembling" at a theme switch) — color has no transition of its own
-     otherwise, since it isn't inherited from body. */
+  /* color shares background/border's duration for the same theme-switch desync reason as the form-field rule above. */
   transition: background var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease),
@@ -302,8 +221,6 @@ button.ghost:hover:not(:disabled) {
   background: var(--surface-3);
 }
 
-/* ── Connect panel ── */
-
 .connect {
   display: flex;
   align-items: center;
@@ -331,16 +248,12 @@ button.ghost:hover:not(:disabled) {
   margin: 0;
 }
 
-/* ── Icon button (settings gear, drawer close) ── */
-
 .icon-btn {
   min-width: 0;
   padding: 0.35rem 0.55rem;
   line-height: 1;
   font-size: 1rem;
 }
-
-/* ── Inline link buttons (hint text, editor status bar) ── */
 
 button.link,
 button.status-link {
@@ -366,8 +279,6 @@ button.status-link {
   color: var(--text-faint);
   font-size: var(--fs-300);
 }
-
-/* ── Settings dialog + storage backends ── */
 
 .settings-body {
   display: grid;
@@ -426,9 +337,7 @@ button.status-link {
   gap: 3px;
   flex-shrink: 0;
 }
-/* Own name, not `.dot` — editor.css already owns that class (a legacy
-   presence indicator) at the same specificity; reusing it would let
-   whichever stylesheet loads last silently win the cascade. */
+/* Own name, not `.dot` — editor.css already owns that class at the same specificity. */
 .storage-status-dot {
   width: 5px;
   height: 5px;
@@ -520,13 +429,7 @@ button.status-link {
   color: var(--text-muted);
   flex-shrink: 0;
 }
-/* GitHub's mark is a fixed near-black (#181717) — correct on the light tiles
-   below, but it nearly vanishes against the dark theme's tile-monogram
-   surface. Every other brand mark here (Dropbox blue, GitLab orange, Google
-   Drive blue, pCloud's colored logo) has enough luminance to read fine on
-   either surface directly, so only GitHub needs this: swap to GitHub's own
-   dark-mode-safe white variant of the mark rather than inventing a special
-   backdrop for every logo. */
+/* GitHub's mark is fixed near-black (#181717), nearly invisible on the dark tile surface — swap to its white variant; other brand marks have enough contrast already. */
 [data-theme="dark"] .brand-github svg path {
   fill: var(--text);
 }
@@ -641,27 +544,14 @@ button.status-link {
   cursor: pointer;
 }
 
-/* ── Responsive & touch ── */
-
 @media (max-width: 720px) {
   .app {
     padding: var(--sp-4) var(--sp-3) var(--sp-6);
-    /* No gap here — see .app's own comment above: gap is a constant, it
-       doesn't shrink alongside SyncBanner's slide-out transition the way
-       margin-bottom does, so it left a one-frame jump the instant the
-       banner was actually removed from the DOM (the exact glitch that
-       comment describes engineering around, reintroduced by this rule). */
+    /* No gap here either — see .app's gap-vs-margin-bottom note above. */
   }
 }
 
-/* No top padding on mobile at all: the header no longer reserves a flow
-   band above (it's either the small desktop capsule or hidden — see
-   header.capsule), so whichever child ends up first — SyncBanner, or
-   .editor directly — should start right at the viewport's top edge (see
-   .editor's own mobile rule, editor.css, for why that clearance moved here
-   instead of living on .editor as a margin). Every subsequent sibling keeps
-   its ordinary relative spacing (SyncBanner's own margin-bottom, etc.)
-   untouched — this only ever affects the position of the first one. */
+/* No mobile top padding — header reserves no flow band (collapsed or hidden), so the first child starts at the viewport edge; see .editor's own mobile rule in editor.css. */
 @media (pointer: coarse), (max-width: 900px) {
   .app {
     padding-top: 0;
@@ -675,13 +565,7 @@ button.status-link {
   }
 }
 
-/* ── Mobile bottom dock, "nav mode" (M3) ──
-   Mirrors editor.css's .fixed-toolbar "format mode" in the same fixed slot —
-   the two are mutually exclusive via sessionState.editing, so there is never
-   more than one 50px bar of chrome at the bottom, and none until the header
-   capsule collapses (see the combined pointer:coarse-or-narrow rule on
-   header.capsule above — kept in sync with this one). A wide desktop window
-   never sees this: it keeps every action in the capsule. */
+/* Mirrors editor.css's .fixed-toolbar "format mode" in the same fixed slot — mutually exclusive via sessionState.editing, hidden until the header capsule collapses (kept in sync with that rule). */
 .mobile-dock {
   display: none;
 }
@@ -694,15 +578,7 @@ button.status-link {
     position: fixed;
     left: var(--sp-2);
     right: var(--sp-2);
-    /* --kb-inset (keyboardInset.svelte.ts) rises the dock above an open
-       on-screen keyboard, which shrinks the visual viewport without moving
-       this fixed-to-layout-viewport element on its own. On dismiss, several
-       mobile browsers don't fire visualViewport's resize until the
-       keyboard's own close animation finishes, so the value can jump
-       straight from open-height to 0 in one tick (collapseKeyboardInset in
-       Editor.svelte's focusout handler pulls that jump earlier, but it's
-       still a single jump) — this transition turns that jump into a slide
-       instead of a teleport. */
+    /* --kb-inset rises the dock above an open keyboard; some mobile browsers delay the resize event until the keyboard's close animation ends, so this transition turns that late jump into a slide. */
     bottom: calc(max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px));
     z-index: var(--z-menu);
     padding: 0 6px;
@@ -715,12 +591,7 @@ button.status-link {
   .mobile-dock.dock-hidden {
     display: none;
   }
-  /* IdentityMenu's "set your name" nudge (identity-hint, IdentityMenu.svelte)
-     is fine in the roomy desktop capsule, but on the narrowest phones
-     (~320px) it's wide enough to push the settings button half off the
-     dock's rounded edge. The avatar itself stays fully clickable, and the
-     same nudge is still visible in the desktop capsule — this only trims
-     the compact dock. */
+  /* Hides the "set your name" nudge only on ~320px phones, where it pushes the settings button off the dock edge — avatar stays clickable, nudge still shows in the desktop capsule. */
   .mobile-dock .identity-hint {
     display: none;
   }
@@ -775,9 +646,7 @@ button.status-link {
   }
 }
 
-/* Settings nav collapses to a horizontal strip below the drawer's own
-   full-width-sheet breakpoint (src/ui/Dialog.svelte) — a 220px side rail has
-   no room left once the sheet is 100vw. */
+/* Settings nav collapses to a horizontal strip below the drawer's full-width-sheet breakpoint — no room for a 220px side rail at 100vw. */
 @media (max-width: 640px) {
   .settings-body {
     grid-template-columns: 1fr;
