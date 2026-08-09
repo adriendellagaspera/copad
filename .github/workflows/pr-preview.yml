@@ -8,14 +8,13 @@ permissions:
   contents: write
   pull-requests: write
 
-concurrency:
-  group: gh-pages
-  cancel-in-progress: false
-
 jobs:
   deploy:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
+    concurrency:
+      group: gh-pages-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -47,12 +46,9 @@ jobs:
           VITE_ICE_FETCH_TIMEOUT_MS: ${{ vars.VITE_ICE_FETCH_TIMEOUT_MS }}
 
       - name: Deploy to gh-pages/pr-${{ github.event.pull_request.number }}
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          destination_dir: pr-${{ github.event.pull_request.number }}
-          keep_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/deploy-gh-pages.sh "pr-${{ github.event.pull_request.number }}"
 
       - name: Post or update preview comment
         uses: actions/github-script@v7
@@ -64,6 +60,9 @@ jobs:
   cleanup:
     if: github.event.action == 'closed'
     runs-on: ubuntu-latest
+    concurrency:
+      group: gh-pages-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
 
