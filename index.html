@@ -16,7 +16,7 @@
     <!-- `media` can only track the OS, not this app's own theme override, so JS sets theme-color directly. -->
     <meta name="theme-color" content="#ffffff" />
     <meta name="color-scheme" content="light dark" />
-    <!-- Runs pre-paint to avoid a theme flash. THEME_COLOR must be kept in sync with ui/theme.svelte.ts by hand — this inline script can't import it. -->
+    <!-- Runs pre-paint to avoid a theme flash. THEME_COLOR must be kept in sync with ui/theme.svelte.ts by hand: this inline script can't import it. -->
     <script>
       (function () {
         var THEME_COLOR = { light: '#ffffff', dark: '#1e1e24' };
