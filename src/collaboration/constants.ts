@@ -21,8 +21,10 @@ export const DEFAULT_DEV_SIGNALING = 'ws://localhost:4444' as SignalingUrl;
 /** Public STUN server used when `VITE_STUN_URL` is unset (set it empty to disable). */
 export const DEFAULT_STUN = 'stun:stun.l.google.com:19302';
 
-/** Landing room when neither `?room=` nor `VITE_DEFAULT_ROOM` provides one. */
-export const DEFAULT_ROOM_NAME = 'copad-demo' as RoomId;
+/** How many rooms the local library keeps before evicting the least recently
+ *  opened. Large enough to cover months of real use, small enough that the
+ *  whole list stays one readable screen's worth of scrolling. */
+export const ROOM_HISTORY_LIMIT = 50;
 
 /**
  * How often to ping each signaling server over HTTP so a host that spins down on
@@ -79,6 +81,13 @@ export const KEY_CACHED_ROOMS = nsKey('cachedRooms');
  *  not per-room — it's an environment fact, not a per-room behavior. Naturally
  *  origin-scoped by localStorage, so it re-shows once on a different deployment. */
 export const KEY_COLLAB_UNAVAILABLE_SEEN = nsKey('collabUnavailableSeen');
+/** Whether this browser has already seen the one-time explainer for where a
+ *  document actually lives (no server; durability is something you connect).
+ *  Same shape and reasoning as the key above — a structural property of the
+ *  product, not a per-moment state. */
+export const KEY_STORAGE_INTRO_SEEN = nsKey('storageIntroSeen');
+/** The rooms this browser has opened — the local document library. */
+export const KEY_ROOM_HISTORY = nsKey('roomHistory');
 
 /** IndexedDB database-name prefix — shares the app namespace (`copad:`). */
 export const CACHE_DB_PREFIX = NS_PREFIX;
