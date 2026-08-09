@@ -29,7 +29,7 @@
     typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
 
   function autofocusInput(node: HTMLInputElement): void {
-    // Skip on touch — autofocusing here would pop the keyboard on a tab the user didn't tap into.
+    // Skip on touch: autofocusing here would pop the keyboard on a tab the user didn't tap into.
     if (!autofocus || !isFinePointer()) return;
     node.focus();
     node.select();
