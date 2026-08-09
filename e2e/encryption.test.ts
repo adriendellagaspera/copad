@@ -23,10 +23,11 @@ test('an encrypted room without its key is gated and its cache is unreadable', a
   // Let the local cache flush the content to IndexedDB before we encrypt.
   await page.waitForTimeout(1200);
 
-  // Encrypt the room with a password via the Share dialog.
+  // Encrypt the room with a password via the Share dialog's security view.
   await page.locator('.share-btn').click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Document security' }).click();
   await dialog.locator('input[aria-label="Document password"]').fill(PASSWORD);
   await dialog.getByRole('button', { name: 'Set', exact: true }).click();
   await page.keyboard.press('Escape');
