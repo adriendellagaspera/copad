@@ -10,12 +10,6 @@ export type StorageId = string & { readonly _brand: 'StorageId' };
 export type Filename = string & { readonly _brand: 'Filename' };
 
 /**
- * The document content exchanged between the Editor and a Storage backend.
- * Binary backends (Dropbox, pCloud, WebDAV, local) use the Yjs state snapshot.
- * Text backends (GitHub, SharePoint…) use the file's raw text so the stored
- * file remains human-readable and committable.
- */
-/**
  * Document content formats. The const object holds the wire values; the type is
  * the union of its members, so internal code matches against `DocFormat.Binary`
  * rather than a bare `'binary'` literal — no primitives at the domain boundary.
@@ -23,6 +17,11 @@ export type Filename = string & { readonly _brand: 'Filename' };
 export const DocFormat = { Binary: 'binary', Text: 'text' } as const;
 export type DocFormat = (typeof DocFormat)[keyof typeof DocFormat];
 
+/**
+ * Binary backends (Dropbox, pCloud, WebDAV, local) use the Yjs state snapshot.
+ * Text backends (GitHub, SharePoint…) use the file's raw text so the stored
+ * file remains human-readable and committable.
+ */
 export type DocContent =
   | { readonly format: typeof DocFormat.Binary; readonly bytes: Uint8Array }
   | { readonly format: typeof DocFormat.Text;   readonly text: string };
@@ -137,9 +136,6 @@ export interface Storage {
   readonly blurb?: string;
   readonly availability: StorageAvailability;
 
-  // ── Target file / format ───────────────────────────────────────────────────
-  // The filename's extension selects the codec (see src/format). Backends that
-  // omit these default to `document.yjs` (the native Copad format).
   /** Effective target filename including extension, e.g. `notes.md`. */
   filename?(): Filename;
   /** Change the target filename. Absent where the name is fixed by the backend. */
@@ -161,15 +157,11 @@ export interface Storage {
    */
   access?(): Promise<StorageAccess>;
 
-  // ── Browse (Phase 2 import) ─────────────────────────────────────────────────
-  // Distinct from the fixed per-room target file above — these support
-  // "browse this backend and import an arbitrary file" instead of always
-  // reading/writing one pre-configured filename. Absent where the backend has
-  // no listing capability that preserves its current OAuth scope (e.g. Google
-  // Drive's `drive.file` only sees files Copad itself created/opened, so it
-  // omits these rather than exposing a misleadingly narrow "browse").
-
-  /** List files this backend can currently see, for a browse/import picker. */
+  /**
+   * List files this backend can currently see, for a browse/import picker.
+   * Absent where listing can't honor the backend's OAuth scope (e.g. Google
+   * Drive's `drive.file` only sees files Copad itself created/opened).
+   */
   list?(): Promise<Filename[]>;
 
   /**

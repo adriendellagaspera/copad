@@ -66,11 +66,8 @@
     onimport?: (bytes: Uint8Array, filename: Filename) => void;
   } = $props();
 
-  // Which backend's file list the Browse dialog is showing, if any.
   let browseTarget = $state<StorageBackend | null>(null);
 
-  // Language — 'auto' means browser language, anything else is a BCP-47 tag.
-  // If the stored value isn't one of the preset options, show the custom input.
   const LANGUAGE_PRESETS = [
     { value: 'auto', label: 'Auto (browser language)' },
     { value: 'en', label: 'English' },
@@ -90,15 +87,11 @@
 
   const isPreset = (v: string) => LANGUAGE_PRESETS.some(p => p.value === v);
 
-  // Track the select value separately from the raw custom text input.
   let selectValue = $state(isPreset(languageChoice) ? languageChoice : 'custom');
   let customValue = $state(isPreset(languageChoice) ? '' : languageChoice);
 
-  // Which nav destination is showing — a backend deep-link (focusId) opens
-  // straight on Storage; otherwise the lighter General register is the default.
   let activeView = $state<SettingsView>(focusId ? 'storage' : 'app');
 
-  // Re-sync when the prop changes (drawer re-opens with fresh data).
   $effect(() => {
     if (open) {
       selectValue = isPreset(languageChoice) ? languageChoice : 'custom';
@@ -130,8 +123,7 @@
     }
   }
 
-  // Raw form strings (IO boundary — not TurnPrefs). Re-synced from the prop when
-  // the drawer opens; converted to domain types only when the user hits Apply.
+  // Raw form strings, not TurnPrefs — parsed into domain types only on Apply.
   let rawUrl = $state('');
   let rawUsername = $state('');
   let rawCredential = $state('');
@@ -157,7 +149,6 @@
     });
   }
 
-  // At-a-glance relay status for the Connectivity card header.
   const turnStatus = $derived(
     rawUrl.trim()
       ? 'Custom relay'
@@ -166,10 +157,6 @@
         : 'No relay configured'
   );
 
-  // Presentation-only ordering for the storage tile grid — connected backends
-  // first, then ready-to-connect, then needing setup, then unavailable. Purely
-  // a display concern local to this component; backends() itself stays in its
-  // fixed source order.
   type StatusRank = 'connected' | 'ready' | 'setup' | 'unavailable';
   const RANK_ORDER: Record<StatusRank, number> = { connected: 0, ready: 1, setup: 2, unavailable: 3 };
   const RANK_LABEL: Record<StatusRank, string> = {
@@ -187,8 +174,6 @@
   const sortedBackends = $derived(
     [...backends].sort((a, b) => RANK_ORDER[statusRank(a)] - RANK_ORDER[statusRank(b)])
   );
-  // At-a-glance dot cluster for the Storage nav item — one dot per backend,
-  // grouped in the same connected/ready/setup/unavailable order as the grid.
   const storageDots = $derived(sortedBackends.map(b => statusRank(b)));
   const storageSummary = $derived.by(() => {
     const counts: Record<StatusRank, number> = { connected: 0, ready: 0, setup: 0, unavailable: 0 };
@@ -199,8 +184,6 @@
       .join(', ');
   });
 
-  // Which tile is expanded — a backend deep-link (focusId) opens dropped
-  // straight to it; otherwise every tile starts collapsed.
   let expandedId = $state<StorageId | undefined>(focusId);
   $effect(() => {
     if (open) expandedId = focusId;
@@ -212,18 +195,12 @@
     return label.charAt(0).toUpperCase();
   }
 
-  // Per-backend busy/error state — keyed by backend id.
   let busy = $state<Record<StorageId, boolean>>({});
   let errors = $state<Record<StorageId, string>>({});
-  // Per-backend credential inputs — keyed by backend id then field name.
   let creds = $state<Record<StorageId, SessionCredentials>>({});
-  // Per-backend filename overrides — keyed by backend id (cloud backends).
   let fnames = $state<Record<StorageId, string>>({});
 
-  // Bumped after any write to a backend's plain-localStorage-backed config or
-  // session state (configStore, credential store). That storage isn't Svelte
-  // state, so nothing else would tell the `ready`/`authed` consts below to
-  // re-derive when it changes — `withVersion` reads it to force that.
+  // Backend config/session writes hit plain localStorage, not Svelte state — bump this to force `ready`/`authed` to re-derive.
   let stateVersion = $state(0);
   function withVersion<T>(value: T): T {
     void stateVersion;
@@ -246,10 +223,7 @@
     onchange?.();
   }
 
-  // Turns a raw login() rejection into copy a user can act on. `TypeError:
-  // Failed to fetch` is the browser's undifferentiated network-error message —
-  // for a connect request it's almost always the backend's CORS policy not
-  // allowing this origin, so that gets named explicitly rather than shown raw.
+  // `TypeError: Failed to fetch` is the browser's generic network-error message — usually CORS blocking this origin.
   function friendlyConnectError(e: unknown): string {
     if (e instanceof TypeError && /fetch/i.test(e.message)) {
       return "Couldn't reach the server — this usually means the backend's CORS " +
@@ -346,11 +320,6 @@
     <ExportFormats baseName={exportBaseName} {toasts} />
   </section>
 
-  <!-- The header's own theme toggle collapses away on mobile (see the M3
-       layout in app.css) along with the rest of the capsule, so this is
-       its one guaranteed home regardless of screen size — a full card, not
-       a bare row, so it reads as one more setting rather than floating
-       loose between the Editor and Local copy cards. -->
   <section class="backend">
     <div class="backend-head">
       <span class="backend-name">Appearance</span>
