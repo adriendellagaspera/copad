@@ -16,10 +16,7 @@
   let inputEl = $state<HTMLInputElement | undefined>();
   let pending = $state(false);
 
-  // Best-effort, non-blocking: says who's there without delaying the join
-  // tab. Hub-only — see presenceProbe.ts for the WebRTC gap. `selfMarker`
-  // lets the probe recognize and discard the new tab's own self-join instead
-  // of reading it as a peer — see selfProbeMarker.ts.
+  // Best-effort, non-blocking, hub-only (see presenceProbe.ts for the WebRTC gap).
   function announcePresence(room: RoomId, selfMarker: SelfProbeMarker): void {
     if (!hallUrl) return;
     const probe = probeWebsocketPresence(room, { url: hallUrl, selfMarker });

@@ -70,9 +70,8 @@
     color: CursorColor;
     room: RoomId;
     role?: SessionRole;
-    /** Set only on a tab `MeetingJoinDialog` just opened, so this tab's own
-     *  awareness broadcast lets that join's presence probe recognize and
-     *  discard its self-join instead of reading it as a peer. */
+    /** Set only on a tab `MeetingJoinDialog` just opened, so its presence
+     *  probe can recognize and discard this tab's own self-join. */
     selfProbeMarker?: SelfProbeMarker | null;
     connect: CollabConnect;
     toasts: Toasts;

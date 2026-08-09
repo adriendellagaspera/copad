@@ -118,9 +118,7 @@
     build: (cache: LocalCacheEnabled) => CollabConnect;
     warning?: string;
     technicalWarning?: string;
-    // Set only on the hub transport — presenceProbe.ts has no P2P path yet
-    // (see its module comment), so MeetingJoinDialog's presence toast is
-    // hub-only and silently skips itself when this is undefined.
+    // Set only on the hub transport — presenceProbe.ts has no P2P path.
     hallUrl?: WebsocketUrl;
   } {
     if (resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket') {
@@ -239,9 +237,7 @@
       : SessionRole.Writer;
   }
 
-  // Set only on a tab `MeetingJoinDialog` just opened (`?selfProbe=`), so its
-  // own awareness broadcast carries the marker that join's presence probe is
-  // watching for — see selfProbeMarker.ts.
+  // Present only on a tab MeetingJoinDialog just opened (`?selfProbe=`).
   function selfProbeMarkerFromUrl(): SelfProbeMarker | null {
     return parseSelfProbeMarker(new URLSearchParams(location.search).get('selfProbe'));
   }
