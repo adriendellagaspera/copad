@@ -87,8 +87,7 @@
     /** Called once `importRequest` has been applied (success or failure), so the
      *  parent can clear it and this effect doesn't re-fire on the next render. */
     onImportHandled?: () => void;
-    /** Focus and select the room name field on mount — set for a fresh tab
-     *  opened by `newRoom()` in App.svelte, via the one-shot `?new=1` marker. */
+    /** Set by App.svelte's one-shot `?new=1` marker for a freshly opened tab. */
     autofocusTitle?: boolean;
   };
 
