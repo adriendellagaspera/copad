@@ -565,7 +565,6 @@ button.status-link {
   }
 }
 
-/* Comfortable hit targets on touch devices. */
 @media (pointer: coarse) {
   button {
     min-height: 40px;

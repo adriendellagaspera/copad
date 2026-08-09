@@ -98,8 +98,7 @@
     line-height: 1.45;
   }
   .toast-close {
-    /* >=44px hit area (WCAG 2.5.5) around a small icon — the button grows via
-       padding, not by enlarging the icon itself. */
+    /* >=44px hit area (WCAG 2.5.5): grown via padding, not icon size. */
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
