@@ -69,7 +69,7 @@
     storedPw = null;
     pwInput = '';
     onSecurityChange?.();
-    flashSecConfirm('Secure link created — anyone with the link can read this document');
+    flashSecConfirm('Secure link created. Anyone with the link can read this document');
   }
 
   async function applyPassword(): Promise<void> {
@@ -183,7 +183,7 @@
 
 <Dialog {open} {onclose} title="Share this document">
   <p class="share-hint">
-    Anyone with this link joins and edits in real time — peer-to-peer, no account needed.
+    Anyone with this link joins and edits in real time: peer-to-peer, no account needed.
     {#if linkKey}
       <strong>This link carries the document's encryption key</strong>, so keep it private.
     {/if}
@@ -194,7 +194,7 @@
       💾 Saved to <strong>your {storageLabel ?? 'storage'}</strong>. Collaborators edit live but
       can’t write to your storage; anyone who connects their own backend keeps their own saved copy.
     {:else}
-      ⚡ This document isn’t saved to any storage of yours — it lives in the live session and each
+      ⚡ This document isn’t saved to any storage of yours. It lives in the live session and each
       device’s local cache only. Connect a backend to save it to your own storage.
     {/if}
   </p>
@@ -241,7 +241,7 @@
         <button onclick={copyReader}>{copiedButton === 'reader' ? 'Copied ✓' : 'Copy link'}</button>
       </div>
       <p class="reader-caveat">
-        The view-only role disables editing in the UI, but is not technically enforced —
+        The view-only role disables editing in the UI, but is not technically enforced:
         a recipient could bypass it by removing <code>role=reader</code> from the URL.
         Use this for trusted collaborators you'd like to signal shouldn't edit.
       </p>
@@ -264,7 +264,7 @@
 
     {#if linkKey}
       <div class="sec-note">
-        <strong>Secure link.</strong> Anyone with the full link can read this document — the key
+        <strong>Secure link.</strong> Anyone with the full link can read this document: the key
         travels inside the link itself, not through our servers.
         <details class="sec-details">
           <summary>How this works</summary>
@@ -282,11 +282,11 @@
       </div>
     {:else}
       <div class="sec-note">
-        Encrypt this document end-to-end — only people with the link or password can read it.
+        Encrypt this document end-to-end: only people with the link or password can read it.
         Either bake a key into the link, or set a password to share separately.
         <details class="sec-details">
           <summary>Limitations</summary>
-          End-to-end encryption only applies over the peer-to-peer (WebRTC) transport — a
+          End-to-end encryption only applies over the peer-to-peer (WebRTC) transport. A
           WebSocket hub relay can't be end-to-end encrypted.
         </details>
       </div>
@@ -316,7 +316,7 @@
       {/if}
       <small class="sec-help">
         Password-protected? Collaborators must enter the same password here to read.
-        Not seeing edits? Double-check the password — a wrong one looks like an empty document.
+        Not seeing edits? Double-check the password: a wrong one looks like an empty document.
       </small>
     {/if}
   </section>
@@ -336,7 +336,7 @@
   .persist-note {
     margin: 0 0 var(--sp-4);
     padding: var(--sp-2) var(--sp-3);
-    border-radius: var(--r-2, 6px);
+    border-radius: var(--r-sm);
     background: var(--surface-3);
     color: var(--text-muted);
     font-size: var(--fs-300);
@@ -375,7 +375,7 @@
   .key-badge {
     flex-shrink: 0;
     padding: 0.2rem 0.5rem;
-    border-radius: var(--r-2, 6px);
+    border-radius: var(--r-sm);
     background: var(--accent-soft);
     color: var(--accent);
     font-size: var(--fs-300);
@@ -413,7 +413,7 @@
   .share-security {
     margin-top: var(--sp-4);
     padding-top: var(--sp-4);
-    border-top: 1px solid var(--border, var(--surface-3));
+    border-top: 1px solid var(--border);
   }
   .share-security h3 {
     display: flex;
@@ -427,14 +427,14 @@
   .share-security .lock {
     font-size: var(--fs-300);
     font-weight: 500;
-    color: var(--ok, var(--accent));
+    color: var(--ok);
   }
   .sec-confirm {
     margin: 0 0 var(--sp-3);
     padding: var(--sp-2) var(--sp-3);
-    border-radius: var(--r-2, 6px);
-    background: var(--ok-soft, var(--surface-3));
-    color: var(--ok, var(--text));
+    border-radius: var(--r-sm);
+    background: var(--ok-soft);
+    color: var(--ok);
     font-size: var(--fs-300);
     font-weight: 500;
   }

@@ -106,12 +106,18 @@
 }
 
 .table-toolbar-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 0 var(--sp-1);
   color: var(--accent);
   font-size: var(--fs-300);
   font-weight: 600;
   white-space: nowrap;
   user-select: none;
+}
+.table-toolbar-label svg {
+  display: block;
 }
 
 @media (pointer: fine) {

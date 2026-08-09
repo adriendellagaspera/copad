@@ -9,12 +9,6 @@
   import { modKey, altKey, parseOS } from './ui/platform.js';
   import type { Toasts } from './ui/toasts.svelte.js';
 
-  // Tooltip shortcut hints, resolved for the real OS — the literal words
-  // "Mod"/"Alt" don't exist on a Mac keyboard (⌘/⌥ instead), so hardcoding
-  // them as static text was wrong on Mac regardless of which modifier it
-  // named. Read once: like `src/editor/ui/shortcuts.ts`'s own `parseOS()`
-  // default, this doesn't need to react to a runtime OS change (there isn't
-  // one — the browser doesn't switch operating systems mid-session).
   const os = parseOS();
   const mod = modKey(os);
   const alt = altKey(os);
@@ -23,11 +17,6 @@
     view: EditorView | null;
     editorState: EditorState | null;
     toasts: Toasts;
-    // Desktop's SelectionToolbar shows table-structure commands in their own
-    // floating panel (see TableToolbar.svelte) instead of merged into this
-    // row, so it sets this false on its embedded Toolbar. The mobile fixed
-    // dock has no such second panel, so it leaves this at the default and
-    // keeps everything in one flat row.
     showTableStructure?: boolean;
   };
 
@@ -49,18 +38,6 @@
   const codeblock = $derived(editorState ? isNodeActive(editorState, schema.nodes.code_block)   : false);
   const inTable   = $derived(editorState ? isInTable(editorState) : false);
 
-  // Block-type commands: table cells hold real block content now (see
-  // schema.ts), so most of these apply there too — a blanket "hide all of
-  // this in any table" is no longer right. Each button decides its own
-  // visibility from a dry run of its own command (called with no dispatch,
-  // the standard ProseMirror way to ask "would this apply here?" without
-  // mutating anything) — the same mechanism that already governs whether a
-  // button lights up as *active*, just answering "applicable" instead of
-  // "already on". This also naturally covers other already-existing dead
-  // spots (e.g. inside a code block) with no separate flag needed.
-  // insertTable is the one command that keeps a real, permanent exclusion —
-  // nesting tables isn't supported — but that already lives in the command
-  // itself (isInTable), so its own dry run already reflects it.
   const canH1        = $derived(editorState ? commands.h1(editorState) : false);
   const canH2        = $derived(editorState ? commands.h2(editorState) : false);
   const canH3        = $derived(editorState ? commands.h3(editorState) : false);
@@ -89,22 +66,29 @@
       await navigator.clipboard.writeText(md);
       toasts.success('Copied as Markdown');
     } catch {
-      toasts.error('Copy failed — your browser blocked clipboard access');
+      toasts.error('Copy failed: your browser blocked clipboard access');
     }
   }
 </script>
 
 {#if view}
-  <!-- Prevent default on pointerdown so tapping a button never blurs the
-       ProseMirror content first: on mobile that blur (via Editor.svelte's
-       focusout tracking) would swap the bottom dock away from this exact
-       toolbar mid-tap. The click still fires and runs the command normally. -->
+  <!-- preventDefault on pointerdown: blurring the editor on mobile swaps this dock away mid-tap (Editor.svelte focusout tracking). -->
   <div class="toolbar" role="toolbar" aria-label="Formatting" onpointerdown={(e) => e.preventDefault()}>
-    <button data-active={bold}   aria-pressed={bold}   onclick={run(commands.bold)}   title="Bold ({mod}+B)" aria-label="Bold"><b>B</b></button>
-    <button data-active={italic} aria-pressed={italic} onclick={run(commands.italic)} title="Italic ({mod}+I)" aria-label="Italic"><i>I</i></button>
-    <button data-active={strike} aria-pressed={strike} onclick={run(commands.strike)} title="Strikethrough ({mod}+Shift+X, or ~~text~~)" aria-label="Strikethrough"><s>S</s></button>
-    <button data-active={underline} aria-pressed={underline} onclick={run(commands.underline)} title="Underline ({mod}+Shift+U)" aria-label="Underline"><u>U</u></button>
-    <button data-active={code}   aria-pressed={code}   onclick={run(commands.code)}   title="Inline code ({mod}+Shift+C, or &#96;text&#96;)" aria-label="Inline code">{'</>'}</button>
+    <button data-active={bold}   aria-pressed={bold}   onclick={run(commands.bold)}   title="Bold ({mod}+B)" aria-label="Bold">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5h5a3 3 0 0 1 0 6H8z" /><path d="M8 11h6a3 3 0 0 1 0 6H8z" /></svg>
+    </button>
+    <button data-active={italic} aria-pressed={italic} onclick={run(commands.italic)} title="Italic ({mod}+I)" aria-label="Italic">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5h6M7 19h6M14 5l-4 14" /></svg>
+    </button>
+    <button data-active={strike} aria-pressed={strike} onclick={run(commands.strike)} title="Strikethrough ({mod}+Shift+X, or ~~text~~)" aria-label="Strikethrough">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="M16 6.5A4 2.5 0 0 0 12 4h-1a3.5 3.5 0 0 0 0 7h2a3.5 3.5 0 0 1 0 7h-1a4 2.5 0 0 1-4-2.5" /></svg>
+    </button>
+    <button data-active={underline} aria-pressed={underline} onclick={run(commands.underline)} title="Underline ({mod}+Shift+U)" aria-label="Underline">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4v6a6 6 0 0 0 12 0V4" /><path d="M5 20h14" /></svg>
+    </button>
+    <button data-active={code}   aria-pressed={code}   onclick={run(commands.code)}   title="Inline code ({mod}+Shift+C, or &#96;text&#96;)" aria-label="Inline code">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l-5 6 5 6M15 6l5 6-5 6" /></svg>
+    </button>
     <button data-active={link}   aria-pressed={link}   onclick={openLink}             title="Link ({mod}+K, or [text](url))" aria-label="Link">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M15 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1" /></svg>
     </button>
@@ -118,22 +102,34 @@
       <span class="sep" role="separator"></span>
       {#if canBullet}<button data-active={bullet} aria-pressed={bullet} onclick={run(commands.bullet)} title="Bullet list ({mod}+Shift+8, or - + space)">• List</button>{/if}
       {#if canOrdered}<button data-active={ordered} aria-pressed={ordered} onclick={run(commands.ordered)} title="Ordered list ({mod}+Shift+7, or 1. + space)">1. List</button>{/if}
-      {#if canChecklist}<button data-active={checklist} aria-pressed={checklist} onclick={run(commands.taskList)} title="Checklist ({mod}+Shift+6, or [] + space)" aria-label="Checklist">☑</button>{/if}
-      {#if canQuote}<button data-active={quote} aria-pressed={quote} onclick={run(commands.blockquote)} title="Blockquote ({mod}+Shift+9, or > + space)" aria-label="Blockquote">❝</button>{/if}
+      {#if canChecklist}<button data-active={checklist} aria-pressed={checklist} onclick={run(commands.taskList)} title="Checklist ({mod}+Shift+6, or [] + space)" aria-label="Checklist">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M8 12.5l2.5 2.5L16 9" /></svg>
+      </button>{/if}
+      {#if canQuote}<button data-active={quote} aria-pressed={quote} onclick={run(commands.blockquote)} title="Blockquote ({mod}+Shift+9, or > + space)" aria-label="Blockquote">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 6.5a2.3 2.3 0 1 1 0 4.6c-.2 3-1.3 5-3.3 6.4" /><path d="M16.5 6.5a2.3 2.3 0 1 1 0 4.6c-.2 3-1.3 5-3.3 6.4" /></svg>
+      </button>{/if}
       {#if canCodeblock}<button data-active={codeblock} aria-pressed={codeblock} onclick={run(commands.codeBlock)} title="Code block ({mod}+{alt}+C, or &#96;&#96;&#96; )">Code</button>{/if}
-      {#if canDivider}<button onclick={run(commands.horizontalRule)} title="Divider (type ---)" aria-label="Insert divider">―</button>{/if}
+      {#if canDivider}<button onclick={run(commands.horizontalRule)} title="Divider (type ---)" aria-label="Insert divider">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h4M10 12h4M16 12h4" /></svg>
+      </button>{/if}
     {/if}
     {#if canInsertTable}
       <span class="sep" role="separator"></span>
-      <button onclick={run(commands.insertTable)} title="Insert 3×3 table" aria-label="Insert table">▦</button>
+      <button onclick={run(commands.insertTable)} title="Insert 3×3 table" aria-label="Insert table">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 10h18M3 16h18M9 4v16M15 4v16" /></svg>
+      </button>
     {/if}
     {#if inTable && showTableStructure}
       <span class="sep" role="separator"></span>
       <TableToolbar {view} />
     {/if}
     <span class="sep" role="separator"></span>
-    <button onclick={run(commands.undo)} title="Undo ({mod}+Z)" aria-label="Undo">↶</button>
-    <button onclick={run(commands.redo)} title="Redo ({mod}+Y)" aria-label="Redo">↷</button>
+    <button onclick={run(commands.undo)} title="Undo ({mod}+Z)" aria-label="Undo">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg>
+    </button>
+    <button onclick={run(commands.redo)} title="Redo ({mod}+Y)" aria-label="Redo">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg>
+    </button>
     <span class="spacer"></span>
     <button class="md-btn" onclick={copyMarkdown} title="Copy document as Markdown">Copy MD</button>
   </div>
