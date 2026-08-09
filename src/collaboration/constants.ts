@@ -12,7 +12,8 @@ export const DEFAULT_DEV_SIGNALING = 'ws://localhost:4444' as SignalingUrl;
 
 export const DEFAULT_STUN = 'stun:stun.l.google.com:19302';
 
-export const DEFAULT_ROOM_NAME = 'copad-demo' as RoomId;
+/** Rooms the local library keeps before evicting the least recently opened. */
+export const ROOM_HISTORY_LIMIT = 50;
 
 /** Pings each signaling server periodically so hosts that sleep on idle (e.g.
  *  Render free tier, ~15min) stay warm. Override via VITE_SIGNALING_KEEPALIVE_MS. */
@@ -46,6 +47,9 @@ export const KEY_CACHED_ROOMS = nsKey('cachedRooms');
 /** Global, not per-room; localStorage's origin scoping means it re-shows once
  *  per deployment. */
 export const KEY_COLLAB_UNAVAILABLE_SEEN = nsKey('collabUnavailableSeen');
+/** Same global-not-per-room reasoning as the key above. */
+export const KEY_STORAGE_INTRO_SEEN = nsKey('storageIntroSeen');
+export const KEY_ROOM_HISTORY = nsKey('roomHistory');
 
 export const CACHE_DB_PREFIX = NS_PREFIX;
 export const ENC_CACHE_DB_PREFIX = `${NS_PREFIX}enc:`;

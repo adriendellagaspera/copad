@@ -16,7 +16,7 @@
     resolveWebsocket,
     resolveTransport,
     resolveRoomStrategy,
-    resolveDefaultRoom,
+    resolveLandingRoom,
     type PageProtocol,
     type PageHostname,
   } from './collaboration/config.js';
@@ -54,7 +54,10 @@
   import { keyFingerprint } from './collaboration/roomCrypto.js';
   import RoomLock from './ui/RoomLock.svelte';
   import CollabUnavailableIntro from './ui/CollabUnavailableIntro.svelte';
-  import { KEY_COLLAB_UNAVAILABLE_SEEN } from './collaboration/constants.js';
+  import StorageIntro from './ui/StorageIntro.svelte';
+  import LibraryDialog from './ui/LibraryDialog.svelte';
+  import { rememberRoomVisit, type PagePath } from './collaboration/roomHistory.js';
+  import { KEY_COLLAB_UNAVAILABLE_SEEN, KEY_STORAGE_INTRO_SEEN } from './collaboration/constants.js';
   import { localStore } from './persistence/local.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer, WebsocketUrl } from './collaboration/types.js';
@@ -71,7 +74,6 @@
   import ShareDialog from './ui/ShareDialog.svelte';
   import MeetingJoinDialog from './ui/MeetingJoinDialog.svelte';
   import ExportDialog from './ui/ExportDialog.svelte';
-  import RecentDocs from './ui/RecentDocs.svelte';
   import { roomName } from './collaboration/roomName.svelte.js';
   import SyncBanner from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
@@ -89,6 +91,7 @@
   let shareOpen = $state(false);
   let joinOpen = $state(false);
   let exportOpen = $state(false);
+  let libraryOpen = $state(false);
 
   const { access: envAccess, cipher: envCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
   const perRoomPassword = roomPassword();
@@ -224,11 +227,25 @@
 
   // ── Document / room ────────────────────────────────────────────────────────
 
-  const DEFAULT_ROOM = resolveDefaultRoom(import.meta.env.VITE_DEFAULT_ROOM);
+  // The `?room=` this tab was *opened* with, read before the fresh-room rewrite
+  // below can add one — a shared link means you're a visitor, and later checks
+  // still need to know that.
+  const linkedRoomParam = new URLSearchParams(location.search).get('room');
+  const landing = resolveLandingRoom(linkedRoomParam, import.meta.env.VITE_DEFAULT_ROOM, newRoomId);
 
-  function roomFromUrl(): RoomId {
-    return parseRoomId(new URLSearchParams(location.search).get('room')) ?? DEFAULT_ROOM;
+  // A minted room only exists once its URL says so: rewrite it in place, before
+  // anything reads `room`. Not a room *switch* — nothing is built yet — so the
+  // one-room-per-tab invariant below holds untouched, and a reload comes back to
+  // the same document instead of minting another. Encrypted like any new room
+  // (contract §5), reusing the key already in the URL when there is one.
+  function startFreshRoom(r: RoomId): void {
+    const params = new URLSearchParams(location.search);
+    params.set('room', r);
+    const fragment = new URLSearchParams(location.hash.slice(1));
+    fragment.set('k', currentSecretKey() ?? mintSecretKey());
+    history.replaceState(null, '', `${location.pathname}?${params.toString()}#${fragment.toString()}`);
   }
+  if (landing.fresh) startFreshRoom(landing.room);
 
   // Cooperative only: a modified client could ignore ?role=reader.
   function roleFromUrl(): SessionRole {
@@ -245,7 +262,7 @@
   // Fixed for the lifetime of this tab: a new document always opens a new tab
   // (see `newRoom` below), so `room` never changes in place — there's no
   // in-tab room switch to react to.
-  const room: RoomId = roomFromUrl();
+  const room: RoomId = landing.room;
   const sessionRole: SessionRole = roleFromUrl();
   const selfProbeMarker: SelfProbeMarker | null = selfProbeMarkerFromUrl();
 
@@ -308,9 +325,10 @@
   }
 
   // Backend already authenticated but saves no room yet (pre-dates this feature, or
-  // fresh session): adopt the landing room as saved, but only at the default room,
-  // never via a shared `?room=` link, which just means a visitor.
-  if (!new URLSearchParams(location.search).has('room')) {
+  // fresh session): adopt the landing room as saved, but only at your own landing
+  // room, never via a shared `?room=` link, which just means a visitor.
+  if (linkedRoomParam === null) {
+    // untrack: a one-time read at init (not a reactive dependency).
     const s = untrack(() => storage);
     if (s && s.auth.isAuthenticated() && savedRoomsStore(s.storage.id).all().length === 0) {
       savedRoomsStore(s.storage.id).add(room);
@@ -602,6 +620,46 @@
     return true;
   }
 
+  // ── Where the document lives: taught once, not per write ──────────────────
+  // A card, not a modal: contract §7 deleted an intro modal for standing in front
+  // of the document before you'd done anything. Yields to the write-gate band,
+  // which teaches the same lesson just-in-time with the actions attached.
+  const storageIntroSeenStore = localStore<boolean>(
+    KEY_STORAGE_INTRO_SEEN,
+    (raw) => raw === 'true',
+    String,
+  );
+  let storageIntroSeen = $state(storageIntroSeenStore.read());
+  function markStorageIntroSeen(): void {
+    if (storageIntroSeen) return;
+    storageIntroSeen = true;
+    storageIntroSeenStore.write(true);
+  }
+  const showStorageIntro = $derived(
+    !storageIntroSeen && !collabUnavailable && !savedHere && !writeLocked && iceReady && lockChecked && !lock.locked,
+  );
+
+  function connectStorageFromStorageIntro(): void {
+    markStorageIntroSeen();
+    openSettings();
+  }
+
+  // ── The local library: how a document is found again ───────────────────────
+  // Re-runs as the collaborative name syncs in. Held back while the room is
+  // locked: the key in hand is then missing or wrong, and storing it would
+  // overwrite a working one.
+  const pagePath = location.pathname as PagePath;
+  $effect(() => {
+    if (!lockChecked || lock.locked) return;
+    rememberRoomVisit({
+      room,
+      name: roomName.value,
+      key: currentSecretKey(),
+      role: sessionRole,
+      openedAt: now(),
+    });
+  });
+
   // A new tab, never an in-place room switch: `backends(room)` captures `room`
   // once by closure (storage/filename.ts), so there's no live pointer to retarget.
   // CSPRNG room id (contract §5); the secret-link key encrypts the room by default.
@@ -647,6 +705,17 @@
 
     <button
       class="cap-btn"
+      onclick={() => (libraryOpen = true)}
+      title="Your documents"
+      aria-label="Your documents"
+    >
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H9a2 2 0 0 1 2 2v13a1.5 1.5 0 0 0-1.5-1.5H4Z" /><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H15a2 2 0 0 0-2 2v13a1.5 1.5 0 0 1 1.5-1.5H20Z" />
+      </svg>
+    </button>
+
+    <button
+      class="cap-btn"
       onclick={importLocalFile}
       disabled={!canImportHere}
       title="Import a file into this document"
@@ -666,7 +735,6 @@
         <path d="M12 15V3m0 0l-4 4m4-4l4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
     </button>
-    <RecentDocs current={room} />
 
     <div class="cap-fill"></div>
 
@@ -749,6 +817,11 @@
         <path d="M12 5v14M5 12h14" />
       </svg>
     </button>
+    <button class="dock-btn" onclick={() => (libraryOpen = true)} title="Your documents" aria-label="Your documents">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H9a2 2 0 0 1 2 2v13a1.5 1.5 0 0 0-1.5-1.5H4Z" /><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H15a2 2 0 0 0-2 2v13a1.5 1.5 0 0 1 1.5-1.5H20Z" />
+      </svg>
+    </button>
     <button class="dock-btn" onclick={importLocalFile} disabled={!canImportHere} title="Import a file into this document" aria-label="Import a file into this document">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 3v12m0 0l-4-4m4 4l4-4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
@@ -759,7 +832,6 @@
         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
       </svg>
     </button>
-    <RecentDocs current={room} buttonClass="dock-btn" />
     <button class="dock-btn" onclick={() => (exportOpen = true)} title="Export a copy of this document" aria-label="Export a copy of this document">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 15V3m0 0l-4 4m4-4l4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
@@ -801,6 +873,13 @@
     onRetry={sessionState.diagnostics.reconnect}
     onConnectionDetails={() => (diagOpen = true)}
   />
+
+  {#if showStorageIntro}
+    <StorageIntro
+      onConnectStorage={connectStorageFromStorageIntro}
+      onDismiss={markStorageIntroSeen}
+    />
+  {/if}
 
   <!-- The unlock moment's one self-dismissing line (contract §4.1); never steals focus. -->
   {#if unlockLine}
@@ -906,6 +985,14 @@
 />
 
 <MeetingJoinDialog open={joinOpen} onclose={() => (joinOpen = false)} {toasts} hallUrl={collabPlan.hallUrl} />
+
+<LibraryDialog
+  open={libraryOpen}
+  onclose={() => (libraryOpen = false)}
+  current={room}
+  page={pagePath}
+  onNew={() => { libraryOpen = false; newRoom(); }}
+/>
 
 <ExportDialog
   open={exportOpen}
