@@ -24,7 +24,7 @@ export type GraphUserId = string & { readonly _brand: 'GraphUserId' };
 /** A Microsoft Graph SharePoint site id (from `/sites/{host}:{path}`). */
 export type GraphSiteId = string & { readonly _brand: 'GraphSiteId' };
 
-/** Branded only after `/me` validates it — the single cast site for user-supplied tokens, in `login()`. */
+/** Branded only after `/me` validates it: the single cast site for user-supplied tokens, in `login()`. */
 export type SharePointToken = string & { readonly _brand: 'SharePointToken' };
 
 /** A drive folder path the user configures (defaults to `SHAREPOINT_FOLDER`). */
@@ -43,7 +43,7 @@ const credentialFields: CredentialField[] = [
     type: InputType.Password,
     placeholder: 'eyJ0eXAi…',
     help: 'A delegated Microsoft Graph token (Files.ReadWrite.All), pasted from Graph ' +
-      'Explorer or your IT admin. Short-lived — expires after about an hour, so you\'ll ' +
+      'Explorer or your IT admin. Short-lived, expires after about an hour, so you\'ll ' +
       'need to reconnect with a fresh one periodically.',
   },
   {
@@ -64,7 +64,7 @@ function authHeaders(token: SharePointToken): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
-/** The drive root — a SharePoint site's default drive, or the user's OneDrive. */
+/** The drive root: a SharePoint site's default drive, or the user's OneDrive. */
 function driveRoot(c: SharePointConf): string {
   return c.siteId ? `${GRAPH_API_URL}/sites/${c.siteId}/drive` : `${GRAPH_API_URL}/me/drive`;
 }
@@ -86,7 +86,7 @@ function driveContentUrl(c: SharePointConf, filename: Filename): string {
 /** 401/403 mid-session means the pasted token (short-lived, ~1h) has expired. */
 function graphErrorMessage(action: string, status: number): string {
   return status === 401 || status === 403
-    ? 'SharePoint: your session has expired — reconnect with a fresh access token in Settings.'
+    ? 'SharePoint: your session has expired. Reconnect with a fresh access token in Settings.'
     : `SharePoint ${action} failed: ${status}`;
 }
 

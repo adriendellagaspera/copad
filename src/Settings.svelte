@@ -123,7 +123,7 @@
     }
   }
 
-  // Raw form strings, not TurnPrefs — parsed into domain types only on Apply.
+  // Raw form strings, not TurnPrefs: parsed into domain types only on Apply.
   let rawUrl = $state('');
   let rawUsername = $state('');
   let rawCredential = $state('');
@@ -200,7 +200,7 @@
   let creds = $state<Record<StorageId, SessionCredentials>>({});
   let fnames = $state<Record<StorageId, string>>({});
 
-  // Backend config/session writes hit plain localStorage, not Svelte state — bump this to force `ready`/`authed` to re-derive.
+  // Backend config/session writes hit plain localStorage, not Svelte state: bump this to force `ready`/`authed` to re-derive.
   let stateVersion = $state(0);
   function withVersion<T>(value: T): T {
     void stateVersion;
@@ -223,10 +223,10 @@
     onchange?.();
   }
 
-  // `TypeError: Failed to fetch` is the browser's generic network-error message — usually CORS blocking this origin.
+  // `TypeError: Failed to fetch` is the browser's generic network-error message, usually CORS blocking this origin.
   function friendlyConnectError(e: unknown): string {
     if (e instanceof TypeError && /fetch/i.test(e.message)) {
-      return "Couldn't reach the server — this usually means the backend's CORS " +
+      return "Couldn't reach the server. This usually means the backend's CORS " +
         'settings don\'t allow requests from this origin. Check the backend\'s CORS ' +
         'configuration, or open the browser console for the underlying network error.';
     }
@@ -261,7 +261,7 @@
 
 {#snippet generalView()}
   <p class="settings-lead">
-    Editor, local copy, and connectivity — grouped here while this register stays small.
+    Editor, local copy, and connectivity, grouped here while this register stays small.
   </p>
 
   <section class="backend">
@@ -335,7 +335,7 @@
     </div>
     <p class="backend-blurb">
       Keep a copy of your documents in this browser so they survive a reload and
-      work offline — even with no storage backend connected.
+      work offline, even with no storage backend connected.
     </p>
     <label class="toggle">
       <input
@@ -414,8 +414,8 @@
             oninput={e => setFilename(b, e.currentTarget.value)}
           />
           <small class="field-help">
-            The target file for the current room — each room you own keeps its own document.
-            The extension picks the format — .yjs (native), .md, .html, .json (PM), or any
+            The target file for the current room: each room you own keeps its own document.
+            The extension picks the format: .yjs (native), .md, .html, .json (PM), or any
             source/text extension (.txt, .py, .js, .ts, .rs, .go, .yml, …).
             Takes effect on connect.
           </small>
@@ -426,7 +426,7 @@
 {#snippet storageView()}
   <p class="settings-lead">
     Configure your storage backends. App keys are saved in this browser and
-    reused across sessions — you only set them once.
+    reused across sessions: you only set them once.
   </p>
 
   {#if sortedBackends.length === 0}

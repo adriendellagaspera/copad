@@ -1,4 +1,4 @@
-/* App chrome — layout, header, controls, buttons, connect panel. */
+/* App chrome: layout, header, controls, buttons, connect panel. */
 
 .app {
   max-width: 960px;
@@ -6,7 +6,7 @@
   padding: var(--sp-5) var(--sp-4) var(--sp-8);
   display: flex;
   flex-direction: column;
-  /* margin-bottom, not gap, spaces .app's children — gap is constant and would jump one frame when SyncBanner's slide-out removes the node; margin-bottom shrinks with it. */
+  /* margin-bottom, not gap, spaces .app's children. gap is constant and would jump one frame when SyncBanner's slide-out removes the node; margin-bottom shrinks with it. */
   /* Fixed to the viewport, editor scrolls internally; dvh tracks mobile browser chrome, vh is the floor. */
   height: 100vh;
   height: 100dvh;
@@ -53,7 +53,7 @@ header.capsule {
   display: block;
 }
 
-/* Fixed gap, not a flex-grow filler — marks the seam between the doc cluster (mark/new) and the status/identity/share cluster. */
+/* Fixed gap, not a flex-grow filler: marks the seam between the doc cluster (mark/new) and the status/identity/share cluster. */
 .cap-fill {
   width: var(--sp-5);
   flex: none;
@@ -127,7 +127,7 @@ header.capsule {
   flex: none;
 }
 
-/* Header hides on mobile — room name lives in DocTitle, every action moved to the bottom dock. Gated on pointer:coarse OR max-width:900px: touch always gets this layout, and the width fallback covers a narrow mouse-driven window where the open capsule's flex:none content has nowhere left to shrink. */
+/* Header hides on mobile: room name lives in DocTitle, every action moved to the bottom dock. Gated on pointer:coarse OR max-width:900px: touch always gets this layout, and the width fallback covers a narrow mouse-driven window where the open capsule's flex:none content has nowhere left to shrink. */
 @media (pointer: coarse), (max-width: 900px) {
   header.capsule {
     display: none;
@@ -151,17 +151,17 @@ select {
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
   font: inherit;
-  /* iOS Safari auto-zooms on focus below 16px font-size — --fs-300 (13px) tripped it, --fs-400 sits at the safe threshold. */
+  /* iOS Safari auto-zooms on focus below 16px font-size: --fs-300 (13px) tripped it, --fs-400 sits at the safe threshold. */
   font-size: var(--fs-400);
   color: var(--text);
   background: var(--surface);
-  /* One shared duration for all four — a split duration desynced border/shadow from background/color at a theme switch, which read as the field "trembling". */
+  /* One shared duration for all four: a split duration desynced border/shadow from background/color at a theme switch, which read as the field "trembling". */
   transition: background-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease),
     box-shadow var(--dur-fast) var(--ease);
 }
-/* Gated on tracked input modality, not bare :focus-visible — browsers treat any focused text input as :focus-visible even after a mouse click. */
+/* Gated on tracked input modality, not bare :focus-visible: browsers treat any focused text input as :focus-visible even after a mouse click. */
 :root[data-input-modality='keyboard'] input:focus-visible,
 :root[data-input-modality='keyboard'] select:focus-visible {
   outline: none;
@@ -337,7 +337,7 @@ button.status-link {
   gap: 3px;
   flex-shrink: 0;
 }
-/* Own name, not `.dot` — editor.css already owns that class at the same specificity. */
+/* Own name, not `.dot`: editor.css already owns that class at the same specificity. */
 .storage-status-dot {
   width: 5px;
   height: 5px;
@@ -429,7 +429,7 @@ button.status-link {
   color: var(--text-muted);
   flex-shrink: 0;
 }
-/* GitHub's mark is fixed near-black (#181717), nearly invisible on the dark tile surface — swap to its white variant; other brand marks have enough contrast already. */
+/* GitHub's mark is fixed near-black (#181717), nearly invisible on the dark tile surface: swap to its white variant; other brand marks have enough contrast already. */
 [data-theme="dark"] .brand-github svg path {
   fill: var(--text);
 }
@@ -547,11 +547,11 @@ button.status-link {
 @media (max-width: 720px) {
   .app {
     padding: var(--sp-4) var(--sp-3) var(--sp-6);
-    /* No gap here either — see .app's gap-vs-margin-bottom note above. */
+    /* No gap here either: see .app's gap-vs-margin-bottom note above. */
   }
 }
 
-/* No mobile top padding — header reserves no flow band (collapsed or hidden), so the first child starts at the viewport edge; see .editor's own mobile rule in editor.css. */
+/* No mobile top padding: header reserves no flow band (collapsed or hidden), so the first child starts at the viewport edge; see .editor's own mobile rule in editor.css. */
 @media (pointer: coarse), (max-width: 900px) {
   .app {
     padding-top: 0;
@@ -565,7 +565,7 @@ button.status-link {
   }
 }
 
-/* Mirrors editor.css's .fixed-toolbar "format mode" in the same fixed slot — mutually exclusive via sessionState.editing, hidden until the header capsule collapses (kept in sync with that rule). */
+/* Mirrors editor.css's .fixed-toolbar "format mode" in the same fixed slot: mutually exclusive via sessionState.editing, hidden until the header capsule collapses (kept in sync with that rule). */
 .mobile-dock {
   display: none;
 }
@@ -591,7 +591,7 @@ button.status-link {
   .mobile-dock.dock-hidden {
     display: none;
   }
-  /* Hides the "set your name" nudge only on ~320px phones, where it pushes the settings button off the dock edge — avatar stays clickable, nudge still shows in the desktop capsule. */
+  /* Hides the "set your name" nudge only on ~320px phones, where it pushes the settings button off the dock edge; avatar stays clickable, nudge still shows in the desktop capsule. */
   .mobile-dock .identity-hint {
     display: none;
   }
@@ -646,7 +646,7 @@ button.status-link {
   }
 }
 
-/* Settings nav collapses to a horizontal strip below the drawer's full-width-sheet breakpoint — no room for a 220px side rail at 100vw. */
+/* Settings nav collapses to a horizontal strip below the drawer's full-width-sheet breakpoint: no room for a 220px side rail at 100vw. */
 @media (max-width: 640px) {
   .settings-body {
     grid-template-columns: 1fr;

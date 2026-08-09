@@ -17,7 +17,7 @@ import type { RoomId } from '../collaboration/types.js';
 import { landed, writeFailure, classifyHttpStatus, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import { STORAGE_ID, DEFAULT_FILENAME, S3_PREFIX, S3_KEY } from './constants.js';
 
-// Path-style addressing ({endpoint}/{bucket}/{key}), requests signed with AWS Signature V4 via Web Crypto — no SDK, no proxy.
+// Path-style addressing ({endpoint}/{bucket}/{key}), requests signed with AWS Signature V4 via Web Crypto. No SDK, no proxy.
 
 /** An S3-compatible endpoint URL (e.g. `https://s3.eu-west-1.amazonaws.com`). */
 export type S3Endpoint = string & { readonly _brand: 'S3Endpoint' };
@@ -33,7 +33,7 @@ export type S3AccessKeyId = string & { readonly _brand: 'S3AccessKeyId' };
 
 export type S3SecretAccessKey = string & { readonly _brand: 'S3SecretAccessKey' };
 
-/** SHA-256 of an empty body — the payload hash for GET requests. */
+/** SHA-256 of an empty body: the payload hash for GET requests. */
 const EMPTY_SHA256 =
   'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
@@ -48,39 +48,39 @@ const credentialFields: CredentialField[] = [
     name: 'endpoint',
     label: 'Endpoint',
     placeholder: 'https://s3.eu-west-1.amazonaws.com',
-    help: 'The service root, without the bucket name — requests are path-style (endpoint/bucket/key), ' +
+    help: 'The service root, without the bucket name. Requests are path-style (endpoint/bucket/key), ' +
       'and the bucket must allow CORS from this origin.',
   },
   {
     name: 'bucket',
     label: 'Bucket',
     placeholder: 'my-bucket',
-    help: 'The bucket name only, not a URL — it\'s appended to the endpoint to build each request.',
+    help: 'The bucket name only, not a URL: it\'s appended to the endpoint to build each request.',
   },
   {
     name: 'region',
     label: 'Region',
     placeholder: 'eu-west-1 (or "auto" for R2)',
-    help: 'Must match the bucket\'s actual region — it\'s signed into every request, so a wrong value fails auth, not just routing.',
+    help: 'Must match the bucket\'s actual region: it\'s signed into every request, so a wrong value fails auth, not just routing.',
   },
   {
     name: 'prefix',
     label: 'Key prefix',
     placeholder: S3_PREFIX,
-    help: `Folder-like prefix objects are stored under. Optional — defaults to "${S3_PREFIX}" if left blank.`,
+    help: `Folder-like prefix objects are stored under. Optional, defaults to "${S3_PREFIX}" if left blank.`,
   },
   {
     name: 'accessKeyId',
     label: 'Access key ID',
     placeholder: 'AKI…',
-    help: 'Paired with the secret key below to sign requests (AWS Signature V4) — needs at least PutObject/GetObject on this bucket.',
+    help: 'Paired with the secret key below to sign requests (AWS Signature V4). Needs at least PutObject/GetObject on this bucket.',
   },
   {
     name: 'secretAccessKey',
     label: 'Secret access key',
     type: InputType.Password,
     placeholder: '…',
-    help: 'Never sent as-is — used locally to derive the SigV4 signature for each request.',
+    help: 'Never sent as-is: used locally to derive the SigV4 signature for each request.',
   },
 ];
 
@@ -110,7 +110,7 @@ async function signingKey(secret: S3SecretAccessKey, dateStamp: string, region: 
 
 /**
  * `host` is signed into the canonical request even though `fetch` silently drops
- * a script-set `Host` header — harmless, since the browser sends `url.host` anyway.
+ * a script-set `Host` header, harmless since the browser sends `url.host` anyway.
  */
 async function signRequest(
   method: 'GET' | 'PUT' | 'HEAD',
@@ -198,14 +198,14 @@ export function s3Storage(room: RoomId): { auth: StorageAuth; storage: Storage }
         secretAccessKey: secretAccessKeyParsed,
       };
 
-      // Signed HEAD on the target object, not the bucket — a write-only key may lack ListBucket.
+      // Signed HEAD on the target object, not the bucket: a write-only key may lack ListBucket.
       // 403 = bad credentials/denied, 404 = good creds and object not yet there.
       const url = objectUrl(c, fileName.get());
       const res = await fetch(url.toString(), {
         method: 'HEAD',
         headers: await signRequest('HEAD', url, null, c),
       });
-      if (res.status === 403) throw new Error('S3: access denied — check credentials and bucket policy');
+      if (res.status === 403) throw new Error('S3: access denied. Check credentials and bucket policy');
       if (!res.ok && res.status !== 404 && res.status !== 405) {
         throw new Error(`S3 connect failed: ${res.status}`);
       }
