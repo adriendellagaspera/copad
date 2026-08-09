@@ -399,9 +399,10 @@
     display: flex;
     align-items: center;
     gap: var(--sp-2);
+    flex-wrap: wrap;
   }
   .share-row input {
-    flex: 1;
+    flex: 1 1 200px;
     min-width: 0;
     font-family: var(--font-mono);
     /* iOS Safari auto-zooms on focused inputs under 16px font-size. */
