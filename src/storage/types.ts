@@ -12,7 +12,7 @@ export type Filename = string & { readonly _brand: 'Filename' };
 /**
  * Document content formats. The const object holds the wire values; the type is
  * the union of its members, so internal code matches against `DocFormat.Binary`
- * rather than a bare `'binary'` literal — no primitives at the domain boundary.
+ * rather than a bare `'binary'` literal: no primitives at the domain boundary.
  */
 export const DocFormat = { Binary: 'binary', Text: 'text' } as const;
 export type DocFormat = (typeof DocFormat)[keyof typeof DocFormat];
@@ -66,7 +66,7 @@ export const OpenMode = { New: 'new' } as const;
 export type OpenMode = (typeof OpenMode)[keyof typeof OpenMode];
 
 /**
- * Which kind of input a {@link StorageAuth.login} call carries — a closed set we
+ * Which kind of input a {@link StorageAuth.login} call carries: a closed set we
  * own, matched as `LoginKind.Credentials` over a bare `'credentials'` literal.
  */
 export const LoginKind = { Credentials: 'credentials', Open: 'open' } as const;
@@ -75,21 +75,21 @@ export type LoginKind = (typeof LoginKind)[keyof typeof LoginKind];
 /**
  * Structured input to {@link StorageAuth.login}, modelled as a discriminated
  * union so the two intents can never co-occur or be half-specified:
- * - `Credentials` — a per-session credentialed login (WebDAV), carrying the
+ * - `Credentials`: a per-session credentialed login (WebDAV), carrying the
  *   form values; the credential bag is *not* a control channel.
- * - `Open` — how the local picker opens its file ({@link OpenMode}).
+ * - `Open`: how the local picker opens its file ({@link OpenMode}).
  *
  * Backends needing neither (OAuth: Dropbox/pCloud/GitHub) and the local
  * open/import-existing path are called with no argument. Each arm requires its
  * payload, so a credentials login always carries credentials and an open always
- * carries a mode — illegal states are unrepresentable.
+ * carries a mode: illegal states are unrepresentable.
  */
 export type LoginOptions =
   | { readonly kind: typeof LoginKind.Credentials; readonly credentials: SessionCredentials }
   | { readonly kind: typeof LoginKind.Open;        readonly mode: OpenMode };
 
 /**
- * How a {@link CredentialField} / {@link ConfigField} input renders — a closed
+ * How a {@link CredentialField} / {@link ConfigField} input renders: a closed
  * set we own (it happens to map onto the HTML `<input type>` attribute). Named
  * so field definitions and defaults use `InputType.Password` over a bare literal.
  */
@@ -105,12 +105,12 @@ export interface CredentialField {
   label: string;
   type?: InputType;
   placeholder?: string;
-  /** Short hint shown under the input — e.g. where to obtain the value. */
+  /** Short hint shown under the input, e.g. where to obtain the value. */
   help?: string;
 }
 
 /**
- * A one-time configuration input — typically an OAuth app key / client id that
+ * A one-time configuration input, typically an OAuth app key / client id that
  * identifies *which* third-party app this deployment uses. Configured once in
  * Settings and reused across sessions, as opposed to {@link CredentialField}.
  */
@@ -119,14 +119,14 @@ export interface ConfigField {
   label: string;
   type?: InputType;
   placeholder?: string;
-  /** Short hint shown under the input — e.g. where to obtain the value. */
+  /** Short hint shown under the input, e.g. where to obtain the value. */
   help?: string;
 }
 
 /**
  * The bytes-only storage port. Authentication, configuration, and credentials
  * live on {@link StorageAuth} (see `src/storage/auth.ts`). A non-null `Storage`
- * reference passed to the Editor already implies the user is authenticated —
+ * reference passed to the Editor already implies the user is authenticated:
  * `App.svelte` gates the prop to `null` until auth is established.
  */
 export interface Storage {
@@ -146,7 +146,7 @@ export interface Storage {
 
   readonly contentFormat: DocFormat;
   load(): Promise<DocContent | null>;
-  /** "Didn't throw" ≠ "the bytes arrived" (docs/contract.md §3.2) — the
+  /** "Didn't throw" ≠ "the bytes arrived" (docs/contract.md §3.2): the
    *  {@link WriteReceipt} (`src/storage/writeOutcome.ts`) says which. */
   save(content: DocContent): Promise<WriteReceipt>;
 
@@ -165,7 +165,7 @@ export interface Storage {
   list?(): Promise<Filename[]>;
 
   /**
-   * Read an arbitrary file's content once, by name — distinct from `load()`,
+   * Read an arbitrary file's content once, by name, distinct from `load()`,
    * which always reads the room's fixed target file. Never changes the room's
    * persisted target filename. Used only by a `list()`-driven browse flow.
    */
