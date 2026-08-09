@@ -24,58 +24,26 @@
     onConnectionDetails,
   }: {
     conn: ConnStatus;
-    /** Presence at the finer grain the write gate itself uses — distinguishes
-     *  `Alone` (row ③, gate holds) from `Reaching` (row ④, someone's here but
-     *  unreachable, never gates) within the single `ConnStatus.Waiting` value. */
+    // Distinguishes Alone (gate holds) from Reaching (unreachable, never gates) within ConnStatus.Waiting. docs/contract.md §4.
     presenceKind: PresenceKind;
-    /** How edits travel: peer-to-peer (nothing leaves the device while alone) or a
-     *  hub relay (the server catches later joiners up). Calibrates the message. */
     transport: Transport;
-    /** The label of the backend that saves *this room for you*, or null when the
-     *  room is live-only for you. Non-null ⟺ a copy is kept in your own storage;
-     *  null ⟺ this device (and its local cache) only. Mirrors the status chip's
-     *  Saved / Live-only distinction — driven by `savedHere`, not merely by having
-     *  a backend connected, so the copy is honest in rooms your backend doesn't save. */
+    // Non-null iff a copy is kept in the user's own storage (driven by savedHere, not merely "backend connected").
     storageLabel: string | null;
-    /** True when the write gate is holding the editor read-only. The strongest
-     *  tier of this one top strip — the waiting room (docs/contract.md §4.2). */
+    // docs/contract.md §4.2: write gate active.
     gated?: boolean;
-    /** True while the gate *could* still arm — the pre-arm grace window (P2P +
-     *  live-only + no peer, not yet opted solo). During it we show nothing: the
-     *  standing solo reminder would be premature (you haven't chosen to write solo),
-     *  and the gate hasn't armed. Distinguishes "grace pending" from "opted solo",
-     *  which otherwise look identical (both: alone, editable). */
+    // Pre-arm grace window (P2P + live-only + no peer, not yet opted solo): nothing shown yet.
     gateEligible?: boolean;
-    /** True when this deployment can't do real-time collaboration at all (no
-     *  signaling server, or mixed-content ws:// on https://) — a permanent
-     *  environment fact, not a transient "no peer yet" state. Its own tier: never
-     *  blocks (the write-gate already excludes it via `gateEligible`), never
-     *  offers Invite (there's no one it could ever reach), and stays neutral in
-     *  tone — a fact you can't act on right now isn't an urgent warning. */
+    // Permanent deployment fact (no signaling server, or mixed-content ws://), not a transient "no peer yet" state.
     collabUnavailable?: boolean;
-    /** When this stretch of solitude began, for "Waiting since 14:02" (§4.2). Null
-     *  outside the waiting tier. */
     waitingSince?: EpochMs | null;
-    /** Name of the peer who just left, for "{name} left" (§4, row ⑥). Null when
-     *  unknown or not applicable. */
     departedPeerName?: string | null;
-    /** True while still within the departure-hysteresis grace window — still
-     *  editable, the room reads as "just emptied" rather than "alone". */
     withinDepartureLinger?: boolean;
-    /** Open the Share dialog so the user can invite a collaborator. */
     onShare: () => void;
-    /** Open Settings so the user can connect a backend to keep their own copy. */
     onConnectStorage: () => void;
-    /** Open the "Export a copy" dialog. */
     onExport?: () => void;
-    /** "Write alone anyway" — opts this room into solo writing for the session. P2P only. */
     onWriteSolo?: () => void;
-    /** Copy the invite link straight to the clipboard — the waiting tier's primary
-     *  action (§4.2: "inviting someone *is* how you unblock"). */
     onCopyInviteLink?: () => void;
-    /** Retry connecting, for the `reaching` tier. */
     onRetry?: () => void;
-    /** Open the connection detail sheet, for the `reaching` tier. */
     onConnectionDetails?: () => void;
   } = $props();
 
@@ -86,19 +54,10 @@
   const aloneStanding = $derived(conn === ConnStatus.Waiting && presenceKind !== PresenceKind.Reaching);
   const saved = $derived(storageLabel !== null);
   const isP2P = $derived(transport === Transport.P2P);
-  // Strong (warning) tone for the truly-into-the-void case: peer-to-peer and
-  // live-only. That covers the gated tier (always P2P + live-only) and the standing
-  // solo reminder once you've opted to write there. `collabUnavailable` is excluded
-  // even though it can coincide with P2P + !saved — it's a permanent fact you can't
-  // resolve right now, not an urgent, actionable warning, so it stays neutral.
+  // Warning tone for the truly-into-the-void case (P2P + live-only); collabUnavailable stays neutral since it's a permanent fact, not an actionable warning.
   const strong = $derived(!collabUnavailable && isP2P && !saved && !reaching && !departing && !unreachableNet);
 
-  // One top strip, an escalation ladder: the gate (blocks, transient — someone
-  // could still join) → reaching/departing/unreachable/offline (never block,
-  // transient, informational) → collab-unavailable (never blocks, permanent
-  // environment fact) → the standing solo reminder (never blocks, transient — you
-  // opted to write solo, or the room is saved / on a hub and was never gateable).
-  // Nothing during the gate's grace window. Same slot throughout.
+  // One escalation ladder, same slot throughout: gate → reaching/departing/unreachable/offline → collab-unavailable → standing solo reminder.
   const wantShow = $derived(
     gated ||
       reaching ||
@@ -127,12 +86,7 @@
                   : 'alone',
   );
 
-  // Dismissible: the write-gate itself lives on the editor (click/keystroke
-  // lifts it regardless of this banner), so hiding the strip never traps you —
-  // it only drops the explanation + Invite/Connect nudge until the *reason*
-  // changes. `reason` collapses to 'hidden' whenever `wantShow` is false, so a
-  // dismissal is forgotten the moment there's a fresh thing to say (a new tier,
-  // or the same tier recurring after going away).
+  // Dismissal is forgotten once `reason` changes, including collapsing to 'hidden' when wantShow goes false, so a recurring tier re-shows.
   let dismissed = $state(false);
   $effect(() => {
     reason;
@@ -146,19 +100,11 @@
       : new Date(waitingSince).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
   );
 
-  // Svelte's JS transitions aren't touched by the CSS reduced-motion reset in
-  // base.css (that only catches CSS animations/transitions), so they need
-  // their own check.
+  // base.css's reduced-motion reset only catches CSS animations/transitions, not Svelte's JS ones.
   const reducedMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Plain `slide` fades opacity in only over the last 5% of the animation, so
-  // for most of the exit the rounded, bordered strip is fully visible while its
-  // own height/padding/margin/border shrink toward 0 — a squashed pill by the
-  // end, worst right where the border-radius no longer fits the box. Fading
-  // out over the *first* 60% instead means the strip is already invisible well
-  // before it gets short enough for the rounding to look wrong; the last 40%
-  // just closes the now-invisible gap it leaves behind.
+  // Fades opacity over the first 60% (not `slide`'s last 5%) so the strip is invisible before it's squashed short enough for the border-radius to look wrong.
   function bannerOut(node: Element, { duration = 220 }: { duration?: number } = {}) {
     const style = getComputedStyle(node);
     const opacity = +style.opacity;
@@ -188,18 +134,7 @@
   }
 </script>
 
-<!-- Presence-first solo state, one strip that escalates (north-star: voice + paper;
-     the interface recedes in front of the text — never a scrim over it). Tiers map
-     onto docs/contract.md §4's state table:
-       • gated (row ③) → the waiting room: calm, no spinner, "Waiting since…",
-         primary action is Copy invite link.
-       • reaching (row ④) → someone's here, still connecting to them; never gates.
-       • departing (row ⑥) → a peer just left; still editable during the linger.
-       • unreachable (row ⑦) → can't tell if anyone's here; document stays open.
-       • offline (row ⑧) → no network; document stays open.
-       • collabUnavailable → this deployment can't sync across devices at all.
-       • alone (standing reminder) → opted to write solo, or saved / on a hub.
-     It never implies an absent peer will see live edits before they join. -->
+<!-- One escalating strip; tiers map onto docs/contract.md §4's state table (gated/reaching/departing/unreachable/offline/collabUnavailable/alone). -->
 {#if show}
   <div
     class="sync-banner"
@@ -211,8 +146,7 @@
   >
     <span class="ic" class:dot={gated} aria-hidden="true">
       {#if gated}
-        <!-- A calm dot, not a spinner — a spinner promises imminence and lies
-             after 30 seconds (§4.2). -->
+        <!-- Calm dot, not a spinner: a spinner promises imminence and lies after 30 seconds (§4.2). -->
         <span class="waiting-dot"></span>
       {:else}
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -227,12 +161,12 @@
         <strong>You're the only one here.</strong>
         {#if waitingSinceLabel}Waiting since {waitingSinceLabel}.{/if}
         {#if isP2P}
-          Copad opens the document when someone joins — until then you can read,
+          Copad opens the document when someone joins. Until then you can read,
           copy and export it, but not write. In peer-to-peer mode nothing you write
           leaves this device until it's received, so writing alone here would just
           be lost.
         {:else}
-          The server confirms it — Copad opens the document the instant someone
+          The server confirms it: Copad opens the document the instant someone
           joins. Until then you can read, copy and export it, but not write.
         {/if}
       </span>
@@ -256,7 +190,7 @@
       </span>
     {:else if reaching}
       <span class="msg">
-        <strong>Someone's here</strong> — still connecting to them.
+        <strong>Someone's here,</strong> still connecting to them.
       </span>
       <span class="actions">
         {#if onRetry}
@@ -284,7 +218,7 @@
       <span class="msg">
         {#if saved}
           <strong>Real-time sync isn't available on this site.</strong>
-          Kept for you in {storageLabel} — collaborators won't see live edits, but your
+          Kept for you in {storageLabel}, collaborators won't see live edits, but your
           own copy is safe.
         {:else}
           <strong>Real-time sync isn't available on this site.</strong>
@@ -308,7 +242,7 @@
     {:else if saved}
       <span class="msg">
         <strong>You're writing alone.</strong>
-        Kept for you in {storageLabel} — but a copy only you can open. No one sees your
+        Kept for you in {storageLabel}, but a copy only you can open. No one sees your
         edits live until they join. Invite someone to co-edit.
       </span>
       <span class="actions">
@@ -331,26 +265,19 @@
       aria-label="Dismiss"
       title="Dismiss"
     >
-      ✕
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
     </button>
   </div>
 {/if}
 
 <style>
-  /* Restraint over a coloured-alert flood: the strip is a faintly amber-tinted
-     surface, not a saturated warning field. The tone is carried by one small cue —
-     the amber icon — rather than by dyeing the whole bar, so it reads as a calm
-     heads-up that recedes in front of the text (north-star), not a Bootstrap alert. */
   .sync-banner {
     display: flex;
     align-items: center;
     gap: var(--sp-3);
     flex-wrap: wrap;
     padding: var(--sp-2) var(--sp-4);
-    /* Own margin, not the parent's flex `gap`: `slide` (see App.svelte's `.app`
-       comment) animates a node's margin alongside its height, so the trailing
-       gap shrinks away smoothly instead of snapping shut the instant this node
-       is removed at the end of the dismiss/disappear transition. */
+    /* Own margin, not the parent's flex gap: `slide` animates margin alongside height, so removal shrinks smoothly instead of snapping shut. */
     margin-bottom: var(--sp-4);
     background: color-mix(in srgb, var(--warn-soft) 55%, var(--surface-2));
     border: 1px solid color-mix(in srgb, var(--warn-border) 55%, var(--border));
@@ -359,12 +286,7 @@
     font-size: var(--fs-300);
     line-height: 1.4;
   }
-  /* No mobile margin-top here to clear the floating room-name pill: that
-     clearance is .app's own top padding instead (app.css), so this banner
-     — whether or not it's the first flow child — never has to guess. A
-     margin here previously stacked wrongly on top of that same padding. */
-  /* Informational tiers (a saved copy, or a relaying hub) aren't "into the void" —
-     drop the amber tint entirely for a plain neutral surface and a neutral icon. */
+  /* No mobile margin-top: that clearance is .app's own top padding (app.css) instead. */
   .sync-banner.soft {
     background: var(--surface-2);
     border-color: var(--border);
@@ -378,8 +300,6 @@
   .sync-banner.soft .ic {
     color: var(--text-muted);
   }
-  /* The waiting tier's calm dot — deliberately static, never a spinner (§4.2:
-     a spinner promises imminence and lies after 30 seconds). */
   .waiting-dot {
     width: 8px;
     height: 8px;
@@ -400,8 +320,7 @@
     flex-wrap: wrap;
     gap: var(--sp-2);
   }
-  /* >=44px hit area (WCAG 2.5.5) around a small glyph — grown via padding, not
-     by enlarging the ✕ itself. Always last, after any tier's own actions. */
+  /* >=44px hit area (WCAG 2.5.5): grown via padding, not icon size. */
   .dismiss {
     flex-shrink: 0;
     display: inline-flex;
@@ -411,7 +330,6 @@
     min-height: 44px;
     padding: 0;
     margin: calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2)) 0;
-    font-size: 0.75rem;
     color: var(--text-faint);
     border: none;
   }
@@ -419,8 +337,6 @@
     color: var(--text);
     background: color-mix(in srgb, var(--text) 7%, transparent);
   }
-  /* Primary — a filled accent chip. It pops without clashing now the field is only
-     faintly tinted (the old saturated-yellow field made accent-blue collide). */
   .invite-cta {
     padding: 0.34rem 0.9rem;
     border: 1px solid transparent;
@@ -435,9 +351,6 @@
   .invite-cta:hover {
     background: var(--accent-hover);
   }
-  /* Secondary — a real ghost button (transparent + border), so "Connect storage"
-     reads as the alternative button it is, not a floating underlined link. Overrides
-     the global inline `button.link` look within the banner only. */
   .sync-banner :global(button.link) {
     flex-shrink: 0;
     padding: 0.34rem 0.9rem;

@@ -85,7 +85,9 @@
     >
       <div class="dialog-head">
         <h2 id={titleId}>{title}</h2>
-        <button class="ghost dialog-close" onclick={onclose} aria-label="Close dialog">✕</button>
+        <button class="ghost dialog-close" onclick={onclose} aria-label="Close dialog">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
+        </button>
       </div>
       <div class="dialog-body" class:dialog-body-flush={flush}>
         {@render children()}

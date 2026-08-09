@@ -514,9 +514,16 @@ button.status-link {
   color: var(--text-faint);
 }
 .lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
   font-size: 0.7rem;
   color: var(--text-faint);
   font-weight: 400;
+}
+.lock svg {
+  display: block;
+  flex-shrink: 0;
 }
 .field-help {
   color: var(--text-faint);
@@ -558,7 +565,6 @@ button.status-link {
   }
 }
 
-/* Comfortable hit targets on touch devices. */
 @media (pointer: coarse) {
   button {
     min-height: 40px;

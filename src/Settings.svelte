@@ -488,7 +488,12 @@
                 <label class="field">
                   <span class="field-label">
                     {f.label}
-                    {#if locked}<span class="lock" title="Set by this deployment">🔒 managed</span>{/if}
+                    {#if locked}
+                      <span class="lock" title="Set by this deployment">
+                        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+                        managed
+                      </span>
+                    {/if}
                   </span>
                   <input
                     type={f.type ?? InputType.Text}
