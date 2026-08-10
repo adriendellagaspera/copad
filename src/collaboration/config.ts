@@ -202,33 +202,27 @@ export function resolveRoomStrategy(raw: string | undefined): RoomStrategy {
   }
 }
 
-/** Which room a visit lands in, and whether it was minted for this visit. */
+/** Whether the room was minted for this visit rather than asked for by name. */
+export type RoomMinted = boolean & { readonly _brand: 'RoomMinted' };
+
 export interface LandingRoom {
   readonly room: RoomId;
-  /** Minted just now: no `?room=` link and no `VITE_DEFAULT_ROOM` configured. */
-  readonly fresh: boolean;
+  readonly minted: RoomMinted;
 }
 
-/**
- * Resolve the room a visit lands in — the single site where `?room=` and
- * `VITE_DEFAULT_ROOM` cross into the domain.
- *
- * A link wins, then the deployment's configured landing room (an explicit
- * operator choice: everyone arriving bare shares it). With neither, a visitor
- * has asked for nothing in particular, and dropping them into a room shared with
- * every other bare visitor means their first act is writing into a stranger's
- * document — so a room is minted for them instead.
- */
+/** Minting rather than adopting a default keeps a visitor's first act out of a
+ *  stranger's document (docs/contract.md §5). */
 export function resolveLandingRoom(
   roomParam: string | null,
   envDefaultRoom: string | undefined,
   mint: () => RoomId,
 ): LandingRoom {
+  const asked = false as RoomMinted;
   const linked = parseRoomId(roomParam);
-  if (linked) return { room: linked, fresh: false };
+  if (linked) return { room: linked, minted: asked };
   const configured = parseRoomId(envDefaultRoom ?? '');
-  if (configured) return { room: configured, fresh: false };
-  return { room: mint(), fresh: true };
+  if (configured) return { room: configured, minted: asked };
+  return { room: mint(), minted: true as RoomMinted };
 }
 
 /**

@@ -3,16 +3,12 @@
     onConnectStorage,
     onDismiss,
   }: {
-    /** Open Settings to connect a storage backend. */
     onConnectStorage: () => void;
-    /** Acknowledge — the status chip and the sync banner carry it from here. */
     onDismiss: () => void;
   } = $props();
 </script>
 
-<!-- A card in the flow, never a modal over the document: what it explains is a
-     standing property of the product, so it has no moment to interrupt (see
-     docs/contract.md §7, "One-time dialogs, when they *are* right"). -->
+<!-- A card in the flow, never a modal: it explains a standing fact, with no moment to interrupt (docs/contract.md §7). -->
 <aside class="storage-intro">
   <p class="si-body">
     <strong>Nothing here is saved yet.</strong> This document lives in this browser
