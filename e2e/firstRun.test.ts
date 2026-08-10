@@ -30,6 +30,24 @@ test('the library lists a room this browser has opened', async ({ page }) => {
   await expect(dialog.locator('a[href*="room=pw-library"]')).toHaveCount(1);
 });
 
+test('a bare visit that is only read leaves nothing in the library', async ({ page }) => {
+  // Someone opening the site to find out what it is should not be handed an
+  // "Untitled" row for a document they never wrote in.
+  await page.goto('/');
+  await page.locator('.ProseMirror').waitFor();
+  const minted = new URL(page.url()).searchParams.get('room');
+  expect(minted).toBeTruthy();
+
+  await page.goto('/?room=pw-litter-witness');
+  await page.locator('.ProseMirror').waitFor();
+
+  await page.getByRole('button', { name: 'Your documents' }).first().click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator(`a[href*="room=${minted}"]`)).toHaveCount(0);
+  await expect(dialog.locator('a[href*="room=pw-litter-witness"]')).toHaveCount(1);
+});
+
 test('a view-only visit is remembered as view-only, never reopened as a writer', async ({ page }) => {
   await page.goto('/?room=pw-reader&role=reader');
   await page.locator('.ProseMirror').waitFor();
