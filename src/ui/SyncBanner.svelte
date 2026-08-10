@@ -1,20 +1,42 @@
+<script module lang="ts">
+  /** Whether the banner offers its dismiss control: false on a specimen, where a
+   *  control that cannot act is worse than none. */
+  export type Dismissible = boolean & { readonly _brand: 'Dismissible' };
+</script>
+
 <script lang="ts">
   import { slide } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
+  import type { DisplayName } from '../collaboration/types.js';
   import { ConnStatus, PresenceKind, Transport } from '../collaboration/types.js';
-  import type { EpochMs } from '../time.js';
+  import {
+    AloneVariant,
+    BannerTierKind,
+    BannerTone,
+    bannerTierFor,
+    bannerToneFor,
+    tierSignature,
+    waitingSinceLabel,
+    type CollabUnavailable,
+    type DepartureLingering,
+    type WriteGateArmable,
+    type WriteGateHeld,
+  } from './syncBannerTier.js';
+  import type { StorageLabel } from '../storage/types.js';
+  import type { EpochMs, Milliseconds } from '../time.js';
 
   let {
     conn,
     presenceKind,
     transport,
     storageLabel,
-    gated = false,
-    gateEligible = false,
-    collabUnavailable = false,
+    gated = false as WriteGateHeld,
+    gateEligible = false as WriteGateArmable,
+    collabUnavailable = false as CollabUnavailable,
     waitingSince = null,
     departedPeerName = null,
-    withinDepartureLinger = false,
+    withinDepartureLinger = false as DepartureLingering,
+    dismissible = true as Dismissible,
     onShare,
     onConnectStorage,
     onExport,
@@ -24,20 +46,16 @@
     onConnectionDetails,
   }: {
     conn: ConnStatus;
-    // Distinguishes Alone (gate holds) from Reaching (unreachable, never gates) within ConnStatus.Waiting. docs/contract.md §4.
     presenceKind: PresenceKind;
     transport: Transport;
-    // Non-null iff a copy is kept in the user's own storage (driven by savedHere, not merely "backend connected").
-    storageLabel: string | null;
-    // docs/contract.md §4.2: write gate active.
-    gated?: boolean;
-    // Pre-arm grace window (P2P + live-only + no peer, not yet opted solo): nothing shown yet.
-    gateEligible?: boolean;
-    // Permanent deployment fact (no signaling server, or mixed-content ws://), not a transient "no peer yet" state.
-    collabUnavailable?: boolean;
+    storageLabel: StorageLabel | null;
+    gated?: WriteGateHeld;
+    gateEligible?: WriteGateArmable;
+    collabUnavailable?: CollabUnavailable;
     waitingSince?: EpochMs | null;
-    departedPeerName?: string | null;
-    withinDepartureLinger?: boolean;
+    departedPeerName?: DisplayName | null;
+    withinDepartureLinger?: DepartureLingering;
+    dismissible?: Dismissible;
     onShare: () => void;
     onConnectStorage: () => void;
     onExport?: () => void;
@@ -47,65 +65,43 @@
     onConnectionDetails?: () => void;
   } = $props();
 
-  const offline = $derived(conn === ConnStatus.Offline);
-  const unreachableNet = $derived(conn === ConnStatus.Unreachable);
-  const reaching = $derived(!gated && presenceKind === PresenceKind.Reaching);
-  const departing = $derived(!gated && !reaching && withinDepartureLinger);
-  const aloneStanding = $derived(conn === ConnStatus.Waiting && presenceKind !== PresenceKind.Reaching);
-  const saved = $derived(storageLabel !== null);
-  const isP2P = $derived(transport === Transport.P2P);
-  // Warning tone for the truly-into-the-void case (P2P + live-only); collabUnavailable stays neutral since it's a permanent fact, not an actionable warning.
-  const strong = $derived(!collabUnavailable && isP2P && !saved && !reaching && !departing && !unreachableNet);
+  const ENTER_MS = 150 as Milliseconds;
+  const EXIT_MS = 220 as Milliseconds;
+  const DISCLOSE_MS = 150 as Milliseconds;
+  const NO_MOTION = 0 as Milliseconds;
 
-  // One escalation ladder, same slot throughout: gate → reaching/departing/unreachable/offline → collab-unavailable → standing solo reminder.
-  const wantShow = $derived(
-    gated ||
-      reaching ||
-      departing ||
-      unreachableNet ||
-      offline ||
-      collabUnavailable ||
-      (aloneStanding && !gateEligible),
+  const tier = $derived(
+    bannerTierFor({
+      conn,
+      presenceKind,
+      transport,
+      storageLabel,
+      gated,
+      gateEligible,
+      collabUnavailable,
+      waitingSince: waitingSince === null ? null : waitingSinceLabel(waitingSince),
+      departedPeerName,
+      withinDepartureLinger,
+    }),
   );
+  const tone = $derived(bannerToneFor(tier));
+  const signature = $derived(tierSignature(tier));
 
-  const reason = $derived(
-    !wantShow
-      ? 'hidden'
-      : gated
-        ? 'gated'
-        : reaching
-          ? 'reaching'
-          : departing
-            ? 'departing'
-            : unreachableNet
-              ? 'unreachable'
-              : offline
-                ? 'offline'
-                : collabUnavailable
-                  ? 'unavailable'
-                  : 'alone',
-  );
-
-  // Dismissal is forgotten once `reason` changes, including collapsing to 'hidden' when wantShow goes false, so a recurring tier re-shows.
   let dismissed = $state(false);
+  let expanded = $state(false);
   $effect(() => {
-    reason;
+    signature;
     dismissed = false;
+    expanded = false;
   });
-  const show = $derived(wantShow && !dismissed);
-
-  const waitingSinceLabel = $derived(
-    waitingSince === null
-      ? ''
-      : new Date(waitingSince).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
-  );
+  const show = $derived(tier.kind !== BannerTierKind.Hidden && !dismissed);
 
   // base.css's reduced-motion reset only catches CSS animations/transitions, not Svelte's JS ones.
   const reducedMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Fades opacity over the first 60% (not `slide`'s last 5%) so the strip is invisible before it's squashed short enough for the border-radius to look wrong.
-  function bannerOut(node: Element, { duration = 220 }: { duration?: number } = {}) {
+  // Fades over the first 60%, not `slide`'s last 5%: the strip must be invisible before it is short enough for the border-radius to look wrong.
+  function bannerOut(node: Element, { duration = EXIT_MS }: { duration?: Milliseconds } = {}) {
     const style = getComputedStyle(node);
     const opacity = +style.opacity;
     const height = parseFloat(style.height);
@@ -134,19 +130,16 @@
   }
 </script>
 
-<!-- One escalating strip; tiers map onto docs/contract.md §4's state table (gated/reaching/departing/unreachable/offline/collabUnavailable/alone). -->
 {#if show}
   <div
     class="sync-banner"
-    class:soft={!strong}
-    role="status"
-    aria-live="polite"
-    in:slide={{ duration: reducedMotion ? 0 : 150 }}
-    out:bannerOut={{ duration: reducedMotion ? 0 : 220 }}
+    class:soft={tone === BannerTone.Neutral}
+    in:slide={{ duration: reducedMotion ? NO_MOTION : ENTER_MS }}
+    out:bannerOut={{ duration: reducedMotion ? NO_MOTION : EXIT_MS }}
   >
-    <span class="ic" class:dot={gated} aria-hidden="true">
-      {#if gated}
-        <!-- Calm dot, not a spinner: a spinner promises imminence and lies after 30 seconds (§4.2). -->
+    <span class="ic" aria-hidden="true">
+      {#if tier.kind === BannerTierKind.Gated}
+        <!-- Calm dot, never a spinner: a spinner promises imminence it cannot keep (contract §4.2). -->
         <span class="waiting-dot"></span>
       {:else}
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -156,20 +149,39 @@
         </svg>
       {/if}
     </span>
-    {#if gated}
-      <span class="msg">
+
+    <!-- The live region is the sentence alone: opening the disclosure must not announce. -->
+    <span class="msg" role="status" aria-live="polite">
+      {#if tier.kind === BannerTierKind.Gated}
         <strong>You're the only one here.</strong>
-        {#if waitingSinceLabel}Waiting since {waitingSinceLabel}.{/if}
-        {#if isP2P}
-          Copad opens the document when someone joins. Until then you can read,
-          copy and export it, but not write. In peer-to-peer mode nothing you write
-          leaves this device until it's received, so writing alone here would just
-          be lost.
+        The document opens when someone joins.
+        {#if tier.waitingSince}Waiting since {tier.waitingSince}.{/if}
+      {:else if tier.kind === BannerTierKind.Reaching}
+        <strong>Someone's here,</strong> still connecting to them.
+      {:else if tier.kind === BannerTierKind.Departing}
+        <strong>{tier.who} left.</strong>
+        You can keep writing for a moment.
+      {:else if tier.kind === BannerTierKind.Unreachable}
+        We can't tell whether anyone else is here, so the document stays open.
+      {:else if tier.kind === BannerTierKind.Offline}
+        <strong>You're offline.</strong>
+        The document stays open; nothing syncs until you're back.
+      {:else if tier.kind === BannerTierKind.Unavailable}
+        <strong>Real-time sync isn't available here.</strong>
+        {#if tier.storageLabel}Your copy still goes to {tier.storageLabel}.{:else}Notes
+          stay on this device only.{/if}
+      {:else if tier.kind === BannerTierKind.Alone}
+        {#if tier.variant === AloneVariant.Relayed}
+          <strong>You're the only one here.</strong> Whoever joins later catches up.
+        {:else if tier.variant === AloneVariant.Saved}
+          <strong>You're writing alone.</strong> Kept for you in {tier.storageLabel}.
         {:else}
-          The server confirms it: Copad opens the document the instant someone
-          joins. Until then you can read, copy and export it, but not write.
+          <strong>You're writing alone.</strong> Nothing leaves this device yet.
         {/if}
-      </span>
+      {/if}
+    </span>
+
+    {#if tier.kind === BannerTierKind.Gated}
       <span class="actions">
         {#if onCopyInviteLink}
           <button class="invite-cta" onclick={onCopyInviteLink}>Copy invite link</button>
@@ -178,20 +190,19 @@
         {#if onExport}
           <button class="link" onclick={onExport}>Export a copy</button>
         {/if}
-        {#if isP2P && onWriteSolo}
-          <button
-            class="link write-solo"
-            onclick={onWriteSolo}
-            title="Nothing you write will leave this device until someone joins."
-          >
-            Write alone anyway
-          </button>
+        {#if tier.transport === Transport.P2P && onWriteSolo}
+          <button class="link write-solo" onclick={onWriteSolo}>Write alone anyway</button>
         {/if}
+        <button
+          class="more"
+          aria-expanded={expanded}
+          aria-controls="sync-banner-detail"
+          onclick={() => (expanded = !expanded)}
+        >
+          Details
+        </button>
       </span>
-    {:else if reaching}
-      <span class="msg">
-        <strong>Someone's here,</strong> still connecting to them.
-      </span>
+    {:else if tier.kind === BannerTierKind.Reaching}
       <span class="actions">
         {#if onRetry}
           <button class="link" onclick={onRetry}>Retry</button>
@@ -200,65 +211,28 @@
           <button class="link" onclick={onConnectionDetails}>Connection details</button>
         {/if}
       </span>
-    {:else if departing}
-      <span class="msg">
-        <strong>{departedPeerName ?? 'Someone'} left.</strong>
-        You can keep writing for a moment.
-      </span>
-    {:else if unreachableNet}
-      <span class="msg">
-        We can't tell whether anyone else is here, so the document stays open.
-      </span>
-    {:else if offline}
-      <span class="msg">
-        <strong>You're offline.</strong>
-        The document stays open; nothing syncs until you're back.
-      </span>
-    {:else if collabUnavailable}
-      <span class="msg">
-        {#if saved}
-          <strong>Real-time sync isn't available on this site.</strong>
-          Kept for you in {storageLabel}, collaborators won't see live edits, but your
-          own copy is safe.
-        {:else}
-          <strong>Real-time sync isn't available on this site.</strong>
-          Your notes stay on this device only.
-        {/if}
-      </span>
-      {#if !saved}
-        <span class="actions">
-          <button class="link" onclick={onConnectStorage}>Connect storage</button>
-        </span>
-      {/if}
-    {:else if !isP2P}
-      <span class="msg">
-        <strong>You're the only one here.</strong>
-        Edits go through the server, so whoever joins later will catch up. Invite
-        someone to write together now.
-      </span>
+    {:else if tier.kind === BannerTierKind.Unavailable && !tier.storageLabel}
       <span class="actions">
-        <button class="invite-cta" onclick={onShare}>Invite</button>
-      </span>
-    {:else if saved}
-      <span class="msg">
-        <strong>You're writing alone.</strong>
-        Kept for you in {storageLabel}, but a copy only you can open. No one sees your
-        edits live until they join. Invite someone to co-edit.
-      </span>
-      <span class="actions">
-        <button class="invite-cta" onclick={onShare}>Invite</button>
-      </span>
-    {:else}
-      <span class="msg">
-        <strong>You're writing to an empty room.</strong>
-        In peer-to-peer mode nothing you write leaves this device until someone joins.
-        Invite someone, or keep your own copy.
-      </span>
-      <span class="actions">
-        <button class="invite-cta" onclick={onShare}>Invite</button>
         <button class="link" onclick={onConnectStorage}>Connect storage</button>
       </span>
+    {:else if tier.kind === BannerTierKind.Alone}
+      <span class="actions">
+        <button class="invite-cta" onclick={onShare}>Invite</button>
+        {#if tier.variant === AloneVariant.Void}
+          <button class="link" onclick={onConnectStorage}>Connect storage</button>
+        {/if}
+        <button
+          class="more"
+          aria-expanded={expanded}
+          aria-controls="sync-banner-detail"
+          onclick={() => (expanded = !expanded)}
+        >
+          Details
+        </button>
+      </span>
     {/if}
+
+    {#if dismissible}
     <button
       class="dismiss ghost"
       onclick={() => (dismissed = true)}
@@ -267,17 +241,54 @@
     >
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
     </button>
+    {/if}
+
+    <!-- Last in the flex row so it wraps below the actions and the dismiss control at every width. -->
+    {#if tier.kind === BannerTierKind.Gated}
+      {#if expanded}
+        <p class="aside" id="sync-banner-detail" transition:slide={{ duration: reducedMotion ? NO_MOTION : DISCLOSE_MS }}>
+          Until then you can read, copy and export what this device already has.
+          {#if tier.transport === Transport.P2P}
+            In peer-to-peer mode nothing you write leaves this device until someone
+            receives it, so writing alone here would just be lost.
+          {:else}
+            The server keeps the list of who's present: when it says you're alone, you are.
+          {/if}
+        </p>
+      {/if}
+      {#if tier.transport === Transport.P2P && onWriteSolo}
+        <p class="aside">
+          Nothing you write leaves this device until someone joins.
+        </p>
+      {/if}
+    {:else if tier.kind === BannerTierKind.Alone && expanded}
+      <p class="aside" id="sync-banner-detail" transition:slide={{ duration: reducedMotion ? NO_MOTION : DISCLOSE_MS }}>
+        {#if tier.variant === AloneVariant.Relayed}
+          Edits travel through the collaboration server, so anyone who joins later
+          receives everything you write while alone.
+        {:else if tier.variant === AloneVariant.Saved}
+          A copy only you can open; nobody sees your edits live until they join.
+        {:else}
+          Peer-to-peer: your edits stay in this browser until someone joins, and the
+          local cache dies with this browser profile. Connect storage to keep a copy
+          of your own.
+        {/if}
+      </p>
+    {/if}
   </div>
 {/if}
 
 <style>
   .sync-banner {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--sp-3);
     flex-wrap: wrap;
     padding: var(--sp-2) var(--sp-4);
-    /* Own margin, not the parent's flex gap: `slide` animates margin alongside height, so removal shrinks smoothly instead of snapping shut. */
+    /* Reserve the corner the dismiss control is pinned to. */
+    padding-right: 44px;
+    /* Own margin, not the parent's flex gap: `slide` animates margin, so removal shrinks instead of snapping. */
     margin-bottom: var(--sp-4);
     background: color-mix(in srgb, var(--warn-soft) 55%, var(--surface-2));
     border: 1px solid color-mix(in srgb, var(--warn-border) 55%, var(--border));
@@ -286,7 +297,6 @@
     font-size: var(--fs-300);
     line-height: 1.4;
   }
-  /* No mobile margin-top: that clearance is .app's own top padding (app.css) instead. */
   .sync-banner.soft {
     background: var(--surface-2);
     border-color: var(--border);
@@ -309,6 +319,8 @@
   .msg {
     flex: 1;
     min-width: 12rem;
+    /* A peer display name is remote text and can be one unbroken token. */
+    overflow-wrap: anywhere;
   }
   .msg strong {
     color: var(--text);
@@ -320,16 +332,24 @@
     flex-wrap: wrap;
     gap: var(--sp-2);
   }
-  /* >=44px hit area (WCAG 2.5.5): grown via padding, not icon size. */
+  .aside {
+    flex: 1 0 100%;
+    margin: 0;
+    color: var(--text-faint);
+    line-height: 1.45;
+  }
+  /* Pinned, not laid out: as a flex item it wrapped onto a line of its own once the actions filled the row. */
   .dismiss {
-    flex-shrink: 0;
+    position: absolute;
+    top: 0;
+    right: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    /* >=44px hit area (WCAG 2.5.5) around a 13px glyph. */
     min-width: 44px;
     min-height: 44px;
     padding: 0;
-    margin: calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2)) 0;
     color: var(--text-faint);
     border: none;
   }
@@ -350,6 +370,29 @@
   }
   .invite-cta:hover {
     background: var(--accent-hover);
+  }
+  .more {
+    flex-shrink: 0;
+    min-height: 32px;
+    padding: 0.34rem 0.4rem;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--fs-300);
+    font-weight: 500;
+    line-height: 1.4;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .more:hover {
+    color: var(--text);
+  }
+  /* Touch needs the full 44px (WCAG 2.5.5); growing it everywhere would out-size the other action chips. */
+  @media (pointer: coarse) {
+    .more {
+      min-height: 44px;
+    }
   }
   .sync-banner :global(button.link) {
     flex-shrink: 0;

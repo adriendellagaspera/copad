@@ -1,4 +1,4 @@
-import type { Storage, DocContent, Filename } from './types.js';
+import type { DocContent, Filename, Storage, StorageLabel } from './types.js';
 import { DocFormat, StorageAccess } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
@@ -145,7 +145,7 @@ export function onedriveStorage(room: RoomId): { auth: StorageAuth; storage: Sto
 
   const storage: Storage = {
     id: STORAGE_ID.onedrive,
-    label: 'OneDrive (personal)',
+    label: 'OneDrive (personal)' as StorageLabel,
     blurb: 'Saves to a dedicated app folder in your personal OneDrive via OAuth — never the rest of your drive. Requires a Microsoft Entra Client ID in Settings.',
     availability: { ok: true },
 

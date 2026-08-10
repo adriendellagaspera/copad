@@ -1,4 +1,4 @@
-import type { Storage, CredentialField, LoginOptions, DocContent, Filename } from './types.js';
+import type { CredentialField, DocContent, Filename, LoginOptions, Storage, StorageLabel } from './types.js';
 import { DocFormat, InputType, LoginKind, StorageAccess } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { filenameStore } from './filename.js';
@@ -222,7 +222,7 @@ export function s3Storage(room: RoomId): { auth: StorageAuth; storage: Storage }
 
   const storage: Storage = {
     id: STORAGE_ID.s3,
-    label: 'S3-compatible',
+    label: 'S3-compatible' as StorageLabel,
     blurb: 'Saves to an S3-compatible bucket (AWS, Cloudflare R2, MinIO…). The bucket must allow CORS.',
     availability: { ok: true },
 
