@@ -261,7 +261,7 @@
     fragment.set('k', currentSecretKey() ?? mintSecretKey());
     history.replaceState(null, '', `${location.pathname}?${params.toString()}#${fragment.toString()}`);
   }
-  if (landing.fresh && route.kind === RouteKind.Room) startFreshRoom(landing.room);
+  if (landing.minted && route.kind === RouteKind.Room) startFreshRoom(landing.room);
 
   // Cooperative only: a modified client could ignore ?role=reader.
   function roleFromUrl(): SessionRole {
@@ -678,7 +678,7 @@
   const pagePath = location.pathname as PagePath;
 
   const engagement = $derived<RoomEngagement>({
-    askedFor: !landing.fresh || autofocusTitle,
+    askedFor: !landing.minted || autofocusTitle,
     writing: writeSoloAt !== null,
     accompanied: otherPeers.length > 0,
     named: roomName.value !== null,
