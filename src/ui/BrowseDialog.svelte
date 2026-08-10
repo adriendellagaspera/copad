@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { DialogOpen, DialogTitle } from './types.js';
   import type { StorageBackend } from '../storage/index.js';
   import type { Filename } from '../storage/types.js';
   import { docContentBytes } from '../storage/types.js';
@@ -12,11 +13,13 @@
     onclose,
     onImport,
   }: {
-    open: boolean;
+    open: DialogOpen;
     backend: StorageBackend | null;
     onclose: () => void;
     onImport: (bytes: Uint8Array, filename: Filename) => void;
   } = $props();
+
+  const title = $derived(`Browse ${backend?.storage.label ?? ''}` as DialogTitle);
 
   let files = $state<Filename[]>([]);
   let loading = $state(false);
@@ -65,7 +68,7 @@
   }
 </script>
 
-<Dialog {open} {onclose} title={`Browse ${backend?.storage.label ?? ''}`}>
+<Dialog {open} {onclose} title={title}>
   {#if loading}
     <p class="browse-status">Loading files…</p>
   {:else if error}

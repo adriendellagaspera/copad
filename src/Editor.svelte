@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { SpellcheckEnabled } from './ui/types.js';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { EditorState } from 'prosemirror-state';
   import type { Transaction } from 'prosemirror-state';
@@ -79,7 +80,7 @@
     connect: CollabConnect;
     toasts: Toasts;
     lang?: string;
-    spellcheck?: boolean;
+    spellcheck?: SpellcheckEnabled;
     /** When true the editor is read-only: the write gate (`writeGateFor()` in
      *  `App.svelte`) is holding. This component only reflects it. */
     writeLocked?: boolean;
@@ -101,7 +102,7 @@
 
   let {
     storage, name, color, room, role = SessionRole.Writer, selfProbeMarker = null, connect, toasts,
-    lang = 'en', spellcheck = true,
+    lang = 'en', spellcheck = true as SpellcheckEnabled,
     writeLocked = false, writeSoloAt = null, importRequest = null, onImportHandled, autofocusTitle = false,
   }: Props = $props();
 

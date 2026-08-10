@@ -1,11 +1,13 @@
 <script lang="ts">
+  import type { ExportBaseName } from '../format/download.js';
+  
   import { exportCodecs } from '../format/index.js';
   import { downloadBytes } from '../format/download.js';
   import { exportBridge } from '../editor/exportBridge.svelte.js';
   import type { ExportCodec } from '../format/types.js';
   import type { Toasts } from './toasts.svelte.js';
 
-  let { baseName, toasts, ondone }: { baseName: string; toasts: Toasts; ondone?: () => void } =
+  let { baseName, toasts, ondone }: { baseName: ExportBaseName; toasts: Toasts; ondone?: () => void } =
     $props();
 
   async function exportAs(codec: ExportCodec): Promise<void> {

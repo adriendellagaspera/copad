@@ -1,11 +1,12 @@
 <script lang="ts">
+  import type { StorageLabel } from '../storage/types.js';
+  import type { DialogOpen, DialogTitle, StorageAttached } from './types.js';
   import { tick } from 'svelte';
   import Dialog from './Dialog.svelte';
   import type { Toasts } from './toasts.svelte.js';
   import type { RoomId } from '../collaboration/types.js';
   import { Transport } from '../collaboration/types.js';
   import { roomPassword, clearRoomPassword, type RoomCredential } from '../collaboration/roomAccess.js';
-  import { parseRoomCredential } from '../collaboration/parse.js';
   import { currentSecretKey, clearSecretKey, rotateSecretKey } from '../collaboration/secretLink.js';
   import { rememberRoomEncryption, forgetRoomEncryption } from '../collaboration/roomLock.js';
   import { migrateRoomCache } from '../collaboration/cache.js';
@@ -39,18 +40,18 @@
     toasts,
     transport,
     envPassword,
-    saved = false,
+    saved = false as StorageAttached,
     storageLabel,
     onSecurityChange,
   }: {
-    open: boolean;
+    open: DialogOpen;
     onclose: () => void;
     room: RoomId;
     toasts: Toasts;
     transport: Transport;
-    envPassword?: string;
-    saved?: boolean;
-    storageLabel?: string;
+    envPassword?: RoomCredential | null;
+    saved?: StorageAttached;
+    storageLabel?: StorageLabel;
     onSecurityChange?: () => void;
   } = $props();
 
@@ -66,6 +67,9 @@
   let linkKey = $state<RoomCredential | null>(null);
   let storedPw = $state<RoomCredential | null>(null);
   let view = $state<ShareView>(ShareView.Invite);
+  const title = $derived(
+    (view === ShareView.Security ? 'Document security' : 'Share this document') as DialogTitle,
+  );
   let role = $state<InviteRole>(InviteRole.Editor);
   let exposure = $state<LinkExposure>(LinkExposure.Unshared);
   let copyFeedback = $state<CopyFeedback>(CopyFeedback.Idle);
@@ -96,7 +100,7 @@
       transport,
       linkKey,
       storedPassword: storedPw,
-      envPassword: parseRoomCredential(envPassword ?? null),
+      envPassword: envPassword ?? null,
     }),
   );
 
@@ -232,7 +236,7 @@
   }
 </script>
 
-<Dialog {open} {onclose} title={view === ShareView.Security ? 'Document security' : 'Share this document'}>
+<Dialog {open} {onclose} title={title}>
   {#if view === ShareView.Invite}
     <p class="share-hint">
       Anyone with this link joins and edits in real time{transport === Transport.P2P

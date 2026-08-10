@@ -1,19 +1,20 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import type { DialogFlush, DialogOpen, DialogTitle } from './types.js';
 
   let {
     open,
     onclose,
     title,
     size = 'sm',
-    flush = false,
+    flush = false as DialogFlush,
     children,
   }: {
-    open: boolean;
+    open: DialogOpen;
     onclose: () => void;
-    title: string;
+    title: DialogTitle;
     size?: 'sm' | 'lg';
-    flush?: boolean;
+    flush?: DialogFlush;
     children: Snippet;
   } = $props();
 
