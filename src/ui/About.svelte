@@ -6,7 +6,6 @@
   import { STORAGE_ID } from '../storage/constants.js';
   import { SaveStatus } from './types.js';
   import { ConnStatus, PresenceKind, Transport } from '../collaboration/types.js';
-  import type { CursorColor, DisplayName } from '../collaboration/types.js';
   import type { PagePath } from '../collaboration/roomHistory.js';
   import {
     CONTRACT_URL,
@@ -14,7 +13,8 @@
     LICENSE_URL,
     PRIVACY_URL,
     REPO_URL,
-    TransportClaim,
+    SPECIMEN_PEERS,
+    claimsEncryption,
     transportCopyFor,
   } from './aboutCopy.js';
 
@@ -29,22 +29,9 @@
   } = $props();
 
   const copy = $derived(transportCopyFor(transport));
-  const encrypted = $derived(copy.claim === TransportClaim.EndToEnd);
-  const linkLead = $derived(copy.linkBody[0]);
-  const linkRest = $derived(copy.linkBody.slice(1));
+  const encrypted = $derived(claimsEncryption(copy));
 
   const githubMark = BRAND_ICONS[STORAGE_ID.github];
-
-  interface DemoPeer {
-    readonly name: DisplayName;
-    readonly color: CursorColor;
-  }
-
-  const demoPeers: readonly DemoPeer[] = [
-    { name: 'Ada Lovelace' as DisplayName, color: '#2563eb' as CursorColor },
-    { name: 'Kai' as DisplayName, color: '#16a34a' as CursorColor },
-    { name: 'Rosa Mendes' as DisplayName, color: '#d97706' as CursorColor },
-  ];
 
   function noop(): void {}
 </script>
@@ -124,7 +111,7 @@
         <article class="col col-identity">
           <h3>Nobody signs up</h3>
           <div class="demo demo-peers">
-            {#each demoPeers as peer (peer.name)}
+            {#each SPECIMEN_PEERS as peer (peer.name)}
               <Avatar name={peer.name} color={peer.color} size={32} />
             {/each}
           </div>
@@ -144,8 +131,8 @@
 
         <article class="col col-link">
           <h3>{copy.linkTitle}</h3>
-          <p class="lead">{linkLead}</p>
-          {#each linkRest as line (line)}
+          <p class="lead">{copy.linkLead}</p>
+          {#each copy.linkRest as line (line)}
             <p>{line}</p>
           {/each}
           <p class="fine">{copy.linkGrant}</p>
@@ -157,7 +144,7 @@
         <p class="gate-lead">{copy.gateLead}</p>
         <div class="demo demo-banner" inert>
           <SyncBanner
-      dismissible={false}
+            dismissible={false}
             conn={ConnStatus.Waiting}
             presenceKind={PresenceKind.Alone}
             {transport}
@@ -255,7 +242,7 @@
 </div>
 
 <style>
-  /* body is overflow:hidden (base.css) — this page owns its scroll, like .content does in the editor. */
+  /* body is overflow:hidden (base.css), so this page owns its scroll. */
   .about {
     height: 100vh;
     height: 100dvh;
@@ -271,8 +258,7 @@
     flex-direction: column;
   }
 
-  /* app.css hides header.capsule below 900px, where the app moves to its bottom
-     dock; this page has no dock, so the capsule stays. */
+  /* app.css hides header.capsule below 900px for the bottom dock; this page has no dock. */
   @media (pointer: coarse), (max-width: 900px) {
     header.capsule.about-capsule {
       display: flex;
@@ -397,8 +383,6 @@
     line-height: var(--lh-tight);
   }
 
-  /* Lead sentence first, detail after: the page exists to shrink walls of muted
-     small type, so it must not build one. */
   .col {
     display: flex;
     flex-direction: column;
@@ -487,8 +471,6 @@
     color: var(--text-faint);
   }
 
-  /* One shared frame for every mounted specimen: it reads as an exhibit, and the
-     components inside keep their own product styling untouched. */
   .demo {
     display: flex;
     flex-wrap: wrap;
@@ -539,7 +521,6 @@
     margin-bottom: 0;
     padding-right: var(--sp-4);
   }
-  /* A specimen cannot be dismissed, so it must not show the control. */
 
   .foot {
     display: flex;

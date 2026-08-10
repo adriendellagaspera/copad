@@ -17,14 +17,9 @@
     saveStatus: SaveStatus;
     hasStorage: boolean;
     storageLabel?: string;
-    /** A file-collision warning (another room saves to the same file). Outranks
-     *  the durability state. */
     warning?: string;
     transport: Transport;
     encrypted?: boolean;
-    /** Keep the labels visible on a narrow viewport, where the header clips them
-     *  to two glyphs. Opt-in: only a surface where the labels *are* the point
-     *  (the About page) has room for them below 720px. */
     keepLabels?: boolean;
     onclick?: () => void;
   } = $props();
@@ -155,8 +150,7 @@
 </svelte:element>
 
 <style>
-  /* Flush segment, not a boxed chip — it lives inside the header capsule (or the
-     mobile dock), which already supplies the pill. */
+  /* Flush, not boxed: the header capsule and the mobile dock already supply the pill. */
   .chip {
     display: inline-flex;
     align-items: center;
@@ -193,8 +187,7 @@
     color: var(--ok);
   }
   .seg.warn {
-    /* --warn-text, not --warn: this colors the visible label text (~3:1 on
-       --surface-2 with --warn, below AA's 4.5:1 for normal text). */
+    /* --warn-text, not --warn: --warn is ~3:1 on --surface-2, below AA's 4.5:1 for text. */
     color: var(--warn-text);
   }
   .seg.danger {
@@ -248,8 +241,7 @@
       animation: none;
     }
   }
-  /* On a narrow header the chip collapses to its two glyphs; labels are clipped
-     rather than removed so screen readers still announce them. */
+  /* Clipped rather than removed, so screen readers still announce the labels. */
   @media (max-width: 720px) {
     .chip:not(.keep-labels) .seg-label {
       position: absolute;

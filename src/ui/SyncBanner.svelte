@@ -45,7 +45,6 @@
     waitingSince?: EpochMs | null;
     departedPeerName?: string | null;
     withinDepartureLinger?: boolean;
-    /** False on a specimen: a control that cannot act is worse than none. */
     dismissible?: boolean;
     onShare: () => void;
     onConnectStorage: () => void;
@@ -82,8 +81,6 @@
   const tone = $derived(bannerToneFor(tier));
   const signature = $derived(tierSignature(tier));
 
-  // Dismissing never traps anyone: the gate lives on the editor, so hiding the
-  // strip only drops the explanation until the tier changes.
   let dismissed = $state(false);
   let expanded = $state(false);
   $effect(() => {
@@ -97,7 +94,7 @@
   const reducedMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Fades opacity over the first 60% (not `slide`'s last 5%) so the strip is invisible before it's squashed short enough for the border-radius to look wrong.
+  // Fades over the first 60%, not `slide`'s last 5%: below that height the border-radius looks wrong.
   function bannerOut(node: Element, { duration = 220 }: { duration?: number } = {}) {
     const style = getComputedStyle(node);
     const opacity = +style.opacity;
@@ -147,8 +144,7 @@
       {/if}
     </span>
 
-    <!-- The live region is the sentence alone: a tier change is worth announcing,
-         opening the disclosure or a button appearing is not. -->
+    <!-- The live region is the sentence alone: opening the disclosure must not announce. -->
     <span class="msg" role="status" aria-live="polite">
       {#if tier.kind === BannerTierKind.Gated}
         <strong>You're the only one here.</strong>
@@ -231,18 +227,17 @@
     {/if}
 
     {#if dismissible}
-    <button
-      class="dismiss ghost"
-      onclick={() => (dismissed = true)}
-      aria-label="Dismiss"
-      title="Dismiss"
-    >
-      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
-    </button>
+      <button
+        class="dismiss ghost"
+        onclick={() => (dismissed = true)}
+        aria-label="Dismiss"
+        title="Dismiss"
+      >
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
+      </button>
     {/if}
 
-    <!-- Last in the flex row so it wraps onto its own line below the actions and
-         the dismiss control, at every width. -->
+    <!-- Last in the flex row so it wraps onto its own line, at every width. -->
     {#if tier.kind === BannerTierKind.Gated}
       {#if expanded}
         <p class="aside" id="sync-banner-detail" transition:slide={{ duration: reducedMotion ? 0 : 150 }}>
@@ -278,7 +273,6 @@
 {/if}
 
 <style>
-  /* Faintly amber-tinted surface, not a saturated warning field: the tone is carried by the icon, not by dyeing the whole bar. */
   .sync-banner {
     position: relative;
     display: flex;
@@ -288,7 +282,7 @@
     padding: var(--sp-2) var(--sp-4);
     /* Reserve the corner the dismiss control is pinned to. */
     padding-right: 44px;
-    /* Own margin, not the parent's flex gap: `slide` animates margin alongside height, so removal shrinks smoothly instead of snapping shut. */
+    /* Own margin, not the parent's flex gap: `slide` animates margin alongside height. */
     margin-bottom: var(--sp-4);
     background: color-mix(in srgb, var(--warn-soft) 55%, var(--surface-2));
     border: 1px solid color-mix(in srgb, var(--warn-border) 55%, var(--border));
@@ -358,7 +352,6 @@
     color: var(--text);
     background: color-mix(in srgb, var(--text) 7%, transparent);
   }
-  /* Primary: a filled accent chip. */
   .invite-cta {
     padding: 0.34rem 0.9rem;
     border: 1px solid transparent;
@@ -373,7 +366,6 @@
   .invite-cta:hover {
     background: var(--accent-hover);
   }
-  /* Quiet disclosure, deliberately not a ghost button, so it never competes with the tier's real action. */
   .more {
     flex-shrink: 0;
     min-height: 32px;
@@ -397,7 +389,6 @@
       min-height: 44px;
     }
   }
-  /* Secondary: a real ghost button (transparent + border), so "Connect storage" reads as the alternative button it is, not a link. */
   .sync-banner :global(button.link) {
     flex-shrink: 0;
     padding: 0.34rem 0.9rem;

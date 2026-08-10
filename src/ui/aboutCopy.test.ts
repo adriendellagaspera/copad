@@ -2,20 +2,24 @@ import { describe, it, expect } from 'vitest';
 import { Transport } from '../collaboration/types.js';
 import {
   TransportClaim,
+  claimsEncryption,
   transportCopyFor,
   CONTRACT_URL,
   PRIVACY_URL,
   LICENSE_URL,
   DEPLOY_URL,
   REPO_URL,
+  type AboutHeading,
+  type AboutLine,
   type TransportCopy,
 } from './aboutCopy.js';
 
-function everyLine(copy: TransportCopy): string[] {
+function everyLine(copy: TransportCopy): readonly (AboutLine | AboutHeading)[] {
   return [
     copy.heroCaption,
     copy.linkTitle,
-    ...copy.linkBody,
+    copy.linkLead,
+    ...copy.linkRest,
     copy.linkGrant,
     copy.gateLead,
     copy.gateNote,
@@ -26,6 +30,8 @@ describe('transportCopyFor', () => {
   it('claims end-to-end encryption only on the peer-to-peer transport', () => {
     expect(transportCopyFor(Transport.P2P).claim).toBe(TransportClaim.EndToEnd);
     expect(transportCopyFor(Transport.Hub).claim).toBe(TransportClaim.Relayed);
+    expect(claimsEncryption(transportCopyFor(Transport.P2P))).toBe(true);
+    expect(claimsEncryption(transportCopyFor(Transport.Hub))).toBe(false);
   });
 
   it('never promises encryption or privacy from the server on a hub deployment', () => {
@@ -46,7 +52,8 @@ describe('transportCopyFor', () => {
   });
 
   it('explains the unrecoverable key by its cause', () => {
-    expect(transportCopyFor(Transport.P2P).linkBody.join(' ')).toMatch(
+    const p2p = transportCopyFor(Transport.P2P);
+    expect([p2p.linkLead, ...p2p.linkRest].join(' ')).toMatch(
       /because the key never leaves your browser/i,
     );
   });
