@@ -1,6 +1,8 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
-  import { Transport } from '../collaboration/types.js';
+  import type { Transport } from '../collaboration/types.js';
+  import { IntroReach, introReachFor } from './firstVisitIntroReach.js';
+  import type { Milliseconds } from '../time.js';
 
   let {
     transport,
@@ -8,26 +10,27 @@
     onConnectStorage,
     onAbout,
   }: {
-    /** Gates the encryption claim: the hub relays plaintext (contract §2). */
     transport: Transport;
-    /** Invite someone — the action that opens writing (contract §4.2). */
     onShare: () => void;
-    /** Open Settings to connect a storage backend. */
     onConnectStorage: () => void;
-    /** Open the fuller explanation; the action is hidden while unwired. */
     onAbout?: () => void;
   } = $props();
+
+  const reach = $derived(introReachFor(transport));
+
+  const EXIT_DURATION = 200 as Milliseconds;
+  const NO_DURATION = 0 as Milliseconds;
 
   // base.css's reduced-motion reset only catches CSS transitions, not Svelte's JS ones.
   const reducedMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const exitDuration: Milliseconds = reducedMotion ? NO_DURATION : EXIT_DURATION;
 </script>
 
-<!-- No dismiss control: it leaves by being used, never by being refused. -->
-<aside class="first-visit" out:slide={{ duration: reducedMotion ? 0 : 200 }}>
+<aside class="first-visit" out:slide={{ duration: exitDuration }}>
   <p class="fv-body">
     <strong>Copad is a room, not a document server.</strong>
-    {#if transport === Transport.P2P}
+    {#if reach === IntroReach.Encrypted}
       Your words go browser to browser, end-to-end encrypted.
     {:else}
       Your words pass through this deployment's sync server, which can read them.
