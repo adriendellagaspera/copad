@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { RoomId } from '../collaboration/types.js';
+import { Transport } from '../collaboration/types.js';
 import type { RoomCredential } from '../collaboration/roomAccess.js';
 import {
   InviteRole,
@@ -23,13 +24,14 @@ const cred = (s: string) => s as RoomCredential;
 
 describe('roomSecurity', () => {
   it('is None when nothing protects the room', () => {
-    expect(roomSecurity({ linkKey: null, storedPassword: null, envPassword: null })).toEqual({
+    expect(roomSecurity({ transport: Transport.P2P, linkKey: null, storedPassword: null, envPassword: null })).toEqual({
       kind: RoomSecurityKind.None,
     });
   });
 
   it('reports a deployment-wide key when only the env password is set', () => {
     const security = roomSecurity({
+      transport: Transport.P2P,
       linkKey: null,
       storedPassword: null,
       envPassword: cred('site-wide'),
@@ -39,6 +41,7 @@ describe('roomSecurity', () => {
 
   it('prefers a stored password over the deployment key', () => {
     const security = roomSecurity({
+      transport: Transport.P2P,
       linkKey: null,
       storedPassword: cred('mine'),
       envPassword: cred('site-wide'),
@@ -48,6 +51,7 @@ describe('roomSecurity', () => {
 
   it('prefers the link key over every other source', () => {
     const security = roomSecurity({
+      transport: Transport.P2P,
       linkKey: cred('abc'),
       storedPassword: cred('mine'),
       envPassword: cred('site-wide'),
@@ -57,6 +61,7 @@ describe('roomSecurity', () => {
 
   it('treats every arm but None as encrypted', () => {
     expect(isEncrypted({ kind: RoomSecurityKind.None })).toBe(false);
+    expect(isEncrypted({ kind: RoomSecurityKind.Relayed })).toBe(false);
     expect(isEncrypted({ kind: RoomSecurityKind.SecretLink, key: cred('a') })).toBe(true);
     expect(isEncrypted({ kind: RoomSecurityKind.Password, password: cred('a') })).toBe(true);
     expect(isEncrypted({ kind: RoomSecurityKind.Deployment, password: cred('a') })).toBe(true);
@@ -126,5 +131,24 @@ describe('share channels', () => {
     expect(emailShareUrl(message)).toBe(
       'mailto:?subject=Join%20me%20on%20Copad&body=Join%20me%20on%20Copad%3A%20https%3A%2F%2Fcopad.example%2Fapp%2F%3Froom%3Droom-1',
     );
+  });
+});
+
+describe('roomSecurity on the hub transport', () => {
+  const everySource = {
+    linkKey: cred('abc'),
+    storedPassword: cred('mine'),
+    envPassword: cred('site-wide'),
+  };
+
+  it('reports Relayed even when every credential is present', () => {
+    expect(roomSecurity({ transport: Transport.Hub, ...everySource })).toEqual({
+      kind: RoomSecurityKind.Relayed,
+    });
+  });
+
+  it('never claims encryption on the hub, whatever the sources', () => {
+    expect(isEncrypted(roomSecurity({ transport: Transport.Hub, ...everySource }))).toBe(false);
+    expect(isEncrypted(roomSecurity({ transport: Transport.P2P, ...everySource }))).toBe(true);
   });
 });

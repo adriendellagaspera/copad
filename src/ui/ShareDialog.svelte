@@ -3,6 +3,7 @@
   import Dialog from './Dialog.svelte';
   import type { Toasts } from './toasts.svelte.js';
   import type { RoomId } from '../collaboration/types.js';
+  import { Transport } from '../collaboration/types.js';
   import { roomPassword, setRoomPassword, clearRoomPassword, type RoomCredential } from '../collaboration/roomAccess.js';
   import { parseRoomCredential } from '../collaboration/parse.js';
   import { currentSecretKey, clearSecretKey, rotateSecretKey } from '../collaboration/secretLink.js';
@@ -36,6 +37,7 @@
     onclose,
     room,
     toasts,
+    transport,
     envPassword,
     saved = false,
     storageLabel,
@@ -45,6 +47,7 @@
     onclose: () => void;
     room: RoomId;
     toasts: Toasts;
+    transport: Transport;
     envPassword?: string;
     saved?: boolean;
     storageLabel?: string;
@@ -92,6 +95,7 @@
   const url = $derived(shareUrl(appUrl, room, role, linkKey));
   const security = $derived(
     roomSecurity({
+      transport,
       linkKey,
       storedPassword: storedPw,
       envPassword: parseRoomCredential(envPassword ?? null),
@@ -250,7 +254,11 @@
 
 <Dialog {open} {onclose} title={view === ShareView.Security ? 'Document security' : 'Share this document'}>
   {#if view === ShareView.Invite}
-    <p class="share-hint">Anyone with this link joins and edits in real time: peer-to-peer, no account needed.</p>
+    <p class="share-hint">
+      Anyone with this link joins and edits in real time{transport === Transport.P2P
+        ? ': peer-to-peer, no account needed.'
+        : ', through this deployment\u2019s relay server. No account needed.'}
+    </p>
 
     <div class="role-row">
       <div class="role-select" role="group" aria-label="What the invite link opens">
@@ -265,7 +273,7 @@
           </button>
         {/each}
       </div>
-      {#if linkKey}
+      {#if isEncrypted(security)}
         <span class="key-badge" title="This link includes the encryption key">
           <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M16 3l3 3M13 6l3 3" /></svg>
           Key included
@@ -318,7 +326,7 @@
         can remove <code>role=reader</code> from the URL and edit. Use it to signal intent among
         people you already trust, never to keep someone out.
       </p>
-    {:else if linkKey}
+    {:else if isEncrypted(security)}
       <p class="role-caveat">
         <strong>This link carries the document's encryption key</strong>: anyone who gets it can read
         the document, so send it the way you'd send a password.
@@ -356,6 +364,9 @@
           {:else}
             This deployment's shared key protects every document.
           {/if}
+        {:else if security.kind === RoomSecurityKind.Relayed}
+          <strong>Not encrypted</strong>: this deployment relays every document through its
+          server, which sees the text.
         {:else}
           <strong>Not encrypted</strong>: anyone who has the link can read this document.
         {/if}
@@ -398,7 +409,13 @@
         {/if}
       </p>
 
-      {#if security.kind === RoomSecurityKind.SecretLink}
+      {#if security.kind === RoomSecurityKind.Relayed}
+        <p class="sec-note">
+          <strong>This deployment can't encrypt documents.</strong> It syncs through a relay server,
+          which is in the data path and sees the text. There is no key to add: end-to-end encryption
+          needs the peer-to-peer transport.
+        </p>
+      {:else if security.kind === RoomSecurityKind.SecretLink}
         <p class="sec-note">
           <strong>Secure link.</strong> Anyone with the full link can read this document: the key
           travels inside the link itself, never through our servers.
@@ -454,6 +471,7 @@
         </small>
       {/if}
 
+      {#if security.kind !== RoomSecurityKind.Relayed}
       <details class="sec-details">
         <summary>How this works</summary>
         The key lives in the link's <code>#</code> fragment (or, for a password, on each device):
@@ -461,6 +479,7 @@
         locally. It protects the peer-to-peer (WebRTC) transport only: a WebSocket hub relay can't
         be end-to-end encrypted.
       </details>
+      {/if}
     </section>
   {/if}
 </Dialog>

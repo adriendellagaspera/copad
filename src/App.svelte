@@ -112,6 +112,7 @@
 
   let fetchedIce = $state<IceServer[]>([]);
   const usesIce = resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) !== 'websocket';
+  const transport: Transport = usesIce ? Transport.P2P : Transport.Hub;
   const iceServersUrl = usesIce ? resolveIceServersUrl(import.meta.env.VITE_ICE_SERVERS_URL) : undefined;
   // Resolved before the first mount, not after: a post-mount rebuild races
   // y-webrtc's async room deregistration (`openRoom()` throws "already exists").
@@ -982,6 +983,7 @@
   onclose={() => (shareOpen = false)}
   {room}
   {toasts}
+  {transport}
   envPassword={import.meta.env.VITE_ROOM_PASSWORD}
   saved={savedHere}
   storageLabel={savedHere ? storage?.storage.label : undefined}
