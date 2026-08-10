@@ -34,6 +34,7 @@
     onCacheClear,
     turnPrefs,
     onTurnChange,
+    focusAdvanced = false,
     languageChoice = LANGUAGE_AUTO,
     spellcheck = true,
     onLanguageChange,
@@ -54,6 +55,7 @@
     onCacheClear?: () => void | Promise<void>;
     turnPrefs?: TurnPrefs;
     onTurnChange?: (p: TurnPrefs) => void;
+    focusAdvanced?: boolean;
     languageChoice?: LanguageChoice;
     spellcheck?: boolean;
     onLanguageChange?: (lang: LanguageChoice) => void;
@@ -128,12 +130,14 @@
   let rawUsername = $state('');
   let rawCredential = $state('');
   let turnFallback = $state<FallbackTurnPolicy>(FallbackTurnPolicy.OpenRelay);
+  let advancedOpen = $state(false);
   $effect(() => {
     if (open) {
       rawUrl = (turnPrefs?.urls ?? []).join(', ');
       rawUsername = turnPrefs?.username ?? '';
       rawCredential = turnPrefs?.credential ?? '';
       turnFallback = turnPrefs?.fallback ?? FallbackTurnPolicy.OpenRelay;
+      advancedOpen = focusAdvanced || (turnPrefs?.urls.length ?? 0) > 0;
     }
   });
   function applyTurn() {
@@ -149,13 +153,17 @@
     });
   }
 
-  const turnStatus = $derived(
-    rawUrl.trim()
-      ? 'Custom relay'
-      : turnFallback === FallbackTurnPolicy.OpenRelay
-        ? 'Public relay active'
-        : 'No relay configured'
-  );
+  type TurnRelayStatus = 'custom' | 'public' | 'none';
+  function turnRelayStatus(url: string, fallback: FallbackTurnPolicy): TurnRelayStatus {
+    if (url.trim()) return 'custom';
+    return fallback === FallbackTurnPolicy.OpenRelay ? 'public' : 'none';
+  }
+  const turnStatus = $derived(turnRelayStatus(rawUrl, turnFallback));
+  const TURN_STATUS_LABEL: Record<TurnRelayStatus, string> = {
+    custom: 'Custom relay',
+    public: 'Public relay active',
+    none: 'No relay configured',
+  };
 
   type StatusRank = 'connected' | 'ready' | 'setup' | 'unavailable';
   const RANK_ORDER: Record<StatusRank, number> = { connected: 0, ready: 1, setup: 2, unavailable: 3 };
@@ -358,49 +366,54 @@
   </section>
 
   {#if onTurnChange}
-    <section class="backend">
-      <div class="backend-head">
-        <span class="backend-name">Connection (WebRTC)</span>
-        <span class="badge {turnStatus === 'No relay configured' ? '' : 'ok'}">{turnStatus}</span>
-      </div>
-      <p class="backend-blurb">
-        Peer-to-peer needs a TURN relay to connect across mobile carrier networks
-        (CGNAT / symmetric NAT). A free public relay is used by default; add your
-        own for reliability. Changes apply on the next reconnect.
-      </p>
-      <label class="toggle">
-        <input
-          type="checkbox"
-          checked={turnFallback === FallbackTurnPolicy.OpenRelay}
-          onchange={e => (turnFallback = e.currentTarget.checked ? FallbackTurnPolicy.OpenRelay : FallbackTurnPolicy.None)}
-        />
-        <span>Use a public TURN relay when none is configured</span>
-      </label>
-      <label class="field">
-        <span class="field-label">TURN URL(s)</span>
-        <input
-          placeholder="turns:your-turn.example:5349"
-          value={rawUrl}
-          oninput={e => (rawUrl = e.currentTarget.value)}
-        />
-        <small class="field-help">Comma-separated. Overrides both the default and any deployment TURN.</small>
-      </label>
-      <label class="field">
-        <span class="field-label">TURN username</span>
-        <input value={rawUsername} oninput={e => (rawUsername = e.currentTarget.value)} />
-      </label>
-      <label class="field">
-        <span class="field-label">TURN credential</span>
-        <input
-          type="password"
-          value={rawCredential}
-          oninput={e => (rawCredential = e.currentTarget.value)}
-        />
-      </label>
-      <div class="backend-actions">
-        <button class="primary" onclick={applyTurn}>Apply &amp; reconnect</button>
-      </div>
-    </section>
+    <details class="advanced" bind:open={advancedOpen}>
+      <summary class="advanced-summary">
+        <span class="advanced-summary-label">Advanced</span>
+        <span class="badge {turnStatus === 'none' ? '' : 'ok'}">{TURN_STATUS_LABEL[turnStatus]}</span>
+      </summary>
+      <section class="backend advanced-body">
+        <div class="backend-head">
+          <span class="backend-name">Connection (WebRTC)</span>
+        </div>
+        <p class="backend-blurb">
+          Peer-to-peer needs a TURN relay to connect across mobile carrier networks
+          (CGNAT / symmetric NAT). A free public relay is used by default; add your
+          own for reliability. Changes apply on the next reconnect.
+        </p>
+        <label class="toggle">
+          <input
+            type="checkbox"
+            checked={turnFallback === FallbackTurnPolicy.OpenRelay}
+            onchange={e => (turnFallback = e.currentTarget.checked ? FallbackTurnPolicy.OpenRelay : FallbackTurnPolicy.None)}
+          />
+          <span>Use a public TURN relay when none is configured</span>
+        </label>
+        <label class="field">
+          <span class="field-label">TURN URL(s)</span>
+          <input
+            placeholder="turns:your-turn.example:5349"
+            value={rawUrl}
+            oninput={e => (rawUrl = e.currentTarget.value)}
+          />
+          <small class="field-help">Comma-separated. Overrides both the default and any deployment TURN.</small>
+        </label>
+        <label class="field">
+          <span class="field-label">TURN username</span>
+          <input value={rawUsername} oninput={e => (rawUsername = e.currentTarget.value)} />
+        </label>
+        <label class="field">
+          <span class="field-label">TURN credential</span>
+          <input
+            type="password"
+            value={rawCredential}
+            oninput={e => (rawCredential = e.currentTarget.value)}
+          />
+        </label>
+        <div class="backend-actions">
+          <button class="primary" onclick={applyTurn}>Apply &amp; reconnect</button>
+        </div>
+      </section>
+    </details>
   {/if}
 {/snippet}
 
