@@ -15,3 +15,4 @@ export type SaveStatus = (typeof SaveStatus)[keyof typeof SaveStatus];
 export type ConflictWarning = string & { readonly _brand: 'ConflictWarning' };
 export type StorageAttached = boolean & { readonly _brand: 'StorageAttached' };
 export type RoomEncrypted = boolean & { readonly _brand: 'RoomEncrypted' };
+export type KeepSegmentLabels = boolean & { readonly _brand: 'KeepSegmentLabels' };
