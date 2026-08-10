@@ -11,7 +11,9 @@ import 'prosemirror-view/style/prosemirror.css';
 applySharedNavigation(parseSharedNavigation(location.search));
 
 if ('serviceWorker' in navigator) {
-  void navigator.serviceWorker.register('/sw.js');
+  // BASE_URL, not "/sw.js": a subpath build (--base=/copad/) would otherwise
+  // register at the origin root, where nothing is served. See ui/imageIcons.ts.
+  void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
 }
 
 mount(App, { target: document.getElementById('root')! });

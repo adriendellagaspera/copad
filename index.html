@@ -3,11 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Copad — collaborative writing</title>
+    <title>Copad — write together while you're both here</title>
     <meta
       name="description"
-      content="Copad is a real-time collaborative writing tool. Write together peer-to-peer, no server required, and save to your own cloud storage."
+      content="Share a link and write together in real time. Text moves directly between browsers — no account, nothing stored for you. What you want to keep, you save to your own cloud storage."
     />
+
+    <!-- Preview-card URLs stay document-relative, and there is no og:url: Copad is
+         self-hosted at origins and base paths this build cannot know, so a baked-in
+         absolute URL would point every third-party deployment at somebody else's
+         host. Crawlers fall back to the URL they fetched, which is the only
+         canonical one that exists here. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Copad" />
+    <meta property="og:title" content="Copad — write together while you're both here" />
+    <meta
+      property="og:description"
+      content="Share a link and write together in real time. Text moves directly between browsers — no account, nothing stored for you. What you want to keep, you save to your own cloud storage."
+    />
+    <meta property="og:image" content="./og-card.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="A sheet of paper carrying two people's live cursors, labelled Ada and Rui."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:image:alt"
+      content="A sheet of paper carrying two people's live cursors, labelled Ada and Rui."
+    />
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
