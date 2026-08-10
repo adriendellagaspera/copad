@@ -24,6 +24,12 @@ describe('About', () => {
     expect(page).toContain("You're the only one here.");
   });
 
+  it('holds the room specimen — its address and its live state — beside the hero', () => {
+    expect(html(Transport.P2P)).toMatch(
+      /class="hero-exhibit[^"]*"[\s\S]*?url-id[\s\S]*?keep-labels/,
+    );
+  });
+
   it('shows the write gate with its peer-to-peer escape hatch, and its cost', () => {
     const page = html(Transport.P2P);
     expect(page).toContain('Write alone anyway');
