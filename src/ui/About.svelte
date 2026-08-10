@@ -157,6 +157,7 @@
         <p class="gate-lead">{copy.gateLead}</p>
         <div class="demo demo-banner" inert>
           <SyncBanner
+      dismissible={false}
             conn={ConnStatus.Waiting}
             presenceKind={PresenceKind.Alone}
             {transport}
@@ -539,9 +540,6 @@
     padding-right: var(--sp-4);
   }
   /* A specimen cannot be dismissed, so it must not show the control. */
-  .demo-banner :global(.dismiss) {
-    display: none;
-  }
 
   .foot {
     display: flex;
