@@ -15,11 +15,8 @@
      docs/contract.md §7, "One-time dialogs, when they *are* right"). -->
 <aside class="storage-intro">
   <p class="si-body">
-    <strong>Where this goes.</strong> Copad has no server of its own: what you write
-    travels straight to whoever is in the room with you, and a copy stays in this
-    browser so a reload finds it again. That copy is not a backup — it lives and
-    dies with this browser profile. Connect storage of your own and the document
-    becomes a real file that outlives all of it.
+    <strong>Nothing here is saved yet.</strong> This document lives in this browser
+    only, and goes when it does.
   </p>
   <div class="si-actions">
     <button onclick={onConnectStorage}>Connect storage</button>
