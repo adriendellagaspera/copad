@@ -24,6 +24,8 @@ One rule, two ways to satisfy it.
 
 Neither → **read only**. You can read, scroll, select, copy and export. You cannot type.
 
+The rule has a mirror image, load-bearing everywhere below and never stated on its own until now: **a room has no owner and no memory.** Its text lives in the browsers present and in each device's local cache — nowhere else. A key reopens the door, not the document: whoever returns to an empty room finds what their own device kept, never what was written since. No copy is canonical, and none is a *copy* of another: two that meet reconcile, each side's writing surviving, nothing overwritten.
+
 ### 1.1 What the lock is for
 
 The lock does not punish solitude. It refuses to **fake durability**.
