@@ -6,6 +6,10 @@ export type SharedNavigation = { kind: 'room'; room: RoomId; key: RoomCredential
 
 const URL_IN_TEXT = /https?:\/\/\S+/g;
 
+const SHARE_FIELDS = ['url', 'text', 'title'] as const;
+
+const carriesShare = (params: URLSearchParams): boolean => SHARE_FIELDS.some((f) => params.has(f));
+
 function roomLinkIn(candidate: string): { room: RoomId; key: RoomCredential | null } | null {
   const matches = candidate.match(URL_IN_TEXT);
   if (!matches) return null;
@@ -27,8 +31,8 @@ function roomLinkIn(candidate: string): { room: RoomId; key: RoomCredential | nu
 /** Web Share Target spec delivers shared content as `title`/`text`/`url` query params. */
 export function parseSharedNavigation(search: string): SharedNavigation {
   const params = new URLSearchParams(search);
-  if (!params.has('url') && !params.has('text') && !params.has('title')) return { kind: 'none' };
-  for (const field of ['url', 'text', 'title']) {
+  if (!carriesShare(params)) return { kind: 'none' };
+  for (const field of SHARE_FIELDS) {
     const candidate = params.get(field);
     if (!candidate) continue;
     const link = roomLinkIn(candidate);
@@ -42,8 +46,10 @@ export function applySharedNavigation(nav: SharedNavigation): void {
   if (typeof location === 'undefined' || typeof history === 'undefined') return;
   if (nav.kind === 'none') {
     const params = new URLSearchParams(location.search);
-    if (!params.has('url') && !params.has('text') && !params.has('title')) return;
-    history.replaceState(null, '', location.pathname);
+    if (!carriesShare(params)) return;
+    for (const field of SHARE_FIELDS) params.delete(field);
+    const rest = params.toString();
+    history.replaceState(null, '', `${location.pathname}${rest ? `?${rest}` : ''}${location.hash}`);
     return;
   }
   const query = new URLSearchParams();
