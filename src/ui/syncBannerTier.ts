@@ -1,29 +1,25 @@
-/** Which state the one top strip is in, as a pure decision function — the
- *  presentation half of `docs/contract.md` §4's state table. No DOM, no clocks:
- *  time-dependent inputs arrive pre-computed, same split as `writeGate.ts`. */
+/** No clocks and no DOM inside: time-dependent inputs arrive pre-computed, same
+ *  split as `writeGate.ts`. */
 
 import type { DisplayName } from '../collaboration/types.js';
 import { ConnStatus, PresenceKind, Transport } from '../collaboration/types.js';
+import type { EpochMs } from '../time.js';
 
-/** Display label of the backend keeping this room for the local user. */
 export type StorageLabel = string & { readonly _brand: 'StorageLabel' };
-
-/** Wall-clock label of when this stretch of solitude began ("14:02", §4.2). */
 export type WaitingSinceLabel = string & { readonly _brand: 'WaitingSinceLabel' };
-
-/** Identity of a banner state. Equal signatures ⟺ the strip is still saying the
- *  same thing, so per-tier UI (dismissal, disclosure) may survive; a change
- *  retires both. */
 export type TierSignature = string & { readonly _brand: 'TierSignature' };
+export type ConflictWarning = string & { readonly _brand: 'ConflictWarning' };
 
-/** Which flavour of standing solitude — three genuinely different durability
- *  stories, not one message with optional clauses. */
+export type WriteGateHeld = boolean & { readonly _brand: 'WriteGateHeld' };
+export type WriteGateArmable = boolean & { readonly _brand: 'WriteGateArmable' };
+export type CollabUnavailable = boolean & { readonly _brand: 'CollabUnavailable' };
+export type DepartureLingering = boolean & { readonly _brand: 'DepartureLingering' };
+export type StorageAttached = boolean & { readonly _brand: 'StorageAttached' };
+export type RoomEncrypted = boolean & { readonly _brand: 'RoomEncrypted' };
+
 export const AloneVariant = {
-  /** Hub transport: the relay catches later joiners up. */
   Relayed: 'relayed',
-  /** P2P, but a backend of the user's own keeps this room. */
   Saved: 'saved',
-  /** P2P and live-only: the bytes are on this device and nowhere else. */
   Void: 'void',
 } as const;
 export type AloneVariant = (typeof AloneVariant)[keyof typeof AloneVariant];
@@ -65,19 +61,13 @@ export interface BannerInput {
   readonly conn: ConnStatus;
   readonly presenceKind: PresenceKind;
   readonly transport: Transport;
-  /** Non-null ⟺ a copy of *this room* lands in the user's own storage. */
   readonly storageLabel: StorageLabel | null;
-  /** The write gate is holding the editor read-only (§4, row ③). */
-  readonly gated: boolean;
-  /** The gate could still arm — the pre-arm grace window, during which the strip
-   *  says nothing rather than pre-announcing a lock that may never come. */
-  readonly gateEligible: boolean;
-  /** This deployment can never sync across devices — permanent, not transient. */
-  readonly collabUnavailable: boolean;
+  readonly gated: WriteGateHeld;
+  readonly gateEligible: WriteGateArmable;
+  readonly collabUnavailable: CollabUnavailable;
   readonly waitingSince: WaitingSinceLabel | null;
   readonly departedPeerName: DisplayName | null;
-  /** Still inside the departure-hysteresis window (§4, row ⑥). */
-  readonly withinDepartureLinger: boolean;
+  readonly withinDepartureLinger: DepartureLingering;
 }
 
 const HIDDEN: BannerTier = { kind: BannerTierKind.Hidden };
@@ -88,8 +78,15 @@ const OFFLINE: BannerTier = { kind: BannerTierKind.Offline };
 const ANONYMOUS_PEER = 'Someone' as DisplayName;
 const PEER_NAME_MAX = 24;
 
-/** A departed peer's name is remote, user-chosen text landing in a flex row that
- *  must not overflow at 390px — clamp it here rather than trusting CSS alone. */
+export function waitingSinceLabel(at: EpochMs): WaitingSinceLabel {
+  return new Date(at).toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  }) as WaitingSinceLabel;
+}
+
+/** Remote, user-chosen text in a flex row that must not overflow at 390px —
+ *  clamped here rather than trusting CSS alone. */
 export function peerLabel(name: DisplayName | null): DisplayName {
   const trimmed = name?.trim() ?? '';
   if (trimmed === '') return ANONYMOUS_PEER;
@@ -103,18 +100,6 @@ function aloneVariant(input: BannerInput): AloneVariant {
   return AloneVariant.Void;
 }
 
-/**
- * One strip, an escalation ladder — first match wins.
- * ```
- * gated                       → the waiting room (blocks, transient)
- * presence Reaching           → someone's here, we can't reach them (never blocks)
- * within departure linger     → a peer just left (never blocks)
- * conn Unreachable / Offline  → we don't know / no network (never blocks)
- * collabUnavailable           → permanent environment fact (never blocks)
- * conn Waiting, gate can't arm→ the standing solo reminder (never blocks)
- * hidden                      → deliberate silence, grace window included
- * ```
- */
 export function bannerTierFor(input: BannerInput): BannerTier {
   if (input.gated)
     return {
@@ -141,9 +126,6 @@ export function bannerTierFor(input: BannerInput): BannerTier {
 export const BannerTone = { Warn: 'warn', Neutral: 'neutral' } as const;
 export type BannerTone = (typeof BannerTone)[keyof typeof BannerTone];
 
-/** Amber is spent only where the bytes are genuinely going nowhere: the gate
- *  itself, and writing solo into a live-only peer-to-peer room. Everything else
- *  is a neutral heads-up. */
 export function bannerToneFor(tier: BannerTier): BannerTone {
   if (tier.kind === BannerTierKind.Gated) return BannerTone.Warn;
   if (tier.kind === BannerTierKind.Alone && tier.variant === AloneVariant.Void)
@@ -151,9 +133,8 @@ export function bannerToneFor(tier: BannerTier): BannerTone {
   return BannerTone.Neutral;
 }
 
-/** Deliberately excludes `waitingSince` and the storage label: the clock ticking
- *  on or a backend relabelling is not a new thing to say, and must not resurrect
- *  a dismissed strip or re-collapse an open disclosure. */
+/** Excludes `waitingSince` and the storage label on purpose: including either
+ *  would resurrect a dismissed strip and re-collapse an open disclosure. */
 export function tierSignature(tier: BannerTier): TierSignature {
   if (tier.kind === BannerTierKind.Gated) return `gated:${tier.transport}` as TierSignature;
   if (tier.kind === BannerTierKind.Alone) return `alone:${tier.variant}` as TierSignature;

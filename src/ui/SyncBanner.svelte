@@ -10,22 +10,26 @@
     bannerTierFor,
     bannerToneFor,
     tierSignature,
+    waitingSinceLabel,
+    type CollabUnavailable,
+    type DepartureLingering,
     type StorageLabel,
-    type WaitingSinceLabel,
+    type WriteGateArmable,
+    type WriteGateHeld,
   } from './syncBannerTier.js';
-  import type { EpochMs } from '../time.js';
+  import type { EpochMs, Milliseconds } from '../time.js';
 
   let {
     conn,
     presenceKind,
     transport,
     storageLabel,
-    gated = false,
-    gateEligible = false,
-    collabUnavailable = false,
+    gated = false as WriteGateHeld,
+    gateEligible = false as WriteGateArmable,
+    collabUnavailable = false as CollabUnavailable,
     waitingSince = null,
     departedPeerName = null,
-    withinDepartureLinger = false,
+    withinDepartureLinger = false as DepartureLingering,
     onShare,
     onConnectStorage,
     onExport,
@@ -37,13 +41,13 @@
     conn: ConnStatus;
     presenceKind: PresenceKind;
     transport: Transport;
-    storageLabel: string | null;
-    gated?: boolean;
-    gateEligible?: boolean;
-    collabUnavailable?: boolean;
+    storageLabel: StorageLabel | null;
+    gated?: WriteGateHeld;
+    gateEligible?: WriteGateArmable;
+    collabUnavailable?: CollabUnavailable;
     waitingSince?: EpochMs | null;
-    departedPeerName?: string | null;
-    withinDepartureLinger?: boolean;
+    departedPeerName?: DisplayName | null;
+    withinDepartureLinger?: DepartureLingering;
     onShare: () => void;
     onConnectStorage: () => void;
     onExport?: () => void;
@@ -53,34 +57,28 @@
     onConnectionDetails?: () => void;
   } = $props();
 
-  const waitingSinceLabel = $derived(
-    waitingSince === null
-      ? null
-      : (new Date(waitingSince).toLocaleTimeString(undefined, {
-          hour: 'numeric',
-          minute: '2-digit',
-        }) as WaitingSinceLabel),
-  );
+  const ENTER_MS = 150 as Milliseconds;
+  const EXIT_MS = 220 as Milliseconds;
+  const DISCLOSE_MS = 150 as Milliseconds;
+  const NO_MOTION = 0 as Milliseconds;
 
   const tier = $derived(
     bannerTierFor({
       conn,
       presenceKind,
       transport,
-      storageLabel: storageLabel as StorageLabel | null,
+      storageLabel,
       gated,
       gateEligible,
       collabUnavailable,
-      waitingSince: waitingSinceLabel,
-      departedPeerName: departedPeerName as DisplayName | null,
+      waitingSince: waitingSince === null ? null : waitingSinceLabel(waitingSince),
+      departedPeerName,
       withinDepartureLinger,
     }),
   );
   const tone = $derived(bannerToneFor(tier));
   const signature = $derived(tierSignature(tier));
 
-  // Dismissing never traps anyone: the gate lives on the editor, so hiding the
-  // strip only drops the explanation until the tier changes.
   let dismissed = $state(false);
   let expanded = $state(false);
   $effect(() => {
@@ -94,8 +92,8 @@
   const reducedMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Fades opacity over the first 60% (not `slide`'s last 5%) so the strip is invisible before it's squashed short enough for the border-radius to look wrong.
-  function bannerOut(node: Element, { duration = 220 }: { duration?: number } = {}) {
+  // Fades over the first 60%, not `slide`'s last 5%: the strip must be invisible before it is short enough for the border-radius to look wrong.
+  function bannerOut(node: Element, { duration = EXIT_MS }: { duration?: Milliseconds } = {}) {
     const style = getComputedStyle(node);
     const opacity = +style.opacity;
     const height = parseFloat(style.height);
@@ -128,12 +126,12 @@
   <div
     class="sync-banner"
     class:soft={tone === BannerTone.Neutral}
-    in:slide={{ duration: reducedMotion ? 0 : 150 }}
-    out:bannerOut={{ duration: reducedMotion ? 0 : 220 }}
+    in:slide={{ duration: reducedMotion ? NO_MOTION : ENTER_MS }}
+    out:bannerOut={{ duration: reducedMotion ? NO_MOTION : EXIT_MS }}
   >
     <span class="ic" aria-hidden="true">
       {#if tier.kind === BannerTierKind.Gated}
-        <!-- Calm dot, not a spinner: a spinner promises imminence and lies after 30 seconds (contract §4.2). -->
+        <!-- Calm dot, never a spinner: a spinner promises imminence it cannot keep (contract §4.2). -->
         <span class="waiting-dot"></span>
       {:else}
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -144,8 +142,7 @@
       {/if}
     </span>
 
-    <!-- The live region is the sentence alone: a tier change is worth announcing,
-         opening the disclosure or a button appearing is not. -->
+    <!-- The live region is the sentence alone: opening the disclosure must not announce. -->
     <span class="msg" role="status" aria-live="polite">
       {#if tier.kind === BannerTierKind.Gated}
         <strong>You're the only one here.</strong>
@@ -236,11 +233,10 @@
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
     </button>
 
-    <!-- Last in the flex row so it wraps onto its own line below the actions and
-         the dismiss control, at every width. -->
+    <!-- Last in the flex row so it wraps below the actions and the dismiss control at every width. -->
     {#if tier.kind === BannerTierKind.Gated}
       {#if expanded}
-        <p class="aside" id="sync-banner-detail" transition:slide={{ duration: reducedMotion ? 0 : 150 }}>
+        <p class="aside" id="sync-banner-detail" transition:slide={{ duration: reducedMotion ? NO_MOTION : DISCLOSE_MS }}>
           Until then you can read, copy and export it.
           {#if tier.transport === Transport.P2P}
             In peer-to-peer mode nothing you write leaves this device until someone
@@ -256,7 +252,7 @@
         </p>
       {/if}
     {:else if tier.kind === BannerTierKind.Alone && expanded}
-      <p class="aside" id="sync-banner-detail" transition:slide={{ duration: reducedMotion ? 0 : 150 }}>
+      <p class="aside" id="sync-banner-detail" transition:slide={{ duration: reducedMotion ? NO_MOTION : DISCLOSE_MS }}>
         {#if tier.variant === AloneVariant.Relayed}
           Edits travel through the collaboration server, so anyone who joins later
           receives everything you write while alone.
@@ -273,7 +269,6 @@
 {/if}
 
 <style>
-  /* Faintly amber-tinted surface, not a saturated warning field: the tone is carried by the icon, not by dyeing the whole bar. */
   .sync-banner {
     position: relative;
     display: flex;
@@ -283,7 +278,7 @@
     padding: var(--sp-2) var(--sp-4);
     /* Reserve the corner the dismiss control is pinned to. */
     padding-right: 44px;
-    /* Own margin, not the parent's flex gap: `slide` animates margin alongside height, so removal shrinks smoothly instead of snapping shut. */
+    /* Own margin, not the parent's flex gap: `slide` animates margin, so removal shrinks instead of snapping. */
     margin-bottom: var(--sp-4);
     background: color-mix(in srgb, var(--warn-soft) 55%, var(--surface-2));
     border: 1px solid color-mix(in srgb, var(--warn-border) 55%, var(--border));
@@ -292,7 +287,6 @@
     font-size: var(--fs-300);
     line-height: 1.4;
   }
-  /* No mobile margin-top: that clearance is .app's own top padding (app.css) instead. */
   .sync-banner.soft {
     background: var(--surface-2);
     border-color: var(--border);
@@ -353,7 +347,6 @@
     color: var(--text);
     background: color-mix(in srgb, var(--text) 7%, transparent);
   }
-  /* Primary: a filled accent chip. */
   .invite-cta {
     padding: 0.34rem 0.9rem;
     border: 1px solid transparent;
@@ -368,7 +361,6 @@
   .invite-cta:hover {
     background: var(--accent-hover);
   }
-  /* Quiet disclosure, deliberately not a ghost button, so it never competes with the tier's real action. */
   .more {
     flex-shrink: 0;
     min-height: 32px;
@@ -386,13 +378,12 @@
   .more:hover {
     color: var(--text);
   }
-  /* Touch needs the full 44px (WCAG 2.5.5); a mouse does not, and growing it everywhere would set the row's height off the other action chips. */
+  /* Touch needs the full 44px (WCAG 2.5.5); growing it everywhere would out-size the other action chips. */
   @media (pointer: coarse) {
     .more {
       min-height: 44px;
     }
   }
-  /* Secondary: a real ghost button (transparent + border), so "Connect storage" reads as the alternative button it is, not a link. */
   .sync-banner :global(button.link) {
     flex-shrink: 0;
     padding: 0.34rem 0.9rem;

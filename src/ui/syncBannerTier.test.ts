@@ -9,21 +9,34 @@ import {
   peerLabel,
   tierSignature,
   type BannerInput,
+  type CollabUnavailable,
+  type DepartureLingering,
   type StorageLabel,
   type WaitingSinceLabel,
+  type WriteGateArmable,
+  type WriteGateHeld,
 } from './syncBannerTier.js';
+
+const GATE_HELD = true as WriteGateHeld;
+const GATE_OPEN = false as WriteGateHeld;
+const GATE_ARMABLE = true as WriteGateArmable;
+const GATE_UNARMABLE = false as WriteGateArmable;
+const NO_COLLAB = true as CollabUnavailable;
+const COLLAB = false as CollabUnavailable;
+const LINGERING = true as DepartureLingering;
+const SETTLED = false as DepartureLingering;
 
 const base: BannerInput = {
   conn: ConnStatus.Connected,
   presenceKind: PresenceKind.Accompanied,
   transport: Transport.P2P,
   storageLabel: null,
-  gated: false,
-  gateEligible: false,
-  collabUnavailable: false,
+  gated: GATE_OPEN,
+  gateEligible: GATE_UNARMABLE,
+  collabUnavailable: COLLAB,
   waitingSince: null,
   departedPeerName: null,
-  withinDepartureLinger: false,
+  withinDepartureLinger: SETTLED,
 };
 
 const input = (over: Partial<BannerInput>): BannerInput => ({ ...base, ...over });
@@ -37,7 +50,7 @@ describe('bannerTierFor', () => {
 
   it('says nothing during the pre-arm grace window', () => {
     const tier = bannerTierFor(
-      input({ conn: ConnStatus.Waiting, presenceKind: PresenceKind.Alone, gateEligible: true }),
+      input({ conn: ConnStatus.Waiting, presenceKind: PresenceKind.Alone, gateEligible: GATE_ARMABLE }),
     );
     expect(tier.kind).toBe(BannerTierKind.Hidden);
   });
@@ -45,10 +58,10 @@ describe('bannerTierFor', () => {
   it('leads with the gate whenever it holds, whatever else is true', () => {
     const tier = bannerTierFor(
       input({
-        gated: true,
+        gated: GATE_HELD,
         conn: ConnStatus.Offline,
-        collabUnavailable: true,
-        withinDepartureLinger: true,
+        collabUnavailable: NO_COLLAB,
+        withinDepartureLinger: LINGERING,
         presenceKind: PresenceKind.Reaching,
         waitingSince: '14:02' as WaitingSinceLabel,
       }),
@@ -61,7 +74,7 @@ describe('bannerTierFor', () => {
   });
 
   it('carries the transport into the gated tier so the hub can state its own contract', () => {
-    const tier = bannerTierFor(input({ gated: true, transport: Transport.Hub }));
+    const tier = bannerTierFor(input({ gated: GATE_HELD, transport: Transport.Hub }));
     expect(tier).toMatchObject({ kind: BannerTierKind.Gated, transport: Transport.Hub });
   });
 
@@ -69,7 +82,7 @@ describe('bannerTierFor', () => {
     const tier = bannerTierFor(
       input({
         presenceKind: PresenceKind.Reaching,
-        withinDepartureLinger: true,
+        withinDepartureLinger: LINGERING,
         conn: ConnStatus.Unreachable,
       }),
     );
@@ -78,9 +91,9 @@ describe('bannerTierFor', () => {
 
   it('names the departed peer, and falls back when unknown', () => {
     expect(
-      bannerTierFor(input({ withinDepartureLinger: true, departedPeerName: peer('Ada') })),
+      bannerTierFor(input({ withinDepartureLinger: LINGERING, departedPeerName: peer('Ada') })),
     ).toEqual({ kind: BannerTierKind.Departing, who: 'Ada' });
-    expect(bannerTierFor(input({ withinDepartureLinger: true }))).toEqual({
+    expect(bannerTierFor(input({ withinDepartureLinger: LINGERING }))).toEqual({
       kind: BannerTierKind.Departing,
       who: 'Someone',
     });
@@ -88,15 +101,15 @@ describe('bannerTierFor', () => {
 
   it('prefers the network tiers over the permanent one', () => {
     expect(
-      bannerTierFor(input({ conn: ConnStatus.Unreachable, collabUnavailable: true })).kind,
+      bannerTierFor(input({ conn: ConnStatus.Unreachable, collabUnavailable: NO_COLLAB })).kind,
     ).toBe(BannerTierKind.Unreachable);
-    expect(bannerTierFor(input({ conn: ConnStatus.Offline, collabUnavailable: true })).kind).toBe(
+    expect(bannerTierFor(input({ conn: ConnStatus.Offline, collabUnavailable: NO_COLLAB })).kind).toBe(
       BannerTierKind.Offline,
     );
   });
 
   it('surfaces the collab-unavailable tier with the storage it still has', () => {
-    expect(bannerTierFor(input({ collabUnavailable: true, storageLabel: label('Drive') }))).toEqual(
+    expect(bannerTierFor(input({ collabUnavailable: NO_COLLAB, storageLabel: label('Drive') }))).toEqual(
       { kind: BannerTierKind.Unavailable, storageLabel: 'Drive' },
     );
   });
@@ -126,7 +139,7 @@ describe('bannerTierFor', () => {
 
 describe('bannerToneFor', () => {
   it('spends amber on the gate and on writing into a live-only peer-to-peer room', () => {
-    expect(bannerToneFor(bannerTierFor(input({ gated: true })))).toBe(BannerTone.Warn);
+    expect(bannerToneFor(bannerTierFor(input({ gated: GATE_HELD })))).toBe(BannerTone.Warn);
     expect(
       bannerToneFor(
         bannerTierFor(input({ conn: ConnStatus.Waiting, presenceKind: PresenceKind.Alone })),
@@ -137,10 +150,10 @@ describe('bannerToneFor', () => {
   it('stays neutral everywhere else', () => {
     const neutral = (over: Partial<BannerInput>) => bannerToneFor(bannerTierFor(input(over)));
     expect(neutral({ presenceKind: PresenceKind.Reaching })).toBe(BannerTone.Neutral);
-    expect(neutral({ withinDepartureLinger: true })).toBe(BannerTone.Neutral);
+    expect(neutral({ withinDepartureLinger: LINGERING })).toBe(BannerTone.Neutral);
     expect(neutral({ conn: ConnStatus.Offline })).toBe(BannerTone.Neutral);
     expect(neutral({ conn: ConnStatus.Unreachable })).toBe(BannerTone.Neutral);
-    expect(neutral({ collabUnavailable: true })).toBe(BannerTone.Neutral);
+    expect(neutral({ collabUnavailable: NO_COLLAB })).toBe(BannerTone.Neutral);
     expect(
       neutral({
         conn: ConnStatus.Waiting,
@@ -153,15 +166,15 @@ describe('bannerToneFor', () => {
 
 describe('tierSignature', () => {
   it('ignores the ticking clock, so a dismissal survives the same waiting stretch', () => {
-    const a = bannerTierFor(input({ gated: true, waitingSince: '14:02' as WaitingSinceLabel }));
-    const b = bannerTierFor(input({ gated: true, waitingSince: '14:09' as WaitingSinceLabel }));
+    const a = bannerTierFor(input({ gated: GATE_HELD, waitingSince: '14:02' as WaitingSinceLabel }));
+    const b = bannerTierFor(input({ gated: GATE_HELD, waitingSince: '14:09' as WaitingSinceLabel }));
     expect(tierSignature(a)).toBe(tierSignature(b));
   });
 
   it('changes when the tier changes, so nothing stale survives a transition', () => {
-    const gated = bannerTierFor(input({ gated: true }));
+    const gated = bannerTierFor(input({ gated: GATE_HELD }));
     const accompanied = bannerTierFor(base);
-    const departing = bannerTierFor(input({ withinDepartureLinger: true }));
+    const departing = bannerTierFor(input({ withinDepartureLinger: LINGERING }));
     expect(new Set([gated, accompanied, departing].map(tierSignature)).size).toBe(3);
   });
 
@@ -182,8 +195,8 @@ describe('tierSignature', () => {
   });
 
   it('separates a gated hub from a gated peer-to-peer room — different copy', () => {
-    expect(tierSignature(bannerTierFor(input({ gated: true, transport: Transport.Hub })))).not.toBe(
-      tierSignature(bannerTierFor(input({ gated: true, transport: Transport.P2P }))),
+    expect(tierSignature(bannerTierFor(input({ gated: GATE_HELD, transport: Transport.Hub })))).not.toBe(
+      tierSignature(bannerTierFor(input({ gated: GATE_HELD, transport: Transport.P2P }))),
     );
   });
 });
