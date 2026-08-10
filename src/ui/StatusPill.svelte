@@ -1,7 +1,12 @@
 <script lang="ts">
   import { ConnStatus, Transport } from '../collaboration/types.js';
   import { SaveStatus } from './types.js';
-  import type { ConflictWarning, RoomEncrypted, StorageAttached } from './types.js';
+  import type {
+    ConflictWarning,
+    KeepSegmentLabels,
+    RoomEncrypted,
+    StorageAttached,
+  } from './types.js';
   import type { StorageLabel } from '../storage/types.js';
 
   let {
@@ -12,6 +17,7 @@
     warning,
     transport,
     encrypted = false as RoomEncrypted,
+    keepLabels = false as KeepSegmentLabels,
     onclick,
   }: {
     conn: ConnStatus;
@@ -21,6 +27,8 @@
     warning?: ConflictWarning;
     transport: Transport;
     encrypted?: RoomEncrypted;
+    /** Only a surface where the labels *are* the point has room for them below 720px. */
+    keepLabels?: KeepSegmentLabels;
     onclick?: () => void;
   } = $props();
 
@@ -144,6 +152,7 @@
 <svelte:element
   this={onclick ? 'button' : 'span'}
   class="chip"
+  class:keep-labels={keepLabels}
   class:clickable={!!onclick}
   type={onclick ? 'button' : undefined}
   role={onclick ? undefined : 'status'}
@@ -282,7 +291,7 @@
   }
   /* Clipped, not removed, so screen readers still announce the labels. */
   @media (max-width: 720px) {
-    .seg-label {
+    .chip:not(.keep-labels) .seg-label {
       position: absolute;
       width: 1px;
       height: 1px;
