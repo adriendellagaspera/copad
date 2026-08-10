@@ -105,13 +105,21 @@
             else is in the room, nobody hears you and nobody reads what you write.
           </p>
           <p>
-            When someone leaves, they leave with a copy of the text you wrote
-            together, and they stop seeing what you change afterwards. They can come
-            back: reopening the link while you are there catches their copy up again.
+            Nobody owns the room, and the room remembers nothing: the text is what
+            the people in it hold between them. Walk in while others are there and
+            you get all of it as it stands, not only what is written after you
+            arrive. Walk in when the room is empty and you do not find an empty
+            room — you find what your own device kept, nothing new.
+          </p>
+          <p>
+            So no copy is the real one. When the room empties there are only
+            recollections, all equally real, and two that meet again reconcile:
+            what each person wrote apart ends up in the text they share, with
+            nothing lost or overwritten.
           </p>
           <p class="quiet">
-            Your own durable artefact is the paper in your own drawer — the file in
-            the storage backend you connected. A guest never touches it.
+            The durable artefact is the paper in your own drawer — the file in a
+            storage backend you connected. Anyone in the room can connect their own.
           </p>
         </div>
       </section>
@@ -227,9 +235,8 @@
           </p>
         </div>
         <p class="where-fine">
-          A guest never writes to your file, and you never write to theirs. Two people
-          in one room, each keeping their own paper, is the normal case rather than a
-          conflict to resolve.
+          Nobody writes to anyone else's file. Two people in one room, each keeping
+          their own paper, is the normal case rather than a conflict to resolve.
         </p>
       </section>
     </main>

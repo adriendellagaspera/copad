@@ -41,7 +41,7 @@ const P2P: TransportCopy = {
     'Because the key never leaves your browser, nobody can recover it for you. Lose the link and the room is gone; there is no account it hangs off, and no list of rooms anywhere.' as AboutLine,
   ],
   linkGrant:
-    'A link invites someone into the room while you are both in it. What they read, they keep; what you write after they leave, they do not get. It is not standing access to a document.' as AboutLine,
+    'A link is a way in, not standing access to a document. It carries while people are in the room together: what each of them reads, they keep, and what any of them writes apart, the others do not have until they next meet.' as AboutLine,
   gateLead:
     'Writing alone in a peer-to-peer room is talking to an empty room: nothing leaves this browser, and the cache it lands in dies with the browser profile.' as AboutLine,
   gateNote:
@@ -59,7 +59,7 @@ const HUB: TransportCopy = {
     'The relay is the exception. It holds the room open so latecomers catch up, which means it sees the text. Whoever operates it could read the room; nobody else can find it.' as AboutLine,
   ],
   linkGrant:
-    'A link invites someone into the room while you are both in it. What they read, they keep; what you write after they leave, they do not get. It is not standing access to a document — but assume the relay saw everything that passed through it.' as AboutLine,
+    'A link is a way in, not standing access to a document. It carries while people are in the room together: what each of them reads, they keep, and what any of them writes apart, the others do not have until they next meet — but assume the relay saw everything that passed through it.' as AboutLine,
   gateLead:
     'Writing alone here is talking to an empty room. Nobody is receiving a word of it, and a relay holding your text in memory until it restarts is not your document.' as AboutLine,
   gateNote:

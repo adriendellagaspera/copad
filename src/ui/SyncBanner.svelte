@@ -246,7 +246,7 @@
     {#if tier.kind === BannerTierKind.Gated}
       {#if expanded}
         <p class="aside" id="sync-banner-detail" transition:slide={{ duration: reducedMotion ? NO_MOTION : DISCLOSE_MS }}>
-          Until then you can read, copy and export it.
+          Until then you can read, copy and export what this device already has.
           {#if tier.transport === Transport.P2P}
             In peer-to-peer mode nothing you write leaves this device until someone
             receives it, so writing alone here would just be lost.
