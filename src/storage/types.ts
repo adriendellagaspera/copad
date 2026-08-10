@@ -2,6 +2,7 @@ import type { WriteReceipt } from './writeOutcome.js';
 
 /** Opaque identifier for a storage backend instance (e.g. `'dropbox'`, `'local'`). */
 export type StorageId = string & { readonly _brand: 'StorageId' };
+export type StorageLabel = string & { readonly _brand: 'StorageLabel' };
 
 /**
  * A target filename including its extension (e.g. `'notes.md'`, `'document.yjs'`).
@@ -131,7 +132,7 @@ export interface ConfigField {
  */
 export interface Storage {
   readonly id: StorageId;
-  readonly label: string;
+  readonly label: StorageLabel;
   /** One-line description shown in Settings and as a pill tooltip. */
   readonly blurb?: string;
   readonly availability: StorageAvailability;

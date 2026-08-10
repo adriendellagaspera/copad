@@ -11,11 +11,11 @@ import {
   type BannerInput,
   type CollabUnavailable,
   type DepartureLingering,
-  type StorageLabel,
   type WaitingSinceLabel,
   type WriteGateArmable,
   type WriteGateHeld,
 } from './syncBannerTier.js';
+import type { StorageLabel } from '../storage/types.js';
 
 const GATE_HELD = true as WriteGateHeld;
 const GATE_OPEN = false as WriteGateHeld;

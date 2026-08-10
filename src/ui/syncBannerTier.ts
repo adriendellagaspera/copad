@@ -4,18 +4,15 @@
 import type { DisplayName } from '../collaboration/types.js';
 import { ConnStatus, PresenceKind, Transport } from '../collaboration/types.js';
 import type { EpochMs } from '../time.js';
+import type { StorageLabel } from '../storage/types.js';
 
-export type StorageLabel = string & { readonly _brand: 'StorageLabel' };
 export type WaitingSinceLabel = string & { readonly _brand: 'WaitingSinceLabel' };
 export type TierSignature = string & { readonly _brand: 'TierSignature' };
-export type ConflictWarning = string & { readonly _brand: 'ConflictWarning' };
 
 export type WriteGateHeld = boolean & { readonly _brand: 'WriteGateHeld' };
 export type WriteGateArmable = boolean & { readonly _brand: 'WriteGateArmable' };
 export type CollabUnavailable = boolean & { readonly _brand: 'CollabUnavailable' };
 export type DepartureLingering = boolean & { readonly _brand: 'DepartureLingering' };
-export type StorageAttached = boolean & { readonly _brand: 'StorageAttached' };
-export type RoomEncrypted = boolean & { readonly _brand: 'RoomEncrypted' };
 
 export const AloneVariant = {
   Relayed: 'relayed',

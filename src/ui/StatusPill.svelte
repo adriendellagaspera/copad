@@ -1,12 +1,8 @@
 <script lang="ts">
   import { ConnStatus, Transport } from '../collaboration/types.js';
   import { SaveStatus } from './types.js';
-  import type {
-    ConflictWarning,
-    RoomEncrypted,
-    StorageAttached,
-    StorageLabel,
-  } from './syncBannerTier.js';
+  import type { ConflictWarning, RoomEncrypted, StorageAttached } from './types.js';
+  import type { StorageLabel } from '../storage/types.js';
 
   let {
     conn,

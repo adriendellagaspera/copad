@@ -13,10 +13,10 @@
     waitingSinceLabel,
     type CollabUnavailable,
     type DepartureLingering,
-    type StorageLabel,
     type WriteGateArmable,
     type WriteGateHeld,
   } from './syncBannerTier.js';
+  import type { StorageLabel } from '../storage/types.js';
   import type { EpochMs, Milliseconds } from '../time.js';
 
   let {
