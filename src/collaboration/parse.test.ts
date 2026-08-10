@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePeerAwarenessState, parseRoomName, parseIceServersResponse, parseKeyFingerprint } from './parse.js';
+import { parsePeerAwarenessState, parseRoomName, parseIceServersResponse, parseKeyFingerprint, parseDisplayName } from './parse.js';
 
 describe('parsePeerAwarenessState — fallback behaviour', () => {
   it('returns safe defaults for null', () => {
@@ -178,6 +178,18 @@ describe('parseRoomName', () => {
     expect(parseRoomName('')).toBeNull();
     expect(parseRoomName('   ')).toBeNull();
     expect(parseRoomName(null)).toBeNull();
+  });
+});
+
+describe('parseDisplayName', () => {
+  it('trims and brands a non-empty name', () => {
+    expect(parseDisplayName('  Ada  ')).toBe('Ada');
+  });
+
+  it('falls back to FALLBACK_NAME for empty / whitespace / null', () => {
+    expect(parseDisplayName('')).toBe('Anonymous');
+    expect(parseDisplayName('   ')).toBe('Anonymous');
+    expect(parseDisplayName(null)).toBe('Anonymous');
   });
 });
 

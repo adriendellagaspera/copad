@@ -229,3 +229,12 @@ export function parseTurnPrefs(raw: string | null): TurnPrefs {
     return { ...TURN_PREFS_FALLBACK };
   }
 }
+
+/** Parse a stored/typed display name: the single cast site for DisplayName
+ *  from localStorage. Empty, whitespace-only or absent falls back to
+ *  {@link FALLBACK_NAME}, honoring a `VITE_FALLBACK_NAME` override the same
+ *  way {@link parsePeerAwarenessState} does for a peer's own name. */
+export function parseDisplayName(raw: string | null): DisplayName {
+  const trimmed = raw?.trim();
+  return trimmed ? (trimmed as DisplayName) : FALLBACK_NAME;
+}
