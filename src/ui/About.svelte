@@ -30,6 +30,8 @@
 
   const copy = $derived(transportCopyFor(transport));
   const encrypted = $derived(copy.claim === TransportClaim.EndToEnd);
+  const linkLead = $derived(copy.linkBody[0]);
+  const linkRest = $derived(copy.linkBody.slice(1));
 
   const githubMark = BRAND_ICONS[STORAGE_ID.github];
 
@@ -67,60 +69,21 @@
 
     <main>
       <section class="hero">
-        <h1>Write it together, in a room only your link opens.</h1>
-        <p class="lede">
-          Copad opens a shared page from a link. What you type goes to the people
-          in the room, and to a file in a cloud you already own. There is no Copad
-          account and no Copad database — nothing of yours sits on our side waiting
-          to be lost, sold or subpoenaed.
-        </p>
-        <div class="hero-actions">
-          <button class="cta" onclick={onNewDocument}>Start a document</button>
-          <a class="cta-quiet" href="#rooms">See how a room works</a>
-        </div>
-        <p class="caption">{copy.heroCaption}</p>
-      </section>
-
-      <section class="rooms" id="rooms">
-        <h2>Rooms, not documents</h2>
-        <div class="rooms-body">
-          <p>
-            Copad gives you a room with a piece of paper on the table. While nobody
-            else is in the room, nobody hears you and nobody reads what you write.
+        <div class="hero-text">
+          <h1>Write it together, in a room only your link opens.</h1>
+          <p class="lede">
+            Copad opens a shared page from a link. What you type goes to the people
+            in the room, and to a file in a cloud you already own. There is no Copad
+            account and no Copad database — nothing of yours sits on our side waiting
+            to be lost, sold or subpoenaed.
           </p>
-          <p>
-            When someone leaves, they leave with a copy of the text you wrote
-            together, and they stop seeing what you change afterwards. They can come
-            back: reopening the link while you are there catches their copy up again.
-          </p>
-          <p>
-            Your own durable artefact is the paper in your own drawer — the file in
-            the storage backend you connected. A guest never touches it.
-          </p>
-        </div>
-      </section>
-
-      <section class="cards" id="how" aria-label="How Copad works">
-        <article class="card">
-          <div class="demo demo-peers">
-            {#each demoPeers as peer (peer.name)}
-              <Avatar name={peer.name} color={peer.color} size={32} />
-            {/each}
+          <div class="hero-actions">
+            <button class="cta" onclick={onNewDocument}>Start a document</button>
+            <a class="cta-quiet" href="#rooms">See how a room works</a>
           </div>
-          <h3>Nobody signs up</h3>
-          <p>
-            You pick a name and a colour in your own browser, and that is the entire
-            identity system. No sign-in, no profile, no user table: the people in a
-            room are whoever is holding the link right now.
-          </p>
-          <p class="fine">
-            The avatars above are the product's own, rendered by the same component
-            the editor uses.
-          </p>
-        </article>
-
-        <article class="card">
-          <div class="demo demo-link">
+        </div>
+        <div class="hero-exhibit">
+          <div class="demo demo-room">
             <code class="url">
               <span class="url-path">{page}?room=</span><span class="url-id">b41f2c9e…</span
               >{#if encrypted}<span class="url-key">#k=8Qr3v…</span>{/if}
@@ -134,38 +97,90 @@
               keepLabels
             />
           </div>
+          <p class="caption">{copy.heroCaption}</p>
+        </div>
+      </section>
+
+      <section class="rooms" id="rooms">
+        <h2>Rooms, not documents</h2>
+        <div class="rooms-body">
+          <p class="lead">
+            Copad gives you a room with a piece of paper on the table. While nobody
+            else is in the room, nobody hears you and nobody reads what you write.
+          </p>
+          <p>
+            When someone leaves, they leave with a copy of the text you wrote
+            together, and they stop seeing what you change afterwards. They can come
+            back: reopening the link while you are there catches their copy up again.
+          </p>
+          <p class="quiet">
+            Your own durable artefact is the paper in your own drawer — the file in
+            the storage backend you connected. A guest never touches it.
+          </p>
+        </div>
+      </section>
+
+      <section class="pair" id="how" aria-label="How Copad works">
+        <article class="col col-identity">
+          <h3>Nobody signs up</h3>
+          <div class="demo demo-peers">
+            {#each demoPeers as peer (peer.name)}
+              <Avatar name={peer.name} color={peer.color} size={32} />
+            {/each}
+          </div>
+          <p class="lead">
+            You pick a name and a colour in your own browser, and that is the entire
+            identity system.
+          </p>
+          <p>
+            No sign-in, no profile, no user table: the people in a room are whoever is
+            holding the link right now.
+          </p>
+          <p class="fine">
+            The avatars above are the product's own, rendered by the same component
+            the editor uses.
+          </p>
+        </article>
+
+        <article class="col col-link">
           <h3>{copy.linkTitle}</h3>
-          {#each copy.linkBody as line (line)}
+          <p class="lead">{linkLead}</p>
+          {#each linkRest as line (line)}
             <p>{line}</p>
           {/each}
           <p class="fine">{copy.linkGrant}</p>
         </article>
+      </section>
 
-        <article class="card">
-          <div class="demo demo-banner" inert>
-            <SyncBanner
-              conn={ConnStatus.Waiting}
-              presenceKind={PresenceKind.Alone}
-              {transport}
-              storageLabel={null}
-              gated
-              onShare={noop}
-              onConnectStorage={noop}
-              onWriteSolo={noop}
-            />
-          </div>
-          <h3>It will not let you write into the void</h3>
-          <p>
-            {copy.gateLead} So Copad refuses to pretend: while you are alone with
-            nothing durable behind the room, the document is read-only — you can still
-            read, select, copy and export every word of it.
+      <section class="gate">
+        <h2>It will not let you write into the void</h2>
+        <p class="gate-lead">{copy.gateLead}</p>
+        <div class="demo demo-banner" inert>
+          <SyncBanner
+            conn={ConnStatus.Waiting}
+            presenceKind={PresenceKind.Alone}
+            {transport}
+            storageLabel={null}
+            gated
+            onShare={noop}
+            onConnectStorage={noop}
+            onWriteSolo={noop}
+          />
+        </div>
+        <div class="col gate-rule">
+          <p class="lead">
+            So Copad refuses to pretend: while you are alone with nothing durable
+            behind the room, the document is read-only.
           </p>
-          <p>
+          <p>You can still read, select, copy and export every word of it.</p>
+        </div>
+        <div class="col gate-exit">
+          <p class="lead">
             It opens the moment someone joins, or the moment you connect storage of
             your own.
           </p>
           <p class="fine">{copy.gateNote}</p>
-        </article>
+        </div>
       </section>
 
       <section class="where" id="where">
@@ -173,46 +188,48 @@
         <p class="where-lede">
           Copad has no database, so there are exactly two places your words can be.
         </p>
-        <div class="places">
-          <div class="place">
-            <div class="demo">
-              <StatusPill
-                conn={ConnStatus.Waiting}
-                saveStatus={SaveStatus.Idle}
-                hasStorage={false}
-                {transport}
-                keepLabels
-              />
-            </div>
-            <h3>In the room</h3>
-            <p>
-              In the browsers of the people who are here, live, and in a cache on this
-              device that dies with the browser profile. It is a convenience for
-              reopening a tab, never a backup — which is exactly why the pill says
-              <strong>Not saved</strong> rather than nothing.
-            </p>
+        <div class="col place-room">
+          <h3>In the room</h3>
+          <div class="demo">
+            <StatusPill
+              conn={ConnStatus.Waiting}
+              saveStatus={SaveStatus.Idle}
+              hasStorage={false}
+              {transport}
+              keepLabels
+            />
           </div>
-          <div class="place">
-            <div class="demo">
-              <StatusPill
-                conn={ConnStatus.Waiting}
-                saveStatus={SaveStatus.Saved}
-                hasStorage
-                storageLabel="Dropbox"
-                {transport}
-                keepLabels
-              />
-            </div>
-            <h3>In your own file</h3>
-            <p>
-              Connect Dropbox, pCloud, Google Drive, OneDrive, SharePoint, WebDAV, S3,
-              GitHub, GitLab or a file on this disk, and Copad writes the document
-              there. Your folder, your account, a format you can open without us. The
-              pill only claims <strong>Saved</strong> once a write has actually landed.
-            </p>
-          </div>
+          <p class="lead">
+            In the browsers of the people who are here, live, and in a cache on this
+            device that dies with the browser profile.
+          </p>
+          <p>
+            It is a convenience for reopening a tab, never a backup — which is exactly
+            why the pill says <strong>Not saved</strong> rather than nothing.
+          </p>
         </div>
-        <p class="fine">
+        <div class="col place-file">
+          <h3>In your own file</h3>
+          <div class="demo">
+            <StatusPill
+              conn={ConnStatus.Waiting}
+              saveStatus={SaveStatus.Saved}
+              hasStorage
+              storageLabel="Dropbox"
+              {transport}
+              keepLabels
+            />
+          </div>
+          <p class="lead">
+            Connect Dropbox, pCloud, Google Drive, OneDrive, SharePoint, WebDAV, S3,
+            GitHub, GitLab or a file on this disk, and Copad writes the document there.
+          </p>
+          <p>
+            Your folder, your account, a format you can open without us. The pill only
+            claims <strong>Saved</strong> once a write has actually landed.
+          </p>
+        </div>
+        <p class="where-fine">
           A guest never writes to your file, and you never write to theirs. Two people
           in one room, each keeping their own paper, is the normal case rather than a
           conflict to resolve.
@@ -237,8 +254,7 @@
 </div>
 
 <style>
-  /* body is overflow:hidden (base.css) — this page owns its scroll, the same way
-     .content does inside the editor. */
+  /* body is overflow:hidden (base.css) — this page owns its scroll, like .content does in the editor. */
   .about {
     height: 100vh;
     height: 100dvh;
@@ -279,17 +295,36 @@
   }
 
   main {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-8);
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: var(--sp-4);
+    row-gap: var(--sp-6);
+  }
+  section {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    align-content: start;
+    align-items: start;
+    row-gap: var(--sp-5);
+  }
+  section + section {
+    padding-top: var(--sp-6);
+    border-top: 1px solid var(--border);
   }
 
   .hero {
     padding: var(--sp-6) 0 var(--sp-4);
+    align-items: center;
+  }
+  .hero-text {
+    grid-column: 1 / 8;
+  }
+  .hero-exhibit {
+    grid-column: 8 / -1;
   }
   h1 {
     margin: 0;
-    max-width: 20ch;
     font-family: var(--font-read);
     font-size: var(--fs-800);
     font-weight: 600;
@@ -298,7 +333,6 @@
   }
   .lede {
     margin: var(--sp-4) 0 0;
-    max-width: 58ch;
     font-family: var(--font-read);
     font-size: var(--fs-500);
     line-height: var(--lh-read);
@@ -339,71 +373,116 @@
     color: var(--text);
   }
   .caption {
-    margin: var(--sp-5) 0 0;
-    max-width: 62ch;
+    margin: var(--sp-3) 0 0;
     font-size: var(--fs-300);
     line-height: 1.5;
     color: var(--text-faint);
   }
 
   h2 {
+    grid-column: 1 / 5;
     margin: 0;
     font-family: var(--font-read);
-    font-size: var(--fs-700);
+    font-size: var(--fs-600);
     font-weight: 600;
     line-height: var(--lh-tight);
+    text-wrap: balance;
   }
   h3 {
     margin: 0;
-    font-size: var(--fs-400);
+    font-family: var(--font-read);
+    font-size: var(--fs-500);
     font-weight: 600;
     line-height: var(--lh-tight);
   }
 
-  .rooms {
-    padding: var(--sp-6);
-    border: 1px solid var(--border);
-    border-radius: var(--r-lg);
-    background: var(--surface);
-    box-shadow: var(--shadow-sm);
-  }
-  .rooms-body {
-    margin-top: var(--sp-4);
-    max-width: 62ch;
-    font-family: var(--font-read);
-    font-size: var(--fs-500);
-    line-height: var(--lh-read);
-  }
-  .rooms-body p {
-    margin: 0 0 var(--sp-4);
-  }
-  .rooms-body p:last-child {
-    margin-bottom: 0;
-    color: var(--text-muted);
-  }
-
-  .cards {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--sp-4);
-  }
-  .card {
+  /* Lead sentence first, detail after: the page exists to shrink walls of muted
+     small type, so it must not build one. */
+  .col {
     display: flex;
     flex-direction: column;
     gap: var(--sp-3);
-    padding: var(--sp-5);
-    border: 1px solid var(--border);
-    border-radius: var(--r-lg);
-    background: var(--surface);
-    box-shadow: var(--shadow-sm);
   }
-  .card p {
+  .col p,
+  .rooms-body p {
     margin: 0;
-    font-size: var(--fs-300);
-    line-height: 1.55;
+    font-size: var(--fs-400);
+    line-height: var(--lh-body);
     color: var(--text-muted);
   }
-  .card p.fine {
+  .col p.lead {
+    color: var(--text);
+  }
+  .col p.fine {
+    font-size: var(--fs-300);
+    line-height: 1.5;
+    color: var(--text-faint);
+  }
+  .col strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .rooms-body {
+    grid-column: 5 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    font-family: var(--font-read);
+  }
+  .rooms-body p {
+    font-size: var(--fs-500);
+    line-height: var(--lh-read);
+  }
+  .rooms-body p.lead {
+    color: var(--text);
+  }
+  .rooms-body p.quiet {
+    color: var(--text-faint);
+  }
+
+  .col-identity {
+    grid-column: 1 / 7;
+  }
+  .col-link {
+    grid-column: 7 / -1;
+  }
+
+  .gate-lead {
+    grid-column: 5 / -1;
+    margin: 0;
+    font-family: var(--font-read);
+    font-size: var(--fs-500);
+    line-height: var(--lh-read);
+    color: var(--text-muted);
+  }
+  .gate-rule {
+    grid-column: 1 / 7;
+  }
+  .gate-exit {
+    grid-column: 7 / -1;
+  }
+
+  .where-lede {
+    grid-column: 5 / -1;
+    margin: 0;
+    font-family: var(--font-read);
+    font-size: var(--fs-500);
+    line-height: var(--lh-read);
+    color: var(--text-muted);
+  }
+  .place-room {
+    grid-column: 1 / 7;
+  }
+  .place-file {
+    grid-column: 7 / -1;
+  }
+  .where-fine {
+    grid-column: 1 / -1;
+    margin: 0;
+    max-width: 78ch;
+    font-size: var(--fs-300);
+    line-height: 1.5;
     color: var(--text-faint);
   }
 
@@ -414,22 +493,25 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--sp-3);
-    min-height: 56px;
     padding: var(--sp-3);
     border: 1px solid var(--border);
     border-radius: var(--r-md);
     background: var(--surface-2);
   }
+  .demo-room {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-3);
+    padding: var(--sp-4);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
   .demo-peers {
     gap: 0;
+    width: fit-content;
   }
   .demo-peers :global(.avatar + .avatar) {
     margin-left: -9px;
-  }
-  .demo-link {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--sp-2);
   }
   .url {
     max-width: 100%;
@@ -444,62 +526,21 @@
   .url-key {
     color: var(--accent);
   }
-  /* The banner supplies its own surface and margin; the exhibit frame would
-     double both. */
+  /* The banner supplies its own surface and margin; the exhibit frame would double both. */
   .demo-banner {
+    grid-column: 1 / -1;
     display: block;
     padding: 0;
     border: none;
     background: transparent;
-    min-height: 0;
   }
   .demo-banner :global(.sync-banner) {
     margin-bottom: 0;
+    padding-right: var(--sp-4);
   }
-
-  .where {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-4);
-  }
-  .where-lede {
-    margin: 0;
-    max-width: 58ch;
-    font-family: var(--font-read);
-    font-size: var(--fs-500);
-    line-height: var(--lh-read);
-    color: var(--text-muted);
-  }
-  .places {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--sp-4);
-  }
-  .place {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-3);
-    padding: var(--sp-5);
-    border: 1px solid var(--border);
-    border-radius: var(--r-lg);
-    background: var(--surface);
-    box-shadow: var(--shadow-sm);
-  }
-  .place p {
-    margin: 0;
-    font-size: var(--fs-300);
-    line-height: 1.55;
-    color: var(--text-muted);
-  }
-  .place strong {
-    color: var(--text);
-    font-weight: 600;
-  }
-  .where .fine {
-    margin: 0;
-    max-width: 62ch;
-    font-size: var(--fs-300);
-    line-height: 1.55;
+  /* A specimen cannot be dismissed, so it must not show the control. */
+  .demo-banner :global(.dismiss) {
+    display: none;
   }
 
   .foot {
@@ -507,7 +548,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--sp-2) var(--sp-4);
-    margin-top: var(--sp-8);
+    margin-top: var(--sp-6);
     padding-top: var(--sp-4);
     border-top: 1px solid var(--border);
     font-size: var(--fs-300);
@@ -535,15 +576,78 @@
   }
 
   @media (max-width: 860px) {
-    .cards,
-    .places {
-      grid-template-columns: minmax(0, 1fr);
+    main {
+      row-gap: var(--sp-5);
+    }
+    section {
+      row-gap: var(--sp-4);
+    }
+    section + section {
+      padding-top: var(--sp-5);
+    }
+    .hero {
+      padding: var(--sp-5) 0 var(--sp-3);
+    }
+    h2,
+    .hero-text,
+    .hero-exhibit,
+    .rooms-body,
+    .col-identity,
+    .col-link,
+    .gate-lead,
+    .gate-rule,
+    .gate-exit,
+    .where-lede,
+    .place-room,
+    .place-file {
+      grid-column: 1 / -1;
+    }
+    .hero-exhibit {
+      margin-top: var(--sp-5);
+    }
+    .demo-room {
+      width: fit-content;
+      max-width: 100%;
+    }
+    h1,
+    .lede,
+    .caption,
+    .col,
+    .rooms-body,
+    .gate-lead,
+    .where-lede,
+    .where-fine {
+      max-width: 62ch;
     }
   }
 
   @media (max-width: 560px) {
     .shell {
-      padding: var(--sp-4) var(--sp-3) var(--sp-8);
+      padding: var(--sp-4) var(--sp-3) var(--sp-6);
+    }
+    main {
+      row-gap: var(--sp-4);
+    }
+    section {
+      row-gap: var(--sp-3);
+    }
+    section + section {
+      padding-top: var(--sp-4);
+    }
+    .hero {
+      padding: var(--sp-4) 0 0;
+    }
+    .hero-exhibit {
+      margin-top: var(--sp-4);
+    }
+    .rooms-body {
+      gap: var(--sp-3);
+    }
+    .rooms-body p,
+    .gate-lead,
+    .where-lede {
+      font-size: var(--fs-400);
+      line-height: var(--lh-body);
     }
     .about-capsule .repo-link {
       display: none;
@@ -560,9 +664,6 @@
       width: 100%;
       justify-content: center;
       text-align: center;
-    }
-    .rooms {
-      padding: var(--sp-4);
     }
   }
 </style>
