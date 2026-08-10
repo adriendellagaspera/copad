@@ -153,13 +153,17 @@
     });
   }
 
-  const turnStatus = $derived(
-    rawUrl.trim()
-      ? 'Custom relay'
-      : turnFallback === FallbackTurnPolicy.OpenRelay
-        ? 'Public relay active'
-        : 'No relay configured'
-  );
+  type TurnRelayStatus = 'custom' | 'public' | 'none';
+  function turnRelayStatus(url: string, fallback: FallbackTurnPolicy): TurnRelayStatus {
+    if (url.trim()) return 'custom';
+    return fallback === FallbackTurnPolicy.OpenRelay ? 'public' : 'none';
+  }
+  const turnStatus = $derived(turnRelayStatus(rawUrl, turnFallback));
+  const TURN_STATUS_LABEL: Record<TurnRelayStatus, string> = {
+    custom: 'Custom relay',
+    public: 'Public relay active',
+    none: 'No relay configured',
+  };
 
   type StatusRank = 'connected' | 'ready' | 'setup' | 'unavailable';
   const RANK_ORDER: Record<StatusRank, number> = { connected: 0, ready: 1, setup: 2, unavailable: 3 };
@@ -365,7 +369,7 @@
     <details class="advanced" bind:open={advancedOpen}>
       <summary class="advanced-summary">
         <span class="advanced-summary-label">Advanced</span>
-        <span class="badge {turnStatus === 'No relay configured' ? '' : 'ok'}">{turnStatus}</span>
+        <span class="badge {turnStatus === 'none' ? '' : 'ok'}">{TURN_STATUS_LABEL[turnStatus]}</span>
       </summary>
       <section class="backend advanced-body">
         <div class="backend-head">

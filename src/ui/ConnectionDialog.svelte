@@ -6,12 +6,6 @@
   import { SaveStatus } from './types.js';
   import type { PeerUser } from './types.js';
 
-  // The detail sheet the status chip opens. It answers the same two questions the
-  // chip poses in shorthand — "is my work kept?" and "are my edits reaching anyone?"
-  // — but spelled out, and it re-uses the chip's exact glyphs + tones so the two
-  // read as one system. Three blocks, top-down: Storage (durability) → Live session
-  // (connection + presence) → How edits travel (transport). Raw diagnostics fold
-  // into a "Technical details" disclosure so the sheet is clear by default.
   let {
     open,
     onclose,
@@ -32,26 +26,17 @@
     open: boolean;
     onclose: () => void;
     transport: Transport;
-    /** Connection state — mirrors the chip's connection segment. */
     conn: ConnStatus;
-    /** Whether this room is Saved to *your own* backend (vs not saved for you). */
     saved: boolean;
-    /** Save lifecycle, so a failed save surfaces here too. */
     saveStatus?: SaveStatus;
     storageLabel?: string;
-    /** A file-collision warning (another room saves to the same file). */
     warning?: string;
-    /** This room is end-to-end encrypted — adds the shield "Encrypted" block. */
     encrypted?: boolean;
-    /** Everyone present (including you); rendered as presence avatars. */
     peers?: PeerUser[];
     getDiagnostics?: () => Promise<Diagnostics>;
     reconnect?: () => void;
-    /** Scrolls a peer's cursor into view — closes this sheet so the jump is visible. */
     jumpToPeer?: (clientId: number) => void;
-    /** Open Settings to connect a backend (shown when the room is not saved). */
     onConnectStorage: () => void;
-    /** Open Settings with the relay controls already unfolded. */
     onOpenConnectionSettings?: () => void;
   } = $props();
 
@@ -76,7 +61,6 @@
     }
   }
 
-  // Poll while the dialog is open.
   $effect(() => {
     if (!open) return;
     void refresh();
@@ -92,7 +76,6 @@
   const isP2P = $derived(transport === Transport.P2P);
   const others = $derived(peers.filter((p) => !p.self));
 
-  // ── Storage block (durability) — same glyphs/tones as the chip ───────────────
   type StoreIcon = 'cloudCheck' | 'cloudOff' | 'warning';
   const store = $derived.by(
     (): { tone: string; icon: StoreIcon; head: string; sub: string; cta: boolean } => {
@@ -125,11 +108,6 @@
     },
   );
 
-  // ── Connection block (liveness + transport) — mirrors the chip's dot segment ──
-  // The chip's connection segment already fuses "am I live?" with "to whom?"
-  // (it reads "Direct" / "Relay"), so the sheet keeps them in one block too — one
-  // status concept per chip segment. `sub` is the dynamic liveness line; the
-  // transport ("to whom") is a stable second line, since it's deployment-fixed.
   const live = $derived.by(
     (): { tone: string; spinner: boolean; pulse: boolean; head: string; sub: string } => {
       if (conn === ConnStatus.Offline)
@@ -179,7 +157,6 @@
 </script>
 
 <Dialog {open} {onclose} title="Connection & storage">
-  <!-- Storage: is my work kept for me? -->
   <div class="block {store.tone}">
     <span class="block-icon" aria-hidden="true">
       {#if store.icon === 'cloudCheck'}
@@ -201,7 +178,6 @@
     </div>
   </div>
 
-  <!-- Connection: am I live, and to whom? (liveness headline + transport sub-line) -->
   <div class="block {live.tone}">
     <span class="block-icon" aria-hidden="true">
       {#if live.spinner}
@@ -229,8 +205,6 @@
     </div>
   </div>
 
-  <!-- Encryption: shown only when a per-room key is in effect. The shield here is
-       the same mark the status chip's third segment uses. -->
   {#if encrypted}
     <div class="block accent">
       <span class="block-icon" aria-hidden="true">
@@ -297,8 +271,6 @@
 </Dialog>
 
 <style>
-  /* Info block: a tone-tinted icon bubble + body. The icon and tone match the
-     status chip that opened this sheet, so the two read as one system. */
   .block {
     display: flex;
     gap: var(--sp-3);
@@ -356,8 +328,6 @@
     font-size: var(--fs-300);
     line-height: 1.5;
   }
-  /* The transport "to whom" line — a stable secondary note under the dynamic
-     liveness headline, so the two facts stay one block without competing. */
   .block-note {
     color: var(--text-faint);
     font-size: 0.75rem;
@@ -379,7 +349,6 @@
   .presence-row {
     margin-top: var(--sp-2);
   }
-  /* Connection glyphs — the same dot/spinner the chip uses. */
   .dot {
     width: 10px;
     height: 10px;
@@ -420,7 +389,6 @@
     }
   }
 
-  /* Technical details — folded away by default. */
   .tech {
     margin-top: var(--sp-3);
   }

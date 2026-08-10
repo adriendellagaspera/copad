@@ -298,8 +298,6 @@
     settingsOpen = true;
   }
 
-  // A room that can't reach its peers needs the relay controls, which now sit
-  // folded away — so the failure state opens them rather than naming them.
   function openConnectionSettings(): void {
     settingsFocus = undefined;
     settingsAdvanced = true;
