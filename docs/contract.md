@@ -187,7 +187,7 @@ Inherited principles, not inventions: **never a scrim over the text** — the do
 |---|---|---|---|
 | ① | `Connecting` | **yes** | nothing beyond the pill |
 | ② | attached, discovering (grace) | **yes** | nothing — deliberate silence |
-| ③ | **alone, confirmed** | **no** | *You're the only one here. Copad opens the document when someone joins. Until then you can read, copy and export it.* |
+| ③ | **alone, confirmed** | **no** | Always visible: *You're the only one here. The document opens when someone joins.* Behind `Details` in the same band: *Until then you can read, copy and export it*, plus why writing alone would be lost. The causal link — alone, therefore closed — is never the part that hides; only the rationale is. |
 | ④ | someone here, unreachable | **yes** | *Someone's here — still connecting to them.* Neutral tone, `Retry` + `Connection details` |
 | ⑤ | `Connected` | **yes** | one line, once |
 | ⑥ | a peer left | **yes**, then ③ | *Ada left. You can keep writing for a moment.* Then: *The room is empty again. Your work is still here to read and export.* |
@@ -220,7 +220,7 @@ Also active while read-only: text selection and copy, scrolling and outline, Sha
 
 The gate used to yield silently on the first keystroke. *"Read-only until you type"* is not a contract, it is a speed bump — right for a warning, self-defeating for a contract.
 
-It is now an explicit, named button, **P2P only**, stating its cost: `Write alone anyway` → *Nothing you write will leave this device until someone joins.* (`SyncBanner.svelte`'s gated tier — rendered only while `transport === Transport.P2P`, since the hub's contract offers no escape hatch, §2.1.) Scope stays per-room, in memory, for the session; every reload re-asserts the contract (`App.svelte`'s `soloRooms`, unpersisted).
+It is now an explicit, named button, **P2P only**, stating its cost as **visible copy beside the button, never a tooltip** (a `title` is invisible on touch, which is where the gate is hardest to understand): `Write alone anyway` → *Nothing you write will leave this device until someone joins.* (`SyncBanner.svelte`'s gated tier — rendered only while `transport === Transport.P2P`, since the hub's contract offers no escape hatch, §2.1.) Scope stays per-room, in memory, for the session; every reload re-asserts the contract (`App.svelte`'s `soloRooms`, unpersisted).
 
 The honest cost, documented in the README: the contract is *read-only when alone by default, deliberately overridable*. That is defensible. The silent version was not.
 
@@ -297,7 +297,7 @@ Two traps: Zoom meeting ids are enumerable, so the canonical form must include `
 | **Filename per room, collision warning** | Kept. Storage stays first-class, so the machinery keeping stores distinct stays justified. |
 | **Leader election** | Kept — it follows from the above, and autosave-during-session remains. |
 | **`?role=reader`** | Stays a strictly separate concept from the solitude lock: distinct copy, distinct iconography. One lifts by itself, the other never does; merging them would blur the central promise. |
-| **The `WriteGateIntro` modal** | **Deleted.** The waiting state teaches the contract better than a modal shown once per browser — consistent with "the interface recedes", and with an intro modal already removed for that reason. |
+| **The `WriteGateIntro` modal** | **Deleted.** The waiting state teaches the contract better than a modal shown once per browser — consistent with "the interface recedes", and with an intro modal already removed for that reason. This bans *replacing* the waiting state with an explainer, not *layering* one inside it: a `Details` disclosure within the persistent band is not a modal, is not spent once, and never removes the state or its actions from the screen. Row ③ uses it. |
 | **A second tab of your own browser** | Still satisfies the contract — a second tab really does receive the bytes — but the UI **names it**: *"Another tab of yours is here."* No lie, and no silent loophole. |
 | **Deployments with no collab server** | Said plainly rather than silently degraded. Copad without a collaboration server is not Copad; it is flagged at deploy and in the UI, so one contract holds everywhere. |
 | **`Reaching` locking** | It does not lock. The premise is proven and the failure is ours. |

@@ -1,22 +1,9 @@
 <script lang="ts">
   import { ConnStatus, Transport } from '../collaboration/types.js';
   import { SaveStatus } from './types.js';
+  import type { ConflictWarning, RoomEncrypted, StorageAttached } from './types.js';
+  import type { StorageLabel } from '../storage/types.js';
 
-  // One status chip, two orthogonal facts — the single glanceable answer to
-  // "is what I write reaching anyone, and is it kept for me?".
-  //
-  //   ┌ connection ┄┄┄┄┄┄┄┄┄┄┄┐   ┌ durability ┄┄┄┄┄┄┄┄┄┐
-  //   ●  Direct / Alone / …        ☁⃠ Not saved / ☁✓ Saved
-  //
-  // These are independent axes (I can be connected live yet Not saved), so the
-  // chip keeps them as two dots rather than one conflated word. The chip is
-  // neutral; each segment carries its own tone via icon/text colour, Linear-style.
-  //
-  // North-star: the durability half is the signal the mobile epic elevates
-  // (#105) — "voice (live) / paper in pocket (saved)". It never promises an absent
-  // peer will see live edits. The heavy teaching (IntroDialog) and the loud
-  // consequential warning (WriteGate / SyncBanner) live elsewhere; this chip is the
-  // quiet, always-present reference — tap opens the detail sheet.
   let {
     conn,
     saveStatus,
@@ -24,117 +11,133 @@
     storageLabel,
     warning,
     transport,
-    encrypted = false,
+    encrypted = false as RoomEncrypted,
     onclick,
   }: {
     conn: ConnStatus;
     saveStatus: SaveStatus;
-    hasStorage: boolean;
-    storageLabel?: string;
-    /** A file-collision warning (another room saves to the same file). Outranks
-     *  the durability state — the user needs to see it. */
-    warning?: string;
+    hasStorage: StorageAttached;
+    storageLabel?: StorageLabel;
+    warning?: ConflictWarning;
     transport: Transport;
-    /** This room is end-to-end encrypted (a per-room key is in effect). When true a
-     *  third shield segment appears — a privacy fact that *varies per room*, unlike
-     *  the transport, which the connection segment already states as Direct/Relay.
-     *  Only shown when true, so public rooms keep the chip to two signals. */
-    encrypted?: boolean;
+    encrypted?: RoomEncrypted;
     onclick?: () => void;
   } = $props();
 
   type Tone = 'muted' | 'ok' | 'warn' | 'danger' | 'accent';
   type ConnIcon = 'offline' | 'spinner' | 'live' | 'unreachable';
-  // Durability on a single cloud/sync axis so the state reads even wordless (the
-  // form used on mobile): cloud-check = kept in storage, cloud-off = not kept
-  // (muted for live-only by design, danger for a failed save). Conflict keeps a
-  // distinct alert triangle — it's an error, not a point on the kept/not-kept axis.
-  type DurIcon = 'cloudCheck' | 'cloudOff' | 'spinner' | 'warning';
+  type DurabilityIcon = 'cloudCheck' | 'cloudOff' | 'spinner' | 'warning';
+  type SegmentLabel = string & { readonly _brand: 'SegmentLabel' };
+  type SegmentTooltip = string & { readonly _brand: 'SegmentTooltip' };
+  type PillTooltip = string & { readonly _brand: 'PillTooltip' };
+  type Pulsing = boolean & { readonly _brand: 'Pulsing' };
+
+  interface ConnSegment {
+    readonly label: SegmentLabel;
+    readonly tone: Tone;
+    readonly icon: ConnIcon;
+    readonly pulse: Pulsing;
+    readonly title: SegmentTooltip;
+  }
+  interface DurabilitySegment {
+    readonly label: SegmentLabel;
+    readonly tone: Tone;
+    readonly icon: DurabilityIcon;
+    readonly title: SegmentTooltip;
+  }
+
+  const STILL = false as Pulsing;
+  const PULSE = true as Pulsing;
 
   const isP2P = $derived(transport === Transport.P2P);
-  const transportTitle = $derived(
-    isP2P
-      ? 'Peer-to-peer — edits travel directly between browsers, no server in the data path'
-      : 'Relayed — edits travel through the collaboration server',
-  );
 
-  // ── Axis A: connection & liveness (are my edits reaching anyone?) ────────────
-  // When connected we lead with the transport (Direct / Relay) — the pulsing dot
-  // already says "live", so the word states *how*. Matches the mockup's
-  // "Connecté · Direct".
-  const c = $derived.by(
-    (): { label: string; tone: Tone; icon: ConnIcon; pulse: boolean; title: string } => {
-      if (conn === ConnStatus.Offline)
-        return { label: 'Offline', tone: 'warn', icon: 'offline', pulse: false, title: 'No network connection' };
-      if (conn === ConnStatus.Connecting)
+  const connection = $derived.by((): ConnSegment => {
+    if (conn === ConnStatus.Offline)
+      return {
+        label: 'Offline' as SegmentLabel,
+        tone: 'warn',
+        icon: 'offline',
+        pulse: STILL,
+        title: 'No network connection' as SegmentTooltip,
+      };
+    if (conn === ConnStatus.Connecting)
+      return {
+        label: 'Connecting…' as SegmentLabel,
+        tone: 'muted',
+        icon: 'spinner',
+        pulse: STILL,
+        title: 'Reaching the server' as SegmentTooltip,
+      };
+    if (conn === ConnStatus.Unreachable)
+      return {
+        label: "Can't connect" as SegmentLabel,
+        tone: 'danger',
+        icon: 'unreachable',
+        pulse: STILL,
+        title: "The server didn't answer — click to retry" as SegmentTooltip,
+      };
+    if (conn === ConnStatus.Waiting)
+      return {
+        label: 'Waiting' as SegmentLabel,
+        tone: 'muted',
+        icon: 'live',
+        pulse: STILL,
+        title: 'Nobody else here yet — share the link to invite someone' as SegmentTooltip,
+      };
+    return {
+      label: (isP2P ? 'Direct' : 'Relay') as SegmentLabel,
+      tone: 'accent',
+      icon: 'live',
+      pulse: PULSE,
+      title: (isP2P
+        ? 'Editing live, browser to browser'
+        : 'Editing live, through the server') as SegmentTooltip,
+    };
+  });
+
+  const durability = $derived.by((): DurabilitySegment => {
+    if (warning)
+      return {
+        label: 'Conflict' as SegmentLabel,
+        tone: 'danger',
+        icon: 'warning',
+        title: `${warning}` as SegmentTooltip,
+      };
+    if (hasStorage) {
+      const where = storageLabel ?? ('your storage' as StorageLabel);
+      if (saveStatus === SaveStatus.Error)
         return {
-          label: 'Connecting…',
+          label: 'Save failed' as SegmentLabel,
+          tone: 'danger',
+          icon: 'cloudOff',
+          title: `Could not save to ${where}` as SegmentTooltip,
+        };
+      if (saveStatus === SaveStatus.Saving)
+        return {
+          label: 'Saving…' as SegmentLabel,
           tone: 'muted',
           icon: 'spinner',
-          pulse: false,
-          title: isP2P ? 'Connecting to the signaling server' : 'Connecting to the collaboration server',
-        };
-      if (conn === ConnStatus.Unreachable)
-        return {
-          label: "Can't connect",
-          tone: 'danger',
-          icon: 'unreachable',
-          pulse: false,
-          title: isP2P
-            ? "Couldn't reach the signaling server — check your connection, or click to retry"
-            : "Couldn't reach the collaboration server — check your connection, or click to retry",
-        };
-      if (conn === ConnStatus.Waiting)
-        return {
-          label: 'Waiting',
-          tone: 'muted',
-          icon: 'live',
-          pulse: false,
-          title: `${transportTitle}. No peers yet — share the link to invite collaborators`,
+          title: `Saving to ${where}` as SegmentTooltip,
         };
       return {
-        label: isP2P ? 'Direct' : 'Relay',
+        label: 'Saved' as SegmentLabel,
         tone: 'accent',
-        icon: 'live',
-        pulse: true,
-        title: `${transportTitle}. Editing live with peers present now`,
+        icon: 'cloudCheck',
+        title: `Kept for you in ${where} — your own copy` as SegmentTooltip,
       };
-    },
-  );
+    }
+    return {
+      label: 'Not saved' as SegmentLabel,
+      tone: 'muted',
+      icon: 'cloudOff',
+      title:
+        'Nothing of yours is kept for this room — only a cache that dies with this browser. Connect storage to keep your own copy.' as SegmentTooltip,
+    };
+  });
 
-  // ── Axis B: durability (is my work kept for me?) ─────────────────────────────
-  // The save lifecycle (Saving…/Saved/Save failed) is a facet of durability, so it
-  // lives here; live-only is the standing "nothing of mine is kept" fact.
-  const d = $derived.by(
-    (): { label: string; tone: Tone; icon: DurIcon; title: string } => {
-      if (warning) return { label: 'Conflict', tone: 'danger', icon: 'warning', title: warning };
-      if (hasStorage) {
-        const where = storageLabel ?? 'your storage';
-        if (saveStatus === SaveStatus.Error)
-          return { label: 'Save failed', tone: 'danger', icon: 'cloudOff', title: `Could not save to ${where}` };
-        if (saveStatus === SaveStatus.Saving)
-          return { label: 'Saving…', tone: 'muted', icon: 'spinner', title: `Saving to ${where}` };
-        return {
-          label: 'Saved',
-          tone: 'accent',
-          icon: 'cloudCheck',
-          title: `Kept for you in ${where}. Collaborators edit live but can’t write to your storage.`,
-        };
-      }
-      return {
-        label: 'Not saved',
-        tone: 'muted',
-        icon: 'cloudOff',
-        title:
-          'Not saved — you edit live and a copy is cached on this device, but nothing of yours is kept for this room. Connect a storage backend to keep your own copy.',
-      };
-    },
-  );
-
-  const encryptedTitle =
-    'End-to-end encrypted — your content is scrambled in your browser with this room’s key; relays and the signaling server only ever see ciphertext.';
+  const encryptedTitle = 'End-to-end encrypted — servers only ever see ciphertext' as SegmentTooltip;
   const title = $derived(
-    `${c.title}\n${d.title}${encrypted ? `\n${encryptedTitle}` : ''}`,
+    `${connection.title}\n${durability.title}${encrypted ? `\n${encryptedTitle}` : ''}` as PillTooltip,
   );
 </script>
 
@@ -148,42 +151,35 @@
   {title}
   {onclick}
 >
-  <span class="seg conn {c.tone}">
-    {#if c.icon === 'spinner'}
+  <span class="seg conn {connection.tone}">
+    {#if connection.icon === 'spinner'}
       <span class="spinner" aria-hidden="true"></span>
-    {:else if c.icon === 'offline'}
+    {:else if connection.icon === 'offline'}
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 5-2.6M19 13a10 10 0 0 0-4-2.8M12 20h.01" /></svg>
-    {:else if c.icon === 'unreachable'}
-      <!-- Alert circle — distinct from the spinner (still trying) and the offline
-           slash (no network at all): the server itself didn't answer in time. -->
+    {:else if connection.icon === 'unreachable'}
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><line x1="12" y1="7.5" x2="12" y2="12.5" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
     {:else}
-      <span class="live-dot" class:pulse={c.pulse} aria-hidden="true"></span>
+      <span class="live-dot" class:pulse={connection.pulse} aria-hidden="true"></span>
     {/if}
-    <span class="seg-label">{c.label}</span>
+    <span class="seg-label">{connection.label}</span>
   </span>
 
   <span class="divider" aria-hidden="true"></span>
 
-  <span class="seg dur {d.tone}">
-    {#if d.icon === 'spinner'}
+  <span class="seg dur {durability.tone}">
+    {#if durability.icon === 'spinner'}
       <span class="spinner" aria-hidden="true"></span>
-    {:else if d.icon === 'cloudCheck'}
-      <!-- Cloud + check = kept in your storage. -->
+    {:else if durability.icon === 'cloudCheck'}
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 0 1 1.5 8.7" /><path d="M9 14.5l2 2 4-4" /></svg>
-    {:else if d.icon === 'cloudOff'}
-      <!-- Cloud with a slash = not kept in storage (the universal "not stored"). -->
+    {:else if durability.icon === 'cloudOff'}
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19H9a7 7 0 0 1-1.4-13.8" /><path d="M11 5.1A7 7 0 0 1 15.7 10h1.8a4.5 4.5 0 0 1 2.3 8.3" /><path d="M3 3l18 18" /></svg>
     {:else}
-      <!-- Conflict — a distinct alert, off the kept/not-kept axis. -->
       <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" /></svg>
     {/if}
-    <span class="seg-label">{d.label}</span>
+    <span class="seg-label">{durability.label}</span>
   </span>
 
   {#if encrypted}
-    <!-- Third segment, shown only when the room is E2E-encrypted — a privacy fact
-         that varies per room. A shield reads even wordless on mobile. -->
     <span class="divider" aria-hidden="true"></span>
     <span class="seg secure accent">
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></svg>
@@ -193,11 +189,7 @@
 </svelte:element>
 
 <style>
-  /* Flush segment, not a boxed chip — it lives inside the header capsule
-     (or the mobile dock), which already supplies the pill; a border/fill
-     here would nest one pill inside another. Each segment colours only its
-     own icon + label, so two tones coexist without competing background
-     tints (Linear-style). */
+  /* Flush, not a boxed chip: the header capsule (or mobile dock) already supplies the pill. */
   .chip {
     display: inline-flex;
     align-items: center;
@@ -234,8 +226,7 @@
     color: var(--ok);
   }
   .seg.warn {
-    /* --warn-text, not --warn: this colors the visible label text (~3:1 on
-       --surface-2 with --warn, below AA's 4.5:1 for normal text). */
+    /* --warn-text, not --warn: --warn on --surface-2 is ~3:1, below AA's 4.5:1 for text. */
     color: var(--warn-text);
   }
   .seg.danger {
@@ -289,11 +280,7 @@
       animation: none;
     }
   }
-  /* On a touch/narrow header the chip collapses to two glyphs — a connection dot and
-     the cloud/sync durability icon (the mockup's "puce colorée qu'on lit sans la
-     lire"). The cloud-off / cloud-check pair reads wordless, and #115's IntroDialog
-     has already taught the concept on entry; full detail is one tap away. Labels are
-     clipped (not display:none) so screen readers still announce them. */
+  /* Clipped, not removed, so screen readers still announce the labels. */
   @media (max-width: 720px) {
     .seg-label {
       position: absolute;

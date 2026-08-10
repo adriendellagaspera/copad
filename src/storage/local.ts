@@ -1,4 +1,4 @@
-import type { Storage, StorageAvailability, LoginOptions, DocContent, Filename } from './types.js';
+import type { DocContent, Filename, LoginOptions, Storage, StorageAvailability, StorageLabel } from './types.js';
 import { DocFormat, OpenMode, LoginKind } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { knownExtensions } from '../format/index.js';
@@ -65,7 +65,7 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
 
   const storage: Storage = {
     id: STORAGE_ID.local,
-    label: 'Local file',
+    label: 'Local file' as StorageLabel,
     get blurb(): string {
       return hasFsAccessApi()
         ? 'Opens any text or source file on your device — .yjs, .md, .txt, .html, .json, .py, .js, .rs, …'

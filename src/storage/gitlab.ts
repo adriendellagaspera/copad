@@ -1,4 +1,4 @@
-import type { Storage, DocContent, Filename } from './types.js';
+import type { DocContent, Filename, Storage, StorageLabel } from './types.js';
 import { DocFormat, InputType, StorageAccess } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
@@ -238,7 +238,7 @@ export function gitlabStorage(room: RoomId): { auth: StorageAuth; storage: Stora
 
   const storage: Storage = {
     id: STORAGE_ID.gitlab,
-    label: 'GitLab',
+    label: 'GitLab' as StorageLabel,
     availability: { ok: true },
     blurb:
       'Commits files to a GitLab project (gitlab.com or self-hosted) — stays human-readable and committable.',
