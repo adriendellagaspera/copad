@@ -652,8 +652,24 @@
   // locked: the key in hand is then missing or wrong, and storing it would
   // overwrite a working one.
   const pagePath = location.pathname as PagePath;
+
+  // A room reached by link, by `VITE_DEFAULT_ROOM`, or by clicking New document
+  // was asked for. A room minted under a bare visit was not: someone who opens
+  // the site to find out what it is, reads, and leaves would otherwise be handed
+  // an "Untitled" row for a document they never wrote in. So that one waits for
+  // a sign it is really in use — which the write gate makes reliable, since a
+  // solo peer-to-peer room cannot be typed into without opting in first.
+  const askedFor = !landing.fresh || autofocusTitle;
+  const inUse = $derived(
+    askedFor ||
+      writeSoloAt !== null ||
+      otherPeers.length > 0 ||
+      roomName.value !== null ||
+      savedHere,
+  );
+
   $effect(() => {
-    if (!lockChecked || lock.locked) return;
+    if (!lockChecked || lock.locked || !inUse) return;
     rememberRoomVisit({
       room,
       name: roomName.value,
