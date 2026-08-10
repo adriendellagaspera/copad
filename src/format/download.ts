@@ -1,3 +1,12 @@
+import type { RoomId, RoomName } from '../collaboration/types.js';
+
+/** The stem of a downloaded export, before a codec appends its extension. */
+export type ExportBaseName = string & { readonly _brand: 'ExportBaseName' };
+
+export function exportBaseName(name: RoomName | null, room: RoomId): ExportBaseName {
+  return (name ?? room) as string as ExportBaseName;
+}
+
 export async function downloadBytes(bytes: Uint8Array, filename: string): Promise<void> {
   if ('showSaveFilePicker' in window) {
     try {

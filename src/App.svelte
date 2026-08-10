@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick as nextTick, untrack } from 'svelte';
   import { fade } from 'svelte/transition';
+  import { exportBaseName } from './format/download.js';
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import { pickFile } from './format/filePicker.js';
   import type { StorageBackend } from './storage/index.js';
@@ -77,7 +78,13 @@
   import { durabilityHolds as computeDurabilityHolds } from './collaboration/persistHealth.js';
   import { routeFor, aboutUrl, newDocumentUrl, RouteKind, type PageQuery } from './ui/route.js';
   import { introSlotFor, IntroSlotKind, type IntroEligible } from './ui/introSlot.js';
-  import type { ConflictWarning, PeerUser, RoomEncrypted, StorageAttached } from './ui/types.js';
+  import type {
+    ConflictWarning,
+    DialogOpen,    FocusAdvanced,
+    PeerUser,
+    RoomEncrypted,
+    StorageAttached,
+  } from './ui/types.js';
   import type {
     CollabUnavailable,
     DepartureLingering,
@@ -105,13 +112,16 @@
   const reducedMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   $effect(() => initInputModality());
-  let shareOpen = $state(false);
-  let joinOpen = $state(false);
-  let exportOpen = $state(false);
-  let libraryOpen = $state(false);
+  const CLOSED = false as DialogOpen;
+  const OPENED = true as DialogOpen;
+  let shareOpen = $state(CLOSED);
+  let joinOpen = $state(CLOSED);
+  let exportOpen = $state(CLOSED);
+  let libraryOpen = $state(CLOSED);
 
   const { access: envAccess, cipher: envCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
   const perRoomPassword = roomPassword();
+  const envRoomPassword = parseRoomCredential(import.meta.env.VITE_ROOM_PASSWORD ?? null);
   const passwordRequiredMode = envAccess.mode === RoomAccessMode.RoomPassword;
   const roomCipher: RoomCipher = {
     password: (r) => currentSecretKey() ?? perRoomPassword.credential(r) ?? envCipher.password(r),
@@ -316,25 +326,25 @@
   const bump = () => { tick += 1; };
 
   // ── Session presence / connection (header) ──────────────────────────────────
-  let diagOpen = $state(false);
+  let diagOpen = $state(CLOSED);
   const otherPeers = $derived(sessionState.users.filter((u) => !u.self));
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
-  let settingsOpen = $state(false);
+  let settingsOpen = $state(CLOSED);
   let settingsFocus = $state<StorageId | undefined>(undefined);
-  let settingsAdvanced = $state(false);
+  let settingsAdvanced = $state(false as FocusAdvanced);
 
   function openSettings(id?: StorageId) {
     settingsFocus = id;
-    settingsAdvanced = false;
-    settingsOpen = true;
+    settingsAdvanced = false as FocusAdvanced;
+    settingsOpen = OPENED;
   }
 
   function openConnectionSettings(): void {
     settingsFocus = undefined;
-    settingsAdvanced = true;
-    settingsOpen = true;
+    settingsAdvanced = true as FocusAdvanced;
+    settingsOpen = OPENED;
   }
 
   function afterConnect(b: StorageBackend) {
@@ -569,7 +579,11 @@
     collabUnavailableSeenStore.write(true);
   }
   const showCollabUnavailableIntro = $derived(
-    collabUnavailable && !collabUnavailableSeen && !shareOpen && !settingsOpen && !exportOpen,
+    (collabUnavailable &&
+      !collabUnavailableSeen &&
+      !shareOpen &&
+      !settingsOpen &&
+      !exportOpen) as DialogOpen,
   );
 
   function connectStorageFromCollabIntro(): void {
@@ -740,7 +754,7 @@
 
     <button
       class="cap-btn"
-      onclick={() => (libraryOpen = true)}
+      onclick={() => (libraryOpen = OPENED)}
       title="Your documents"
       aria-label="Your documents"
     >
@@ -760,12 +774,12 @@
         <path d="M12 3v12m0 0l-4-4m4 4l4-4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
     </button>
-    <button class="cap-btn" onclick={() => (joinOpen = true)} title="Join a meeting link" aria-label="Join a meeting link">
+    <button class="cap-btn" onclick={() => (joinOpen = OPENED)} title="Join a meeting link" aria-label="Join a meeting link">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
       </svg>
     </button>
-    <button class="cap-btn" onclick={() => (exportOpen = true)} title="Export a copy of this document" aria-label="Export a copy of this document">
+    <button class="cap-btn" onclick={() => (exportOpen = OPENED)} title="Export a copy of this document" aria-label="Export a copy of this document">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 15V3m0 0l-4 4m4-4l4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
@@ -783,7 +797,7 @@
         warning={conflictWarning}
         transport={sessionState.diagnostics.transport}
         encrypted={roomEncrypted}
-        onclick={() => (diagOpen = true)}
+        onclick={() => (diagOpen = OPENED)}
       />
       {#if otherPeers.length > 0}
         <PresenceBar users={otherPeers} size={24} onSelect={sessionState.jumpToPeer} {justJoinedIds} />
@@ -806,7 +820,7 @@
         onColor={(c) => { color = c; }}
       />
     </div>
-    <button class="cap-share share-btn" onclick={() => (shareOpen = true)} title="Share / invite collaborators">
+    <button class="cap-share share-btn" onclick={() => (shareOpen = OPENED)} title="Share / invite collaborators">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
         <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
@@ -844,7 +858,7 @@
       warning={conflictWarning}
       transport={sessionState.diagnostics.transport}
       encrypted={roomEncrypted}
-      onclick={() => (diagOpen = true)}
+      onclick={() => (diagOpen = OPENED)}
     />
     <div class="dock-fill"></div>
     <button class="dock-btn" onclick={newRoom} title="New document (opens in a new tab)" aria-label="New document (opens in a new tab)">
@@ -852,7 +866,7 @@
         <path d="M12 5v14M5 12h14" />
       </svg>
     </button>
-    <button class="dock-btn" onclick={() => (libraryOpen = true)} title="Your documents" aria-label="Your documents">
+    <button class="dock-btn" onclick={() => (libraryOpen = OPENED)} title="Your documents" aria-label="Your documents">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H9a2 2 0 0 1 2 2v13a1.5 1.5 0 0 0-1.5-1.5H4Z" /><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H15a2 2 0 0 0-2 2v13a1.5 1.5 0 0 1 1.5-1.5H20Z" />
       </svg>
@@ -862,17 +876,17 @@
         <path d="M12 3v12m0 0l-4-4m4 4l4-4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
     </button>
-    <button class="dock-btn" onclick={() => (joinOpen = true)} title="Join a meeting link" aria-label="Join a meeting link">
+    <button class="dock-btn" onclick={() => (joinOpen = OPENED)} title="Join a meeting link" aria-label="Join a meeting link">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
       </svg>
     </button>
-    <button class="dock-btn" onclick={() => (exportOpen = true)} title="Export a copy of this document" aria-label="Export a copy of this document">
+    <button class="dock-btn" onclick={() => (exportOpen = OPENED)} title="Export a copy of this document" aria-label="Export a copy of this document">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 15V3m0 0l-4 4m4-4l4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
     </button>
-    <button class="dock-share" onclick={() => (shareOpen = true)} title="Share / invite collaborators" aria-label="Share / invite collaborators">
+    <button class="dock-share" onclick={() => (shareOpen = OPENED)} title="Share / invite collaborators" aria-label="Share / invite collaborators">
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
         <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
@@ -900,19 +914,19 @@
     {waitingSince}
     {departedPeerName}
     {withinDepartureLinger}
-    onShare={() => (shareOpen = true)}
+    onShare={() => (shareOpen = OPENED)}
     onConnectStorage={() => openSettings()}
-    onExport={() => (exportOpen = true)}
+    onExport={() => (exportOpen = OPENED)}
     onWriteSolo={allowWriteSolo}
     onCopyInviteLink={copyInviteLink}
     onRetry={sessionState.diagnostics.reconnect}
-    onConnectionDetails={() => (diagOpen = true)}
+    onConnectionDetails={() => (diagOpen = OPENED)}
   />
 
   {#if introSlot.kind === IntroSlotKind.FirstVisit}
     <FirstVisitIntro
       transport={sessionState.diagnostics.transport}
-      onShare={() => (shareOpen = true)}
+      onShare={() => (shareOpen = OPENED)}
       onConnectStorage={connectStorageFromStorageIntro}
       onAbout={openAbout}
     />
@@ -979,7 +993,7 @@
 
 <ConnectionDialog
   open={diagOpen}
-  onclose={() => (diagOpen = false)}
+  onclose={() => (diagOpen = CLOSED)}
   transport={sessionState.diagnostics.transport}
   conn={sessionState.conn}
   saved={savedHere}
@@ -1011,7 +1025,7 @@
   spellcheck={language.spellcheck}
   onLanguageChange={language.setChoice}
   onSpellcheckChange={language.setSpellcheck}
-  exportBaseName={roomName.value ?? room}
+  exportBaseName={exportBaseName(roomName.value, room)}
   {toasts}
   onchange={bump}
   onconnect={afterConnect}
@@ -1021,30 +1035,30 @@
 
 <ShareDialog
   open={shareOpen}
-  onclose={() => (shareOpen = false)}
+  onclose={() => (shareOpen = CLOSED)}
   {room}
   {toasts}
   {transport}
-  envPassword={import.meta.env.VITE_ROOM_PASSWORD}
+  envPassword={envRoomPassword}
   saved={savedHere}
   storageLabel={savedHere ? storage?.storage.label : undefined}
   {onSecurityChange}
 />
 
-<MeetingJoinDialog open={joinOpen} onclose={() => (joinOpen = false)} {toasts} hallUrl={collabPlan.hallUrl} />
+<MeetingJoinDialog open={joinOpen} onclose={() => (joinOpen = CLOSED)} {toasts} hallUrl={collabPlan.hallUrl} />
 
 <LibraryDialog
   open={libraryOpen}
-  onclose={() => (libraryOpen = false)}
+  onclose={() => (libraryOpen = CLOSED)}
   current={room}
   page={pagePath}
-  onNew={() => { libraryOpen = false; newRoom(); }}
+  onNew={() => { libraryOpen = CLOSED; newRoom(); }}
 />
 
 <ExportDialog
   open={exportOpen}
-  onclose={() => (exportOpen = false)}
-  baseName={roomName.value ?? room}
+  onclose={() => (exportOpen = CLOSED)}
+  baseName={exportBaseName(roomName.value, room)}
   {toasts}
 />
 <Toast {toasts} />

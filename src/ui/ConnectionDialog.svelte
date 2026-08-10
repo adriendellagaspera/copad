@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { StorageLabel } from '../storage/types.js';
+  import type { ConflictWarning, DialogOpen, DialogTitle, RoomEncrypted, StorageAttached } from './types.js';
   import Dialog from './Dialog.svelte';
   import PresenceBar from './PresenceBar.svelte';
   import type { Diagnostics } from '../collaboration/types.js';
@@ -15,7 +17,7 @@
     saveStatus = SaveStatus.Idle,
     storageLabel,
     warning,
-    encrypted = false,
+    encrypted = false as RoomEncrypted,
     peers = [],
     getDiagnostics,
     reconnect,
@@ -23,15 +25,15 @@
     onConnectStorage,
     onOpenConnectionSettings,
   }: {
-    open: boolean;
+    open: DialogOpen;
     onclose: () => void;
     transport: Transport;
     conn: ConnStatus;
-    saved: boolean;
+    saved: StorageAttached;
     saveStatus?: SaveStatus;
-    storageLabel?: string;
-    warning?: string;
-    encrypted?: boolean;
+    storageLabel?: StorageLabel;
+    warning?: ConflictWarning;
+    encrypted?: RoomEncrypted;
     peers?: PeerUser[];
     getDiagnostics?: () => Promise<Diagnostics>;
     reconnect?: () => void;
@@ -39,6 +41,8 @@
     onConnectStorage: () => void;
     onOpenConnectionSettings?: () => void;
   } = $props();
+
+  const TITLE = 'Connection & storage' as DialogTitle;
 
   function selectPeer(clientId: number): void {
     onclose();
@@ -156,7 +160,7 @@
   );
 </script>
 
-<Dialog {open} {onclose} title="Connection & storage">
+<Dialog {open} {onclose} title={TITLE}>
   <div class="block {store.tone}">
     <span class="block-icon" aria-hidden="true">
       {#if store.icon === 'cloudCheck'}

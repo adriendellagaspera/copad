@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { DialogOpen, DialogTitle } from './types.js';
   import Dialog from './Dialog.svelte';
   import type { Toasts } from './toasts.svelte.js';
   import { deriveMeetingRoom } from '../collaboration/meetingLink.js';
@@ -11,7 +12,9 @@
     onclose,
     toasts,
     hallUrl,
-  }: { open: boolean; onclose: () => void; toasts: Toasts; hallUrl?: WebsocketUrl } = $props();
+  }: { open: DialogOpen; onclose: () => void; toasts: Toasts; hallUrl?: WebsocketUrl } = $props();
+
+  const TITLE = 'Join a meeting' as DialogTitle;
 
   let inputEl = $state<HTMLInputElement | undefined>();
   let pending = $state(false);
@@ -66,7 +69,7 @@
   }
 </script>
 
-<Dialog {open} {onclose} title="Join a meeting">
+<Dialog {open} {onclose} title={TITLE}>
   <p class="join-hint">
     Paste a Zoom, Google Meet, or Teams link — pasting takes you straight into a pad shared by
     everyone who has that link. No Copad link needed first.

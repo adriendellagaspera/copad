@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { ExportBaseName } from '../format/download.js';
+  import type { DialogOpen, DialogTitle } from './types.js';
   import Dialog from './Dialog.svelte';
   import ExportFormats from './ExportFormats.svelte';
   import type { Toasts } from './toasts.svelte.js';
@@ -8,10 +10,12 @@
     onclose,
     baseName,
     toasts,
-  }: { open: boolean; onclose: () => void; baseName: string; toasts: Toasts } = $props();
+  }: { open: DialogOpen; onclose: () => void; baseName: ExportBaseName; toasts: Toasts } = $props();
+
+  const TITLE = 'Export a copy' as DialogTitle;
 </script>
 
-<Dialog {open} {onclose} title="Export a copy">
+<Dialog {open} {onclose} title={TITLE}>
   <p class="export-lead">
     A one-off copy of this document, independent of any connected storage backend.
     Works while read-only.

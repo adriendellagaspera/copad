@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { DialogOpen, DialogTitle } from './types.js';
   import type { RoomId } from '../collaboration/types.js';
   import { SessionRole } from '../collaboration/types.js';
   import {
@@ -21,7 +22,7 @@
     page,
     onNew,
   }: {
-    open: boolean;
+    open: DialogOpen;
     onclose: () => void;
     /** The room this tab is in, marked in the list so it isn't reopened blindly. */
     current: RoomId;
@@ -30,6 +31,8 @@
     /** Create a new document (a new room, in a new tab). */
     onNew: () => void;
   } = $props();
+
+  const TITLE = 'Your documents' as DialogTitle;
 
   interface LibraryRow {
     readonly visit: RoomVisit;
@@ -50,7 +53,7 @@
   }
 </script>
 
-<Dialog {open} {onclose} title="Your documents">
+<Dialog {open} {onclose} title={TITLE}>
   <p class="lib-intro">
     Rooms this browser has opened, each in a new tab. The list is kept on this
     device only: nobody else sees it, and clearing your browser data clears it.
