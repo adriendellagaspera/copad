@@ -1,7 +1,12 @@
 <script lang="ts">
   import { ConnStatus, Transport } from '../collaboration/types.js';
   import { SaveStatus } from './types.js';
-  import type { ConflictWarning, RoomEncrypted, StorageAttached } from './types.js';
+  import type {
+    ConflictWarning,
+    KeepSegmentLabels,
+    RoomEncrypted,
+    StorageAttached,
+  } from './types.js';
   import type { StorageLabel } from '../storage/types.js';
 
   let {
@@ -12,6 +17,7 @@
     warning,
     transport,
     encrypted = false as RoomEncrypted,
+    keepLabels = false as KeepSegmentLabels,
     onclick,
   }: {
     conn: ConnStatus;
@@ -21,6 +27,7 @@
     warning?: ConflictWarning;
     transport: Transport;
     encrypted?: RoomEncrypted;
+    keepLabels?: KeepSegmentLabels;
     onclick?: () => void;
   } = $props();
 
@@ -145,6 +152,7 @@
   this={onclick ? 'button' : 'span'}
   class="chip"
   class:clickable={!!onclick}
+  class:keep-labels={keepLabels}
   type={onclick ? 'button' : undefined}
   role={onclick ? undefined : 'status'}
   aria-live="polite"
@@ -282,7 +290,7 @@
   }
   /* Clipped, not removed, so screen readers still announce the labels. */
   @media (max-width: 720px) {
-    .seg-label {
+    .chip:not(.keep-labels) .seg-label {
       position: absolute;
       width: 1px;
       height: 1px;
