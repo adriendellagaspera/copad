@@ -149,12 +149,8 @@
     <span class="msg" role="status" aria-live="polite">
       {#if tier.kind === BannerTierKind.Gated}
         <strong>You're the only one here.</strong>
+        The document opens when someone joins.
         {#if tier.waitingSince}Waiting since {tier.waitingSince}.{/if}
-        Copad opens the document when someone joins. Until then you can read, copy
-        and export it.
-        {#if tier.transport !== Transport.P2P}
-          The server keeps the list of who's present: when it says you're alone, you are.
-        {/if}
       {:else if tier.kind === BannerTierKind.Reaching}
         <strong>Someone's here,</strong> still connecting to them.
       {:else if tier.kind === BannerTierKind.Departing}
@@ -192,6 +188,14 @@
         {#if tier.transport === Transport.P2P && onWriteSolo}
           <button class="link write-solo" onclick={onWriteSolo}>Write alone anyway</button>
         {/if}
+        <button
+          class="more"
+          aria-expanded={expanded}
+          aria-controls="sync-banner-detail"
+          onclick={() => (expanded = !expanded)}
+        >
+          Details
+        </button>
       </span>
     {:else if tier.kind === BannerTierKind.Reaching}
       <span class="actions">
@@ -234,10 +238,23 @@
 
     <!-- Last in the flex row so it wraps onto its own line below the actions and
          the dismiss control, at every width. -->
-    {#if tier.kind === BannerTierKind.Gated && tier.transport === Transport.P2P && onWriteSolo}
-      <p class="aside">
-        Write alone anyway: nothing you write will leave this device until someone joins.
-      </p>
+    {#if tier.kind === BannerTierKind.Gated}
+      {#if expanded}
+        <p class="aside" id="sync-banner-detail" transition:slide={{ duration: reducedMotion ? 0 : 150 }}>
+          Until then you can read, copy and export it.
+          {#if tier.transport === Transport.P2P}
+            In peer-to-peer mode nothing you write leaves this device until someone
+            receives it, so writing alone here would just be lost.
+          {:else}
+            The server keeps the list of who's present: when it says you're alone, you are.
+          {/if}
+        </p>
+      {/if}
+      {#if tier.transport === Transport.P2P && onWriteSolo}
+        <p class="aside">
+          Write alone anyway: nothing you write will leave this device until someone joins.
+        </p>
+      {/if}
     {:else if tier.kind === BannerTierKind.Alone && expanded}
       <p class="aside" id="sync-banner-detail" transition:slide={{ duration: reducedMotion ? 0 : 150 }}>
         {#if tier.variant === AloneVariant.Relayed}
