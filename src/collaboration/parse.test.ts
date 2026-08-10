@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { parsePeerAwarenessState, parseRoomName, parseIceServersResponse, parseKeyFingerprint, parseDisplayName } from './parse.js';
+import type { CursorColor } from './types.js';
+import {
+  parsePeerAwarenessState,
+  parseRoomName,
+  parseIceServersResponse,
+  parseKeyFingerprint,
+  parseDisplayName,
+  parseStoredColor,
+} from './parse.js';
 
 describe('parsePeerAwarenessState — fallback behaviour', () => {
   it('returns safe defaults for null', () => {
@@ -190,6 +198,20 @@ describe('parseDisplayName', () => {
     expect(parseDisplayName('')).toBe('Anonymous');
     expect(parseDisplayName('   ')).toBe('Anonymous');
     expect(parseDisplayName(null)).toBe('Anonymous');
+  });
+});
+
+describe('parseStoredColor', () => {
+  const PALETTE = ['#e11d48', '#7c3aed', '#0891b2'] as CursorColor[];
+
+  it('passes through a value present in the current palette', () => {
+    expect(parseStoredColor('#7c3aed', PALETTE, () => PALETTE[0])).toBe('#7c3aed');
+  });
+
+  it('falls back to pickDefault() for null, empty, or a colour outside the palette', () => {
+    expect(parseStoredColor(null, PALETTE, () => PALETTE[0])).toBe(PALETTE[0]);
+    expect(parseStoredColor('', PALETTE, () => PALETTE[0])).toBe(PALETTE[0]);
+    expect(parseStoredColor('#ffffff', PALETTE, () => PALETTE[0])).toBe(PALETTE[0]);
   });
 });
 

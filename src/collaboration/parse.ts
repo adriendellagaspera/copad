@@ -238,3 +238,15 @@ export function parseDisplayName(raw: string | null): DisplayName {
   const trimmed = raw?.trim();
   return trimmed ? (trimmed as DisplayName) : FALLBACK_NAME;
 }
+
+/** Parse a stored colour against the *current* palette: the single cast site
+ *  for CursorColor from localStorage. A value absent, or no longer in the
+ *  palette (a shrunk/reordered palette), degrades to `pickDefault()` rather
+ *  than surfacing an unknown colour. */
+export function parseStoredColor(
+  raw: string | null,
+  palette: readonly CursorColor[],
+  pickDefault: () => CursorColor,
+): CursorColor {
+  return raw && (palette as readonly string[]).includes(raw) ? (raw as CursorColor) : pickDefault();
+}
