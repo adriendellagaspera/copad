@@ -43,7 +43,7 @@ Presence detection is the load-bearing input of branch (a), and the two transpor
 | | **WebRTC / P2P** (default) | **WebSocket / hub** (opt-in) |
 |---|---|---|
 | Presence source | local inference: open data channels | server registry, relayed via awareness |
-| Does the server know the room? | **No** — pure pub/sub, no roster | **Yes** — it holds the room's sockets |
+| Does the server know the room? | **Partly** — it holds `Map<topic, Set<client>>`, so it knows every room id and its live subscriber count, but no identities and no document bytes | **Yes** — it holds the room's sockets |
 | False negatives (*"alone" when not*) | **structural, unbounded** — a lost announce is never retried, no periodic re-announce exists | near zero after sync |
 | False positives (*"not alone" when alone*) | rare | **up to 30 s** after an unclean exit |
 | When is `peerCount` trustworthy? | positively only: `>0` proves someone receives; `0` never proves an empty room | both directions, minus the 30 s departure window |
