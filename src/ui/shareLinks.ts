@@ -1,4 +1,5 @@
 import type { RoomId } from '../collaboration/types.js';
+import { Transport } from '../collaboration/types.js';
 import type { RoomCredential } from '../collaboration/roomAccess.js';
 
 export type AppUrl = string & { readonly _brand: 'AppUrl' };
@@ -42,6 +43,7 @@ export type SecurityChange = (typeof SecurityChange)[keyof typeof SecurityChange
 
 export const RoomSecurityKind = {
   None: 'none',
+  Relayed: 'relayed',
   SecretLink: 'secret-link',
   Password: 'password',
   Deployment: 'deployment',
@@ -50,18 +52,24 @@ export type RoomSecurityKind = (typeof RoomSecurityKind)[keyof typeof RoomSecuri
 
 export type RoomSecurity =
   | { readonly kind: typeof RoomSecurityKind.None }
+  | { readonly kind: typeof RoomSecurityKind.Relayed }
   | { readonly kind: typeof RoomSecurityKind.SecretLink; readonly key: RoomCredential }
   | { readonly kind: typeof RoomSecurityKind.Password; readonly password: RoomCredential }
   | { readonly kind: typeof RoomSecurityKind.Deployment; readonly password: RoomCredential };
 
 export interface RoomSecuritySources {
+  readonly transport: Transport;
   readonly linkKey: RoomCredential | null;
   readonly storedPassword: RoomCredential | null;
   readonly envPassword: RoomCredential | null;
 }
 
-/** Precedence must stay identical to `App.svelte`'s `roomCipher`. */
+/** Precedence must stay identical to `App.svelte`'s `roomCipher`. The hub arm
+ *  comes first because no credential encrypts anything there: `websocket.ts`
+ *  never reads the cipher, and passes no `cacheKey`, so wire and cache are both
+ *  plaintext (docs/contract.md §2). */
 export function roomSecurity(sources: RoomSecuritySources): RoomSecurity {
+  if (sources.transport !== Transport.P2P) return { kind: RoomSecurityKind.Relayed };
   if (sources.linkKey) return { kind: RoomSecurityKind.SecretLink, key: sources.linkKey };
   if (sources.storedPassword)
     return { kind: RoomSecurityKind.Password, password: sources.storedPassword };
@@ -71,7 +79,9 @@ export function roomSecurity(sources: RoomSecuritySources): RoomSecurity {
 }
 
 export function isEncrypted(security: RoomSecurity): RoomEncrypted {
-  return (security.kind !== RoomSecurityKind.None) as RoomEncrypted;
+  return (security.kind === RoomSecurityKind.SecretLink ||
+    security.kind === RoomSecurityKind.Password ||
+    security.kind === RoomSecurityKind.Deployment) as RoomEncrypted;
 }
 
 export function shareUrl(

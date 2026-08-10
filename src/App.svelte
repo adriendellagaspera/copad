@@ -1024,6 +1024,7 @@
   onclose={() => (shareOpen = false)}
   {room}
   {toasts}
+  {transport}
   envPassword={import.meta.env.VITE_ROOM_PASSWORD}
   saved={savedHere}
   storageLabel={savedHere ? storage?.storage.label : undefined}
