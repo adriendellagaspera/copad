@@ -252,7 +252,7 @@
       {/if}
       {#if tier.transport === Transport.P2P && onWriteSolo}
         <p class="aside">
-          Write alone anyway: nothing you write will leave this device until someone joins.
+          Nothing you write leaves this device until someone joins.
         </p>
       {/if}
     {:else if tier.kind === BannerTierKind.Alone && expanded}
