@@ -12,7 +12,7 @@ import type { StorageId } from '../storage/types.js';
 // preview deploys' `--base=/copad/pr-<n>/` (.github/workflows/pr-preview.yml).
 // BASE_URL is Vite's own runtime constant for exactly this and always ends
 // in a trailing slash.
-const asset = (path: string): string => `${import.meta.env.BASE_URL}${path}`;
+export const asset = (path: string): string => `${import.meta.env.BASE_URL}${path}`;
 
 export const IMAGE_ICONS: Partial<Record<StorageId, string>> = {
   [STORAGE_ID.pcloud]: asset('pcloud.svg'),
