@@ -35,8 +35,7 @@
   } from './collaboration/types.js';
   import { ConnStatus, PresenceKind, SessionRole } from './collaboration/types.js';
   import type { RoomName, PersistTarget } from './collaboration/types.js';
-  import { parsePeerAwarenessState, parseRoomName, parseRoomUrl } from './collaboration/parse.js';
-  import { recentDocsStore } from './collaboration/recentDocs.js';
+  import { parsePeerAwarenessState, parseRoomName } from './collaboration/parse.js';
   import { nextPersistHealth, nextRegime, UNPROVEN, PersistRegime, type PersistHealth } from './collaboration/persistHealth.js';
   import { browserId } from './collaboration/browserId.js';
   import type { SelfProbeMarker } from './collaboration/selfProbeMarker.js';
@@ -127,12 +126,6 @@
   roomMeta.observe(onRoomMeta);
 
   bindExport((codec) => Promise.resolve(codec.encode(collab.doc)));
-
-  const recentDocs = recentDocsStore();
-  $effect(() => {
-    const url = parseRoomUrl(location.href);
-    if (url) recentDocs.record({ room, url, title: roomName.value });
-  });
 
   let editorEl = $state<HTMLDivElement | undefined>();
   let view = $state.raw<EditorView | null>(null);

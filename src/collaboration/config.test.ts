@@ -6,6 +6,7 @@ import {
   resolveWebsocket,
   resolveTransport,
   resolveRoomStrategy,
+  resolveLandingRoom,
   DEFAULT_TURN,
   type PageProtocol,
   type PageHostname,
@@ -240,5 +241,34 @@ describe('resolveRoomStrategy — cipher', () => {
     // No VITE_ROOM_PASSWORD in test env → sitePassword('') → null
     const { access, cipher } = resolveRoomStrategy('site-password');
     expect(cipher.password(ROOM)).toBe(access.credential(ROOM));
+  });
+});
+
+describe('resolveLandingRoom', () => {
+  const mint = () => 'minted-room' as RoomId;
+
+  it('follows the ?room= link above everything else', () => {
+    expect(resolveLandingRoom('shared', 'configured', mint)).toEqual({ room: 'shared', fresh: false });
+  });
+
+  it('trims a link value and ignores a blank one', () => {
+    expect(resolveLandingRoom('  shared  ', undefined, mint).room).toBe('shared');
+    expect(resolveLandingRoom('   ', 'configured', mint).room).toBe('configured');
+  });
+
+  it('lands in the deployment default when the URL carries no room', () => {
+    expect(resolveLandingRoom(null, 'configured', mint)).toEqual({ room: 'configured', fresh: false });
+  });
+
+  it('mints a fresh room when there is neither a link nor a configured default', () => {
+    expect(resolveLandingRoom(null, undefined, mint)).toEqual({ room: 'minted-room', fresh: true });
+    expect(resolveLandingRoom(null, '  ', mint).fresh).toBe(true);
+  });
+
+  it('mints only when it has to — no other branch calls the minter', () => {
+    const spy = vi.fn(mint);
+    resolveLandingRoom('shared', undefined, spy);
+    resolveLandingRoom(null, 'configured', spy);
+    expect(spy).not.toHaveBeenCalled();
   });
 });

@@ -15,7 +15,7 @@ import { publicAccess, sitePassword, roomPassword, RoomAccessMode } from './room
 import { plaintext } from './roomCipher.js';
 import { secretLink, type SecretLinkPort } from './secretLink.js';
 import { parseRoomId, parseSignalingUrl, parseWebsocketUrl, parseStunUrl, parseTurnUrl, parseTurnUsername, parseTurnCredential, parseIceServersUrl } from './parse.js';
-import { LOCAL_HOSTS, DEFAULT_DEV_SIGNALING, DEFAULT_STUN, DEFAULT_ROOM_NAME } from './constants.js';
+import { LOCAL_HOSTS, DEFAULT_DEV_SIGNALING, DEFAULT_STUN } from './constants.js';
 
 const list = (raw: string | undefined): string[] =>
   (raw ?? '')
@@ -202,9 +202,30 @@ export function resolveRoomStrategy(raw: string | undefined): RoomStrategy {
   }
 }
 
-/** Parse the default room from `VITE_DEFAULT_ROOM` — the single cast site for the default RoomId. */
-export function resolveDefaultRoom(raw: string | undefined): RoomId {
-  return parseRoomId(raw ?? '') ?? DEFAULT_ROOM_NAME;
+/**
+ * Which room a visit lands in: one it asked for (a `?room=` link or
+ * `VITE_DEFAULT_ROOM`), or one minted for this visit because it asked for none.
+ */
+export type LandingRoom =
+  | { readonly fresh: false; readonly room: RoomId }
+  | { readonly fresh: true; readonly room: RoomId };
+
+/**
+ * Resolve the room a visit lands in — the single site where `?room=` and
+ * `VITE_DEFAULT_ROOM` cross into the domain. A link wins, then the deployment's
+ * configured landing room; with neither, minting keeps a visitor's first act
+ * out of a stranger's document (docs/contract.md §5).
+ */
+export function resolveLandingRoom(
+  roomParam: string | null,
+  envDefaultRoom: string | undefined,
+  mint: () => RoomId,
+): LandingRoom {
+  const linked = parseRoomId(roomParam);
+  if (linked) return { room: linked, fresh: false };
+  const configured = parseRoomId(envDefaultRoom ?? '');
+  if (configured) return { room: configured, fresh: false };
+  return { room: mint(), fresh: true };
 }
 
 /**
