@@ -9,11 +9,7 @@
       content="Share a link and write together in real time. Text moves directly between browsers — no account, nothing stored for you. What you want to keep, you save to your own cloud storage."
     />
 
-    <!-- Preview-card URLs stay document-relative, and there is no og:url: Copad is
-         self-hosted at origins and base paths this build cannot know, so a baked-in
-         absolute URL would point every third-party deployment at somebody else's
-         host. Crawlers fall back to the URL they fetched, which is the only
-         canonical one that exists here. -->
+    <!-- No og:url, image left relative: self-hosted at unknown origins/paths. See docs/architecture.md "Link previews". -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Copad" />
     <meta property="og:title" content="Copad — write together while you're both here" />
@@ -63,9 +59,9 @@
         }
       })();
     </script>
-    <script type="module" crossorigin src="/copad/pr-269/assets/main-B-qYIfw1.js"></script>
+    <script type="module" crossorigin src="/copad/pr-269/assets/main-6-3_O5OS.js"></script>
     <link rel="modulepreload" crossorigin href="/copad/pr-269/assets/lib-D54bnSvk.js">
-    <link rel="stylesheet" crossorigin href="/copad/pr-269/assets/main-CXlY2G_S.css">
+    <link rel="stylesheet" crossorigin href="/copad/pr-269/assets/main-Czg_svMm.css">
   </head>
   <body>
     <div id="root"></div>
