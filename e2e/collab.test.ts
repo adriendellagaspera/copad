@@ -21,7 +21,8 @@ test('two instances sync text via WebRTC', async ({ browser }) => {
   // The two pages discover each other over BroadcastChannel well within the gate's
   // grace window, so they're never confirmed-alone and the gate stays dormant.
 
-  await Promise.all([page1.goto('/'), page2.goto('/')]);
+  // A shared link, not a bare `/`: with no `VITE_DEFAULT_ROOM`, two bare visits mint two private rooms and never meet.
+  await Promise.all([page1.goto('/?room=pw-sync'), page2.goto('/?room=pw-sync')]);
 
   const editor1 = page1.locator('.ProseMirror');
   const editor2 = page2.locator('.ProseMirror');
