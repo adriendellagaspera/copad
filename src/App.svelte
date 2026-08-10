@@ -73,7 +73,13 @@
   import { now, type EpochMs } from './time.js';
   import { copyText } from './ui/clipboard.js';
   import { durabilityHolds as computeDurabilityHolds } from './collaboration/persistHealth.js';
-  import type { PeerUser } from './ui/types.js';
+  import type { ConflictWarning, PeerUser, RoomEncrypted, StorageAttached } from './ui/types.js';
+  import type {
+    CollabUnavailable,
+    DepartureLingering,
+    WriteGateArmable,
+    WriteGateHeld,
+  } from './ui/syncBannerTier.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
   import ThemeToggle from './ui/ThemeToggle.svelte';
@@ -175,7 +181,7 @@
     console.warn(`Copad: ${collabPlan.technicalWarning ?? collabPlan.warning}`);
   }
   const collabWarning = collabPlan.warning;
-  const collabUnavailable = collabWarning !== undefined;
+  const collabUnavailable = (collabWarning !== undefined) as CollabUnavailable;
 
   let localCache = $state(localCacheEnabled());
 
@@ -336,11 +342,13 @@
 
   // Per-user fact, not a room-level role: several people can each save their own
   // copy under per-target autosave.
-  const savedHere = $derived.by(() => {
+  const savedHere = $derived.by((): StorageAttached => {
     void tick;
     void room;
     const s = storage;
-    return !!s && s.auth.isAuthenticated() && savedRoomsStore(s.storage.id).saves(room);
+    return (!!s &&
+      s.auth.isAuthenticated() &&
+      savedRoomsStore(s.storage.id).saves(room)) as StorageAttached;
   });
 
   // Another saved room resolving to the same file, detectable only within this
@@ -356,12 +364,12 @@
     for (const r of savedRoomsStore(id).all()) files.set(r, filenameForRoom(id, r, fallback));
     return firstFileCollision(room, files);
   });
-  const conflictWarning = $derived.by((): string | undefined => {
+  const conflictWarning = $derived.by((): ConflictWarning | undefined => {
     const other = fileConflict;
     const s = storage;
     if (!other || !s) return undefined;
     const file = filenameForRoom(s.storage.id, room, s.storage.defaultFilename?.());
-    return `Room “${other}” also saves to ${file} on your ${s.storage.label}. They’ll overwrite each other. Rename this room’s file in Settings.`;
+    return `Room “${other}” also saves to ${file} on your ${s.storage.label}. They’ll overwrite each other. Rename this room’s file in Settings.` as ConflictWarning;
   });
 
   // ── Write gate (docs/contract.md §1-§4) ──────────────────────────────────────
@@ -430,15 +438,17 @@
   });
 
   // Hysteresis so a peer who just left doesn't instantly lock a mid-sentence writer.
-  let withinDepartureLinger = $state(false);
+  const LINGERING = true as DepartureLingering;
+  const NOT_LINGERING = false as DepartureLingering;
+  let withinDepartureLinger = $state(NOT_LINGERING);
   let departedAt = $state<EpochMs | null>(null);
-  let departedPeerName = $state<string | null>(null);
+  let departedPeerName = $state<DisplayName | null>(null);
   let wasAccompanied = false;
   $effect(() => {
     const kind = sessionState.presence.kind;
     if (kind === PresenceKind.Accompanied) {
       wasAccompanied = true;
-      withinDepartureLinger = false;
+      withinDepartureLinger = NOT_LINGERING;
       departedAt = null;
       departedPeerName = null;
       return;
@@ -460,11 +470,11 @@
     );
     const remaining = deadline - now();
     if (remaining <= 0) {
-      withinDepartureLinger = false;
+      withinDepartureLinger = NOT_LINGERING;
       return;
     }
-    withinDepartureLinger = true;
-    const t = setTimeout(() => (withinDepartureLinger = false), remaining);
+    withinDepartureLinger = LINGERING;
+    const t = setTimeout(() => (withinDepartureLinger = NOT_LINGERING), remaining);
     return () => clearTimeout(t);
   });
 
@@ -500,7 +510,7 @@
       withinDepartureLinger,
     }),
   );
-  const writeLocked = $derived(gate.status === 'held');
+  const writeLocked = $derived((gate.status === 'held') as WriteGateHeld);
 
   // Import bypasses ProseMirror's `editable` check (writes straight into `collab.doc`),
   // so this button re-derives the gate independently; Editor re-checks it again on
@@ -521,11 +531,11 @@
   // Superset of `writeLocked`: drives SyncBanner's tiering during the pre-lock
   // grace window before the clocks let writeGateFor return `held`.
   const gateEligible = $derived(
-    sessionRole === SessionRole.Writer &&
+    (sessionRole === SessionRole.Writer &&
       !collabUnavailable &&
       !soloOptIn &&
       !durabilityHolds &&
-      sessionState.presence.kind !== PresenceKind.Accompanied,
+      sessionState.presence.kind !== PresenceKind.Accompanied) as WriteGateArmable,
   );
 
   // ── Collab-unavailable intro: a structurally local-only deployment ─────────
@@ -555,9 +565,9 @@
   // Until the async check resolves, `lockChecked` holds the Editor back so a
   // locked room never mounts it and writes a plaintext cache without the key.
   const encryptedTransport = usesIce;
-  const roomEncrypted = $derived.by((): boolean => {
+  const roomEncrypted = $derived.by((): RoomEncrypted => {
     void collabEpoch;
-    return encryptedTransport && roomCipher.password(room) !== null;
+    return (encryptedTransport && roomCipher.password(room) !== null) as RoomEncrypted;
   });
   let lock = $state<RoomLockState>({ locked: false });
   let lockChecked = $state(!encryptedTransport);

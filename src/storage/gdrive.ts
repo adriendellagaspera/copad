@@ -1,4 +1,4 @@
-import type { Storage, DocContent, Filename } from './types.js';
+import type { DocContent, Filename, Storage, StorageLabel } from './types.js';
 import { DocFormat, StorageAccess } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
@@ -147,7 +147,7 @@ export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Stora
 
   const storage: Storage = {
     id: STORAGE_ID.gdrive,
-    label: 'Google Drive',
+    label: 'Google Drive' as StorageLabel,
     blurb: 'Saves to a file in your Google Drive via OAuth. Requires a Google Cloud Client ID in Settings.',
     availability: { ok: true },
 

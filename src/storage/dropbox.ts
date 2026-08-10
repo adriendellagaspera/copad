@@ -1,4 +1,4 @@
-import type { Storage, DocContent } from './types.js';
+import type { DocContent, Storage, StorageLabel } from './types.js';
 import { DocFormat } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
@@ -114,7 +114,7 @@ export function dropboxStorage(room: RoomId): { auth: StorageAuth; storage: Stor
 
   const storage: Storage = {
     id: STORAGE_ID.dropbox,
-    label: 'Dropbox',
+    label: 'Dropbox' as StorageLabel,
     blurb: 'Saves to an app folder in your Dropbox via OAuth.',
     availability: { ok: true },
 

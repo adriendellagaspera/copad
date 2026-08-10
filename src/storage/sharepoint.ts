@@ -1,4 +1,4 @@
-import type { Storage, CredentialField, LoginOptions, DocContent, Filename } from './types.js';
+import type { CredentialField, DocContent, Filename, LoginOptions, Storage, StorageLabel } from './types.js';
 import { DocFormat, InputType, LoginKind, StorageAccess } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { filenameStore } from './filename.js';
@@ -136,7 +136,7 @@ export function sharepointStorage(room: RoomId): { auth: StorageAuth; storage: S
 
   const storage: Storage = {
     id: STORAGE_ID.sharepoint,
-    label: 'SharePoint / OneDrive',
+    label: 'SharePoint / OneDrive' as StorageLabel,
     blurb: 'Saves to a file in SharePoint or OneDrive for Business via Microsoft Graph.',
     availability: { ok: true },
 

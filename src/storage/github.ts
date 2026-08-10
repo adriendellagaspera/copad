@@ -1,4 +1,4 @@
-import type { Storage, DocContent, Filename } from './types.js';
+import type { DocContent, Filename, Storage, StorageLabel } from './types.js';
 import { DocFormat, InputType } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
@@ -209,7 +209,7 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
 
   const storage: Storage = {
     id: STORAGE_ID.github,
-    label: 'GitHub',
+    label: 'GitHub' as StorageLabel,
     availability: { ok: true },
     blurb:
       'Commits files to a GitHub repository — great as a version-controlled knowledge base.',
