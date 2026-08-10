@@ -17,9 +17,15 @@ export type TableContext = 'outside-table' | 'table-unresolved' | 'table-anchore
 export type ArmedMarks = 'none' | 'some';
 export type SlashMenuState = 'open' | 'closed';
 
-export function tableContextOf(inTable: boolean, tableElFound: boolean): TableContext {
+export type CaretInTable = boolean & { readonly _brand: 'CaretInTable' };
+export type TableAnchorFound = boolean & { readonly _brand: 'TableAnchorFound' };
+
+export function tableContextOf(
+  inTable: CaretInTable,
+  anchorFound: TableAnchorFound,
+): TableContext {
   if (!inTable) return 'outside-table';
-  return tableElFound ? 'table-anchored' : 'table-unresolved';
+  return anchorFound ? 'table-anchored' : 'table-unresolved';
 }
 
 export type SurfaceInput = {

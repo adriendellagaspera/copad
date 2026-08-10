@@ -4,6 +4,8 @@ import {
   placeCaretPill,
   placeSelectionBubble,
   tableContextOf,
+  type CaretInTable,
+  type TableAnchorFound,
   PANEL_GAP,
   type CaretRect,
   type SurfaceInput,
@@ -31,17 +33,20 @@ const caret = (top: number, height = 20, left = 500): CaretRect => ({
 });
 
 describe('tableContextOf', () => {
+  const inTable = (v: boolean): CaretInTable => v as CaretInTable;
+  const anchored = (v: boolean): TableAnchorFound => v as TableAnchorFound;
+
   it('is outside-table when the selection is not in a table', () => {
-    expect(tableContextOf(false, false)).toBe('outside-table');
-    expect(tableContextOf(false, true)).toBe('outside-table');
+    expect(tableContextOf(inTable(false), anchored(false))).toBe('outside-table');
+    expect(tableContextOf(inTable(false), anchored(true))).toBe('outside-table');
   });
 
   it('is table-anchored once the table element resolves', () => {
-    expect(tableContextOf(true, true)).toBe('table-anchored');
+    expect(tableContextOf(inTable(true), anchored(true))).toBe('table-anchored');
   });
 
   it('is table-unresolved while in a table but the element has not resolved yet', () => {
-    expect(tableContextOf(true, false)).toBe('table-unresolved');
+    expect(tableContextOf(inTable(true), anchored(false))).toBe('table-unresolved');
   });
 });
 
