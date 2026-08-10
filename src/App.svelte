@@ -55,6 +55,8 @@
   import RoomLock from './ui/RoomLock.svelte';
   import CollabUnavailableIntro from './ui/CollabUnavailableIntro.svelte';
   import StorageIntro from './ui/StorageIntro.svelte';
+  import FirstVisitIntro from './ui/FirstVisitIntro.svelte';
+  import About from './ui/About.svelte';
   import LibraryDialog from './ui/LibraryDialog.svelte';
   import { rememberRoomVisit, clearRoomHistory, type PagePath } from './collaboration/roomHistory.js';
   import { KEY_COLLAB_UNAVAILABLE_SEEN, KEY_STORAGE_INTRO_SEEN } from './collaboration/constants.js';
@@ -63,6 +65,7 @@
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer, WebsocketUrl } from './collaboration/types.js';
   import { SessionRole, PresenceKind, Transport } from './collaboration/types.js';
   import { writeGateFor, gateSettleMs, gateLingerMs, type SoloOptIn } from './collaboration/writeGate.js';
+  import { PersistRegime } from './collaboration/persistHealth.js';
   import { departureLingerDeadline } from './collaboration/departureHysteresis.js';
   import { now, type EpochMs } from './time.js';
   import { copyText } from './ui/clipboard.js';
@@ -74,6 +77,7 @@
   import ShareDialog from './ui/ShareDialog.svelte';
   import MeetingJoinDialog from './ui/MeetingJoinDialog.svelte';
   import ExportDialog from './ui/ExportDialog.svelte';
+  import { storedName, rememberName } from './collaboration/identity.js';
   import { roomName } from './collaboration/roomName.svelte.js';
   import SyncBanner from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
@@ -235,6 +239,9 @@
   // still need to know that.
   const linkedRoomParam = new URLSearchParams(location.search).get('room');
   const landing = resolveLandingRoom(linkedRoomParam, import.meta.env.VITE_DEFAULT_ROOM, newRoomId);
+  // A query flag, not a path: the app ships as a static bundle deployed to
+  // hosts that serve no SPA fallback, where /about would 404.
+  const aboutRoute = new URLSearchParams(location.search).has('about');
 
   // A minted room only exists once its URL says so: rewrite it in place, before
   // anything reads `room`. Not a room *switch* — nothing is built yet — so the
@@ -248,7 +255,7 @@
     fragment.set('k', currentSecretKey() ?? mintSecretKey());
     history.replaceState(null, '', `${location.pathname}?${params.toString()}#${fragment.toString()}`);
   }
-  if (landing.fresh) startFreshRoom(landing.room);
+  if (landing.fresh && !aboutRoute) startFreshRoom(landing.room);
 
   // Cooperative only: a modified client could ignore ?role=reader.
   function roleFromUrl(): SessionRole {
@@ -294,7 +301,7 @@
   }
 
   let storage = $state<StorageBackend | null>(initialStorage());
-  let name = $state<DisplayName>('Anonymous' as DisplayName);
+  let name = $state<DisplayName>(storedName());
 
   // Hand-off to Editor, which owns `collab.doc` and decodes into it.
   let pendingImport = $state<{ bytes: Uint8Array; filename: Filename } | null>(null);
@@ -651,6 +658,12 @@
   const showStorageIntro = $derived(
     !storageIntroSeen && !collabUnavailable && !savedHere && !writeLocked && iceReady && lockChecked && !lock.locked,
   );
+  // The two cards share one slot and one seen-flag: the fuller first-visit one
+  // while the page is still blank, the durability line once it isn't.
+  const firstVisitEmpty = $derived(
+    sessionState.docEmpty && sessionState.regime === PersistRegime.Cold,
+  );
+  const showFirstVisitIntro = $derived(showStorageIntro && firstVisitEmpty);
 
   function connectStorageFromStorageIntro(): void {
     markStorageIntroSeen();
@@ -692,6 +705,23 @@
   // A new tab, never an in-place room switch: `backends(room)` captures `room`
   // once by closure (storage/filename.ts), so there's no live pointer to retarget.
   // CSPRNG room id (contract §5); the secret-link key encrypts the room by default.
+  const aboutTransport: Transport =
+    resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket' ? Transport.Hub : Transport.P2P;
+
+  // The page has no document to keep, so its create action replaces it rather
+  // than leaving an explainer tab behind.
+  function startDocumentFromAbout(): void {
+    const r = newRoomId();
+    const key = mintSecretKey();
+    location.href = `${location.pathname}?room=${encodeURIComponent(r)}&new=1#k=${encodeURIComponent(key)}`;
+  }
+
+  function openAbout(): void {
+    const params = new URLSearchParams();
+    params.set('about', '');
+    location.href = `${location.pathname}?${params.toString()}`;
+  }
+
   function newRoom(): void {
     const r = newRoomId();
     const key = mintSecretKey();
@@ -710,6 +740,9 @@
   }
 </script>
 
+{#if aboutRoute}
+  <About onNewDocument={startDocumentFromAbout} transport={aboutTransport} page={pagePath} />
+{:else}
 <div class="app">
   <!-- Not a heading: an <h1> here would give screen readers two level-1 titles
        alongside the document's own (Editor.svelte's DocTitle). Hidden on mobile;
@@ -796,7 +829,7 @@
         {color}
         colors={COLORS}
         size={32}
-        onName={(v) => { name = v as DisplayName; }}
+        onName={(v) => { name = rememberName(v); }}
         onColor={(c) => { color = c; }}
       />
     </div>
@@ -827,7 +860,7 @@
       {name}
       {color}
       colors={COLORS}
-      onName={(v) => { name = v as DisplayName; }}
+      onName={(v) => { name = rememberName(v); }}
       onColor={(c) => { color = c; }}
     />
     <StatusPill
@@ -903,7 +936,14 @@
     onConnectionDetails={() => (diagOpen = true)}
   />
 
-  {#if showStorageIntro}
+  {#if showFirstVisitIntro}
+    <FirstVisitIntro
+      transport={sessionState.diagnostics.transport}
+      onShare={() => (shareOpen = true)}
+      onConnectStorage={connectStorageFromStorageIntro}
+      onAbout={openAbout}
+    />
+  {:else if showStorageIntro}
     <StorageIntro
       onConnectStorage={connectStorageFromStorageIntro}
       onDismiss={markStorageIntroSeen}
@@ -962,6 +1002,7 @@
     />
   {/if}
 </div>
+{/if}
 
 <ConnectionDialog
   open={diagOpen}

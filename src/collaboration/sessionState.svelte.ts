@@ -36,6 +36,9 @@ let regime = $state<PersistRegime>(PersistRegime.Cold);
 // write gate's departure hysteresis to extend the linger window while typing
 // continues (docs/contract.md §4, "extended by typing — never close mid-sentence").
 let lastLocalEditAt = $state<EpochMs | null>(null);
+// A blank page, whoever blanked it: a peer's edit or a cache load counts as
+// content, so the first-visit card yields to someone else's words too.
+let docEmpty = $state(true);
 let users = $state<PeerUser[]>([]);
 let peers = $state(1);
 let diag = $state<SessionDiagnostics>({ transport: Transport.P2P });
@@ -73,6 +76,9 @@ export const sessionState = {
   },
   get lastLocalEditAt(): EpochMs | null {
     return lastLocalEditAt;
+  },
+  get docEmpty(): boolean {
+    return docEmpty;
   },
   get users(): PeerUser[] {
     return users;
@@ -112,6 +118,9 @@ export function setSessionRegime(value: PersistRegime): void {
 export function setSessionLocalEdit(value: EpochMs): void {
   lastLocalEditAt = value;
 }
+export function setSessionDocEmpty(value: boolean): void {
+  docEmpty = value;
+}
 export function setSessionPresence(nextUsers: PeerUser[], nextPeers: number): void {
   users = nextUsers;
   peers = nextPeers;
@@ -135,6 +144,7 @@ export function resetSessionState(): void {
   persistHealth = UNPROVEN;
   regime = PersistRegime.Cold;
   lastLocalEditAt = null;
+  docEmpty = true;
   users = [];
   peers = 1;
   diag = { transport: Transport.P2P };

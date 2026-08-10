@@ -7,7 +7,7 @@
   import { schema } from './editor/schema.js';
   import { buildPlugins, stripNestedTables } from './editor/plugins.js';
   import { slashMenuPlugin } from './editor/ui/slashMenu.js';
-  import { placeholderPlugin } from './editor/ui/placeholder.js';
+  import { placeholderPlugin, isSoleEmptyBlock } from './editor/ui/placeholder.js';
   import { lineBlockHintPlugin } from './editor/ui/lineBlockHint.js';
   import { keyboardInset, collapseKeyboardInset } from './ui/keyboardInset.svelte.js';
   import Toolbar from './Toolbar.svelte';
@@ -53,6 +53,7 @@
     setSessionPersistHealth,
     setSessionRegime,
     setSessionLocalEdit,
+    setSessionDocEmpty,
     setSessionPresence,
     setSessionRoomPresence,
     setSessionSoloBrowser,
@@ -451,10 +452,12 @@
         const isChangeOrigin = !!tr.getMeta(ySyncPluginKey)?.isChangeOrigin;
         regime = nextRegime(regime, { docChanged: tr.docChanged, isChangeOrigin });
         if (tr.docChanged && !isChangeOrigin) setSessionLocalEdit(now());
+        if (tr.docChanged) setSessionDocEmpty(isSoleEmptyBlock(next.doc));
       },
     });
 
     editorState = state;
+    setSessionDocEmpty(isSoleEmptyBlock(state.doc));
 
     // y-prosemirror reuses each cursor's existing DOM node across decoration
     // recomputes, so a forced recompute wouldn't re-run remoteCursorBuilder;
