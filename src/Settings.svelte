@@ -5,7 +5,8 @@
   import { isConfigured } from './storage/auth.js';
   import { STORAGE_ID } from './storage/constants.js';
 
-  import type { TurnPrefs } from './collaboration/turn.js';
+  import type { TurnPrefs, TurnUrlDraft } from './collaboration/turn.js';
+  import { TurnRelayStatus, turnRelayStatus } from './collaboration/turn.js';
   import { FallbackTurnPolicy } from './collaboration/types.js';
   import { parseTurnUrl, parseTurnUsername, parseTurnCredential } from './collaboration/parse.js';
   import type { TurnUrl } from './collaboration/types.js';
@@ -153,12 +154,7 @@
     });
   }
 
-  type TurnRelayStatus = 'custom' | 'public' | 'none';
-  function turnRelayStatus(url: string, fallback: FallbackTurnPolicy): TurnRelayStatus {
-    if (url.trim()) return 'custom';
-    return fallback === FallbackTurnPolicy.OpenRelay ? 'public' : 'none';
-  }
-  const turnStatus = $derived(turnRelayStatus(rawUrl, turnFallback));
+  const turnStatus = $derived(turnRelayStatus(rawUrl as TurnUrlDraft, turnFallback));
   const TURN_STATUS_LABEL: Record<TurnRelayStatus, string> = {
     custom: 'Custom relay',
     public: 'Public relay active',
@@ -369,7 +365,7 @@
     <details class="advanced" bind:open={advancedOpen}>
       <summary class="advanced-summary">
         <span class="advanced-summary-label">Advanced</span>
-        <span class="badge {turnStatus === 'none' ? '' : 'ok'}">{TURN_STATUS_LABEL[turnStatus]}</span>
+        <span class="badge {turnStatus === TurnRelayStatus.None ? '' : 'ok'}">{TURN_STATUS_LABEL[turnStatus]}</span>
       </summary>
       <section class="backend advanced-body">
         <div class="backend-head">
