@@ -55,6 +55,8 @@
   import RoomLock from './ui/RoomLock.svelte';
   import CollabUnavailableIntro from './ui/CollabUnavailableIntro.svelte';
   import StorageIntro from './ui/StorageIntro.svelte';
+  import FirstVisitIntro from './ui/FirstVisitIntro.svelte';
+  import About from './ui/About.svelte';
   import LibraryDialog from './ui/LibraryDialog.svelte';
   import {
     rememberRoomVisit,
@@ -73,6 +75,8 @@
   import { now, type EpochMs } from './time.js';
   import { copyText } from './ui/clipboard.js';
   import { durabilityHolds as computeDurabilityHolds } from './collaboration/persistHealth.js';
+  import { routeFor, aboutUrl, newDocumentUrl, RouteKind, type PageQuery } from './ui/route.js';
+  import { introSlotFor, IntroSlotKind, type IntroEligible } from './ui/introSlot.js';
   import type { ConflictWarning, PeerUser, RoomEncrypted, StorageAttached } from './ui/types.js';
   import type {
     CollabUnavailable,
@@ -86,6 +90,7 @@
   import ShareDialog from './ui/ShareDialog.svelte';
   import MeetingJoinDialog from './ui/MeetingJoinDialog.svelte';
   import ExportDialog from './ui/ExportDialog.svelte';
+  import { storedName, rememberName } from './collaboration/identity.js';
   import { roomName } from './collaboration/roomName.svelte.js';
   import SyncBanner from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
@@ -116,8 +121,11 @@
     hostname: location.hostname as PageHostname,
   };
 
+  const transport: Transport =
+    resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket' ? Transport.Hub : Transport.P2P;
+
   let fetchedIce = $state<IceServer[]>([]);
-  const usesIce = resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) !== 'websocket';
+  const usesIce = transport === Transport.P2P;
   const iceServersUrl = usesIce ? resolveIceServersUrl(import.meta.env.VITE_ICE_SERVERS_URL) : undefined;
   // Resolved before the first mount, not after: a post-mount rebuild races
   // y-webrtc's async room deregistration (`openRoom()` throws "already exists").
@@ -136,7 +144,7 @@
     // Set only on the hub transport: presenceProbe.ts has no P2P path.
     hallUrl?: WebsocketUrl;
   } {
-    if (resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket') {
+    if (transport === Transport.Hub) {
       const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, loc);
       if (ws.url) {
         // TS doesn't carry the narrowing of `ws.url` into the closure below.
@@ -243,6 +251,7 @@
   // Read before `startFreshRoom` below rewrites the URL and adds one.
   const linkedRoomParam = new URLSearchParams(location.search).get('room');
   const landing = resolveLandingRoom(linkedRoomParam, import.meta.env.VITE_DEFAULT_ROOM, newRoomId);
+  const route = routeFor(location.search as PageQuery);
 
   // Runs before `room` is read below, so a reload returns to the minted room rather than minting another.
   function startFreshRoom(r: RoomId): void {
@@ -252,7 +261,7 @@
     fragment.set('k', currentSecretKey() ?? mintSecretKey());
     history.replaceState(null, '', `${location.pathname}?${params.toString()}#${fragment.toString()}`);
   }
-  if (landing.fresh) startFreshRoom(landing.room);
+  if (landing.fresh && route.kind === RouteKind.Room) startFreshRoom(landing.room);
 
   // Cooperative only: a modified client could ignore ?role=reader.
   function roleFromUrl(): SessionRole {
@@ -298,7 +307,7 @@
   }
 
   let storage = $state<StorageBackend | null>(initialStorage());
-  let name = $state<DisplayName>('Anonymous' as DisplayName);
+  let name = $state<DisplayName>(storedName());
 
   // Hand-off to Editor, which owns `collab.doc` and decodes into it.
   let pendingImport = $state<{ bytes: Uint8Array; filename: Filename } | null>(null);
@@ -649,8 +658,14 @@
     storageIntroSeen = true;
     storageIntroSeenStore.write(true);
   }
-  const showStorageIntro = $derived(
-    !storageIntroSeen && !collabUnavailable && !savedHere && !writeLocked && iceReady && lockChecked && !lock.locked,
+  const introEligible = $derived((!storageIntroSeen && !collabUnavailable && !savedHere
+    && !writeLocked && iceReady && lockChecked && !lock.locked) as IntroEligible);
+  const introSlot = $derived(
+    introSlotFor({
+      eligible: introEligible,
+      docEmpty: sessionState.docEmpty,
+      regime: sessionState.regime,
+    }),
   );
 
   function connectStorageFromStorageIntro(): void {
@@ -682,33 +697,31 @@
     });
   });
 
+  function replaceWithNewDocument(): void {
+    location.href = newDocumentUrl(pagePath, newRoomId(), mintSecretKey());
+  }
+
+  function openAbout(): void {
+    location.href = aboutUrl(pagePath);
+  }
+
   // A new tab, never an in-place room switch: `backends(room)` captures `room`
   // once by closure (storage/filename.ts), so there's no live pointer to retarget.
   // CSPRNG room id (contract §5); the secret-link key encrypts the room by default.
   function newRoom(): void {
-    const r = newRoomId();
-    const key = mintSecretKey();
-    window.open(
-      `${location.pathname}?room=${encodeURIComponent(r)}&new=1#k=${encodeURIComponent(key)}`,
-      '_blank',
-      'noopener',
-    );
-  }
-
-  // Guards against a stray Enter/Space firing this while tabbing through the page.
-  function confirmReload(): void {
-    if (confirm('Reload Copad? Any unsaved local state will be lost.')) {
-      location.reload();
-    }
+    window.open(newDocumentUrl(pagePath, newRoomId(), mintSecretKey()), '_blank', 'noopener');
   }
 </script>
 
+{#if route.kind === RouteKind.About}
+  <About onNewDocument={replaceWithNewDocument} {transport} page={pagePath} />
+{:else}
 <div class="app">
   <!-- Not a heading: an <h1> here would give screen readers two level-1 titles
        alongside the document's own (Editor.svelte's DocTitle). Hidden on mobile;
        actions move to the bottom dock below. -->
   <header class="capsule">
-    <button class="cap-mark" onclick={confirmReload} title="Reload Copad" aria-label="Reload Copad">
+    <button class="cap-mark" onclick={openAbout} title="What Copad is" aria-label="What Copad is">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 19.5V6a2 2 0 0 1 2-2h8l6 6v9.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" /><path d="M14 4v6h6" />
       </svg>
@@ -789,7 +802,7 @@
         {color}
         colors={COLORS}
         size={32}
-        onName={(v) => { name = v as DisplayName; }}
+        onName={(v) => { name = rememberName(v); }}
         onColor={(c) => { color = c; }}
       />
     </div>
@@ -820,7 +833,7 @@
       {name}
       {color}
       colors={COLORS}
-      onName={(v) => { name = v as DisplayName; }}
+      onName={(v) => { name = rememberName(v); }}
       onColor={(c) => { color = c; }}
     />
     <StatusPill
@@ -896,7 +909,14 @@
     onConnectionDetails={() => (diagOpen = true)}
   />
 
-  {#if showStorageIntro}
+  {#if introSlot.kind === IntroSlotKind.FirstVisit}
+    <FirstVisitIntro
+      transport={sessionState.diagnostics.transport}
+      onShare={() => (shareOpen = true)}
+      onConnectStorage={connectStorageFromStorageIntro}
+      onAbout={openAbout}
+    />
+  {:else if introSlot.kind === IntroSlotKind.Storage}
     <StorageIntro
       onConnectStorage={connectStorageFromStorageIntro}
       onDismiss={markStorageIntroSeen}
@@ -955,6 +975,7 @@
     />
   {/if}
 </div>
+{/if}
 
 <ConnectionDialog
   open={diagOpen}
@@ -983,6 +1004,7 @@
   {localCache}
   onCacheChange={setLocalCache}
   onCacheClear={clearLocalCopies}
+  onAbout={openAbout}
   {turnPrefs}
   onTurnChange={saveTurnPrefs}
   languageChoice={language.choice}

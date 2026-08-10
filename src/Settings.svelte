@@ -32,6 +32,7 @@
     localCache = true,
     onCacheChange,
     onCacheClear,
+    onAbout,
     turnPrefs,
     onTurnChange,
     focusAdvanced = false,
@@ -53,6 +54,7 @@
     localCache?: boolean;
     onCacheChange?: (on: boolean) => void;
     onCacheClear?: () => void | Promise<void>;
+    onAbout?: () => void;
     turnPrefs?: TurnPrefs;
     onTurnChange?: (p: TurnPrefs) => void;
     focusAdvanced?: boolean;
@@ -418,6 +420,20 @@
         </div>
       </section>
     </details>
+  {/if}
+
+  {#if onAbout}
+    <section class="backend">
+      <div class="backend-head">
+        <span class="backend-name">About Copad</span>
+      </div>
+      <p class="backend-blurb">
+        Where your words go, what a link grants, and why writing alone is refused.
+      </p>
+      <div class="backend-actions">
+        <button onclick={() => { open = false; onAbout?.(); }}>What Copad is</button>
+      </div>
+    </section>
   {/if}
 {/snippet}
 
