@@ -31,8 +31,6 @@ test('the library lists a room this browser has opened', async ({ page }) => {
 });
 
 test('a bare visit that is only read leaves nothing in the library', async ({ page }) => {
-  // Someone opening the site to find out what it is should not be handed an
-  // "Untitled" row for a document they never wrote in.
   await page.goto('/');
   await page.locator('.ProseMirror').waitFor();
   const minted = new URL(page.url()).searchParams.get('room');

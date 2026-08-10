@@ -56,7 +56,13 @@
   import CollabUnavailableIntro from './ui/CollabUnavailableIntro.svelte';
   import StorageIntro from './ui/StorageIntro.svelte';
   import LibraryDialog from './ui/LibraryDialog.svelte';
-  import { rememberRoomVisit, clearRoomHistory, type PagePath } from './collaboration/roomHistory.js';
+  import {
+    rememberRoomVisit,
+    clearRoomHistory,
+    libraryWorthy,
+    type PagePath,
+    type RoomEngagement,
+  } from './collaboration/roomHistory.js';
   import { KEY_COLLAB_UNAVAILABLE_SEEN, KEY_STORAGE_INTRO_SEEN } from './collaboration/constants.js';
   import { localStore } from './persistence/local.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
@@ -205,8 +211,6 @@
 
   async function clearLocalCopies(): Promise<void> {
     await clearLocalCache();
-    // The library holds room keys, so leaving it behind would defeat the point
-    // of clearing on a shared device.
     clearRoomHistory();
     toasts.success('Cleared local copies and your document list');
   }
@@ -230,17 +234,11 @@
 
   // ── Document / room ────────────────────────────────────────────────────────
 
-  // The `?room=` this tab was *opened* with, read before the fresh-room rewrite
-  // below can add one — a shared link means you're a visitor, and later checks
-  // still need to know that.
+  // Read before `startFreshRoom` below rewrites the URL and adds one.
   const linkedRoomParam = new URLSearchParams(location.search).get('room');
   const landing = resolveLandingRoom(linkedRoomParam, import.meta.env.VITE_DEFAULT_ROOM, newRoomId);
 
-  // A minted room only exists once its URL says so: rewrite it in place, before
-  // anything reads `room`. Not a room *switch* — nothing is built yet — so the
-  // one-room-per-tab invariant below holds untouched, and a reload comes back to
-  // the same document instead of minting another. Encrypted like any new room
-  // (contract §5), reusing the key already in the URL when there is one.
+  // Runs before `room` is read below, so a reload returns to the minted room rather than minting another.
   function startFreshRoom(r: RoomId): void {
     const params = new URLSearchParams(location.search);
     params.set('room', r);
@@ -327,11 +325,8 @@
     bump();
   }
 
-  // Backend already authenticated but saves no room yet (pre-dates this feature, or
-  // fresh session): adopt the landing room as saved, but only at your own landing
-  // room, never via a shared `?room=` link, which just means a visitor.
+  // Adopt your own landing room as saved, never a room reached by someone else's link.
   if (linkedRoomParam === null) {
-    // untrack: a one-time read at init (not a reactive dependency).
     const s = untrack(() => storage);
     if (s && s.auth.isAuthenticated() && savedRoomsStore(s.storage.id).all().length === 0) {
       savedRoomsStore(s.storage.id).add(room);
@@ -623,10 +618,8 @@
     return true;
   }
 
-  // ── Where the document lives: taught once, not per write ──────────────────
-  // A card, not a modal: contract §7 deleted an intro modal for standing in front
-  // of the document before you'd done anything. Yields to the write-gate band,
-  // which teaches the same lesson just-in-time with the actions attached.
+  // ── Storage explainer ──────────────────────────────────────────────────────
+
   const storageIntroSeenStore = localStore<boolean>(
     KEY_STORAGE_INTRO_SEEN,
     (raw) => raw === 'true',
@@ -647,29 +640,21 @@
     openSettings();
   }
 
-  // ── The local library: how a document is found again ───────────────────────
-  // Re-runs as the collaborative name syncs in. Held back while the room is
-  // locked: the key in hand is then missing or wrong, and storing it would
-  // overwrite a working one.
+  // ── The local library ──────────────────────────────────────────────────────
+
   const pagePath = location.pathname as PagePath;
 
-  // A room reached by link, by `VITE_DEFAULT_ROOM`, or by clicking New document
-  // was asked for. A room minted under a bare visit was not: someone who opens
-  // the site to find out what it is, reads, and leaves would otherwise be handed
-  // an "Untitled" row for a document they never wrote in. So that one waits for
-  // a sign it is really in use — which the write gate makes reliable, since a
-  // solo peer-to-peer room cannot be typed into without opting in first.
-  const askedFor = !landing.fresh || autofocusTitle;
-  const inUse = $derived(
-    askedFor ||
-      writeSoloAt !== null ||
-      otherPeers.length > 0 ||
-      roomName.value !== null ||
-      savedHere,
-  );
+  const engagement = $derived<RoomEngagement>({
+    askedFor: !landing.fresh || autofocusTitle,
+    writing: writeSoloAt !== null,
+    accompanied: otherPeers.length > 0,
+    named: roomName.value !== null,
+    savedHere,
+  });
 
+  // A locked room's key is missing or wrong, and recording it would overwrite a working one.
   $effect(() => {
-    if (!lockChecked || lock.locked || !inUse) return;
+    if (!lockChecked || lock.locked || !libraryWorthy(engagement)) return;
     rememberRoomVisit({
       room,
       name: roomName.value,

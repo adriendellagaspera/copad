@@ -6,6 +6,7 @@
     forgetRoom,
     roomVisitUrl,
     openedLabel,
+    roomDiscriminator,
     type RoomVisit,
     type PagePath,
     type OpenedLabel,
@@ -47,12 +48,6 @@
     forgetRoom(room);
     forgotten += 1;
   }
-
-  // Unnamed rooms are all "Untitled"; without this the list is rows of the same
-  // word and picking one is guesswork.
-  function roomTail(room: RoomId): string {
-    return room.slice(-4);
-  }
 </script>
 
 <Dialog {open} {onclose} title="Your documents">
@@ -70,7 +65,7 @@
           <a class="lib-open" href={roomVisitUrl(visit, page)} target="_blank" rel="noopener">
             <span class="lib-name">
               {visit.name ?? 'Untitled'}
-              {#if !visit.name}<span class="lib-discriminator">{roomTail(visit.room)}</span>{/if}
+              {#if !visit.name}<span class="lib-discriminator">{roomDiscriminator(visit.room)}</span>{/if}
             </span>
             <span class="lib-meta">
               {#if visit.key}<span title="End-to-end encrypted" aria-label="Encrypted">🔒</span>{/if}

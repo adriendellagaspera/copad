@@ -1,19 +1,7 @@
 /**
- * The local document library — the rooms this browser has opened.
- *
- * A room has no server-side existence: without its URL there is no way back to
- * it. This is the browser's own index of the rooms it has been in, so a document
- * can be found again without keeping a link. It is deliberately *local*: it
- * records where this browser has been, never who owns what.
- *
- * Each entry carries the room's encryption key when one is in effect. Dropping
- * it would produce an entry that reopens an undecryptable room, so the key is
- * kept — the same exposure the per-room password store (`collab.room-password.*`)
- * already accepts, and the reason a keyed entry survives a visit that has no key.
- *
- * The link back is *derived* (`roomVisitUrl`) from the current page path rather
- * than stored, so a hand-edited store can never put an arbitrary URL behind a
- * link, and a deployment that moves origin or path keeps its library working.
+ * The local document library — the rooms this browser has opened, so a document
+ * can be found again without having kept its link (docs/contract.md, "Finding a
+ * document again"; docs/architecture.md, "The local library").
  */
 
 import type { RoomId, RoomName } from './types.js';
@@ -22,7 +10,7 @@ import type { RoomCredential } from './roomAccess.js';
 import { parseRoomId, parseRoomName, parseRoomCredential } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import { KEY_ROOM_HISTORY, ROOM_HISTORY_LIMIT } from './constants.js';
-import type { EpochMs } from '../time.js';
+import type { EpochMs, Milliseconds } from '../time.js';
 
 /** One room this browser has opened, as the library remembers it. */
 export interface RoomVisit {
@@ -81,11 +69,9 @@ const store = localStore<RoomVisit[]>(KEY_ROOM_HISTORY, parseRoomHistory, serial
 
 /**
  * Fold a visit into the library, most recent first, capped at
- * {@link ROOM_HISTORY_LIMIT} by evicting the least recently opened.
- *
- * A visit never *removes* what a previous one knew: a room opened from a link
- * with no key keeps the key it was remembered with, and a room whose name hasn't
- * synced yet keeps the name last seen. Both would otherwise be silent losses.
+ * {@link ROOM_HISTORY_LIMIT} by evicting the least recently opened. A visit
+ * never removes what a previous one knew: a keyless visit keeps the remembered
+ * key, an unnamed one the remembered name.
  */
 export function withVisit(history: RoomVisit[], visit: RoomVisit): RoomVisit[] {
   const previous = history.find((v) => v.room === visit.room);
@@ -122,9 +108,9 @@ export function clearRoomHistory(): void {
 /** How a remembered visit's time reads in the library list. */
 export type OpenedLabel = string & { readonly _brand: 'OpenedLabel' };
 
-const MINUTE_MS = 60_000;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
+const MINUTE_MS = 60_000 as Milliseconds;
+const HOUR_MS = (60 * MINUTE_MS) as Milliseconds;
+const DAY_MS = (24 * HOUR_MS) as Milliseconds;
 
 /**
  * Recent visits read as elapsed time, older ones as a date: "3h ago" places
@@ -132,12 +118,45 @@ const DAY_MS = 24 * HOUR_MS;
  * places last month's better than "63d ago" does.
  */
 export function openedLabel(at: EpochMs, reference: EpochMs): OpenedLabel {
-  const elapsed = reference - at;
+  const elapsed = (reference - at) as Milliseconds;
   if (elapsed < MINUTE_MS) return 'just now' as OpenedLabel;
   if (elapsed < HOUR_MS) return `${Math.floor(elapsed / MINUTE_MS)}m ago` as OpenedLabel;
   if (elapsed < DAY_MS) return `${Math.floor(elapsed / HOUR_MS)}h ago` as OpenedLabel;
   const date = new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   return date as OpenedLabel;
+}
+
+/** The tail of a room id, telling otherwise identically-named rows apart. */
+export type RoomDiscriminator = string & { readonly _brand: 'RoomDiscriminator' };
+
+const DISCRIMINATOR_CHARS = 4;
+
+/** The part of a room id shown beside a name the room shares with others. */
+export function roomDiscriminator(room: RoomId): RoomDiscriminator {
+  return room.slice(-DISCRIMINATOR_CHARS) as RoomDiscriminator;
+}
+
+/** What this browser has done in a room — the evidence a library row rests on. */
+export interface RoomEngagement {
+  /** Arrived at deliberately: a `?room=` link, `VITE_DEFAULT_ROOM`, or New document. */
+  readonly askedFor: boolean;
+  readonly writing: boolean;
+  readonly accompanied: boolean;
+  readonly named: boolean;
+  readonly savedHere: boolean;
+}
+
+/** Whether a room has earned its row in the library. */
+export type LibraryWorthy = boolean & { readonly _brand: 'LibraryWorthy' };
+
+/**
+ * A room nobody asked for — minted under a bare visit — waits for a sign of use,
+ * so a passer-by who only reads is not handed an "Untitled" row for a document
+ * they never wrote in.
+ */
+export function libraryWorthy(engagement: RoomEngagement): LibraryWorthy {
+  const { askedFor, writing, accompanied, named, savedHere } = engagement;
+  return (askedFor || writing || accompanied || named || savedHere) as LibraryWorthy;
 }
 
 /** The link that reopens a remembered room, key and role included. */

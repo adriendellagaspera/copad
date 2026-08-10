@@ -8,8 +8,11 @@ import {
   clearRoomHistory,
   roomVisitUrl,
   openedLabel,
+  roomDiscriminator,
+  libraryWorthy,
   type RoomVisit,
   type PagePath,
+  type RoomEngagement,
 } from './roomHistory.js';
 import { ROOM_HISTORY_LIMIT } from './constants.js';
 import { SessionRole, type RoomId, type RoomName } from './types.js';
@@ -229,5 +232,40 @@ describe('openedLabel', () => {
 
   it('reads a timestamp from the future as just now rather than a negative age', () => {
     expect(openedLabel(after(60_000), at)).toBe('just now');
+  });
+});
+
+describe('roomDiscriminator', () => {
+  it('takes the tail of the room id, where a random id differs', () => {
+    expect(roomDiscriminator('9f1c2d7e-4a3b' as RoomId)).toBe('4a3b');
+  });
+
+  it('leaves an id shorter than the tail intact', () => {
+    expect(roomDiscriminator('ab' as RoomId)).toBe('ab');
+  });
+});
+
+describe('libraryWorthy', () => {
+  const idle: RoomEngagement = {
+    askedFor: false,
+    writing: false,
+    accompanied: false,
+    named: false,
+    savedHere: false,
+  };
+
+  it('keeps a room nobody asked for and nobody used out of the library', () => {
+    expect(libraryWorthy(idle)).toBe(false);
+  });
+
+  it('files a room that was asked for straight away', () => {
+    expect(libraryWorthy({ ...idle, askedFor: true })).toBe(true);
+  });
+
+  it('files an unasked room on any sign it is in use', () => {
+    expect(libraryWorthy({ ...idle, writing: true })).toBe(true);
+    expect(libraryWorthy({ ...idle, accompanied: true })).toBe(true);
+    expect(libraryWorthy({ ...idle, named: true })).toBe(true);
+    expect(libraryWorthy({ ...idle, savedHere: true })).toBe(true);
   });
 });
