@@ -14,8 +14,10 @@
     placeSelectionBubble,
     tableContextOf,
     PANEL_GAP,
+    type CaretInTable,
     type EditorFocus,
     type PointerProfile,
+    type TableAnchorFound,
     type TableSurface,
     type TextSurface,
   } from './floatingSurfaces.js';
@@ -83,9 +85,9 @@
       return;
     }
     const { from, to, empty } = st.selection;
-    const inTable = isInTable(st);
+    const inTable = isInTable(st) as CaretInTable;
     const tableEl = empty && inTable ? tableElementAt(v, from) : null;
-    const table = tableContextOf(inTable, !!tableEl);
+    const table = tableContextOf(inTable, (tableEl !== null) as TableAnchorFound);
 
     const surfaces = chooseSurfaces({
       pointer: pointerProfile(),
