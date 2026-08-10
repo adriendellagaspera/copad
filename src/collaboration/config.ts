@@ -15,7 +15,7 @@ import { publicAccess, sitePassword, roomPassword, RoomAccessMode } from './room
 import { plaintext } from './roomCipher.js';
 import { secretLink, type SecretLinkPort } from './secretLink.js';
 import { parseRoomId, parseSignalingUrl, parseWebsocketUrl, parseStunUrl, parseTurnUrl, parseTurnUsername, parseTurnCredential, parseIceServersUrl } from './parse.js';
-import { LOCAL_HOSTS, DEFAULT_DEV_SIGNALING, DEFAULT_STUN, DEFAULT_ROOM_NAME } from './constants.js';
+import { LOCAL_HOSTS, DEFAULT_DEV_SIGNALING, DEFAULT_STUN } from './constants.js';
 
 const list = (raw: string | undefined): string[] =>
   (raw ?? '')
@@ -202,9 +202,27 @@ export function resolveRoomStrategy(raw: string | undefined): RoomStrategy {
   }
 }
 
-/** Parse the default room from `VITE_DEFAULT_ROOM` — the single cast site for the default RoomId. */
-export function resolveDefaultRoom(raw: string | undefined): RoomId {
-  return parseRoomId(raw ?? '') ?? DEFAULT_ROOM_NAME;
+/** Whether the room was minted for this visit rather than asked for by name. */
+export type RoomMinted = boolean & { readonly _brand: 'RoomMinted' };
+
+export interface LandingRoom {
+  readonly room: RoomId;
+  readonly minted: RoomMinted;
+}
+
+/** Minting rather than adopting a default keeps a visitor's first act out of a
+ *  stranger's document (docs/contract.md §5). */
+export function resolveLandingRoom(
+  roomParam: string | null,
+  envDefaultRoom: string | undefined,
+  mint: () => RoomId,
+): LandingRoom {
+  const asked = false as RoomMinted;
+  const linked = parseRoomId(roomParam);
+  if (linked) return { room: linked, minted: asked };
+  const configured = parseRoomId(envDefaultRoom ?? '');
+  if (configured) return { room: configured, minted: asked };
+  return { room: mint(), minted: true as RoomMinted };
 }
 
 /**
