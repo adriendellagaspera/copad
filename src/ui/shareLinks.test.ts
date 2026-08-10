@@ -3,11 +3,18 @@ import type { RoomId } from '../collaboration/types.js';
 import type { RoomCredential } from '../collaboration/roomAccess.js';
 import {
   InviteRole,
+  LinkExposure,
   RoomSecurityKind,
+  emailShareUrl,
   isEncrypted,
+  linkExposureAfterChange,
   roomSecurity,
+  shareMessage,
   shareUrl,
+  smsShareUrl,
+  whatsappShareUrl,
   type AppUrl,
+  type ShareUrl,
 } from './shareLinks.js';
 
 const app = 'https://copad.example/app/' as AppUrl;
@@ -78,6 +85,46 @@ describe('shareUrl', () => {
   it('escapes room ids and keys', () => {
     expect(shareUrl(app, 'a b&c' as RoomId, InviteRole.Editor, cred('x/y z'))).toBe(
       'https://copad.example/app/?room=a%20b%26c#k=x%2Fy%20z',
+    );
+  });
+});
+
+describe('linkExposureAfterChange', () => {
+  const before = 'https://copad.example/app/?room=room-1' as ShareUrl;
+  const after = 'https://copad.example/app/?room=room-1#k=k1' as ShareUrl;
+
+  it('stays unshared when the link was never sent out', () => {
+    expect(linkExposureAfterChange(LinkExposure.Unshared, before, after)).toBe(
+      LinkExposure.Unshared,
+    );
+  });
+
+  it('goes stale when a shared link no longer matches', () => {
+    expect(linkExposureAfterChange(LinkExposure.Shared, before, after)).toBe(LinkExposure.Stale);
+  });
+
+  it('stays shared when the link is unchanged', () => {
+    expect(linkExposureAfterChange(LinkExposure.Shared, before, before)).toBe(LinkExposure.Shared);
+  });
+});
+
+describe('share channels', () => {
+  const url = 'https://copad.example/app/?room=room-1' as ShareUrl;
+  const message = shareMessage(url);
+
+  it('composes the invitation message', () => {
+    expect(message).toBe('Join me on Copad: https://copad.example/app/?room=room-1');
+  });
+
+  it('escapes the message into each channel URL', () => {
+    expect(whatsappShareUrl(message)).toBe(
+      'https://wa.me/?text=Join%20me%20on%20Copad%3A%20https%3A%2F%2Fcopad.example%2Fapp%2F%3Froom%3Droom-1',
+    );
+    expect(smsShareUrl(message)).toBe(
+      'sms:?body=Join%20me%20on%20Copad%3A%20https%3A%2F%2Fcopad.example%2Fapp%2F%3Froom%3Droom-1',
+    );
+    expect(emailShareUrl(message)).toBe(
+      'mailto:?subject=Join%20me%20on%20Copad&body=Join%20me%20on%20Copad%3A%20https%3A%2F%2Fcopad.example%2Fapp%2F%3Froom%3Droom-1',
     );
   });
 });

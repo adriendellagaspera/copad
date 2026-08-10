@@ -1,21 +1,44 @@
 import type { RoomId } from '../collaboration/types.js';
 import type { RoomCredential } from '../collaboration/roomAccess.js';
 
-/** `${location.origin}${location.pathname}` — the app's own address, without
- *  query or fragment. Cast once, where `location` is read. */
 export type AppUrl = string & { readonly _brand: 'AppUrl' };
-
-/** A complete invite link: app address + room + optional role + optional key. */
 export type ShareUrl = string & { readonly _brand: 'ShareUrl' };
+export type ShareTitle = string & { readonly _brand: 'ShareTitle' };
+export type ShareMessage = string & { readonly _brand: 'ShareMessage' };
+export type ShareChannelUrl = string & { readonly _brand: 'ShareChannelUrl' };
+export type InviteRoleLabel = string & { readonly _brand: 'InviteRoleLabel' };
+export type RoomEncrypted = boolean & { readonly _brand: 'RoomEncrypted' };
 
-/** What an invite link opens as. `Reader` is cooperative signalling, not access
- *  control: `?role=reader` is removable by its recipient (docs/contract.md §4). */
+/** `?role=reader` is removable by its recipient: cooperative, not access control (docs/contract.md §4). */
 export const InviteRole = { Editor: 'editor', Reader: 'reader' } as const;
 export type InviteRole = (typeof InviteRole)[keyof typeof InviteRole];
 
-/** The two things the Share dialog shows, one at a time. */
 export const ShareView = { Invite: 'invite', Security: 'security' } as const;
 export type ShareView = (typeof ShareView)[keyof typeof ShareView];
+
+export interface InviteRoleChoice {
+  readonly role: InviteRole;
+  readonly label: InviteRoleLabel;
+}
+
+export const INVITE_ROLE_CHOICES: readonly InviteRoleChoice[] = [
+  { role: InviteRole.Editor, label: 'Editing' as InviteRoleLabel },
+  { role: InviteRole.Reader, label: 'View-only' as InviteRoleLabel },
+];
+
+export const CopyFeedback = { Idle: 'idle', Copied: 'copied', Manual: 'manual' } as const;
+export type CopyFeedback = (typeof CopyFeedback)[keyof typeof CopyFeedback];
+
+export const LinkExposure = { Unshared: 'unshared', Shared: 'shared', Stale: 'stale' } as const;
+export type LinkExposure = (typeof LinkExposure)[keyof typeof LinkExposure];
+
+export const SecurityChange = {
+  SecureLink: 'secure-link',
+  PasswordSet: 'password-set',
+  PasswordCleared: 'password-cleared',
+  EncryptionRemoved: 'encryption-removed',
+} as const;
+export type SecurityChange = (typeof SecurityChange)[keyof typeof SecurityChange];
 
 export const RoomSecurityKind = {
   None: 'none',
@@ -37,8 +60,7 @@ export interface RoomSecuritySources {
   readonly envPassword: RoomCredential | null;
 }
 
-/** Mirrors App.svelte's effective cipher precedence: `#k=` → per-room password
- *  → deployment-wide env password. */
+/** Precedence must stay identical to `App.svelte`'s `roomCipher`. */
 export function roomSecurity(sources: RoomSecuritySources): RoomSecurity {
   if (sources.linkKey) return { kind: RoomSecurityKind.SecretLink, key: sources.linkKey };
   if (sources.storedPassword)
@@ -48,8 +70,8 @@ export function roomSecurity(sources: RoomSecuritySources): RoomSecurity {
   return { kind: RoomSecurityKind.None };
 }
 
-export function isEncrypted(security: RoomSecurity): boolean {
-  return security.kind !== RoomSecurityKind.None;
+export function isEncrypted(security: RoomSecurity): RoomEncrypted {
+  return (security.kind !== RoomSecurityKind.None) as RoomEncrypted;
 }
 
 export function shareUrl(
@@ -62,4 +84,31 @@ export function shareUrl(
   // #k= last: the key belongs in the fragment, which is never sent to a server.
   const key = linkKey ? `#k=${encodeURIComponent(linkKey)}` : '';
   return `${app}?room=${encodeURIComponent(room)}${role_}${key}` as ShareUrl;
+}
+
+export function linkExposureAfterChange(
+  exposure: LinkExposure,
+  before: ShareUrl,
+  after: ShareUrl,
+): LinkExposure {
+  if (exposure === LinkExposure.Unshared || before === after) return exposure;
+  return LinkExposure.Stale;
+}
+
+export const SHARE_TITLE = 'Join me on Copad' as ShareTitle;
+
+export function shareMessage(url: ShareUrl): ShareMessage {
+  return `${SHARE_TITLE}: ${url}` as ShareMessage;
+}
+
+export function whatsappShareUrl(message: ShareMessage): ShareChannelUrl {
+  return `https://wa.me/?text=${encodeURIComponent(message)}` as ShareChannelUrl;
+}
+
+export function smsShareUrl(message: ShareMessage): ShareChannelUrl {
+  return `sms:?body=${encodeURIComponent(message)}` as ShareChannelUrl;
+}
+
+export function emailShareUrl(message: ShareMessage): ShareChannelUrl {
+  return `mailto:?subject=${encodeURIComponent(SHARE_TITLE)}&body=${encodeURIComponent(message)}` as ShareChannelUrl;
 }

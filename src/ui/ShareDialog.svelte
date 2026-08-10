@@ -9,13 +9,24 @@
   import { rememberRoomEncryption, forgetRoomEncryption } from '../collaboration/roomLock.js';
   import { migrateRoomCache } from '../collaboration/cache.js';
   import { copyText } from './clipboard.js';
+  import type { Milliseconds } from '../time.js';
   import {
+    CopyFeedback,
+    INVITE_ROLE_CHOICES,
     InviteRole,
+    LinkExposure,
     RoomSecurityKind,
+    SHARE_TITLE,
+    SecurityChange,
     ShareView,
+    emailShareUrl,
     isEncrypted,
+    linkExposureAfterChange,
     roomSecurity,
+    shareMessage,
     shareUrl,
+    smsShareUrl,
+    whatsappShareUrl,
     type AppUrl,
     type ShareUrl,
   } from './shareLinks.js';
@@ -36,11 +47,13 @@
     toasts: Toasts;
     envPassword?: string;
     saved?: boolean;
-    /** Ignored unless `saved` is true. */
     storageLabel?: string;
-    /** Called after the room's encryption changes, so the Editor can reconnect. */
     onSecurityChange?: () => void;
   } = $props();
+
+  const CONFIRM_FLASH_MS = 4_000 as Milliseconds;
+  const REMOVE_CONFIRM_MS = 4_000 as Milliseconds;
+  const COPIED_FLASH_MS = 2_000 as Milliseconds;
 
   let linkInputEl = $state<HTMLInputElement | undefined>();
   let securityEl = $state<HTMLElement | undefined>();
@@ -52,9 +65,8 @@
   let pwInput = $state('');
   let view = $state<ShareView>(ShareView.Invite);
   let role = $state<InviteRole>(InviteRole.Editor);
-  let shared = $state(false);
-  let staleLink = $state(false);
-  let copyFallback = $state(false);
+  let exposure = $state<LinkExposure>(LinkExposure.Unshared);
+  let copyFeedback = $state<CopyFeedback>(CopyFeedback.Idle);
 
   $effect(() => {
     if (open) {
@@ -63,18 +75,16 @@
       pwInput = storedPw ?? '';
       view = ShareView.Invite;
       role = InviteRole.Editor;
-      shared = false;
-      staleLink = false;
-      copyFallback = false;
-      copied = false;
+      exposure = LinkExposure.Unshared;
+      copyFeedback = CopyFeedback.Idle;
       clearRemoveConfirm();
-      flashConfirm(null);
+      clearConfirm();
     }
   });
 
   $effect(() => () => {
     clearTimeout(confirmRemoveTimer);
-    clearTimeout(secConfirmTimer);
+    clearTimeout(confirmTimer);
     clearTimeout(copiedTimer);
   });
 
@@ -91,7 +101,7 @@
   const currentKey = (): RoomCredential | null => linkKey ?? storedPw;
 
   function noteLinkChanged(before: ShareUrl): void {
-    if (shared && before !== url) staleLink = true;
+    exposure = linkExposureAfterChange(exposure, before, url);
   }
 
   // Fingerprint + cache migration must both complete before onSecurityChange remounts the editor.
@@ -107,7 +117,7 @@
     pwInput = '';
     noteLinkChanged(beforeUrl);
     onSecurityChange?.();
-    flashConfirm('Secure link created. Anyone with the link can read this document');
+    flashConfirm(SecurityChange.SecureLink);
   }
 
   async function applyPassword(): Promise<void> {
@@ -124,7 +134,7 @@
     storedPw = cred;
     noteLinkChanged(beforeUrl);
     onSecurityChange?.();
-    flashConfirm(pw ? 'Document password applied' : 'Document password removed');
+    flashConfirm(pw ? SecurityChange.PasswordSet : SecurityChange.PasswordCleared);
   }
 
   async function removeEncryption(): Promise<void> {
@@ -140,10 +150,9 @@
     clearRemoveConfirm();
     noteLinkChanged(beforeUrl);
     onSecurityChange?.();
-    flashConfirm('Encryption removed from this document');
+    flashConfirm(SecurityChange.EncryptionRemoved);
   }
 
-  // Two-click confirm: this breaks collaborators' current link/password.
   let confirmingRemove = $state(false);
   let confirmRemoveTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -159,20 +168,24 @@
       return;
     }
     confirmingRemove = true;
-    confirmRemoveTimer = setTimeout(() => (confirmingRemove = false), 4000);
+    confirmRemoveTimer = setTimeout(() => (confirmingRemove = false), REMOVE_CONFIRM_MS);
   }
 
   // Inline, not a toast: on mobile a fixed toast would sit under the dialog's own sheet.
-  let secConfirm = $state<string | null>(null);
-  let secConfirmTimer: ReturnType<typeof setTimeout> | undefined;
+  let confirmed = $state<SecurityChange | null>(null);
+  let confirmTimer: ReturnType<typeof setTimeout> | undefined;
 
-  function flashConfirm(text: string | null): void {
-    clearTimeout(secConfirmTimer);
-    secConfirm = text;
-    if (text) secConfirmTimer = setTimeout(() => (secConfirm = null), 4000);
+  function clearConfirm(): void {
+    clearTimeout(confirmTimer);
+    confirmed = null;
   }
 
-  let copied = $state(false);
+  function flashConfirm(change: SecurityChange): void {
+    clearTimeout(confirmTimer);
+    confirmed = change;
+    confirmTimer = setTimeout(() => (confirmed = null), CONFIRM_FLASH_MS);
+  }
+
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
   const COPY_TOAST_GROUP = 'share-dialog-copy';
@@ -182,60 +195,48 @@
     clearTimeout(copiedTimer);
     if (await copyText(url)) {
       toasts.success(label, undefined, COPY_TOAST_GROUP);
-      copied = true;
-      copyFallback = false;
-      shared = true;
-      staleLink = false;
-      copiedTimer = setTimeout(() => (copied = false), 2000);
+      copyFeedback = CopyFeedback.Copied;
+      exposure = LinkExposure.Shared;
+      copiedTimer = setTimeout(() => (copyFeedback = CopyFeedback.Idle), COPIED_FLASH_MS);
     } else {
       linkInputEl?.select();
-      copied = false;
-      copyFallback = true;
-      shared = true;
+      copyFeedback = CopyFeedback.Manual;
+      exposure = LinkExposure.Shared;
       toasts.info('Press ⌘/Ctrl+C to copy the selected link', undefined, COPY_TOAST_GROUP);
     }
   }
 
   const canShare = typeof navigator !== 'undefined' && 'share' in navigator;
-  const shareText = $derived(`Join me on Copad: ${url}`);
-  const whatsappUrl = $derived(`https://wa.me/?text=${encodeURIComponent(shareText)}`);
-  const smsUrl = $derived(`sms:?body=${encodeURIComponent(shareText)}`);
-  const emailUrl = $derived(
-    `mailto:?subject=${encodeURIComponent('Join me on Copad')}&body=${encodeURIComponent(shareText)}`,
-  );
+  const message = $derived(shareMessage(url));
 
   async function share(): Promise<void> {
-    shared = true;
-    staleLink = false;
+    exposure = LinkExposure.Shared;
     try {
-      await navigator.share({ title: 'Join me on Copad', url });
+      await navigator.share({ title: SHARE_TITLE, url });
     } catch {
-      /* navigator.share() rejects on cancel; no toast, matches native share UX */
+      /* navigator.share() rejects on cancel */
     }
   }
 
   function shareViaWhatsapp(): void {
-    shared = true;
-    staleLink = false;
-    window.open(whatsappUrl, '_blank', 'noopener');
+    exposure = LinkExposure.Shared;
+    window.open(whatsappShareUrl(message), '_blank', 'noopener');
   }
 
   function shareViaSms(): void {
-    shared = true;
-    staleLink = false;
-    location.href = smsUrl;
+    exposure = LinkExposure.Shared;
+    location.href = smsShareUrl(message);
   }
 
   function shareViaEmail(): void {
-    shared = true;
-    staleLink = false;
-    location.href = emailUrl;
+    exposure = LinkExposure.Shared;
+    location.href = emailShareUrl(message);
   }
 
   async function goTo(next: ShareView): Promise<void> {
     view = next;
     clearRemoveConfirm();
-    flashConfirm(null);
+    clearConfirm();
     await tick();
     if (next === ShareView.Security) securityEl?.focus();
     else securityTriggerEl?.focus();
@@ -243,14 +244,8 @@
 
   function setRole(next: InviteRole): void {
     role = next;
-    copied = false;
-    copyFallback = false;
+    copyFeedback = CopyFeedback.Idle;
   }
-
-  const ROLES: { value: InviteRole; label: string }[] = [
-    { value: InviteRole.Editor, label: 'Editing' },
-    { value: InviteRole.Reader, label: 'View-only' },
-  ];
 </script>
 
 <Dialog {open} {onclose} title={view === ShareView.Security ? 'Document security' : 'Share this document'}>
@@ -259,14 +254,14 @@
 
     <div class="role-row">
       <div class="role-select" role="group" aria-label="What the invite link opens">
-        {#each ROLES as opt (opt.value)}
+        {#each INVITE_ROLE_CHOICES as choice (choice.role)}
           <button
             type="button"
             class="role-option"
-            aria-pressed={role === opt.value}
-            onclick={() => setRole(opt.value)}
+            aria-pressed={role === choice.role}
+            onclick={() => setRole(choice.role)}
           >
-            {opt.label}
+            {choice.label}
           </button>
         {/each}
       </div>
@@ -288,7 +283,7 @@
         onfocus={(e) => e.currentTarget.select()}
       />
       <button class="primary" onclick={copy}>
-        {#if copied}
+        {#if copyFeedback === CopyFeedback.Copied}
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
           Copied
         {:else}
@@ -307,12 +302,12 @@
     </div>
 
     <p class="share-status" role="status">
-      {#if staleLink}
+      {#if exposure === LinkExposure.Stale}
         <span class="warn">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 2.5 20h19z" /><path d="M12 10v4M12 17.2v.1" /></svg>
           This link changed when you changed the document's security. Send the new one: the copy you shared no longer opens the document.
         </span>
-      {:else if copyFallback}
+      {:else if copyFeedback === CopyFeedback.Manual}
         <span class="warn">The link is selected. Copy it with your keyboard or a long-press.</span>
       {/if}
     </p>
@@ -388,10 +383,18 @@
 
       <h3 id="share-security-title" class="visually-hidden">Document security</h3>
 
-      <p class="sec-confirm" role="status" class:is-empty={!secConfirm}>
-        {#if secConfirm}
+      <p class="sec-confirm" role="status" class:is-empty={!confirmed}>
+        {#if confirmed}
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
-          {secConfirm}
+          {#if confirmed === SecurityChange.SecureLink}
+            Secure link created. Anyone with the link can read this document
+          {:else if confirmed === SecurityChange.PasswordSet}
+            Document password applied
+          {:else if confirmed === SecurityChange.PasswordCleared}
+            Document password removed
+          {:else}
+            Encryption removed from this document
+          {/if}
         {/if}
       </p>
 
@@ -477,7 +480,6 @@
     margin-bottom: var(--sp-2);
     flex-wrap: wrap;
   }
-  /* Same segmented-control language as ThemeSelect / Settings' nav items. */
   .role-select {
     display: inline-flex;
     background: var(--surface-2);
