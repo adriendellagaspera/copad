@@ -35,8 +35,6 @@ export type LinkExposure = (typeof LinkExposure)[keyof typeof LinkExposure];
 
 export const SecurityChange = {
   SecureLink: 'secure-link',
-  PasswordSet: 'password-set',
-  PasswordCleared: 'password-cleared',
   EncryptionRemoved: 'encryption-removed',
 } as const;
 export type SecurityChange = (typeof SecurityChange)[keyof typeof SecurityChange];

@@ -4,7 +4,7 @@
   import type { Toasts } from './toasts.svelte.js';
   import type { RoomId } from '../collaboration/types.js';
   import { Transport } from '../collaboration/types.js';
-  import { roomPassword, setRoomPassword, clearRoomPassword, type RoomCredential } from '../collaboration/roomAccess.js';
+  import { roomPassword, clearRoomPassword, type RoomCredential } from '../collaboration/roomAccess.js';
   import { parseRoomCredential } from '../collaboration/parse.js';
   import { currentSecretKey, clearSecretKey, rotateSecretKey } from '../collaboration/secretLink.js';
   import { rememberRoomEncryption, forgetRoomEncryption } from '../collaboration/roomLock.js';
@@ -65,7 +65,6 @@
   // Re-read on open: location.hash / localStorage aren't reactive on their own.
   let linkKey = $state<RoomCredential | null>(null);
   let storedPw = $state<RoomCredential | null>(null);
-  let pwInput = $state('');
   let view = $state<ShareView>(ShareView.Invite);
   let role = $state<InviteRole>(InviteRole.Editor);
   let exposure = $state<LinkExposure>(LinkExposure.Unshared);
@@ -75,7 +74,6 @@
     if (open) {
       linkKey = currentSecretKey();
       storedPw = roomPassword().credential(room);
-      pwInput = storedPw ?? '';
       view = ShareView.Invite;
       role = InviteRole.Editor;
       exposure = LinkExposure.Unshared;
@@ -118,28 +116,11 @@
     await migrateRoomCache(room, before, key);
     linkKey = key;
     storedPw = null;
-    pwInput = '';
     noteLinkChanged(beforeUrl);
     onSecurityChange?.();
     flashConfirm(SecurityChange.SecureLink);
   }
 
-  async function applyPassword(): Promise<void> {
-    const before = currentKey();
-    const beforeUrl = url;
-    const pw = pwInput.trim();
-    const cred = parseRoomCredential(pw);
-    setRoomPassword(room, pw);
-    clearSecretKey();
-    if (cred) await rememberRoomEncryption(room, cred);
-    else forgetRoomEncryption(room);
-    await migrateRoomCache(room, before, cred);
-    linkKey = null;
-    storedPw = cred;
-    noteLinkChanged(beforeUrl);
-    onSecurityChange?.();
-    flashConfirm(pw ? SecurityChange.PasswordSet : SecurityChange.PasswordCleared);
-  }
 
   async function removeEncryption(): Promise<void> {
     const before = currentKey();
@@ -150,7 +131,6 @@
     await migrateRoomCache(room, before, null);
     linkKey = null;
     storedPw = null;
-    pwInput = '';
     clearRemoveConfirm();
     noteLinkChanged(beforeUrl);
     onSecurityChange?.();
@@ -399,10 +379,6 @@
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
           {#if confirmed === SecurityChange.SecureLink}
             Secure link created. Anyone with the link can read this document
-          {:else if confirmed === SecurityChange.PasswordSet}
-            Document password applied
-          {:else if confirmed === SecurityChange.PasswordCleared}
-            Document password removed
           {:else}
             Encryption removed from this document
           {/if}
@@ -428,47 +404,31 @@
             <span class="confirm-note">Collaborators' current link will stop working.</span>
           {/if}
         </div>
+      {:else if security.kind === RoomSecurityKind.Password}
+        <p class="sec-note">
+          <strong>Document password.</strong> This deployment asks everyone for a password before
+          it opens a document, and this one is set. Send it separately from the link.
+        </p>
+        <p class="sec-note sec-secondary">
+          A secure link is stronger: its key is random, where a password is only as strong as the
+          one chosen, and a wrong password looks exactly like an empty document.
+        </p>
+        <div class="sec-actions">
+          <button class="primary" onclick={makeSecureLink}>Switch to a secure link</button>
+        </div>
       {:else}
         <p class="sec-note">
           {#if security.kind === RoomSecurityKind.Deployment}
-            This deployment encrypts every document with one shared key. Add a key of your own, a
-            secure link or a password, so only the people you send it to can read <em>this</em> one.
-          {:else if security.kind === RoomSecurityKind.Password}
-            <strong>Document password.</strong> Collaborators must type the same password to read
-            this document: send it separately from the link.
+            This deployment encrypts every document with one shared key. Give this one a key of its
+            own, so only the people you send it to can read <em>this</em> document.
           {:else}
-            Encrypt this document end-to-end: only people with the link or the password can read it.
-            Either bake a key into the link, or set a password to share separately.
+            Encrypt this document end-to-end: the key is baked into the link, so only the people
+            you send it to can read it.
           {/if}
         </p>
         <div class="sec-actions">
           <button class="primary" onclick={makeSecureLink}>Generate secure link</button>
         </div>
-        <div class="sec-pw">
-          <input
-            type="text"
-            placeholder="…or a document password"
-            value={pwInput}
-            oninput={(e) => (pwInput = e.currentTarget.value)}
-            onkeydown={(e) => e.key === 'Enter' && applyPassword()}
-            aria-label="Document password"
-          />
-          <button onclick={applyPassword} disabled={pwInput.trim() === (storedPw ?? '')}>
-            {storedPw ? 'Update' : 'Set'}
-          </button>
-          {#if storedPw}
-            <button class:danger={confirmingRemove} onclick={requestRemoveEncryption}>
-              {confirmingRemove ? 'Confirm?' : 'Remove'}
-            </button>
-          {/if}
-        </div>
-        {#if confirmingRemove}
-          <p class="confirm-note">Collaborators' current password will stop working.</p>
-        {/if}
-        <small class="sec-help">
-          Not seeing edits in a protected document? Double-check the password: a wrong one looks
-          like an empty document.
-        </small>
       {/if}
 
       {#if security.kind !== RoomSecurityKind.Relayed}
@@ -754,12 +714,10 @@
     margin-bottom: var(--sp-3);
     flex-wrap: wrap;
   }
-  .sec-actions button,
-  .sec-pw button {
+  .sec-actions button {
     min-height: 44px;
   }
-  .sec-actions button.danger,
-  .sec-pw button.danger {
+  .sec-actions button.danger {
     color: var(--danger);
     border-color: var(--danger);
   }
@@ -769,23 +727,9 @@
     font-size: 0.75rem;
     line-height: 1.4;
   }
-  .sec-pw {
-    display: flex;
-    gap: var(--sp-2);
-  }
-  .sec-pw input {
-    flex: 1;
-    min-width: 0;
-  }
-  .sec-pw button {
-    flex-shrink: 0;
-  }
-  .sec-help {
-    display: block;
-    margin-top: var(--sp-2);
+  .sec-secondary {
     color: var(--text-faint);
-    font-size: 0.75rem;
-    line-height: 1.4;
+    font-size: 0.8125rem;
   }
   .share-room {
     margin: var(--sp-4) 0 0;
