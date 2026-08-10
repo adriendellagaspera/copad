@@ -12,10 +12,10 @@
     chooseSurfaces,
     placeCaretPill,
     placeSelectionBubble,
+    tableContextOf,
     PANEL_GAP,
     type EditorFocus,
     type PointerProfile,
-    type TableContext,
     type TableSurface,
     type TextSurface,
   } from './floatingSurfaces.js';
@@ -85,11 +85,7 @@
     const { from, to, empty } = st.selection;
     const inTable = isInTable(st);
     const tableEl = empty && inTable ? tableElementAt(v, from) : null;
-    const table: TableContext = !inTable
-      ? 'outside-table'
-      : tableEl
-        ? 'table-anchored'
-        : 'table-unresolved';
+    const table = tableContextOf(inTable, !!tableEl);
 
     const surfaces = chooseSurfaces({
       pointer: pointerProfile(),

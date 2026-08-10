@@ -212,8 +212,6 @@ test('print output stays white-background even in dark theme', async ({ page }) 
 
 test.describe('the caret pill and the selection bubble stay distinct surfaces', () => {
   test('arming a mark over a bare caret shows the pill, never the format bubble', async ({ page }) => {
-    // `chooseSurfaces()` merged both deciders into one pass; the pill keeping
-    // its own host is what stops a collapsed caret from mounting `.sel-toolbar`.
     await page.goto('/?room=pw-armed-caret');
     const ed = page.locator('.ProseMirror');
     await ed.waitFor();

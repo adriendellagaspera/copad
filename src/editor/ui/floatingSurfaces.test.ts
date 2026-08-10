@@ -3,6 +3,7 @@ import {
   chooseSurfaces,
   placeCaretPill,
   placeSelectionBubble,
+  tableContextOf,
   PANEL_GAP,
   type CaretRect,
   type SurfaceInput,
@@ -27,6 +28,21 @@ const caret = (top: number, height = 20, left = 500): CaretRect => ({
   right: left + 1,
   top,
   bottom: top + height,
+});
+
+describe('tableContextOf', () => {
+  it('is outside-table when the selection is not in a table', () => {
+    expect(tableContextOf(false, false)).toBe('outside-table');
+    expect(tableContextOf(false, true)).toBe('outside-table');
+  });
+
+  it('is table-anchored once the table element resolves', () => {
+    expect(tableContextOf(true, true)).toBe('table-anchored');
+  });
+
+  it('is table-unresolved while in a table but the element has not resolved yet', () => {
+    expect(tableContextOf(true, false)).toBe('table-unresolved');
+  });
 });
 
 describe('chooseSurfaces', () => {

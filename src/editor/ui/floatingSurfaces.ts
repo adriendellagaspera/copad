@@ -17,6 +17,11 @@ export type TableContext = 'outside-table' | 'table-unresolved' | 'table-anchore
 export type ArmedMarks = 'none' | 'some';
 export type SlashMenuState = 'open' | 'closed';
 
+export function tableContextOf(inTable: boolean, tableElFound: boolean): TableContext {
+  if (!inTable) return 'outside-table';
+  return tableElFound ? 'table-anchored' : 'table-unresolved';
+}
+
 export type SurfaceInput = {
   pointer: PointerProfile;
   focus: EditorFocus;
