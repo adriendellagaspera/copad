@@ -2,6 +2,7 @@
 
 import { Transport } from '../collaboration/types.js';
 import type { CursorColor, DisplayName } from '../collaboration/types.js';
+import type { RoomEncrypted } from './types.js';
 
 export const TransportClaim = { EndToEnd: 'end-to-end', Relayed: 'relayed' } as const;
 export type TransportClaim = (typeof TransportClaim)[keyof typeof TransportClaim];
@@ -12,7 +13,6 @@ export type AboutHeading = string & { readonly _brand: 'AboutHeading' };
 
 export type AboutUrl = string & { readonly _brand: 'AboutUrl' };
 
-export type EncryptionClaimed = boolean & { readonly _brand: 'EncryptionClaimed' };
 
 export interface TransportCopy {
   readonly claim: TransportClaim;
@@ -70,8 +70,8 @@ export function transportCopyFor(transport: Transport): TransportCopy {
   return transport === Transport.P2P ? P2P : HUB;
 }
 
-export function claimsEncryption(copy: TransportCopy): EncryptionClaimed {
-  return (copy.claim === TransportClaim.EndToEnd) as EncryptionClaimed;
+export function claimsEncryption(copy: TransportCopy): RoomEncrypted {
+  return (copy.claim === TransportClaim.EndToEnd) as RoomEncrypted;
 }
 
 export const SPECIMEN_PEERS: readonly SpecimenPeer[] = [

@@ -1,10 +1,13 @@
 <script lang="ts">
   import Avatar from './Avatar.svelte';
   import StatusPill from './StatusPill.svelte';
-  import SyncBanner from './SyncBanner.svelte';
+  import SyncBanner, { type Dismissible } from './SyncBanner.svelte';
   import { BRAND_ICONS } from './brandIcons.js';
   import { STORAGE_ID } from '../storage/constants.js';
   import { SaveStatus } from './types.js';
+  import type { KeepSegmentLabels, StorageAttached } from './types.js';
+  import type { StorageLabel } from '../storage/types.js';
+  import type { WriteGateHeld } from './syncBannerTier.js';
   import { ConnStatus, PresenceKind, Transport } from '../collaboration/types.js';
   import type { PagePath } from '../collaboration/roomHistory.js';
   import {
@@ -30,6 +33,12 @@
 
   const copy = $derived(transportCopyFor(transport));
   const encrypted = $derived(claimsEncryption(copy));
+  const SPECIMEN_UNSAVED = false as StorageAttached;
+  const SPECIMEN_SAVED = true as StorageAttached;
+  const SPECIMEN_STORAGE = 'Dropbox' as StorageLabel;
+  const SPECIMEN_LABELS = true as KeepSegmentLabels;
+  const SPECIMEN_GATED = true as WriteGateHeld;
+  const SPECIMEN_FIXED = false as Dismissible;
 
   const githubMark = BRAND_ICONS[STORAGE_ID.github];
 
@@ -78,10 +87,10 @@
             <StatusPill
               conn={ConnStatus.Connected}
               saveStatus={SaveStatus.Idle}
-              hasStorage={false}
+              hasStorage={SPECIMEN_UNSAVED}
               {transport}
               {encrypted}
-              keepLabels
+              keepLabels={SPECIMEN_LABELS}
             />
           </div>
           <p class="caption">{copy.heroCaption}</p>
@@ -144,12 +153,12 @@
         <p class="gate-lead">{copy.gateLead}</p>
         <div class="demo demo-banner" inert>
           <SyncBanner
-            dismissible={false}
+            dismissible={SPECIMEN_FIXED}
             conn={ConnStatus.Waiting}
             presenceKind={PresenceKind.Alone}
             {transport}
             storageLabel={null}
-            gated
+            gated={SPECIMEN_GATED}
             onShare={noop}
             onConnectStorage={noop}
             onWriteSolo={noop}
@@ -182,9 +191,9 @@
             <StatusPill
               conn={ConnStatus.Waiting}
               saveStatus={SaveStatus.Idle}
-              hasStorage={false}
+              hasStorage={SPECIMEN_UNSAVED}
               {transport}
-              keepLabels
+              keepLabels={SPECIMEN_LABELS}
             />
           </div>
           <p class="lead">
@@ -202,10 +211,10 @@
             <StatusPill
               conn={ConnStatus.Waiting}
               saveStatus={SaveStatus.Saved}
-              hasStorage
-              storageLabel="Dropbox"
+              hasStorage={SPECIMEN_SAVED}
+              storageLabel={SPECIMEN_STORAGE}
               {transport}
-              keepLabels
+              keepLabels={SPECIMEN_LABELS}
             />
           </div>
           <p class="lead">
