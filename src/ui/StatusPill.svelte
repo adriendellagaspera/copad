@@ -10,6 +10,7 @@
     warning,
     transport,
     encrypted = false,
+    keepLabels = false,
     onclick,
   }: {
     conn: ConnStatus;
@@ -21,6 +22,10 @@
     warning?: string;
     transport: Transport;
     encrypted?: boolean;
+    /** Keep the labels visible on a narrow viewport, where the header clips them
+     *  to two glyphs. Opt-in: only a surface where the labels *are* the point
+     *  (the About page) has room for them below 720px. */
+    keepLabels?: boolean;
     onclick?: () => void;
   } = $props();
 
@@ -105,6 +110,7 @@
   this={onclick ? 'button' : 'span'}
   class="chip"
   class:clickable={!!onclick}
+  class:keep-labels={keepLabels}
   type={onclick ? 'button' : undefined}
   role={onclick ? undefined : 'status'}
   aria-live="polite"
@@ -245,7 +251,7 @@
   /* On a narrow header the chip collapses to its two glyphs; labels are clipped
      rather than removed so screen readers still announce them. */
   @media (max-width: 720px) {
-    .seg-label {
+    .chip:not(.keep-labels) .seg-label {
       position: absolute;
       width: 1px;
       height: 1px;
