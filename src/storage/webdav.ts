@@ -1,4 +1,4 @@
-import type { Storage, CredentialField, LoginOptions, DocContent } from './types.js';
+import type { CredentialField, DocContent, LoginOptions, Storage, StorageLabel } from './types.js';
 import { DocFormat, InputType, LoginKind } from './types.js';
 import type { StorageAuth } from './auth.js';
 import type { Fetch } from '../network/types.js';
@@ -81,7 +81,7 @@ export function webdavStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
 
   const storage: Storage = {
     id: STORAGE_ID.webdav,
-    label: 'WebDAV / Nextcloud',
+    label: 'WebDAV / Nextcloud' as StorageLabel,
     blurb: 'Saves to any WebDAV server (Nextcloud, ownCloud…) using a login.',
     availability: { ok: true },
 

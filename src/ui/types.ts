@@ -11,3 +11,7 @@ export interface PeerUser {
 /** Storage save lifecycle, surfaced by the StatusPill. */
 export const SaveStatus = { Idle: 'idle', Saving: 'saving', Saved: 'saved', Error: 'error' } as const;
 export type SaveStatus = (typeof SaveStatus)[keyof typeof SaveStatus];
+
+export type ConflictWarning = string & { readonly _brand: 'ConflictWarning' };
+export type StorageAttached = boolean & { readonly _brand: 'StorageAttached' };
+export type RoomEncrypted = boolean & { readonly _brand: 'RoomEncrypted' };

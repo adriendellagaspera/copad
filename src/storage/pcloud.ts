@@ -1,5 +1,5 @@
 import pcloudSdk from 'pcloud-sdk-js';
-import type { Storage, DocContent } from './types.js';
+import type { DocContent, Storage, StorageLabel } from './types.js';
 import { DocFormat } from './types.js';
 import type { StorageAuth } from './auth.js';
 import { configStore } from './config.js';
@@ -101,7 +101,7 @@ export function pcloudStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
 
   const storage: Storage = {
     id: STORAGE_ID.pcloud,
-    label: 'pCloud',
+    label: 'pCloud' as StorageLabel,
     blurb: 'Saves to a /copad folder in your pCloud via OAuth.',
     availability: { ok: true },
 
