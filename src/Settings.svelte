@@ -54,7 +54,6 @@
     localCache?: boolean;
     onCacheChange?: (on: boolean) => void;
     onCacheClear?: () => void | Promise<void>;
-    /** Open the page explaining the product; hidden while unwired. */
     onAbout?: () => void;
     turnPrefs?: TurnPrefs;
     onTurnChange?: (p: TurnPrefs) => void;

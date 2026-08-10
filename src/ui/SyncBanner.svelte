@@ -1,3 +1,8 @@
+<script module lang="ts">
+  /** Whether the banner offers its dismiss control. */
+  export type Dismissible = boolean & { readonly _brand: 'Dismissible' };
+</script>
+
 <script lang="ts">
   import { slide } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
@@ -26,7 +31,7 @@
     waitingSince = null,
     departedPeerName = null,
     withinDepartureLinger = false,
-    dismissible = true,
+    dismissible = true as Dismissible,
     onShare,
     onConnectStorage,
     onExport,
@@ -45,8 +50,7 @@
     waitingSince?: EpochMs | null;
     departedPeerName?: string | null;
     withinDepartureLinger?: boolean;
-    /** False on a specimen: a control that cannot act is worse than none. */
-    dismissible?: boolean;
+    dismissible?: Dismissible;
     onShare: () => void;
     onConnectStorage: () => void;
     onExport?: () => void;
@@ -231,14 +235,14 @@
     {/if}
 
     {#if dismissible}
-    <button
-      class="dismiss ghost"
-      onclick={() => (dismissed = true)}
-      aria-label="Dismiss"
-      title="Dismiss"
-    >
-      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
-    </button>
+      <button
+        class="dismiss ghost"
+        onclick={() => (dismissed = true)}
+        aria-label="Dismiss"
+        title="Dismiss"
+      >
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
+      </button>
     {/if}
 
     <!-- Last in the flex row so it wraps onto its own line below the actions and

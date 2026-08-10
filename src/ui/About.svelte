@@ -1,7 +1,7 @@
 <script lang="ts">
   import Avatar from './Avatar.svelte';
   import StatusPill from './StatusPill.svelte';
-  import SyncBanner from './SyncBanner.svelte';
+  import SyncBanner, { type Dismissible } from './SyncBanner.svelte';
   import { BRAND_ICONS } from './brandIcons.js';
   import { STORAGE_ID } from '../storage/constants.js';
   import { SaveStatus } from './types.js';
@@ -45,6 +45,8 @@
     { name: 'Kai' as DisplayName, color: '#16a34a' as CursorColor },
     { name: 'Rosa Mendes' as DisplayName, color: '#d97706' as CursorColor },
   ];
+
+  const specimenBanner = false as Dismissible;
 
   function noop(): void {}
 </script>
@@ -157,7 +159,7 @@
         <p class="gate-lead">{copy.gateLead}</p>
         <div class="demo demo-banner" inert>
           <SyncBanner
-      dismissible={false}
+            dismissible={specimenBanner}
             conn={ConnStatus.Waiting}
             presenceKind={PresenceKind.Alone}
             {transport}
@@ -539,7 +541,6 @@
     margin-bottom: 0;
     padding-right: var(--sp-4);
   }
-  /* A specimen cannot be dismissed, so it must not show the control. */
 
   .foot {
     display: flex;

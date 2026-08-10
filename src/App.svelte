@@ -65,11 +65,12 @@
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer, WebsocketUrl } from './collaboration/types.js';
   import { SessionRole, PresenceKind, Transport } from './collaboration/types.js';
   import { writeGateFor, gateSettleMs, gateLingerMs, type SoloOptIn } from './collaboration/writeGate.js';
-  import { PersistRegime } from './collaboration/persistHealth.js';
   import { departureLingerDeadline } from './collaboration/departureHysteresis.js';
   import { now, type EpochMs } from './time.js';
   import { copyText } from './ui/clipboard.js';
   import { durabilityHolds as computeDurabilityHolds } from './collaboration/persistHealth.js';
+  import { routeFor, aboutUrl, newDocumentUrl, RouteKind, type PageQuery } from './ui/route.js';
+  import { introSlotFor, IntroSlotKind, type IntroEligible } from './ui/introSlot.js';
   import type { PeerUser } from './ui/types.js';
   import Editor from './Editor.svelte';
   import Settings from './Settings.svelte';
@@ -108,8 +109,11 @@
     hostname: location.hostname as PageHostname,
   };
 
+  const transport: Transport =
+    resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket' ? Transport.Hub : Transport.P2P;
+
   let fetchedIce = $state<IceServer[]>([]);
-  const usesIce = resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) !== 'websocket';
+  const usesIce = transport === Transport.P2P;
   const iceServersUrl = usesIce ? resolveIceServersUrl(import.meta.env.VITE_ICE_SERVERS_URL) : undefined;
   // Resolved before the first mount, not after: a post-mount rebuild races
   // y-webrtc's async room deregistration (`openRoom()` throws "already exists").
@@ -128,7 +132,7 @@
     // Set only on the hub transport: presenceProbe.ts has no P2P path.
     hallUrl?: WebsocketUrl;
   } {
-    if (resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket') {
+    if (transport === Transport.Hub) {
       const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, loc);
       if (ws.url) {
         // TS doesn't carry the narrowing of `ws.url` into the closure below.
@@ -239,9 +243,7 @@
   // still need to know that.
   const linkedRoomParam = new URLSearchParams(location.search).get('room');
   const landing = resolveLandingRoom(linkedRoomParam, import.meta.env.VITE_DEFAULT_ROOM, newRoomId);
-  // A query flag, not a path: the app ships as a static bundle deployed to
-  // hosts that serve no SPA fallback, where /about would 404.
-  const aboutRoute = new URLSearchParams(location.search).has('about');
+  const route = routeFor(location.search as PageQuery);
 
   // A minted room only exists once its URL says so: rewrite it in place, before
   // anything reads `room`. Not a room *switch* — nothing is built yet — so the
@@ -255,7 +257,7 @@
     fragment.set('k', currentSecretKey() ?? mintSecretKey());
     history.replaceState(null, '', `${location.pathname}?${params.toString()}#${fragment.toString()}`);
   }
-  if (landing.fresh && !aboutRoute) startFreshRoom(landing.room);
+  if (landing.fresh && route.kind === RouteKind.Room) startFreshRoom(landing.room);
 
   // Cooperative only: a modified client could ignore ?role=reader.
   function roleFromUrl(): SessionRole {
@@ -655,15 +657,15 @@
     storageIntroSeen = true;
     storageIntroSeenStore.write(true);
   }
-  const showStorageIntro = $derived(
-    !storageIntroSeen && !collabUnavailable && !savedHere && !writeLocked && iceReady && lockChecked && !lock.locked,
+  const introEligible = $derived((!storageIntroSeen && !collabUnavailable && !savedHere
+    && !writeLocked && iceReady && lockChecked && !lock.locked) as IntroEligible);
+  const introSlot = $derived(
+    introSlotFor({
+      eligible: introEligible,
+      docEmpty: sessionState.docEmpty,
+      regime: sessionState.regime,
+    }),
   );
-  // The two cards share one slot and one seen-flag: the fuller first-visit one
-  // while the page is still blank, the durability line once it isn't.
-  const firstVisitEmpty = $derived(
-    sessionState.docEmpty && sessionState.regime === PersistRegime.Cold,
-  );
-  const showFirstVisitIntro = $derived(showStorageIntro && firstVisitEmpty);
 
   function connectStorageFromStorageIntro(): void {
     markStorageIntroSeen();
@@ -702,40 +704,24 @@
     });
   });
 
-  // A new tab, never an in-place room switch: `backends(room)` captures `room`
-  // once by closure (storage/filename.ts), so there's no live pointer to retarget.
-  // CSPRNG room id (contract §5); the secret-link key encrypts the room by default.
-  const aboutTransport: Transport =
-    resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket' ? Transport.Hub : Transport.P2P;
-
-  // The page has no document to keep, so its create action replaces it rather
-  // than leaving an explainer tab behind.
-  function startDocumentFromAbout(): void {
-    const r = newRoomId();
-    const key = mintSecretKey();
-    location.href = `${location.pathname}?room=${encodeURIComponent(r)}&new=1#k=${encodeURIComponent(key)}`;
+  function replaceWithNewDocument(): void {
+    location.href = newDocumentUrl(pagePath, newRoomId(), mintSecretKey());
   }
 
   function openAbout(): void {
-    const params = new URLSearchParams();
-    params.set('about', '');
-    location.href = `${location.pathname}?${params.toString()}`;
+    location.href = aboutUrl(pagePath);
   }
 
+  // A new tab, never an in-place room switch: `backends(room)` captures `room`
+  // once by closure (storage/filename.ts), so there's no live pointer to retarget.
+  // CSPRNG room id (contract §5); the secret-link key encrypts the room by default.
   function newRoom(): void {
-    const r = newRoomId();
-    const key = mintSecretKey();
-    window.open(
-      `${location.pathname}?room=${encodeURIComponent(r)}&new=1#k=${encodeURIComponent(key)}`,
-      '_blank',
-      'noopener',
-    );
+    window.open(newDocumentUrl(pagePath, newRoomId(), mintSecretKey()), '_blank', 'noopener');
   }
-
 </script>
 
-{#if aboutRoute}
-  <About onNewDocument={startDocumentFromAbout} transport={aboutTransport} page={pagePath} />
+{#if route.kind === RouteKind.About}
+  <About onNewDocument={replaceWithNewDocument} {transport} page={pagePath} />
 {:else}
 <div class="app">
   <!-- Not a heading: an <h1> here would give screen readers two level-1 titles
@@ -930,14 +916,14 @@
     onConnectionDetails={() => (diagOpen = true)}
   />
 
-  {#if showFirstVisitIntro}
+  {#if introSlot.kind === IntroSlotKind.FirstVisit}
     <FirstVisitIntro
       transport={sessionState.diagnostics.transport}
       onShare={() => (shareOpen = true)}
       onConnectStorage={connectStorageFromStorageIntro}
       onAbout={openAbout}
     />
-  {:else if showStorageIntro}
+  {:else if introSlot.kind === IntroSlotKind.Storage}
     <StorageIntro
       onConnectStorage={connectStorageFromStorageIntro}
       onDismiss={markStorageIntroSeen}
