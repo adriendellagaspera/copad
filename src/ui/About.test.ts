@@ -72,3 +72,25 @@ describe('About', () => {
     expect(page).toContain('/pad/?room=');
   });
 });
+
+describe('the room analogy', () => {
+  // A room has no owner (docs/contract.md §1), so the page must not narrate one
+  // side inviting another: an owner/guest split is the single easiest way for
+  // this copy to drift back into promising standing access to a document.
+  const OWNERSHIP_WORDS = ['guest', 'owner', 'invitee', 'the host'];
+
+  for (const transport of [Transport.P2P, Transport.Hub]) {
+    it(`frames nobody as owner or guest on the ${transport} transport`, () => {
+      const page = html(transport).toLowerCase();
+      for (const word of OWNERSHIP_WORDS) expect(page).not.toContain(word);
+    });
+  }
+
+  it('says the room keeps nothing and that separated copies reconcile', () => {
+    const page = html(Transport.P2P);
+    expect(page).toContain('Nobody owns the room');
+    expect(page).toContain('the room remembers nothing');
+    expect(page).toContain('no copy is the real one');
+    expect(page).toContain('reconcile');
+  });
+});
