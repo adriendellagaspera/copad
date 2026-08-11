@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { SpellcheckEnabled } from './ui/types.js';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { EditorState } from 'prosemirror-state';
   import type { Transaction } from 'prosemirror-state';
@@ -7,7 +8,7 @@
   import { schema } from './editor/schema.js';
   import { buildPlugins, stripNestedTables } from './editor/plugins.js';
   import { slashMenuPlugin } from './editor/ui/slashMenu.js';
-  import { placeholderPlugin } from './editor/ui/placeholder.js';
+  import { placeholderPlugin, isSoleEmptyBlock } from './editor/ui/placeholder.js';
   import { lineBlockHintPlugin } from './editor/ui/lineBlockHint.js';
   import { keyboardInset, collapseKeyboardInset } from './ui/keyboardInset.svelte.js';
   import Toolbar from './Toolbar.svelte';
@@ -53,6 +54,7 @@
     setSessionPersistHealth,
     setSessionRegime,
     setSessionLocalEdit,
+    setSessionDocEmpty,
     setSessionPresence,
     setSessionRoomPresence,
     setSessionSoloBrowser,
@@ -60,6 +62,10 @@
     setSessionEditing,
     setSessionJumpToPeer,
     resetSessionState,
+    type SoloBrowser,
+    type DocEmpty,
+    type EditorFocused,
+    type PeerCount,
   } from './collaboration/sessionState.svelte.js';
 
   type Props = {
@@ -74,7 +80,7 @@
     connect: CollabConnect;
     toasts: Toasts;
     lang?: string;
-    spellcheck?: boolean;
+    spellcheck?: SpellcheckEnabled;
     /** When true the editor is read-only: the write gate (`writeGateFor()` in
      *  `App.svelte`) is holding. This component only reflects it. */
     writeLocked?: boolean;
@@ -96,7 +102,7 @@
 
   let {
     storage, name, color, room, role = SessionRole.Writer, selfProbeMarker = null, connect, toasts,
-    lang = 'en', spellcheck = true,
+    lang = 'en', spellcheck = true as SpellcheckEnabled,
     writeLocked = false, writeSoloAt = null, importRequest = null, onImportHandled, autofocusTitle = false,
   }: Props = $props();
 
@@ -131,11 +137,10 @@
   let view = $state.raw<EditorView | null>(null);
   let editorState = $state.raw<EditorState | null>(null);
   let users = $state<PeerUser[]>([]);
-  let peers = $state(1);
+  let peers = $state<PeerCount>(1 as PeerCount);
   let conn = $state<ConnStatus>(ConnStatus.Connecting);
   let roomPresence = $state<RoomPresence>({ kind: PresenceKind.Unknown });
-  // True while every accompanying peer shares our own browserId: a second tab, not a stranger.
-  let soloBrowser = $state(false);
+  let soloBrowser = $state<SoloBrowser>(false as SoloBrowser);
   let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
   // Branch (b)'s state machine (docs/contract.md §3.2/§3.3, persistHealth.ts).
   let persistHealth = $state<PersistHealth>(UNPROVEN);
@@ -191,7 +196,7 @@
     return list;
   };
 
-  const readSoloBrowser = (): boolean => {
+  const readSoloBrowser = (): SoloBrowser => {
     const states = parsedStates();
     const selfId = collab.doc.clientID;
     const mine = browserId();
@@ -199,13 +204,13 @@
     for (const [id, state] of states) {
       if (id === selfId) continue;
       sawOther = true;
-      if (state.browserId !== mine) return false;
+      if (state.browserId !== mine) return false as SoloBrowser;
     }
-    return sawOther;
+    return sawOther as SoloBrowser;
   };
 
   const refreshPresence = (): void => {
-    peers = collab.awareness.getStates().size || 1;
+    peers = (collab.awareness.getStates().size || 1) as PeerCount;
     users = readUsers();
     soloBrowser = readSoloBrowser();
   };
@@ -246,9 +251,9 @@
   $effect(() => {
     const el = editorEl;
     if (!el) return;
-    const onFocusIn = () => setSessionEditing(true);
+    const onFocusIn = () => setSessionEditing(true as EditorFocused);
     const onFocusOut = () => {
-      setSessionEditing(false);
+      setSessionEditing(false as EditorFocused);
       collapseKeyboardInset();
     };
     el.addEventListener('focusin', onFocusIn);
@@ -451,10 +456,12 @@
         const isChangeOrigin = !!tr.getMeta(ySyncPluginKey)?.isChangeOrigin;
         regime = nextRegime(regime, { docChanged: tr.docChanged, isChangeOrigin });
         if (tr.docChanged && !isChangeOrigin) setSessionLocalEdit(now());
+        if (tr.docChanged) setSessionDocEmpty(isSoleEmptyBlock(next.doc) as DocEmpty);
       },
     });
 
     editorState = state;
+    setSessionDocEmpty(isSoleEmptyBlock(state.doc) as DocEmpty);
 
     // y-prosemirror reuses each cursor's existing DOM node across decoration
     // recomputes, so a forced recompute wouldn't re-run remoteCursorBuilder;

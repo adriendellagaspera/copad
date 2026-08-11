@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick as nextTick, untrack } from 'svelte';
   import { fade } from 'svelte/transition';
+  import { exportBaseName } from './format/download.js';
   import { backends, DEFAULT_BACKEND } from './storage/index.js';
   import { pickFile } from './format/filePicker.js';
   import type { StorageBackend } from './storage/index.js';
@@ -55,6 +56,8 @@
   import RoomLock from './ui/RoomLock.svelte';
   import CollabUnavailableIntro from './ui/CollabUnavailableIntro.svelte';
   import StorageIntro from './ui/StorageIntro.svelte';
+  import FirstVisitIntro from './ui/FirstVisitIntro.svelte';
+  import About from './ui/About.svelte';
   import LibraryDialog from './ui/LibraryDialog.svelte';
   import {
     rememberRoomVisit,
@@ -73,7 +76,15 @@
   import { now, type EpochMs } from './time.js';
   import { copyText } from './ui/clipboard.js';
   import { durabilityHolds as computeDurabilityHolds } from './collaboration/persistHealth.js';
-  import type { ConflictWarning, PeerUser, RoomEncrypted, StorageAttached } from './ui/types.js';
+  import { routeFor, aboutUrl, newDocumentUrl, RouteKind, type PageQuery } from './ui/route.js';
+  import { introSlotFor, IntroSlotKind, type IntroEligible } from './ui/introSlot.js';
+  import type {
+    ConflictWarning,
+    DialogOpen,    FocusAdvanced,
+    PeerUser,
+    RoomEncrypted,
+    StorageAttached,
+  } from './ui/types.js';
   import type {
     CollabUnavailable,
     DepartureLingering,
@@ -86,6 +97,7 @@
   import ShareDialog from './ui/ShareDialog.svelte';
   import MeetingJoinDialog from './ui/MeetingJoinDialog.svelte';
   import ExportDialog from './ui/ExportDialog.svelte';
+  import { storedName, rememberName } from './collaboration/identity.js';
   import { roomName } from './collaboration/roomName.svelte.js';
   import SyncBanner from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
@@ -100,13 +112,16 @@
   const reducedMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   $effect(() => initInputModality());
-  let shareOpen = $state(false);
-  let joinOpen = $state(false);
-  let exportOpen = $state(false);
-  let libraryOpen = $state(false);
+  const CLOSED = false as DialogOpen;
+  const OPENED = true as DialogOpen;
+  let shareOpen = $state(CLOSED);
+  let joinOpen = $state(CLOSED);
+  let exportOpen = $state(CLOSED);
+  let libraryOpen = $state(CLOSED);
 
   const { access: envAccess, cipher: envCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
   const perRoomPassword = roomPassword();
+  const envRoomPassword = parseRoomCredential(import.meta.env.VITE_ROOM_PASSWORD ?? null);
   const passwordRequiredMode = envAccess.mode === RoomAccessMode.RoomPassword;
   const roomCipher: RoomCipher = {
     password: (r) => currentSecretKey() ?? perRoomPassword.credential(r) ?? envCipher.password(r),
@@ -116,9 +131,11 @@
     hostname: location.hostname as PageHostname,
   };
 
+  const transport: Transport =
+    resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket' ? Transport.Hub : Transport.P2P;
+
   let fetchedIce = $state<IceServer[]>([]);
-  const usesIce = resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) !== 'websocket';
-  const transport: Transport = usesIce ? Transport.P2P : Transport.Hub;
+  const usesIce = transport === Transport.P2P;
   const iceServersUrl = usesIce ? resolveIceServersUrl(import.meta.env.VITE_ICE_SERVERS_URL) : undefined;
   // Resolved before the first mount, not after: a post-mount rebuild races
   // y-webrtc's async room deregistration (`openRoom()` throws "already exists").
@@ -137,7 +154,7 @@
     // Set only on the hub transport: presenceProbe.ts has no P2P path.
     hallUrl?: WebsocketUrl;
   } {
-    if (resolveTransport(import.meta.env.VITE_COLLAB_TRANSPORT) === 'websocket') {
+    if (transport === Transport.Hub) {
       const ws = resolveWebsocket(import.meta.env.VITE_WEBSOCKET_URL, loc);
       if (ws.url) {
         // TS doesn't carry the narrowing of `ws.url` into the closure below.
@@ -244,6 +261,7 @@
   // Read before `startFreshRoom` below rewrites the URL and adds one.
   const linkedRoomParam = new URLSearchParams(location.search).get('room');
   const landing = resolveLandingRoom(linkedRoomParam, import.meta.env.VITE_DEFAULT_ROOM, newRoomId);
+  const route = routeFor(location.search as PageQuery);
 
   // Runs before `room` is read below, so a reload returns to the minted room rather than minting another.
   function startFreshRoom(r: RoomId): void {
@@ -253,7 +271,7 @@
     fragment.set('k', currentSecretKey() ?? mintSecretKey());
     history.replaceState(null, '', `${location.pathname}?${params.toString()}#${fragment.toString()}`);
   }
-  if (landing.minted) startFreshRoom(landing.room);
+  if (landing.minted && route.kind === RouteKind.Room) startFreshRoom(landing.room);
 
   // Cooperative only: a modified client could ignore ?role=reader.
   function roleFromUrl(): SessionRole {
@@ -299,7 +317,7 @@
   }
 
   let storage = $state<StorageBackend | null>(initialStorage());
-  let name = $state<DisplayName>('Anonymous' as DisplayName);
+  let name = $state<DisplayName>(storedName());
 
   // Hand-off to Editor, which owns `collab.doc` and decodes into it.
   let pendingImport = $state<{ bytes: Uint8Array; filename: Filename } | null>(null);
@@ -308,25 +326,25 @@
   const bump = () => { tick += 1; };
 
   // ── Session presence / connection (header) ──────────────────────────────────
-  let diagOpen = $state(false);
+  let diagOpen = $state(CLOSED);
   const otherPeers = $derived(sessionState.users.filter((u) => !u.self));
 
   // ── Settings ───────────────────────────────────────────────────────────────
 
-  let settingsOpen = $state(false);
+  let settingsOpen = $state(CLOSED);
   let settingsFocus = $state<StorageId | undefined>(undefined);
-  let settingsAdvanced = $state(false);
+  let settingsAdvanced = $state(false as FocusAdvanced);
 
   function openSettings(id?: StorageId) {
     settingsFocus = id;
-    settingsAdvanced = false;
-    settingsOpen = true;
+    settingsAdvanced = false as FocusAdvanced;
+    settingsOpen = OPENED;
   }
 
   function openConnectionSettings(): void {
     settingsFocus = undefined;
-    settingsAdvanced = true;
-    settingsOpen = true;
+    settingsAdvanced = true as FocusAdvanced;
+    settingsOpen = OPENED;
   }
 
   function afterConnect(b: StorageBackend) {
@@ -561,7 +579,11 @@
     collabUnavailableSeenStore.write(true);
   }
   const showCollabUnavailableIntro = $derived(
-    collabUnavailable && !collabUnavailableSeen && !shareOpen && !settingsOpen && !exportOpen,
+    (collabUnavailable &&
+      !collabUnavailableSeen &&
+      !shareOpen &&
+      !settingsOpen &&
+      !exportOpen) as DialogOpen,
   );
 
   function connectStorageFromCollabIntro(): void {
@@ -650,8 +672,14 @@
     storageIntroSeen = true;
     storageIntroSeenStore.write(true);
   }
-  const showStorageIntro = $derived(
-    !storageIntroSeen && !collabUnavailable && !savedHere && !writeLocked && iceReady && lockChecked && !lock.locked,
+  const introEligible = $derived((!storageIntroSeen && !collabUnavailable && !savedHere
+    && !writeLocked && iceReady && lockChecked && !lock.locked) as IntroEligible);
+  const introSlot = $derived(
+    introSlotFor({
+      eligible: introEligible,
+      docEmpty: sessionState.docEmpty,
+      regime: sessionState.regime,
+    }),
   );
 
   function connectStorageFromStorageIntro(): void {
@@ -683,33 +711,31 @@
     });
   });
 
+  function replaceWithNewDocument(): void {
+    location.href = newDocumentUrl(pagePath, newRoomId(), mintSecretKey());
+  }
+
+  function openAbout(): void {
+    location.href = aboutUrl(pagePath);
+  }
+
   // A new tab, never an in-place room switch: `backends(room)` captures `room`
   // once by closure (storage/filename.ts), so there's no live pointer to retarget.
   // CSPRNG room id (contract §5); the secret-link key encrypts the room by default.
   function newRoom(): void {
-    const r = newRoomId();
-    const key = mintSecretKey();
-    window.open(
-      `${location.pathname}?room=${encodeURIComponent(r)}&new=1#k=${encodeURIComponent(key)}`,
-      '_blank',
-      'noopener',
-    );
-  }
-
-  // Guards against a stray Enter/Space firing this while tabbing through the page.
-  function confirmReload(): void {
-    if (confirm('Reload Copad? Any unsaved local state will be lost.')) {
-      location.reload();
-    }
+    window.open(newDocumentUrl(pagePath, newRoomId(), mintSecretKey()), '_blank', 'noopener');
   }
 </script>
 
+{#if route.kind === RouteKind.About}
+  <About onNewDocument={replaceWithNewDocument} {transport} page={pagePath} />
+{:else}
 <div class="app">
   <!-- Not a heading: an <h1> here would give screen readers two level-1 titles
        alongside the document's own (Editor.svelte's DocTitle). Hidden on mobile;
        actions move to the bottom dock below. -->
   <header class="capsule">
-    <button class="cap-mark" onclick={confirmReload} title="Reload Copad" aria-label="Reload Copad">
+    <button class="cap-mark" onclick={openAbout} title="What Copad is" aria-label="What Copad is">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 19.5V6a2 2 0 0 1 2-2h8l6 6v9.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" /><path d="M14 4v6h6" />
       </svg>
@@ -728,7 +754,7 @@
 
     <button
       class="cap-btn"
-      onclick={() => (libraryOpen = true)}
+      onclick={() => (libraryOpen = OPENED)}
       title="Your documents"
       aria-label="Your documents"
     >
@@ -748,12 +774,12 @@
         <path d="M12 3v12m0 0l-4-4m4 4l4-4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
     </button>
-    <button class="cap-btn" onclick={() => (joinOpen = true)} title="Join a meeting link" aria-label="Join a meeting link">
+    <button class="cap-btn" onclick={() => (joinOpen = OPENED)} title="Join a meeting link" aria-label="Join a meeting link">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
       </svg>
     </button>
-    <button class="cap-btn" onclick={() => (exportOpen = true)} title="Export a copy of this document" aria-label="Export a copy of this document">
+    <button class="cap-btn" onclick={() => (exportOpen = OPENED)} title="Export a copy of this document" aria-label="Export a copy of this document">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 15V3m0 0l-4 4m4-4l4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
@@ -771,7 +797,7 @@
         warning={conflictWarning}
         transport={sessionState.diagnostics.transport}
         encrypted={roomEncrypted}
-        onclick={() => (diagOpen = true)}
+        onclick={() => (diagOpen = OPENED)}
       />
       {#if otherPeers.length > 0}
         <PresenceBar users={otherPeers} size={24} onSelect={sessionState.jumpToPeer} {justJoinedIds} />
@@ -790,11 +816,11 @@
         {color}
         colors={COLORS}
         size={32}
-        onName={(v) => { name = v as DisplayName; }}
+        onName={(v) => { name = rememberName(v); }}
         onColor={(c) => { color = c; }}
       />
     </div>
-    <button class="cap-share share-btn" onclick={() => (shareOpen = true)} title="Share / invite collaborators">
+    <button class="cap-share share-btn" onclick={() => (shareOpen = OPENED)} title="Share / invite collaborators">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
         <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
@@ -821,7 +847,7 @@
       {name}
       {color}
       colors={COLORS}
-      onName={(v) => { name = v as DisplayName; }}
+      onName={(v) => { name = rememberName(v); }}
       onColor={(c) => { color = c; }}
     />
     <StatusPill
@@ -832,7 +858,7 @@
       warning={conflictWarning}
       transport={sessionState.diagnostics.transport}
       encrypted={roomEncrypted}
-      onclick={() => (diagOpen = true)}
+      onclick={() => (diagOpen = OPENED)}
     />
     <div class="dock-fill"></div>
     <button class="dock-btn" onclick={newRoom} title="New document (opens in a new tab)" aria-label="New document (opens in a new tab)">
@@ -840,7 +866,7 @@
         <path d="M12 5v14M5 12h14" />
       </svg>
     </button>
-    <button class="dock-btn" onclick={() => (libraryOpen = true)} title="Your documents" aria-label="Your documents">
+    <button class="dock-btn" onclick={() => (libraryOpen = OPENED)} title="Your documents" aria-label="Your documents">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H9a2 2 0 0 1 2 2v13a1.5 1.5 0 0 0-1.5-1.5H4Z" /><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H15a2 2 0 0 0-2 2v13a1.5 1.5 0 0 1 1.5-1.5H20Z" />
       </svg>
@@ -850,17 +876,17 @@
         <path d="M12 3v12m0 0l-4-4m4 4l4-4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
     </button>
-    <button class="dock-btn" onclick={() => (joinOpen = true)} title="Join a meeting link" aria-label="Join a meeting link">
+    <button class="dock-btn" onclick={() => (joinOpen = OPENED)} title="Join a meeting link" aria-label="Join a meeting link">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
       </svg>
     </button>
-    <button class="dock-btn" onclick={() => (exportOpen = true)} title="Export a copy of this document" aria-label="Export a copy of this document">
+    <button class="dock-btn" onclick={() => (exportOpen = OPENED)} title="Export a copy of this document" aria-label="Export a copy of this document">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 15V3m0 0l-4 4m4-4l4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
     </button>
-    <button class="dock-share" onclick={() => (shareOpen = true)} title="Share / invite collaborators" aria-label="Share / invite collaborators">
+    <button class="dock-share" onclick={() => (shareOpen = OPENED)} title="Share / invite collaborators" aria-label="Share / invite collaborators">
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
         <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
@@ -888,16 +914,23 @@
     {waitingSince}
     {departedPeerName}
     {withinDepartureLinger}
-    onShare={() => (shareOpen = true)}
+    onShare={() => (shareOpen = OPENED)}
     onConnectStorage={() => openSettings()}
-    onExport={() => (exportOpen = true)}
+    onExport={() => (exportOpen = OPENED)}
     onWriteSolo={allowWriteSolo}
     onCopyInviteLink={copyInviteLink}
     onRetry={sessionState.diagnostics.reconnect}
-    onConnectionDetails={() => (diagOpen = true)}
+    onConnectionDetails={() => (diagOpen = OPENED)}
   />
 
-  {#if showStorageIntro}
+  {#if introSlot.kind === IntroSlotKind.FirstVisit}
+    <FirstVisitIntro
+      transport={sessionState.diagnostics.transport}
+      onShare={() => (shareOpen = OPENED)}
+      onConnectStorage={connectStorageFromStorageIntro}
+      onAbout={openAbout}
+    />
+  {:else if introSlot.kind === IntroSlotKind.Storage}
     <StorageIntro
       onConnectStorage={connectStorageFromStorageIntro}
       onDismiss={markStorageIntroSeen}
@@ -956,10 +989,11 @@
     />
   {/if}
 </div>
+{/if}
 
 <ConnectionDialog
   open={diagOpen}
-  onclose={() => (diagOpen = false)}
+  onclose={() => (diagOpen = CLOSED)}
   transport={sessionState.diagnostics.transport}
   conn={sessionState.conn}
   saved={savedHere}
@@ -984,13 +1018,14 @@
   {localCache}
   onCacheChange={setLocalCache}
   onCacheClear={clearLocalCopies}
+  onAbout={openAbout}
   {turnPrefs}
   onTurnChange={saveTurnPrefs}
   languageChoice={language.choice}
   spellcheck={language.spellcheck}
   onLanguageChange={language.setChoice}
   onSpellcheckChange={language.setSpellcheck}
-  exportBaseName={roomName.value ?? room}
+  exportBaseName={exportBaseName(roomName.value, room)}
   {toasts}
   onchange={bump}
   onconnect={afterConnect}
@@ -1000,30 +1035,30 @@
 
 <ShareDialog
   open={shareOpen}
-  onclose={() => (shareOpen = false)}
+  onclose={() => (shareOpen = CLOSED)}
   {room}
   {toasts}
   {transport}
-  envPassword={import.meta.env.VITE_ROOM_PASSWORD}
+  envPassword={envRoomPassword}
   saved={savedHere}
   storageLabel={savedHere ? storage?.storage.label : undefined}
   {onSecurityChange}
 />
 
-<MeetingJoinDialog open={joinOpen} onclose={() => (joinOpen = false)} {toasts} hallUrl={collabPlan.hallUrl} />
+<MeetingJoinDialog open={joinOpen} onclose={() => (joinOpen = CLOSED)} {toasts} hallUrl={collabPlan.hallUrl} />
 
 <LibraryDialog
   open={libraryOpen}
-  onclose={() => (libraryOpen = false)}
+  onclose={() => (libraryOpen = CLOSED)}
   current={room}
   page={pagePath}
-  onNew={() => { libraryOpen = false; newRoom(); }}
+  onNew={() => { libraryOpen = CLOSED; newRoom(); }}
 />
 
 <ExportDialog
   open={exportOpen}
-  onclose={() => (exportOpen = false)}
-  baseName={roomName.value ?? room}
+  onclose={() => (exportOpen = CLOSED)}
+  baseName={exportBaseName(roomName.value, room)}
   {toasts}
 />
 <Toast {toasts} />

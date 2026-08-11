@@ -1,4 +1,7 @@
 <script lang="ts">
+  import type { ExportBaseName } from './format/download.js';
+  import type { LocalCacheEnabled } from './collaboration/cache.js';
+  import type { DialogFlush, DialogOpen, DialogTitle, FocusAdvanced, SpellcheckEnabled } from './ui/types.js';
   import type { SessionCredentials, LoginOptions, StorageId } from './storage/types.js';
   import { OpenMode, InputType, LoginKind } from './storage/types.js';
   import type { StorageBackend } from './storage/index.js';
@@ -27,17 +30,18 @@
 
   let {
     backends,
-    open = $bindable(false),
+    open = $bindable(false as DialogOpen),
     focusId,
     theme,
-    localCache = true,
+    localCache = true as LocalCacheEnabled,
     onCacheChange,
     onCacheClear,
+    onAbout,
     turnPrefs,
     onTurnChange,
-    focusAdvanced = false,
+    focusAdvanced = false as FocusAdvanced,
     languageChoice = LANGUAGE_AUTO,
-    spellcheck = true,
+    spellcheck = true as SpellcheckEnabled,
     onLanguageChange,
     onSpellcheckChange,
     exportBaseName,
@@ -48,26 +52,30 @@
     onimport,
   }: {
     backends: StorageBackend[];
-    open?: boolean;
+    open?: DialogOpen;
     focusId?: StorageId;
     theme: Theme;
-    localCache?: boolean;
+    localCache?: LocalCacheEnabled;
     onCacheChange?: (on: boolean) => void;
     onCacheClear?: () => void | Promise<void>;
+    onAbout?: () => void;
     turnPrefs?: TurnPrefs;
     onTurnChange?: (p: TurnPrefs) => void;
-    focusAdvanced?: boolean;
+    focusAdvanced?: FocusAdvanced;
     languageChoice?: LanguageChoice;
-    spellcheck?: boolean;
+    spellcheck?: SpellcheckEnabled;
     onLanguageChange?: (lang: LanguageChoice) => void;
-    onSpellcheckChange?: (on: boolean) => void;
-    exportBaseName: string;
+    onSpellcheckChange?: (on: SpellcheckEnabled) => void;
+    exportBaseName: ExportBaseName;
     toasts: Toasts;
     onchange?: () => void;
     onconnect?: (b: StorageBackend) => void;
     ondisconnect?: (b: StorageBackend) => void;
     onimport?: (bytes: Uint8Array, filename: Filename) => void;
   } = $props();
+
+  const TITLE = 'Settings' as DialogTitle;
+  const FLUSH = true as DialogFlush;
 
   let browseTarget = $state<StorageBackend | null>(null);
 
@@ -258,8 +266,10 @@
     ondisconnect?.(b);
   }
 
+  const CLOSED = false as DialogOpen;
+
   function close() {
-    open = false;
+    open = CLOSED;
   }
 </script>
 
@@ -304,7 +314,7 @@
       <input
         type="checkbox"
         checked={spellcheck}
-        onchange={e => onSpellcheckChange?.(e.currentTarget.checked)}
+        onchange={e => onSpellcheckChange?.(e.currentTarget.checked as SpellcheckEnabled)}
       />
       <span>Enable spellcheck</span>
     </label>
@@ -414,6 +424,20 @@
         </div>
       </section>
     </details>
+  {/if}
+
+  {#if onAbout}
+    <section class="backend">
+      <div class="backend-head">
+        <span class="backend-name">About Copad</span>
+      </div>
+      <p class="backend-blurb">
+        Where your words go, what a link grants, and why writing alone is refused.
+      </p>
+      <div class="backend-actions">
+        <button onclick={() => { open = CLOSED; onAbout?.(); }}>What Copad is</button>
+      </div>
+    </section>
   {/if}
 {/snippet}
 
@@ -594,7 +618,7 @@
   </div>
 {/snippet}
 
-<Dialog {open} onclose={close} title="Settings" size="lg" flush>
+<Dialog {open} onclose={close} title={TITLE} size="lg" flush={FLUSH}>
   <div class="settings-body">
     <nav class="settings-nav" aria-label="Settings sections">
       <div class="settings-nav-group">
@@ -636,7 +660,7 @@
 </Dialog>
 
 <BrowseDialog
-  open={!!browseTarget}
+  open={(browseTarget !== null) as DialogOpen}
   backend={browseTarget}
   onclose={() => (browseTarget = null)}
   onImport={(bytes, filename) => {

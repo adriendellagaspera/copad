@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { downloadBytes } from './download.js';
+import { downloadBytes, exportBaseName } from './download.js';
+import type { RoomId, RoomName } from '../collaboration/types.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -61,5 +62,17 @@ describe('downloadBytes', () => {
     await downloadBytes(new TextEncoder().encode('hello'), 'notes.txt');
 
     expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('exportBaseName', () => {
+  const room = 'b41f2c9e' as RoomId;
+
+  it('uses the collaborative room name when there is one', () => {
+    expect(exportBaseName('Q3 plan' as RoomName, room)).toBe('Q3 plan');
+  });
+
+  it('falls back to the room id, so an unnamed export still has a stem', () => {
+    expect(exportBaseName(null, room)).toBe('b41f2c9e');
   });
 });

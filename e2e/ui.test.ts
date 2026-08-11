@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import JSZip from 'jszip';
-import { test, expect } from './fixtures';
+import { test, expect, typeIntoEditor } from './fixtures';
 
 /** UI/UX regression tests for the redesigned chrome and editor features. */
 
@@ -224,10 +224,7 @@ test.describe('the caret pill and the selection bubble stay distinct surfaces', 
 
   test('a real selection shows the bubble, never the caret pill', async ({ page }) => {
     await page.goto('/?room=pw-armed-selection');
-    const ed = page.locator('.ProseMirror');
-    await ed.waitFor();
-    await ed.click();
-    await page.keyboard.type('hello');
+    await typeIntoEditor(page, 'hello');
     await page.keyboard.down('Shift');
     for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowLeft');
     await page.keyboard.up('Shift');

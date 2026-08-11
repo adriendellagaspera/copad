@@ -5,6 +5,7 @@
  */
 
 import { localStore } from '../persistence/local.js';
+import type { SpellcheckEnabled } from './types.js';
 import { nsKey } from '../config.js';
 
 /** 'auto' defers to navigator.language; any other value is a BCP-47 tag. */
@@ -16,8 +17,8 @@ export function parseLanguageChoice(raw: string | null): LanguageChoice {
   return s && s.length > 0 ? (s as LanguageChoice) : LANGUAGE_AUTO;
 }
 
-function parseSpellcheck(raw: string | null): boolean {
-  return raw === null ? true : raw === 'true';
+function parseSpellcheck(raw: string | null): SpellcheckEnabled {
+  return (raw === null ? true : raw === 'true') as SpellcheckEnabled;
 }
 
 const languageStore = localStore<LanguageChoice>(
@@ -26,7 +27,7 @@ const languageStore = localStore<LanguageChoice>(
   (v) => (v === LANGUAGE_AUTO ? null : v),
 );
 
-const spellcheckStore = localStore<boolean>(
+const spellcheckStore = localStore<SpellcheckEnabled>(
   nsKey('spellcheck'),
   parseSpellcheck,
   String,
@@ -45,7 +46,7 @@ export function createLanguage() {
     languageStore.write(next);
   }
 
-  function setSpellcheck(on: boolean): void {
+  function setSpellcheck(on: SpellcheckEnabled): void {
     spellcheck = on;
     spellcheckStore.write(on);
   }
