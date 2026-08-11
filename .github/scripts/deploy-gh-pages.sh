@@ -68,6 +68,10 @@ for attempt in $(seq 1 "$max_attempts"); do
   echo "Push rejected (attempt $attempt/$max_attempts) — retrying"
   git worktree remove "$WORKTREE" --force
   git fetch origin gh-pages
+  # Fetch moves origin/gh-pages, never the local branch the next worktree checks
+  # out. Without this the retry rebuilds on the same stale tip and every attempt
+  # is rejected for the reason the first one was.
+  git branch -f gh-pages origin/gh-pages
   sleep $((attempt * 3))
 done
 
