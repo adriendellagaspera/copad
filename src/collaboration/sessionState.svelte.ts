@@ -14,6 +14,18 @@ import type { Diagnostics, RoomPresence } from './types.js';
 import { UNPROVEN, PersistRegime, type PersistHealth } from './persistHealth.js';
 import type { EpochMs } from '../time.js';
 
+/** Every accompanying peer shares this browser's id — a second tab, not a stranger. */
+export type SoloBrowser = boolean & { readonly _brand: 'SoloBrowser' };
+
+/** The document is still a single empty block: a blank page, whoever blanked it. */
+export type DocEmpty = boolean & { readonly _brand: 'DocEmpty' };
+
+/** The ProseMirror content holds DOM focus. */
+export type EditorFocused = boolean & { readonly _brand: 'EditorFocused' };
+
+/** Clients the room's awareness reports, self included. */
+export type PeerCount = number & { readonly _brand: 'PeerCount' };
+
 /** Diagnostics access for the connection dialog — present only while a session
  *  is live, and only on transports that expose it (WebRTC). */
 export interface SessionDiagnostics {
@@ -25,30 +37,18 @@ export interface SessionDiagnostics {
 let conn = $state<ConnStatus>(ConnStatus.Connecting);
 // Feeds the write gate, not the status pill. Defaults to Unknown: never lock on ignorance.
 let presence = $state<RoomPresence>({ kind: PresenceKind.Unknown });
-// True while every accompanying peer shares our own browserId — a second tab, not a stranger.
-let soloBrowser = $state(false);
+let soloBrowser = $state<SoloBrowser>(false as SoloBrowser);
 let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
 // Branch (b)'s state machine (docs/contract.md §3.2/§3.3, persistHealth.ts).
 let persistHealth = $state<PersistHealth>(UNPROVEN);
 let regime = $state<PersistRegime>(PersistRegime.Cold);
-// Timestamp of the most recent local (non-remote) doc-changing transaction — unlike
-// `regime`, a one-way Cold→Warm latch, this repeats on every keystroke. Read by the
-// write gate's departure hysteresis to extend the linger window while typing
-// continues (docs/contract.md §4, "extended by typing — never close mid-sentence").
+// Repeats on every keystroke, unlike the one-way `regime` latch: extends the departure linger (contract §4).
 let lastLocalEditAt = $state<EpochMs | null>(null);
+let docEmpty = $state<DocEmpty>(true as DocEmpty);
 let users = $state<PeerUser[]>([]);
-let peers = $state(1);
+let peers = $state<PeerCount>(1 as PeerCount);
 let diag = $state<SessionDiagnostics>({ transport: Transport.P2P });
-// True while the ProseMirror content has DOM focus — read by the mobile header
-// to swap its bottom dock between navigation actions and the formatting
-// toolbar (see Editor.svelte's focusin/focusout tracking and the M3 mobile
-// layout in App.svelte / editor.css). Irrelevant on desktop, where the
-// formatting toolbar lives in the floating selection bubble instead.
-let editing = $state(false);
-// Set by the Editor once its view mounts: scrolls a peer's cursor/selection
-// into view and briefly flashes it. Read by the header's presence bar and by
-// ConnectionDialog, both of which sit outside the Editor block. Undefined
-// while no Editor is mounted (e.g. mid room-switch remount).
+let editing = $state<EditorFocused>(false as EditorFocused);
 let jumpToPeer = $state<((clientId: number) => void) | undefined>(undefined);
 
 /** Reactive accessor read by the header. */
@@ -59,7 +59,7 @@ export const sessionState = {
   get presence(): RoomPresence {
     return presence;
   },
-  get soloBrowser(): boolean {
+  get soloBrowser(): SoloBrowser {
     return soloBrowser;
   },
   get saveStatus(): SaveStatus {
@@ -74,16 +74,19 @@ export const sessionState = {
   get lastLocalEditAt(): EpochMs | null {
     return lastLocalEditAt;
   },
+  get docEmpty(): DocEmpty {
+    return docEmpty;
+  },
   get users(): PeerUser[] {
     return users;
   },
-  get peers(): number {
+  get peers(): PeerCount {
     return peers;
   },
   get diagnostics(): SessionDiagnostics {
     return diag;
   },
-  get editing(): boolean {
+  get editing(): EditorFocused {
     return editing;
   },
   get jumpToPeer(): ((clientId: number) => void) | undefined {
@@ -97,7 +100,7 @@ export function setSessionConn(value: ConnStatus): void {
 export function setSessionRoomPresence(value: RoomPresence): void {
   presence = value;
 }
-export function setSessionSoloBrowser(value: boolean): void {
+export function setSessionSoloBrowser(value: SoloBrowser): void {
   soloBrowser = value;
 }
 export function setSessionSave(value: SaveStatus): void {
@@ -112,14 +115,17 @@ export function setSessionRegime(value: PersistRegime): void {
 export function setSessionLocalEdit(value: EpochMs): void {
   lastLocalEditAt = value;
 }
-export function setSessionPresence(nextUsers: PeerUser[], nextPeers: number): void {
+export function setSessionDocEmpty(value: DocEmpty): void {
+  docEmpty = value;
+}
+export function setSessionPresence(nextUsers: PeerUser[], nextPeers: PeerCount): void {
   users = nextUsers;
   peers = nextPeers;
 }
 export function setSessionDiagnostics(value: SessionDiagnostics): void {
   diag = value;
 }
-export function setSessionEditing(value: boolean): void {
+export function setSessionEditing(value: EditorFocused): void {
   editing = value;
 }
 export function setSessionJumpToPeer(value: ((clientId: number) => void) | undefined): void {
@@ -130,14 +136,15 @@ export function setSessionJumpToPeer(value: ((clientId: number) => void) | undef
 export function resetSessionState(): void {
   conn = ConnStatus.Connecting;
   presence = { kind: PresenceKind.Unknown };
-  soloBrowser = false;
+  soloBrowser = false as SoloBrowser;
   saveStatus = SaveStatus.Idle;
   persistHealth = UNPROVEN;
   regime = PersistRegime.Cold;
   lastLocalEditAt = null;
+  docEmpty = true as DocEmpty;
   users = [];
-  peers = 1;
+  peers = 1 as PeerCount;
   diag = { transport: Transport.P2P };
-  editing = false;
+  editing = false as EditorFocused;
   jumpToPeer = undefined;
 }
