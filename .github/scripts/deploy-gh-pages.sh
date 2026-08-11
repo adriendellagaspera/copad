@@ -28,10 +28,28 @@ max_attempts=5
 for attempt in $(seq 1 "$max_attempts"); do
   git worktree add "$WORKTREE" gh-pages
 
-  publish_path="$WORKTREE${DEST_DIR:+/$DEST_DIR}"
-  rm -rf "$publish_path"
-  mkdir -p "$publish_path"
+  if [ -n "$DEST_DIR" ]; then
+    publish_path="$WORKTREE/$DEST_DIR"
+    rm -rf "$publish_path"
+    mkdir -p "$publish_path"
+  else
+    publish_path="$WORKTREE"
+    # Clear the root in place. `rm -rf` on the worktree itself takes its .git
+    # link with it; git then resolves to the parent repo, so `add`/`commit` land
+    # the site on the checked-out branch while `push origin gh-pages` reports
+    # "Everything up-to-date" and publishes nothing. Skipping pr-<N>/ keeps the
+    # previews that share this branch, which a root-level wipe would take too.
+    find "$WORKTREE" -mindepth 1 -maxdepth 1 \
+      -not -name '.git' -not -name 'pr-*' -exec rm -rf {} +
+  fi
   cp -r dist/. "$publish_path/"
+
+  # What is actually live, readable without replaying workflow history. Nothing
+  # else records it, which is why production could sit three days behind main
+  # unnoticed; check-deploy-drift.sh reads this. Commit only, no timestamp, so
+  # re-publishing an unchanged commit still hits the no-op path below.
+  printf '{"commit":"%s","ref":"%s"}\n' \
+    "${GITHUB_SHA:-unknown}" "${GITHUB_REF_NAME:-unknown}" > "$publish_path/version.json"
 
   git -C "$WORKTREE" add -A
   if git -C "$WORKTREE" diff --cached --quiet; then

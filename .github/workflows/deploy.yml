@@ -3,6 +3,9 @@ name: Deploy
 on:
   push:
     branches: [main]
+  # The only way to re-publish main without inventing a commit. Recovering from
+  # a jammed queue needed exactly this and it did not exist.
+  workflow_dispatch:
 
 # Push to the gh-pages branch (branch-based Pages source, not the artifact API).
 # This lets PR previews coexist as pr-<N>/ subdirectories on the same branch.
@@ -15,11 +18,22 @@ permissions:
 
 concurrency:
   group: gh-pages
-  cancel-in-progress: false
+  # Supersede, never queue. Every run publishes a complete build of main, so the
+  # newest push is always the only one worth finishing.
+  #
+  # Queuing (cancel-in-progress: false) is what broke production for three days:
+  # one run stuck in `queued` on 2026-08-08 held this group indefinitely, and
+  # GitHub cancels the *previously pending* run each time a new one arrives — so
+  # every push after it was cancelled before it started a single step. Cancelled
+  # is not failure, so no run turned red and nothing alerted. Superseding cannot
+  # jam that way: a new push takes the group instead of parking behind it.
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # A hung run must not hold the group; superseding covers the rest.
+    timeout-minutes: 15
     environment:
       name: github-pages
       url: https://adriendellagaspera.github.io/copad/
