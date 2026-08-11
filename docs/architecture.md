@@ -274,6 +274,10 @@ Two properties of the publish are load-bearing, both learned from an outage that
   publishes a complete build, so the newest push is the only one worth finishing. Queuing let one run
   stuck in `queued` hold the group indefinitely: GitHub cancels the *previously pending* run whenever a
   new one arrives, so every subsequent push was cancelled before its first step.
+- **The job claims no `environment`.** Under branch-based Pages the auto-managed `github-pages`
+  environment carries a deployment branch policy scoped to `gh-pages`, so a job on `main` declaring it
+  is never allowed to start — the state the run that first held the group above was stuck in. It was
+  decoration: the publish is a plain push under `contents: write`.
 
 Neither condition turns a run red — `cancelled` is not `failure`, and the second failed only after
 reporting a successful push. So the deploy records what it published: `deploy-gh-pages.sh` stamps
