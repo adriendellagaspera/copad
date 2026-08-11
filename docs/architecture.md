@@ -259,7 +259,10 @@ Precedence in `App.svelte`'s `buildIce()`: runtime TURN (Settings) → fetched I
 `.github/workflows/deploy.yml` builds `main` with `--base=/copad/` and hands `dist/` to
 `.github/scripts/deploy-gh-pages.sh`, which publishes it onto the **`gh-pages` branch** — branch-based
 Pages, not the artifact API, so production (branch root) and the `pr-<N>/` previews written by
-`pr-preview.yml` coexist on one branch. `ensure-pages-source.cjs` re-asserts the setting the whole
+`pr-preview.yml` coexist on one branch. Every write to that branch goes through the one script —
+publishing the root, publishing a preview, and `--remove`-ing a preview when its PR closes — so all
+three inherit the same push-race retry rather than the cleanup open-coding a bare push that loses
+the race. `ensure-pages-source.cjs` re-asserts the setting the whole
 scheme depends on (Source = `gh-pages`, `/`) on every deploy.
 
 Two properties of the publish are load-bearing, both learned from an outage that left the live site
