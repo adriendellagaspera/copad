@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { DialogOpen, DialogTitle } from './types.js';
   import Dialog from './Dialog.svelte';
 
   let {
@@ -8,7 +9,7 @@
     onConnectStorage,
     onDismiss,
   }: {
-    open: boolean;
+    open: DialogOpen;
     /** Whether this room is saved to the local user's own storage backend. */
     saved: boolean;
     /** Label of the backend saving it (only meaningful when `saved`). */
@@ -18,9 +19,11 @@
     /** Acknowledge — falls back to the ambient SyncBanner's neutral reminder, unchanged. */
     onDismiss: () => void;
   } = $props();
+
+  const TITLE = "This site can't sync in real time" as DialogTitle;
 </script>
 
-<Dialog {open} onclose={onDismiss} title="This site can't sync in real time">
+<Dialog {open} onclose={onDismiss} title={TITLE}>
   <p class="cu-body">
     This deployment isn't set up for real-time collaboration across devices —
     there's no signaling server to connect through. Nothing here is broken;
