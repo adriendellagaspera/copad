@@ -1,16 +1,9 @@
 #!/usr/bin/env bash
 # Fail when the commit served at the gh-pages root is not main's HEAD.
-#
-# Deploy failures that announce themselves are already covered: a red run is a
-# red run. This exists for the other kind — the run that never happens. Between
-# 2026-08-08 and 2026-08-11 every production deploy was cancelled before its
-# first step by a jammed concurrency group, and because `cancelled` is not
-# `failure`, nothing anywhere turned red while main drifted 65 commits ahead of
-# the live site. No step inside a deploy can report a deploy that didn't run.
+# A deploy that never runs cannot report itself, and `cancelled` is not `failure`.
 set -euo pipefail
 
-# A deploy takes a couple of minutes and this can fire mid-run, so a HEAD this
-# young is not yet expected to be live.
+# A deploy takes minutes, and this can fire mid-run.
 GRACE_SECONDS="${GRACE_SECONDS:-1800}"
 
 git fetch --quiet origin main gh-pages

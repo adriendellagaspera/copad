@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 # Publish ./dist into gh-pages under $1 (empty = branch root); with --remove as
-# $2, delete $1 from gh-pages instead.
-#
-# Replaces peaceiris/actions-gh-pages. Production and the PR previews no longer
-# share one concurrency lock (see pr-preview.yml), so two writers can reach for
-# gh-pages at once and a plain push lets the loser fail outright. Every mutation
-# of the branch goes through the one fetch+worktree+push retry below — which is
-# why removal lives here rather than open-coded in the workflow that wants it.
+# $2, delete $1 instead. Production and previews hold separate concurrency
+# locks, so every write to the branch races and goes through the retry below.
 set -euo pipefail
 
 DEST_DIR="${1:-}"
@@ -52,20 +47,15 @@ for attempt in $(seq 1 "$max_attempts"); do
       mkdir -p "$publish_path"
     else
       publish_path="$WORKTREE"
-      # Clear the root in place. `rm -rf` on the worktree itself takes its .git
-      # link with it; git then resolves to the parent repo, so `add`/`commit` land
-      # the site on the checked-out branch while `push origin gh-pages` reports
-      # "Everything up-to-date" and publishes nothing. Skipping pr-<N>/ keeps the
-      # previews that share this branch, which a root-level wipe would take too.
+      # `rm -rf` on the worktree drops its .git link; git then resolves to the
+      # parent repo and pushes an untouched gh-pages. pr-<N>/ shares this branch.
       find "$WORKTREE" -mindepth 1 -maxdepth 1 \
         -not -name '.git' -not -name 'pr-*' -exec rm -rf {} +
     fi
     cp -r dist/. "$publish_path/"
 
-    # What is actually live, readable without replaying workflow history. Nothing
-    # else records it, which is why production could sit three days behind main
-    # unnoticed; check-deploy-drift.sh reads this. Commit only, no timestamp, so
-    # re-publishing an unchanged commit still hits the no-op path below.
+    # What is live, for check-deploy-drift.sh. No timestamp: an unchanged commit
+    # must still reach the no-op path below.
     printf '{"commit":"%s","ref":"%s"}\n' \
       "${GITHUB_SHA:-unknown}" "${GITHUB_REF_NAME:-unknown}" > "$publish_path/version.json"
   fi
@@ -92,9 +82,8 @@ for attempt in $(seq 1 "$max_attempts"); do
   echo "Push rejected (attempt $attempt/$max_attempts) — retrying"
   git worktree remove "$WORKTREE" --force
   git fetch origin gh-pages
-  # Fetch moves origin/gh-pages, never the local branch the next worktree checks
-  # out. Without this the retry rebuilds on the same stale tip and every attempt
-  # is rejected for the reason the first one was.
+  # Fetch moves origin/gh-pages, not the local branch the next worktree checks
+  # out, so without this every retry rebuilds on the same stale tip.
   git branch -f gh-pages origin/gh-pages
   sleep $((attempt * 3))
 done

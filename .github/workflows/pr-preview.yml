@@ -66,9 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Same script as the deploys above: removal is a gh-pages write like any
-      # other, and open-coding it here is what left it as the one write with no
-      # retry, free to lose a push race against a production deploy.
+      # Removal is a gh-pages write like the deploys, and needs the same retry.
       - name: Remove pr-${{ github.event.pull_request.number }} from gh-pages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -3,8 +3,7 @@ name: Deploy
 on:
   push:
     branches: [main]
-  # The only way to re-publish main without inventing a commit. Recovering from
-  # a jammed queue needed exactly this and it did not exist.
+  # Re-publishing main otherwise requires a new commit.
   workflow_dispatch:
 
 # Push to the gh-pages branch (branch-based Pages source, not the artifact API).
@@ -18,15 +17,9 @@ permissions:
 
 concurrency:
   group: gh-pages
-  # Supersede, never queue. Every run publishes a complete build of main, so the
-  # newest push is always the only one worth finishing.
-  #
-  # Queuing (cancel-in-progress: false) is what broke production for three days:
-  # one run stuck in `queued` on 2026-08-08 held this group indefinitely, and
-  # GitHub cancels the *previously pending* run each time a new one arrives — so
-  # every push after it was cancelled before it started a single step. Cancelled
-  # is not failure, so no run turned red and nothing alerted. Superseding cannot
-  # jam that way: a new push takes the group instead of parking behind it.
+  # Supersede, never queue: each run publishes a complete build, so the newest
+  # push is the only one worth finishing. Queuing lets one stuck run hold the
+  # group forever, since GitHub cancels the previously pending run, not that one.
   cancel-in-progress: true
 
 jobs:
@@ -34,13 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     # A hung run must not hold the group; superseding covers the rest.
     timeout-minutes: 15
-    # Deliberately no `environment: github-pages`. Under branch-based Pages the
-    # auto-managed environment of that name carries a deployment branch policy
-    # scoped to the Pages branch (gh-pages), so a job on main claiming it is not
-    # allowed to start and sits in `queued` forever — which is what happened to
-    # every deploy from the run after Pages was switched to the branch source.
-    # It bought nothing here: publishing is a plain push to gh-pages under
-    # `contents: write`, and the environment only decorated the Actions UI.
+    # No `environment: github-pages`: under branch-based Pages its auto-managed
+    # branch policy is scoped to gh-pages, so a job on main claiming it never
+    # starts. Publishing needs only `contents: write`.
 
     steps:
       - uses: actions/checkout@v4

@@ -1,7 +1,6 @@
 name: Deploy drift
 
-# Guards the failure mode no deploy run can report: the deploy that never ran.
-# See .github/scripts/check-deploy-drift.sh for the incident this comes from.
+# Catches the deploy that never ran, which no deploy run can report.
 on:
   schedule:
     # Off the hour: :00 is the busiest slot on shared runners.
