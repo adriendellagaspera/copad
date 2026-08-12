@@ -16,6 +16,7 @@ Comments below) or in `docs/architecture.md`.
 - `npm run test:scripts` — bash suites for the gh-pages deploy scripts.
 - `npm run build` — production build.
 - `npm run docs` — regenerates the API reference into `docs/api/` (git-ignored).
+- `npm run check:doc-budget` — fails if `AGENTS.md`+`CLAUDE.md` exceed 200 lines combined.
 - `npm run dev` — Vite dev server; needs `npm run signaling` (WebRTC, default)
   or `npm run collab` (WebSocket transport) running alongside it for
   collaboration to work locally.
@@ -103,11 +104,8 @@ Playwright e2e suite (`npm run e2e`).
 ## Naming conventions
 
 - No OO suffixes: not `XxxAdapter`, `XxxProvider`, `XxxFactory`, `XxxManager`,
-  `XxxService`, `XxxHandler`. Not gated: a blind suffix regex false-positives on
-  names that are legitimately not the OO pattern this bans — e.g.
-  `markRuleHandler` (`src/editor/plugins.ts`, a plain function handling an input
-  rule) and `kService` (`src/storage/s3.ts`, AWS's own SigV4 key-derivation term).
-  Stays a review call.
+  `XxxService`, `XxxHandler`. Not gated — false positives exist (`markRuleHandler`,
+  `kService`); stays a review call.
 - Use factory functions (`foo(): FooType`) returning plain objects, not classes.
   **Partially gated**: `no-restricted-syntax` in `eslint.config.js` bans a class
   `implements`-ing a port (the actual OO-adapter pattern this rule targets);
@@ -145,6 +143,8 @@ Playwright e2e suite (`npm run e2e`).
 - Prefer fixing the code over explaining it: a comment that feels necessary
   usually marks a bad name or a missing type.
 - When you touch a file, bring its existing comments down to this bar.
+- Same bar off-repo: issues, PRs, review comments — a table/checklist over a
+  narrative paragraph, state the rule rather than narrate it.
 
 ## Checklist before every commit
 

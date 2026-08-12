@@ -65,6 +65,10 @@ Storage adapters return `{ auth: StorageAuth; storage: Storage }`: auth and byte
 
 Both collab adapters are `CollabConnect` factories behind the same `Collab` port, so they're interchangeable. `planCollab()` in `App.svelte` picks one via `resolveTransport(VITE_COLLAB_TRANSPORT)`: WebRTC by default, WebSocket only when explicitly set to `websocket`.
 
+**`webrtcCollab()`'s y-webrtc internals typing.** y-webrtc exposes no public types for its room/signaling internals, so `webrtc.ts` declares narrow local interfaces (`WebrtcRoomConn`, `WebrtcRoom`, `SignalingConnLike`) at the single cast boundary with the library, and casts through `unknown` there because the library's actual shapes differ structurally (its `Room.bcConns` is a `Set`, not the `Map` used here). Two fields carry non-obvious meaning:
+- `WebrtcRoomConn.connected`: y-webrtc creates a `WebrtcConn` optimistically on `announce` (peer discovery), before its data channel opens. Sync and awareness only flow once the channel is open, so this flag — not the conn's mere presence — is the honest "can we exchange data with this peer?" signal. Counting conns that are present but not yet `connected` previously made the status pill claim "connected" while a peer was unreachable (e.g. failed NAT traversal with no working TURN).
+- `SignalingConnLike.connected` / its `connect`/`disconnect` events: the live signaling-socket state, unlike `provider.connected`, which is just `shouldConnect && room !== null` and so is already true at construction, before any handshake succeeds. y-webrtc emits `status`/`peers` on room/peer changes but not when a signaling socket connects while alone, so the adapter bridges each socket's own connect/disconnect into the status machine directly.
+
 Room access adapters (all in `src/collaboration/roomAccess.ts` / `roomCipher.ts` / `secretLink.ts`):
 
 | Adapter | Port(s) | Notes |

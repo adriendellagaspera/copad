@@ -20,6 +20,7 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run check
       - run: npm run lint
+      - run: npm run check:doc-budget
       - run: npm test
       - run: npm run test:scripts
 

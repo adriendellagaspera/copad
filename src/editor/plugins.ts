@@ -31,25 +31,7 @@ import type { Command, EditorState, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
 import { taskItemCheckboxPlugin } from './taskList.js';
 
-/**
- * Leaves `$pos`'s enclosing code block (a node with `code: true`), mutating
- * `tr` in place. Never mutates the code block itself, even an empty one —
- * it may be deliberately blank, waiting to be filled in, so merely passing
- * over it must not be destructive (matches Tiptap's CodeBlock extension,
- * the reference implementation for this exact pattern: its `exitCode`-based
- * exits never delete or convert the block; only its Backspace handler and
- * its `Mod-Alt-c` toggle do — see `clearEmptyCodeBlockBackward` and
- * `toggleCodeBlock` in commands.ts below):
- * - if a block already follows it, the selection simply moves there — no
- *   need to insert a duplicate paragraph, same as arrowing/clicking past the
- *   block would land you in it;
- * - else a fresh paragraph is inserted after it and selected (most often
- *   because the code block is the last node in the doc).
- *
- * Shared by every way of leaving a code block — Escape, ArrowDown at the
- * last position, and three-Enters-in-a-row on a trailing blank line — so
- * they all converge on one consistent exit.
- */
+// Never mutates the code block itself (it may be deliberately blank) — matches Tiptap's exitCode, which only deletes/converts via Backspace or Mod-Alt-c.
 function exitCodeBlock(tr: Transaction, $pos: ResolvedPos): void {
   const container = $pos.node(-1);
   const indexAfter = $pos.indexAfter(-1);
@@ -67,27 +49,13 @@ function exitCodeBlock(tr: Transaction, $pos: ResolvedPos): void {
   tr.setSelection(Selection.near(tr.doc.resolve(after), 1));
 }
 
-/** True when the caret sits in a code block and nowhere else (an empty or
- *  cross-parent selection doesn't have a single unambiguous block to exit). */
 function inCodeBlock(state: EditorState): ResolvedPos | null {
   const { $head, $anchor } = state.selection;
   if (!$head.sameParent($anchor) || !$head.parent.type.spec.code) return null;
   return $head;
 }
 
-/**
- * Escape a code block into whatever follows it — otherwise a code_block
- * with nothing after it (most often because it's the last node in the doc)
- * has no textblock below it to click or arrow into, trapping the caret
- * (`Enter`'s `newlineInCode` just keeps adding lines inside the block
- * instead of leaving it). Works from anywhere in the block, not just the
- * last line.
- *
- * Always returns `true`: Firefox blurs contenteditable elements on Escape by
- * default, so it's swallowed even when there's no code block to exit (the
- * slash menu handles its own Escape first, via slashMenuPlugin running
- * earlier in the plugin list).
- */
+// Always returns true: Firefox blurs contenteditable on Escape by default, so it must be swallowed even with no code block to exit.
 export const escapeCodeBlock: Command = (state, dispatch) => {
   const $pos = inCodeBlock(state);
   if (!$pos) return true;
@@ -99,15 +67,7 @@ export const escapeCodeBlock: Command = (state, dispatch) => {
   return true;
 };
 
-/**
- * ArrowDown at the very end of a code block's content leaves it the same
- * way Escape does. Native caret movement already handles ArrowDown *within*
- * a multi-line code block (and between it and a following block, when the
- * browser can find a line to land the caret on below) — this only fires at
- * the one position where the browser has nowhere left to move the caret to,
- * which is otherwise indistinguishable from the key doing nothing at all.
- * Returns `false` everywhere else so normal ArrowDown handling proceeds.
- */
+// Fires only where native ArrowDown has nowhere left to move the caret (end of a code block's content); returns false everywhere else.
 export const exitCodeBlockDown: Command = (state, dispatch) => {
   const $pos = inCodeBlock(state);
   if (!$pos || $pos.parentOffset !== $pos.parent.content.size) return false;
@@ -119,21 +79,7 @@ export const exitCodeBlockDown: Command = (state, dispatch) => {
   return true;
 };
 
-/**
- * Three Enters in a row (i.e. the code block's content already ends with
- * two newlines when a third Enter arrives) leaves the code block, undoing
- * the two blank lines that got us here first so genuine code isn't split by
- * an exit gesture. A single blank line is common and intentional inside
- * real code (spacing between functions), so a lone Enter must never trigger
- * this — only a second consecutive blank line unambiguously signals "let me
- * out". Matches Tiptap's `exitOnTripleEnter` exactly (verified against its
- * source): a code block that was only blank lines is left behind as an
- * empty code block, not deleted — `clearEmptyCodeBlockBackward` (Backspace)
- * or the `Mod-Alt-c` toggle are what remove it, same as everywhere else
- * this file leaves the block itself alone.
- * Returns `false` everywhere else so normal Enter handling (newlineInCode)
- * proceeds.
- */
+// Only a third Enter after two trailing blank lines exits (matches Tiptap's exitOnTripleEnter) — a single blank line is common in real code and must not trigger it.
 export const exitCodeBlockOnBlankLine: Command = (state, dispatch) => {
   const $pos = inCodeBlock(state);
   if (!$pos) return false;
