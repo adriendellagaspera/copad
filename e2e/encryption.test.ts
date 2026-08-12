@@ -1,39 +1,29 @@
 import { test, expect } from './fixtures';
 
 /**
- * Regression test for the encrypted-room privacy hole: removing a room's key and
- * reloading must NOT still show the (cached) content. Instead the room is gated,
- * and the local cache is encrypted at rest so it can't be read back without the key.
+ * Regression test for the encrypted-room privacy hole: opening an encrypted room's
+ * link without its `#k=` fragment must NOT still show the (cached) content. Instead
+ * the room is gated, and the local cache is encrypted at rest so it can't be read
+ * back without the key.
  */
 
 const ROOM = 'enc-lock';
 const SECRET = 'top-secret-passage';
+const KEY = 'top-secret-key-please-keep';
 
 test('an encrypted room without its key is gated and its cache is unreadable', async ({ page }) => {
-  await page.goto(`/?room=${ROOM}`);
+  // Every room is encrypted from creation (contract §5) — the Share dialog no
+  // longer offers to add a key to an existing room, so this simulates that
+  // default the same way a real "New document" link would: `#k=` from the first
+  // visit.
+  await page.goto(`/?room=${ROOM}#k=${KEY}`);
   const ed = page.locator('.ProseMirror');
   await ed.waitFor();
   await ed.click();
   await page.keyboard.type(SECRET);
   await expect(ed).toContainText(SECRET);
-  // Let the local cache flush the content to IndexedDB before we encrypt.
+  // Let the local cache flush the content to IndexedDB before we check it at rest.
   await page.waitForTimeout(1200);
-
-  // Encrypt the room via the Share dialog's security view. The secure link is the
-  // only encryption the dialog offers: a document password is no longer settable here.
-  await page.locator('.share-btn').click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'Document security' }).click();
-  await expect(dialog.locator('input[aria-label="Document password"]')).toHaveCount(0);
-  await dialog.getByRole('button', { name: 'Generate secure link' }).click();
-  await page.keyboard.press('Escape');
-
-  const key = await page.evaluate(() => new URLSearchParams(location.hash.slice(1)).get('k'));
-  expect(key).toBeTruthy();
-
-  // The editor remounts under the new key; content survives the cache migration.
-  await expect(page.locator('.ProseMirror')).toContainText(SECRET, { timeout: 15_000 });
 
   // Read the cache at rest: the plaintext DB should be gone, the encrypted one
   // populated, and the secret text unrecoverable from its raw bytes. PBKDF2 key
@@ -101,7 +91,7 @@ test('an encrypted room without its key is gated and its cache is unreadable', a
   // The correct key unlocks the room and decrypts the cached content.
   const keyInput = page.locator('input[aria-label="Document key or password"]');
   await keyInput.fill('');
-  await keyInput.fill(key!);
+  await keyInput.fill(KEY);
   await page.getByRole('button', { name: 'Unlock' }).click();
   await expect(page.locator('.ProseMirror')).toContainText(SECRET, { timeout: 15_000 });
 });
