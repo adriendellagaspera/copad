@@ -143,8 +143,9 @@ Playwright e2e suite (`npm run e2e`).
 - Prefer fixing the code over explaining it: a comment that feels necessary
   usually marks a bad name or a missing type.
 - When you touch a file, bring its existing comments down to this bar.
-- Same bar off-repo: issues, PRs, review comments — a table/checklist over a
-  narrative paragraph, state the rule rather than narrate it.
+- Same bar off-repo: issues, PRs, review comments — table/checklist over
+  narrative; link rather than paraphrase what the link already says; state the
+  delta, never the process that produced it.
 
 ## Checklist before every commit
 
