@@ -1,0 +1,23 @@
+name: Deploy drift
+
+# Catches the deploy that never ran, which no deploy run can report.
+on:
+  schedule:
+    # Off the hour: :00 is the busiest slot on shared runners.
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Full history: the check counts how far main has run ahead of the live commit.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - run: .github/scripts/check-deploy-drift.sh

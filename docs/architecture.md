@@ -247,9 +247,43 @@ config is a template: the live `turnserver.conf` is git-ignored (it holds the sh
 the credential is treated as public (it's inlined into the client bundle), and the config caps abuse with
 TURN quotas + SSRF deny ranges. Optional: a free public default relay (`DEFAULT_TURN`) works out of the box.
 
-**`deploy/ice-worker/`**: for providers that mint *short-lived* TURN credentials from a **secret** API
+**`deploy/ice-worker/`** (see also "Publishing" below): for providers that mint *short-lived* TURN credentials from a **secret** API
 token (Cloudflare TURN), a static `VITE_TURN_*` won't do: the token can't ship in the client bundle. This
 Worker holds the token server-side and returns fresh `{ iceServers: [...] }` JSON. Set `VITE_ICE_SERVERS_URL`
 to its URL and the frontend fetches ICE at startup (`fetchIceServers()` in `src/collaboration/iceServers.ts`,
 parsed by `parseIceServersResponse()`), reconnecting once creds arrive via the existing `collabEpoch` path.
 Precedence in `App.svelte`'s `buildIce()`: runtime TURN (Settings) → fetched ICE → static env / `DEFAULT_TURN`.
+
+## Publishing (GitHub Pages)
+
+`.github/workflows/deploy.yml` builds `main` with `--base=/copad/` and hands `dist/` to
+`.github/scripts/deploy-gh-pages.sh`, which publishes it onto the **`gh-pages` branch** — branch-based
+Pages, not the artifact API, so production (branch root) and the `pr-<N>/` previews written by
+`pr-preview.yml` coexist on one branch. Every write to that branch goes through the one script —
+publishing the root, publishing a preview, and `--remove`-ing a preview when its PR closes — so all
+three inherit the same push-race retry rather than the cleanup open-coding a bare push that loses
+the race. `ensure-pages-source.cjs` re-asserts the setting the whole
+scheme depends on (Source = `gh-pages`, `/`) on every deploy.
+
+Two properties of the publish are load-bearing, both learned from an outage that left the live site
+65 commits behind `main` for three days:
+
+- **The root publish clears in place; it never `rm -rf`s the worktree.** `publish_path` *is* the
+  worktree for a production deploy, and removing it takes its `.git` link with it — git then resolves
+  to the parent repo, so the deploy commits the site onto the checked-out branch while
+  `push origin gh-pages` reports "Everything up-to-date" and exits 0 having published nothing. The
+  root sweep skips `pr-*` for the same reason the previews exist at all.
+- **The deploy supersedes rather than queues** (`concurrency.cancel-in-progress: true`). Each run
+  publishes a complete build, so the newest push is the only one worth finishing. Queuing let one run
+  stuck in `queued` hold the group indefinitely: GitHub cancels the *previously pending* run whenever a
+  new one arrives, so every subsequent push was cancelled before its first step.
+- **The job claims no `environment`.** Under branch-based Pages the auto-managed `github-pages`
+  environment carries a deployment branch policy scoped to `gh-pages`, so a job on `main` declaring it
+  is never allowed to start — the state the run that first held the group above was stuck in. It was
+  decoration: the publish is a plain push under `contents: write`.
+
+Neither condition turns a run red — `cancelled` is not `failure`, and the second failed only after
+reporting a successful push. So the deploy records what it published: `deploy-gh-pages.sh` stamps
+`version.json` (`{ commit, ref }`) into whatever it writes, and `deploy-drift.yml` compares the live
+commit against `main` hourly, failing when production falls behind. A deploy that never ran cannot
+report itself; only a check outside the run can.

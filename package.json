@@ -14,6 +14,7 @@
     "collab": "y-websocket-server",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:scripts": "bash .github/scripts/deploy-gh-pages.test.sh && bash .github/scripts/check-deploy-drift.test.sh",
     "e2e": "playwright test"
   },
   "dependencies": {

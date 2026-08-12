@@ -66,34 +66,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Removal is a gh-pages write like the deploys, and needs the same retry.
       - name: Remove pr-${{ github.event.pull_request.number }} from gh-pages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PR_DIR="pr-${{ github.event.pull_request.number }}"
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
-
-          if ! git fetch origin gh-pages 2>/dev/null; then
-            echo "gh-pages branch does not exist — nothing to clean up"
-            exit 0
-          fi
-
-          git worktree add gh-pages-worktree gh-pages
-
-          if [ ! -d "gh-pages-worktree/$PR_DIR" ]; then
-            echo "No preview directory for PR #${{ github.event.pull_request.number }}"
-            git worktree remove gh-pages-worktree
-            exit 0
-          fi
-
-          rm -rf "gh-pages-worktree/$PR_DIR"
-          git -C gh-pages-worktree add -A
-          git -C gh-pages-worktree commit -m "cleanup: remove preview for PR #${{ github.event.pull_request.number }} [skip ci]"
-          git -C gh-pages-worktree push origin gh-pages
-          git worktree remove gh-pages-worktree
+        run: .github/scripts/deploy-gh-pages.sh "pr-${{ github.event.pull_request.number }}" --remove
 
       - name: Remove preview comment
         uses: actions/github-script@v7
