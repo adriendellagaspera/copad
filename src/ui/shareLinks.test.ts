@@ -4,11 +4,9 @@ import { Transport } from '../collaboration/types.js';
 import type { RoomCredential } from '../collaboration/roomAccess.js';
 import {
   InviteRole,
-  LinkExposure,
   RoomSecurityKind,
   emailShareUrl,
   isEncrypted,
-  linkExposureAfterChange,
   roomSecurity,
   shareMessage,
   shareUrl,
@@ -91,25 +89,6 @@ describe('shareUrl', () => {
     expect(shareUrl(app, 'a b&c' as RoomId, InviteRole.Editor, cred('x/y z'))).toBe(
       'https://copad.example/app/?room=a%20b%26c#k=x%2Fy%20z',
     );
-  });
-});
-
-describe('linkExposureAfterChange', () => {
-  const before = 'https://copad.example/app/?room=room-1' as ShareUrl;
-  const after = 'https://copad.example/app/?room=room-1#k=k1' as ShareUrl;
-
-  it('stays unshared when the link was never sent out', () => {
-    expect(linkExposureAfterChange(LinkExposure.Unshared, before, after)).toBe(
-      LinkExposure.Unshared,
-    );
-  });
-
-  it('goes stale when a shared link no longer matches', () => {
-    expect(linkExposureAfterChange(LinkExposure.Shared, before, after)).toBe(LinkExposure.Stale);
-  });
-
-  it('stays shared when the link is unchanged', () => {
-    expect(linkExposureAfterChange(LinkExposure.Shared, before, before)).toBe(LinkExposure.Shared);
   });
 });
 

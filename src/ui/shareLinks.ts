@@ -30,15 +30,6 @@ export const INVITE_ROLE_CHOICES: readonly InviteRoleChoice[] = [
 export const CopyFeedback = { Idle: 'idle', Copied: 'copied', Manual: 'manual' } as const;
 export type CopyFeedback = (typeof CopyFeedback)[keyof typeof CopyFeedback];
 
-export const LinkExposure = { Unshared: 'unshared', Shared: 'shared', Stale: 'stale' } as const;
-export type LinkExposure = (typeof LinkExposure)[keyof typeof LinkExposure];
-
-export const SecurityChange = {
-  SecureLink: 'secure-link',
-  EncryptionRemoved: 'encryption-removed',
-} as const;
-export type SecurityChange = (typeof SecurityChange)[keyof typeof SecurityChange];
-
 export const RoomSecurityKind = {
   None: 'none',
   Relayed: 'relayed',
@@ -92,15 +83,6 @@ export function shareUrl(
   // #k= last: the key belongs in the fragment, which is never sent to a server.
   const key = linkKey ? `#k=${encodeURIComponent(linkKey)}` : '';
   return `${app}?room=${encodeURIComponent(room)}${role_}${key}` as ShareUrl;
-}
-
-export function linkExposureAfterChange(
-  exposure: LinkExposure,
-  before: ShareUrl,
-  after: ShareUrl,
-): LinkExposure {
-  if (exposure === LinkExposure.Unshared || before === after) return exposure;
-  return LinkExposure.Stale;
 }
 
 export const SHARE_TITLE = 'Join me on Copad' as ShareTitle;

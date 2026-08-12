@@ -1042,7 +1042,6 @@
   envPassword={envRoomPassword}
   saved={savedHere}
   storageLabel={savedHere ? storage?.storage.label : undefined}
-  {onSecurityChange}
 />
 
 <MeetingJoinDialog open={joinOpen} onclose={() => (joinOpen = CLOSED)} {toasts} hallUrl={collabPlan.hallUrl} />
