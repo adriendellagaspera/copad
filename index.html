@@ -3,29 +3,43 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Copad — collaborative writing</title>
+    <title>Copad — write together while you're both here</title>
     <meta
       name="description"
-      content="Copad is a real-time collaborative writing tool. Write together peer-to-peer, no server required, and save to your own cloud storage."
+      content="Share a link and write together in real time. Text moves directly between browsers — no account, nothing stored for you. What you want to keep, you save to your own cloud storage."
     />
+
+    <!-- No og:url, image left relative: self-hosted at unknown origins/paths. See docs/architecture.md "Link previews". -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Copad" />
+    <meta property="og:title" content="Copad — write together while you're both here" />
+    <meta
+      property="og:description"
+      content="Share a link and write together in real time. Text moves directly between browsers — no account, nothing stored for you. What you want to keep, you save to your own cloud storage."
+    />
+    <meta property="og:image" content="./og-card.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="A sheet of paper carrying two people's live cursors, labelled Ada and Rui."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:image:alt"
+      content="A sheet of paper carrying two people's live cursors, labelled Ada and Rui."
+    />
+
     <link rel="icon" type="image/svg+xml" href="/copad/favicon.svg" />
-    <!-- Content set by the scripts below, not by a `media` attribute: this app
-         has its own light/dark/system choice (localStorage, ui/theme.svelte.ts)
-         independent of the OS's prefers-color-scheme, so a user who forces a
-         theme opposite their OS setting would otherwise get browser chrome
-         tinted for the *wrong* one — a `media`-conditioned tag can only ever
-         track the OS, never an in-app override. One tag both scripts update in
-         place is what actually stays right. Matches --surface (tokens.css), not
-         --bg: on mobile the editor runs edge-to-edge (editor.css's full-bleed
-         rules), so --surface is what actually touches the top of the viewport,
-         right up to the status bar. -->
+    <link rel="apple-touch-icon" href="/copad/icons/icon-192.png" />
+    <link rel="manifest" href="/copad/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="Copad" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- `media` can only track the OS, not this app's own theme override, so JS sets theme-color directly. -->
     <meta name="theme-color" content="#ffffff" />
     <meta name="color-scheme" content="light dark" />
-    <!-- Resolve the theme before first paint to avoid a flash of the wrong theme
-         (and keep the theme-color tag above in lockstep — see its comment).
-         THEME_COLOR mirrors --surface per resolved theme (tokens.css) — kept
-         in sync with ui/theme.svelte.ts's copy of the same map by hand, since
-         this inline script can't import a module. -->
+    <!-- Runs pre-paint to avoid a theme flash. THEME_COLOR must be kept in sync with ui/theme.svelte.ts by hand: this inline script can't import it. -->
     <script>
       (function () {
         var THEME_COLOR = { light: '#ffffff', dark: '#1e1e24' };
@@ -45,9 +59,9 @@
         }
       })();
     </script>
-    <script type="module" crossorigin src="/copad/assets/main-C26gD0C3.js"></script>
+    <script type="module" crossorigin src="/copad/assets/main-DBLTRYPc.js"></script>
     <link rel="modulepreload" crossorigin href="/copad/assets/lib-D54bnSvk.js">
-    <link rel="stylesheet" crossorigin href="/copad/assets/main-DD0neIJG.css">
+    <link rel="stylesheet" crossorigin href="/copad/assets/main-COkZUVY0.css">
   </head>
   <body>
     <div id="root"></div>
