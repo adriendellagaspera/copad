@@ -17,19 +17,13 @@ jobs:
 
       - run: npm ci
 
-      # Type-check .ts files
       - run: npx tsc --noEmit
-
-      # Type-check .svelte files
       - run: npm run check
-
-      # AGENTS.md's mechanically-checkable rules (see eslint.config.js)
       - run: npm run lint
-
-      # Unit tests (schema + storage adapters)
       - run: npm test
+      - run: npm run test:scripts
 
-      # Build without secrets — WebDAV adapter is always available
+      # No secrets configured here; the WebDAV adapter is always available.
       - run: npm run build
 
   e2e:
@@ -43,34 +37,28 @@ jobs:
 
       - run: npm ci
 
-      # Install Playwright's Chromium browser and its system dependencies
       - run: npx playwright install --with-deps chromium
-
-      # Build the app so `npm run preview` can serve it
       - run: npm run build
 
-      # Run e2e tests (playwright.config.ts starts the preview + signaling servers)
+      # playwright.config.ts starts the preview and signaling servers itself.
       - run: npx playwright test
         env:
           CI: true
 
-  # Validate the self-hosted TURN relay (deploy/turn/). Infra, not app code, so these
-  # are structural guards, not a live relay test — see deploy/turn/TESTING.md for the
-  # manual tiers that exercise NAT traversal and TLS on a real VPS.
+  # Structural guards on deploy/turn/, not a live relay test; deploy/turn/TESTING.md
+  # covers the manual tiers that exercise NAT traversal and TLS on a real VPS.
   turn:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # Compose is valid and the coturn image is pinned (never :latest).
       - name: Validate compose file and image pin
         run: |
           rendered=$(docker compose -f deploy/turn/docker-compose.yml config)
           echo "$rendered" | grep -qE 'image: coturn/coturn:[0-9]' \
             || { echo "::error file=deploy/turn/docker-compose.yml::coturn image must be pinned to a version, not :latest"; exit 1; }
 
-      # The live config (with real secrets) must be git-ignored so an operator's
-      # edited copy can't be committed.
+      # The live copy holds the shared secret and the public IP.
       - name: Assert turnserver.conf is git-ignored
         run: |
           cp deploy/turn/turnserver.conf.example deploy/turn/turnserver.conf
@@ -78,8 +66,7 @@ jobs:
             || { echo "::error file=deploy/turn/.gitignore::deploy/turn/turnserver.conf is not git-ignored — real secrets could be committed"; exit 1; }
           rm -f deploy/turn/turnserver.conf
 
-      # The security-critical directives must stay in the template (guards against
-      # an accidental deletion silently weakening the relay).
+      # Deleting one of these weakens the relay silently.
       - name: Assert hardening directives are present
         run: |
           conf=deploy/turn/turnserver.conf.example
@@ -101,19 +88,10 @@ jobs:
           done
           exit $status
 
-      # Run the real coturn binary against the (placeholder-substituted) config:
-      # it should start and stay up. If coturn rejects the config it exits early,
-      # so the container is no longer running after a short grace period.
-      # Gating: this caught an invalid shipped config (trailing inline comments,
-      # which coturn parses as a directive's value) that the deterministic checks
-      # above can't see. It was previously continue-on-error, which let the
-      # rejection pass as a green run — the failure was silent. Keep it gating so
-      # a config coturn won't accept fails the PR instead of shipping broken.
-      #
-      # Run DETACHED and inspect State.Running rather than `timeout docker run`:
-      # a valid config makes coturn a long-lived daemon that ignores the SIGTERM
-      # `timeout` forwards through the docker CLI, so `timeout` (no --kill-after)
-      # would wait forever and hang the job.
+      # coturn exits early on a config it rejects, which the checks above cannot
+      # see (a trailing inline comment parses as a directive's value). Detached
+      # plus State.Running, not `timeout docker run`: a config it accepts
+      # daemonizes and ignores the SIGTERM docker forwards, hanging the job.
       - name: Smoke-test that coturn accepts the config
         run: |
           sed -e 's/YOUR_PUBLIC_IP/127.0.0.1/' \

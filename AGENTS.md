@@ -13,14 +13,16 @@ Comments below) or in `docs/architecture.md`.
 - `npm run lint` — ESLint; enforces the gated rules below.
 - `npm run check` — svelte-check; type-checks `.svelte` and `.ts`.
 - `npm test` — vitest, the full unit suite.
+- `npm run test:scripts` — bash suites for the gh-pages deploy scripts.
 - `npm run build` — production build.
 - `npm run docs` — regenerates the API reference into `docs/api/` (git-ignored).
 - `npm run dev` — Vite dev server; needs `npm run signaling` (WebRTC, default)
   or `npm run collab` (WebSocket transport) running alongside it for
   collaboration to work locally.
 
-Run lint + check + test before calling anything done; CI runs all of the
-above plus the build and Playwright e2e suite (`npm run e2e`).
+Run lint + check + test before calling anything done, and `test:scripts` when
+you touch `.github/scripts/`; CI runs all of the above plus the build and
+Playwright e2e suite (`npm run e2e`).
 
 ## The contract comes first
 
