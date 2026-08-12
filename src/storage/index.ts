@@ -18,17 +18,11 @@ import { BACKEND_ENABLED } from './constants.js';
 export type { Storage };
 export type { StorageAuth };
 
-/** A storage backend's auth and data halves, built together from a single
- *  factory so they share closure state (token, session handle, etc.). */
 export interface StorageBackend {
   auth: StorageAuth;
   storage: Storage;
 }
 
-/** Returns all storage backends available in this environment, each targeting
- *  `room`'s document (a tab is in exactly one room for its whole lifetime).
- *  A backend disabled via {@link BACKEND_ENABLED} (`VITE_ENABLE_<ID>`) is
- *  filtered out entirely — it never appears as a pill or in Settings. */
 export function backends(room: RoomId): StorageBackend[] {
   const proxyUrl = import.meta.env.VITE_PROXY_URL;
   const netFetch = proxyUrl ? proxiedFetch(proxyUrl) : directFetch;
@@ -43,8 +37,7 @@ export function backends(room: RoomId): StorageBackend[] {
     sharepointStorage(room),
     gdriveStorage(room),
     onedriveStorage(room),
-    // Always offer local-file storage; it self-reports availability.ok=false when
-    // the File System Access API is absent (e.g. Firefox, Safari, Brave Shields).
+    // Listed unconditionally: it self-reports availability when the FS Access API is absent.
     localFsStorage(),
   ].filter(b => BACKEND_ENABLED[b.storage.id]);
 }

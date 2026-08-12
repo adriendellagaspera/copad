@@ -202,8 +202,7 @@ export function parseGitHubLoadResponse(raw: unknown): { content: string; sha: G
   return { content, sha: sha as GitHubFileSha };
 }
 
-/** The Contents API returns an array (not a single object) when the path is a
- *  directory — this is that shape, filtered down to regular files. */
+// The Contents API returns an array, not an object, when the path is a directory.
 export function parseGitHubDirectoryListing(raw: unknown): Filename[] {
   if (!Array.isArray(raw)) throw new Error('Unexpected GitHub directory listing');
   return raw
@@ -213,9 +212,6 @@ export function parseGitHubDirectoryListing(raw: unknown): Filename[] {
     .map((name) => name as Filename);
 }
 
-// ── GitLab API JSON boundaries ────────────────────────────────────────────────
-
-/** Base64 `content` from a Repository Files API response. */
 export function parseGitLabFileContent(raw: unknown): string {
   if (typeof raw !== 'object' || raw === null)
     throw new Error('Unexpected GitLab file response');
@@ -224,7 +220,7 @@ export function parseGitLabFileContent(raw: unknown): string {
   return content;
 }
 
-/** GitLab's effective access is the max of project- and group-level access. */
+// GitLab's effective access is the max of project- and group-level access.
 export function parseGitLabAccessLevel(raw: unknown): number {
   if (typeof raw !== 'object' || raw === null) return 0;
   const perms = (raw as Record<string, unknown>)['permissions'];
@@ -264,9 +260,7 @@ export function parseGraphOwnerId(raw: unknown): GraphUserId | null {
   return typeof id === 'string' ? (id as GraphUserId) : null;
 }
 
-/** A `/children` listing's `value` array, filtered to entries that carry a
- *  `file` facet (as opposed to a `folder` facet — this backend's folder is
- *  never nested, but Graph still models every drive item that way). */
+// Graph models folders as drive items too; only `file`-faceted entries are files.
 export function parseOneDriveChildren(raw: unknown): Filename[] {
   if (typeof raw !== 'object' || raw === null)
     throw new Error('Unexpected OneDrive children response');
@@ -279,9 +273,6 @@ export function parseOneDriveChildren(raw: unknown): Filename[] {
     .map((name) => name as Filename);
 }
 
-// ── Google Drive API JSON boundaries ──────────────────────────────────────────
-
-/** OAuth token exchange response. */
 export function parseGDriveTokenResponse(raw: unknown): { access_token: GDriveToken } {
   if (typeof raw !== 'object' || raw === null)
     throw new Error('Unexpected Google Drive token response');
@@ -344,7 +335,7 @@ export function parseOAuthCode(data: unknown): string | null {
   return typeof code === 'string' ? code : null;
 }
 
-/** `owner/repo` exactly — unlike GitLab, extra path segments are rejected. */
+// `owner/repo` exactly — unlike GitLab, extra path segments are rejected.
 export function parseRepo(raw: string): GitHubRepo | null {
   const s = raw.trim();
   return /^[^/\s]+\/[^/\s]+$/.test(s) ? (s as GitHubRepo) : null;
@@ -364,7 +355,7 @@ export function parsePCloudClientId(raw: string): PCloudClientId | null {
   return trimmed ? (trimmed as PCloudClientId) : null;
 }
 
-/** `namespace/project`, subgroups allowed (`group/subgroup/project`). */
+// Subgroups allowed: `group/subgroup/project`.
 export function parseProject(raw: string): GitLabProject | null {
   const s = raw.trim();
   return /^[^/\s]+(?:\/[^/\s]+)+$/.test(s) ? (s as GitLabProject) : null;
@@ -407,9 +398,7 @@ export function parseS3KeyPrefix(raw: string): S3KeyPrefix {
   return (raw.trim() || S3_PREFIX) as S3KeyPrefix;
 }
 
-/** Single narrowing site for an unknown `save()` rejection → {@link WriteFailureKind}.
- *  A bare `Error` or unrecognised `DOMException` falls back to `Unknown`, which
- *  never locks on its own (persistHealth.ts). */
+// Unrecognised errors fall back to Unknown, which never locks on its own (persistHealth.ts).
 export function parseWriteFailure(err: unknown): WriteFailureKind {
   if (err instanceof ClassifiedWriteError) return err.kind;
   if (err instanceof DOMException) {

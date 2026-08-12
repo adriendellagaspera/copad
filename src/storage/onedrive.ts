@@ -26,25 +26,10 @@ import {
   oauthRedirectUri,
 } from './constants.js';
 
-// Personal Microsoft account (consumer OneDrive) via Microsoft Graph — distinct
-// from sharepointStorage(), which targets a SharePoint site or a *work/school*
-// account's OneDrive for Business. The `consumers` tenant this backend
-// authorizes against rejects work/school accounts outright, so there's no
-// overlap between the two. Scoped to `Files.ReadWrite.AppFolder`, a delegated
-// permission valid only for personal accounts that confines access to a
-// dedicated `Apps/<AppName>` folder (auto-created on first access) rather than
-// the whole personal drive — the same least-privilege shape as Google Drive's
-// `drive.file`.
+// The `consumers` tenant rejects work/school accounts — those go through sharepoint.ts.
 
-// ── Branded types ─────────────────────────────────────────────────────────────
-
-/** An OAuth2 access token issued by Microsoft for the `Files.ReadWrite.AppFolder` scope. */
 export type OneDriveToken = string & { readonly _brand: 'OneDriveToken' };
-
-/** A Microsoft Entra ID "Application (client) ID" for a personal-account app registration. */
 export type OneDriveClientId = string & { readonly _brand: 'OneDriveClientId' };
-
-// ── Config ────────────────────────────────────────────────────────────────────
 
 const tokenStore = localStore<OneDriveToken | null>(
   ONEDRIVE_TOKEN_KEY,
@@ -62,14 +47,11 @@ const cfg = configStore(STORAGE_ID.onedrive, [
   },
 ]);
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function authHeaders(token: OneDriveToken): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
-/** The app's dedicated special folder — created on first access, confining
- *  every request below to `Apps/<AppName>` rather than the whole drive. */
+// Graph auto-creates this folder on first access; it bounds every request below.
 function appFolderRoot(): string {
   return `${GRAPH_API_URL}/me/drive/special/approot`;
 }
@@ -82,13 +64,10 @@ function contentUrl(filename: Filename): string {
   return `${itemUrl(filename)}:/content`;
 }
 
-// ── Factory ───────────────────────────────────────────────────────────────────
-
 export function onedriveStorage(room: RoomId): { auth: StorageAuth; storage: Storage } {
   const fileName = filenameStore(STORAGE_ID.onedrive, room);
   const token = (): OneDriveToken | null => tokenStore.read();
 
-  /** The configured OAuth Client ID, parsed at the config boundary. */
   function resolvedClientId(): OneDriveClientId | null {
     return parseOneDriveClientId(cfg.config('clientId'));
   }
@@ -208,10 +187,6 @@ export function onedriveStorage(room: RoomId): { auth: StorageAuth; storage: Sto
       return ownerId === meId ? StorageAccess.Owner : StorageAccess.Write;
     },
 
-    // ── Browse (Phase 2 import) ─────────────────────────────────────────────
-    // Same AppFolder scope as load()/save() above — /children just lists it
-    // instead of reading one item, so no broader consent is needed.
-
     async list(): Promise<Filename[]> {
       const tok = token();
       if (!tok) throw new Error('OneDrive: not connected');
@@ -230,8 +205,7 @@ export function onedriveStorage(room: RoomId): { auth: StorageAuth; storage: Sto
       if (!res.ok) throw new Error(`OneDrive load failed: ${res.status}`);
 
       const bytes = new Uint8Array(await res.arrayBuffer());
-      // Unlike load(), the format is driven by *this* filename's extension —
-      // not the room's separately-configured target file.
+      // Format follows this filename, not the room's configured target.
       return extensionOf(filename) === '.yjs'
         ? { format: DocFormat.Binary, bytes }
         : { format: DocFormat.Text, text: new TextDecoder().decode(bytes) };

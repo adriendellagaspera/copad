@@ -1,7 +1,4 @@
-/**
- * `Storage.save()` widened beyond "threw / didn't throw" (docs/contract.md §3.2) —
- * a resolved promise alone doesn't prove the bytes arrived.
- */
+// Why a resolved save() isn't proof of durability: docs/contract.md §3.2.
 
 export const WriteLanding = { Landed: 'landed', Skipped: 'skipped' } as const;
 export type WriteLanding = (typeof WriteLanding)[keyof typeof WriteLanding];
@@ -21,9 +18,7 @@ export function skipped(why: WriteSkip): WriteReceipt {
   return { landing: WriteLanding.Skipped, why };
 }
 
-/** Whether a failure may lock persistHealth.ts's durability branch (`nextPersistHealth`'s
- *  `LOCKING_KINDS`) — Denied/Missing/Rejected are terminal, Contended/Transient may
- *  self-resolve, Unknown never locks alone. */
+// Which kinds lock the durability branch: `LOCKING_KINDS` in persistHealth.ts.
 export const WriteFailureKind = {
   Denied: 'denied',
   Missing: 'missing',
@@ -34,8 +29,6 @@ export const WriteFailureKind = {
 } as const;
 export type WriteFailureKind = (typeof WriteFailureKind)[keyof typeof WriteFailureKind];
 
-/** So `parseWriteFailure()` (`storage/parse.ts`) has one reliable narrowing site
- *  instead of guessing from a message string. */
 export class ClassifiedWriteError extends Error {
   readonly kind: WriteFailureKind;
   constructor(kind: WriteFailureKind, message: string) {
@@ -49,8 +42,6 @@ export function writeFailure(kind: WriteFailureKind, message: string): Classifie
   return new ClassifiedWriteError(kind, message);
 }
 
-/** Shared by the HTTP-backed adapters, each layering its own semantics (e.g. GitHub's
- *  409 sha conflict) on top before falling back to this. */
 export function classifyHttpStatus(status: number): WriteFailureKind {
   if (status === 401 || status === 403) return WriteFailureKind.Denied;
   if (status === 404) return WriteFailureKind.Missing;

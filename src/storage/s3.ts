@@ -19,12 +19,10 @@ import { STORAGE_ID, DEFAULT_FILENAME, S3_PREFIX, S3_KEY } from './constants.js'
 
 // Path-style addressing ({endpoint}/{bucket}/{key}), requests signed with AWS Signature V4 via Web Crypto. No SDK, no proxy.
 
-/** An S3-compatible endpoint URL (e.g. `https://s3.eu-west-1.amazonaws.com`). */
 export type S3Endpoint = string & { readonly _brand: 'S3Endpoint' };
 
 export type S3Bucket = string & { readonly _brand: 'S3Bucket' };
 
-/** An AWS region (or `auto` for R2). */
 export type S3Region = string & { readonly _brand: 'S3Region' };
 
 export type S3KeyPrefix = string & { readonly _brand: 'S3KeyPrefix' };
@@ -33,7 +31,7 @@ export type S3AccessKeyId = string & { readonly _brand: 'S3AccessKeyId' };
 
 export type S3SecretAccessKey = string & { readonly _brand: 'S3SecretAccessKey' };
 
-/** SHA-256 of an empty body: the payload hash for GET requests. */
+// SigV4 requires the empty-body hash on bodyless requests.
 const EMPTY_SHA256 =
   'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
@@ -108,10 +106,7 @@ async function signingKey(secret: S3SecretAccessKey, dateStamp: string, region: 
   return hmac(kService, 'aws4_request');
 }
 
-/**
- * `host` is signed into the canonical request even though `fetch` silently drops
- * a script-set `Host` header, harmless since the browser sends `url.host` anyway.
- */
+// `host` must be signed even though fetch drops a script-set Host header.
 async function signRequest(
   method: 'GET' | 'PUT' | 'HEAD',
   url: URL,
@@ -159,7 +154,6 @@ async function signRequest(
   };
 }
 
-/** Object key for the current room: `<prefix>/<filename>` (prefix optional). */
 function objectKey(c: S3Conf, filename: Filename): string {
   const prefix = c.prefix.replace(/^\/+|\/+$/g, '');
   return [prefix, filename].filter(Boolean).join('/');
@@ -198,8 +192,7 @@ export function s3Storage(room: RoomId): { auth: StorageAuth; storage: Storage }
         secretAccessKey: secretAccessKeyParsed,
       };
 
-      // Signed HEAD on the target object, not the bucket: a write-only key may lack ListBucket.
-      // 403 = bad credentials/denied, 404 = good creds and object not yet there.
+      // HEAD the object, not the bucket: a write-only key may lack ListBucket (403 denied, 404 absent).
       const url = objectUrl(c, fileName.get());
       const res = await fetch(url.toString(), {
         method: 'HEAD',

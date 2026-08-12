@@ -1,6 +1,5 @@
 import type { RoomId, RoomName } from '../collaboration/types.js';
 
-/** The stem of a downloaded export, before a codec appends its extension. */
 export type ExportBaseName = string & { readonly _brand: 'ExportBaseName' };
 
 export function exportBaseName(name: RoomName | null, room: RoomId): ExportBaseName {

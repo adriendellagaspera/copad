@@ -6,29 +6,19 @@ import { extensionOf } from './types.js';
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
-/**
- * Plain text / source code. Each line becomes a paragraph on import; on export
- * each top-level block is emitted as a line. Formatting is flattened to its
- * text — that's the nature of plain-text and source files.
- */
 export const textCodec: Codec = {
   id: 'text',
   label: 'Plain text / Source code',
   extensions: [
-    // Generic text
     '.txt', '.text', '.log', '.csv', '.tsv',
-    // Web
     '.css', '.scss', '.sass', '.less',
     '.xml', '.svg', '.xsl', '.xslt',
     '.graphql', '.gql',
-    // JavaScript / TypeScript
     '.js', '.mjs', '.cjs',
     '.jsx',
     '.ts', '.mts', '.cts',
     '.tsx',
-    // Vue / Svelte / Angular templates
     '.vue', '.svelte', '.astro',
-    // Systems languages
     '.c', '.h',
     '.cpp', '.cc', '.cxx', '.hpp', '.hxx',
     '.cs',
@@ -39,7 +29,6 @@ export const textCodec: Codec = {
     '.kt', '.kts',
     '.scala',
     '.dart',
-    // Scripting
     '.py', '.pyw',
     '.rb',
     '.pl', '.pm',
@@ -51,17 +40,14 @@ export const textCodec: Codec = {
     '.ml', '.mli',
     '.fs', '.fsx',
     '.php',
-    // Shell
     '.sh', '.bash', '.zsh', '.fish',
     '.ps1', '.psm1', '.psd1',
     '.bat', '.cmd',
-    // Config / data
     '.yml', '.yaml',
     '.toml',
     '.ini', '.cfg', '.conf',
     '.env',
     '.jsonc', '.json5',
-    // Infrastructure / build
     '.tf', '.hcl',
     '.nix',
     '.dockerfile',
