@@ -2,23 +2,7 @@
   import Avatar from './Avatar.svelte';
   import type { DisplayName, CursorColor } from '../collaboration/types.js';
 
-  // Your own identity (name + cursor colour) — the header capsule and the
-  // mobile dock both mount one of these. Two presentations behind one
-  // component, chosen by the same condition app.css's .mobile-dock uses to
-  // switch chrome (pointer:coarse or a narrow viewport):
-  //  - wide viewport / fine pointer: a small popover, anchored to the trigger
-  //    and clamped to the viewport by `positionPopover()` (flips above the
-  //    trigger, shifts horizontally) instead of assuming there's room below.
-  //  - narrow viewport / coarse pointer: a bottom sheet pinned to the screen
-  //    (never anchored to the trigger), so there is no edge left to run off —
-  //    the old static `right:0` popover used to run past the left edge here,
-  //    since the mobile dock's trigger sits flush against the screen's left.
-  // Peer avatars deliberately do NOT use this component: PresenceBar's own
-  // "jump to cursor" button is a single, instant tap (matching Figma/Google
-  // Docs), and the only place a peer avatar is reachable on mobile is nested
-  // inside ConnectionDialog's own bottom sheet — stacking a second bottom
-  // sheet/backdrop in there produced a real double-scrim bug. See PR #180's
-  // follow-up.
+  // Two presentations behind one component, switched on the same condition app.css's .mobile-dock uses: popover (fine pointer) vs. bottom sheet (coarse/narrow). Peer avatars deliberately don't use this component — nesting a second bottom sheet inside ConnectionDialog's own produced a real double-scrim bug (PR #180).
   type Props = {
     name: DisplayName;
     color: CursorColor;
@@ -37,11 +21,6 @@
 
   let flipAbove = $state(false);
   let shiftX = $state(0);
-  // Tracked reactively (not just read ad hoc) so the template can gate
-  // role/aria-modal/focus-trap/scroll-lock on the same signal the CSS
-  // breakpoint uses — the sheet presentation is the only one that visually
-  // blocks the rest of the page, so it's the only one that should behave
-  // modally.
   let compact = $state(false);
 
   const isDefault = $derived(!name || name === 'Anonymous');
@@ -50,10 +29,7 @@
     return window.matchMedia('(pointer: coarse), (max-width: 900px)').matches;
   }
 
-  // The viewport-aware placement: measure the panel once in its default
-  // (below, unshifted) position and correct only the axes that actually
-  // overflow. A no-op on the compact breakpoint, where CSS pins the panel to
-  // the bottom of the screen instead.
+  // No-op on the compact breakpoint, where CSS pins the panel to the bottom of the screen instead.
   function positionPopover(): void {
     flipAbove = false;
     shiftX = 0;
@@ -77,9 +53,6 @@
     el.select();
   }
 
-  // Tracks the breakpoint continuously (not just at open time) so a resize/
-  // rotate while the panel is open — or before it's ever opened — keeps
-  // `compact` truthful for the role/aria-modal it drives.
   $effect(() => {
     const mql = window.matchMedia('(pointer: coarse), (max-width: 900px)');
     compact = mql.matches;
@@ -88,10 +61,7 @@
     return () => mql.removeEventListener('change', onChange);
   });
 
-  // Same tab-trap shape as Dialog.svelte, scoped to the panel instead of a
-  // whole dialog. Only wired up while `compact` — the desktop popover has no
-  // backdrop and was never meant to behave modally (see the "role" binding
-  // below), so trapping Tab there would be an unrequested behaviour change.
+  // Only wired up while compact: the desktop popover has no backdrop and was never meant to behave modally.
   function trapTab(e: KeyboardEvent): void {
     if (!compact || e.key !== 'Tab' || !panelEl) return;
     const f = panelEl.querySelectorAll<HTMLElement>(
@@ -112,25 +82,14 @@
   $effect(() => {
     if (!open) return;
     positionPopover();
-    // The compact sheet has a full-viewport backdrop like Dialog.svelte's —
-    // lock background scroll to match, so the page behind it can't scroll
-    // while it visually reads as blocking the rest of the screen. The desktop
-    // popover has no backdrop, so it doesn't need this.
     if (compact) document.body.style.overflow = 'hidden';
     const onDown = (e: MouseEvent) => {
-      // An outside click already moves focus wherever the user clicked (or
-      // leaves it on body for a non-focusable area) — don't fight that by
-      // yanking focus back to the trigger.
       if (root && !root.contains(e.target as Node)) open = false;
     };
     const onKey = (e: KeyboardEvent) => {
-      // Escape has no focus target of its own, so return focus to the trigger.
       if (e.key === 'Escape') closeAndReturnFocus();
     };
-    // Capture phase so we see Escape before any other in-page listener (or a
-    // browser-extension content script on the autofocused name input, e.g. a
-    // password manager) gets a chance to stopPropagation() or otherwise
-    // swallow the first press.
+    // Capture phase so Escape is seen before a page listener or extension (e.g. a password manager) on the autofocused input can swallow it.
     window.addEventListener('mousedown', onDown);
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('resize', positionPopover);
@@ -159,10 +118,6 @@
   </button>
 
   {#if open}
-    <!-- role/aria-modal follow `compact`: the mobile sheet has a full-viewport
-         backdrop and reads as blocking the rest of the page, so it announces
-         and traps focus like Dialog.svelte's dialogs do. The desktop popover
-         has no backdrop and was never meant to behave modally. -->
     <div class="identity-backdrop" onclick={closeAndReturnFocus} aria-hidden="true"></div>
     <div
       class="identity-pop"
@@ -253,18 +208,10 @@
     display: flex;
     flex-direction: column;
     gap: var(--sp-3);
-    /* A custom property, not a `transform` set directly inline: the compact
-       media query below never references --shift-x, so it can't be fought by
-       an inline style the way a directly-bound `style="transform: ..."`
-       would fight a plain `transform: none` stylesheet rule (inline always
-       wins over a stylesheet declaration for the same property, media query
-       or not). This is what actually lets the compact rule win on mobile. */
+    /* Custom property, not a directly-bound style="transform:...": an inline transform would beat the compact media query's plain `transform: none` rule (inline always wins), since the query never references --shift-x. */
     transform: translateX(var(--shift-x, 0px));
     animation: identity-in var(--dur-fast) var(--ease);
   }
-  /* Auto-flip when the measured panel would run past the bottom of the
-     viewport (positionPopover), rather than a caller-supplied placement prop
-     tuned per call site. */
   .identity-pop.above {
     top: auto;
     bottom: calc(100% + 6px);
@@ -306,11 +253,6 @@
     box-shadow: 0 0 0 2px var(--surface);
   }
 
-  /* Bottom sheet: pinned to the screen, never to the trigger, so there is no
-     edge left to run off. Same condition app.css's .mobile-dock uses to
-     switch chrome. Deliberately doesn't reference --shift-x/transform at all
-     (see the comment on .identity-pop above) so the desktop positioning
-     logic can't leak through here. */
   @media (pointer: coarse), (max-width: 900px) {
     .identity-backdrop {
       display: block;

@@ -74,29 +74,17 @@
     color: CursorColor;
     room: RoomId;
     role?: SessionRole;
-    /** Set only on a tab `MeetingJoinDialog` just opened, so its presence
-     *  probe can recognize and discard this tab's own self-join. */
+    // Set only on a tab MeetingJoinDialog just opened, so its presence probe can recognize and discard this tab's own self-join.
     selfProbeMarker?: SelfProbeMarker | null;
     connect: CollabConnect;
     toasts: Toasts;
     lang?: string;
     spellcheck?: SpellcheckEnabled;
-    /** When true the editor is read-only: the write gate (`writeGateFor()` in
-     *  `App.svelte`) is holding. This component only reflects it. */
     writeLocked?: boolean;
-    /** Stamped by `App.svelte` only on an explicit "Write alone anyway" click,
-     *  never by `writeLocked` itself going false, which also happens when a
-     *  peer joins or durability proves out. Drives the focus-on-unlock effect
-     *  below; a natural unlock must never steal focus (contract §4.1). */
+    // Stamped only on an explicit "Write alone anyway" click, never by writeLocked going false on its own — a natural unlock must never steal focus (contract §4.1).
     writeSoloAt?: EpochMs | null;
-    /** A file picked in App.svelte (its own header button, or Settings' Browse
-     *  dialog), waiting to be decoded into this document. App owns every import
-     *  entry point; this is their one hand-off into the live `collab.doc`. */
     importRequest?: { bytes: Uint8Array; filename: Filename } | null;
-    /** Called once `importRequest` has been applied (success or failure), so the
-     *  parent can clear it and this effect doesn't re-fire on the next render. */
     onImportHandled?: () => void;
-    /** Set by App.svelte's one-shot `?new=1` marker for a freshly opened tab. */
     autofocusTitle?: boolean;
   };
 
@@ -110,8 +98,6 @@
 
   const SAVE_DEBOUNCE = 3_000 as Milliseconds;
 
-  // untrack: `room` is fixed for the tab's lifetime, and a `connect` change goes
-  // through the parent's `rebuildCollab()` remount, not a reactive read here.
   const collab = untrack(() => connect)(untrack(() => room));
   const yFragment = collab.doc.getXmlFragment('prosemirror');
 
@@ -119,8 +105,7 @@
   const REMOTE_CURSOR_FADE_TICK = 15_000 as Milliseconds;
   let fadeTimer: ReturnType<typeof setInterval> | undefined;
 
-  // A dedicated Y.Map, not the prosemirror fragment, so it never leaks into
-  // text/markdown/html/json exports (codecs only read the fragment).
+  // Dedicated Y.Map, not the prosemirror fragment, so it never leaks into text/markdown/html/json exports (codecs only read the fragment).
   const roomMeta = collab.doc.getMap('roomMeta');
   const readRoomName = (): RoomName | null =>
     parseRoomName(typeof roomMeta.get('name') === 'string' ? (roomMeta.get('name') as string) : null);
@@ -142,13 +127,12 @@
   let roomPresence = $state<RoomPresence>({ kind: PresenceKind.Unknown });
   let soloBrowser = $state<SoloBrowser>(false as SoloBrowser);
   let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
-  // Branch (b)'s state machine (docs/contract.md §3.2/§3.3, persistHealth.ts).
+  // docs/contract.md §3.2/§3.3, persistHealth.ts.
   let persistHealth = $state<PersistHealth>(UNPROVEN);
   let regime = $state<PersistRegime>(PersistRegime.Cold);
   let loadedFrom = $state<StorageId | null>(null);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let savedTimer: ReturnType<typeof setTimeout> | undefined;
-  // Otherwise a failure on the session's last keystroke is never retried.
   const RETRY_BACKOFF_MS = [3_000, 6_000, 12_000, 30_000] as Milliseconds[];
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let retryAttempt = 0;
@@ -231,8 +215,7 @@
     getDiagnostics: collab.getDiagnostics ? () => collab.getDiagnostics!() : undefined,
     reconnect: collab.reconnect,
   });
-  // Reads `view`/`users` live at call time, so publishing here is safe even
-  // though `view` isn't assigned until onMount below.
+  // Reads view/users live at call time, so this is safe to publish before onMount assigns view.
   setSessionJumpToPeer((clientId) => {
     if (!view) return;
     jumpToPresence(view.dom, clientId, users.find((u) => u.id === clientId)?.color);
@@ -245,9 +228,7 @@
   $effect(() => setSessionRoomPresence(roomPresence));
   $effect(() => setSessionSoloBrowser(soloBrowser));
 
-  // Mobile-only: swaps the bottom dock between nav actions and the formatting
-  // toolbar. contentEditable loses focus on pointerdown before a tap lands, so
-  // Toolbar.svelte guards against that by preventing default on its own pointerdown.
+  // Mobile-only: swaps the bottom dock between nav actions and the formatting toolbar.
   $effect(() => {
     const el = editorEl;
     if (!el) return;

@@ -28,17 +28,13 @@ const HEADING_LEVELS = [
 ];
 const MAX_LIST_LEVEL = 5; // docx numbering levels are 0-indexed; we define 6 (0-5)
 const ORDERED_REF = 'copad-ordered';
-const LIST_INDENT_IN = 0.25; // extra indent per nesting level, matching a typical Word list
+const LIST_INDENT_IN = 0.25;
 
-/** The `docx` package leaves body text at OOXML's own bare-spec fallback
- *  (10pt, no named font) when docDefaults is left empty — reads as
- *  illegibly small next to the editor's own 18px/13.5pt reading font.
- *  12pt/Georgia (a serif Word actually ships) is the closest sane match. */
+// The docx package leaves body text at OOXML's bare-spec fallback (10pt, no named font) when docDefaults is empty — illegibly small next to the editor's own reading font.
 const BODY_FONT = 'Georgia';
 const BODY_SIZE_HALF_PT = 24; // 12pt
 
-/** `level` 0-5 cycles decimal → lowerLetter → lowerRoman, matching Word's own
- *  default multi-level list style, so nested ordered lists read distinctly. */
+// Cycles decimal -> lowerLetter -> lowerRoman, matching Word's own default multi-level list style.
 function orderedFormat(level: number): (typeof LevelFormat)[keyof typeof LevelFormat] {
   return [LevelFormat.DECIMAL, LevelFormat.LOWER_LETTER, LevelFormat.LOWER_ROMAN][level % 3]!;
 }
@@ -75,10 +71,6 @@ function runStyleOf(node: PMNode): { style: IRunStylePropertiesOptions; href: st
   return { style, href };
 }
 
-/** Inline content (paragraph/heading/table cell text) → docx run children,
- *  wrapping a `link`-marked run in an {@link ExternalHyperlink}. `forceStyle`
- *  is merged under each run's own marks (e.g. bolding every run in a table
- *  header cell, regardless of what marks the source text itself carries). */
 function runsOf(inline: PMNode, forceStyle: IRunStylePropertiesOptions = {}): ParagraphChild[] {
   const runs: ParagraphChild[] = [];
   inline.forEach((child) => {
@@ -95,28 +87,16 @@ function runsOf(inline: PMNode, forceStyle: IRunStylePropertiesOptions = {}): Pa
 }
 
 type Block = Paragraph | Table;
-/** Mutable, single instance counter shared across one whole `encode()` call —
- *  NOT re-created per recursive `blocksOf` call, or two unrelated root lists
- *  in different branches (e.g. two separate blockquotes) could collide on
- *  the same instance number and render as one continuing list. */
+// Shared across one whole encode() call, never re-created per recursive blocksOf call — otherwise two unrelated root lists could collide on the same instance number and render as one continuing list.
 type OrderedCounter = { next: number };
 
-/** Turns a container's block-level children into docx paragraphs/tables — the
- *  top-level document, or the non-first children of a list_item/task_item/
- *  blockquote (their content is `paragraph block*`, so every child from the
- *  second on is itself a full block, handled one at a time by {@link blockOf}). */
 function blocksOf(container: PMNode, counter: OrderedCounter, depth = -1, orderedInstance = 0): Block[] {
   const out: Block[] = [];
   container.forEach((node) => out.push(...blockOf(node, counter, depth, orderedInstance)));
   return out;
 }
 
-/** Turns a single block-level node into zero or more docx paragraphs/tables.
- *  Threads `depth` (current list nesting, -1 outside any list) and a
- *  per-reference `orderedInstance` so a *root* ordered list restarts at 1
- *  while a *nested* one continues sharing its ancestor's numbering instance —
- *  the same distinction Word itself makes between separate lists and
- *  multi-level ones. */
+// depth is current list nesting (-1 outside any list); orderedInstance lets a root ordered list restart at 1 while a nested one shares its ancestor's numbering instance.
 function blockOf(node: PMNode, counter: OrderedCounter, depth: number, orderedInstance: number): Block[] {
   switch (node.type.name) {
     case 'paragraph':
@@ -167,9 +147,6 @@ function blockOf(node: PMNode, counter: OrderedCounter, depth: number, orderedIn
 
     case 'ordered_list': {
       const level = Math.min(depth + 1, MAX_LIST_LEVEL);
-      // A root list (depth -1, i.e. not nested inside another list) gets a
-      // fresh instance so it restarts numbering at 1; a nested one shares
-      // its ancestor's instance so the multi-level numbering stays continuous.
       const instance = depth === -1 ? counter.next++ : orderedInstance;
       const out: Block[] = [];
       node.forEach((item) =>
@@ -193,21 +170,14 @@ function blockOf(node: PMNode, counter: OrderedCounter, depth: number, orderedIn
     }
 
     case 'table': {
-      // Word/the docx package fall back to ~0-width columns when no width is
-      // given (`w:tblW`/`w:gridCol` default to a handful of twips) — every
-      // cell gets an explicit equal share of the table's own 100% width so
-      // columns render at a readable size instead of collapsing to nothing.
+      // Word/docx fall back to ~0-width columns when no width is given; every cell gets an explicit equal share of 100% instead.
       const colCount = node.firstChild?.childCount ?? 1;
       const colWidth: ITableWidthProperties = { size: `${100 / colCount}%`, type: WidthType.PERCENTAGE };
       const rows: TableRow[] = [];
       node.forEach((row) => {
         const cells: TableCell[] = [];
         row.forEach((cell) => {
-          // A cell holds block+ content (paragraphs, lists, headings, …), not
-          // bare inline runs — the common single-paragraph case renders as
-          // before (with header bold forced onto its runs); anything richer
-          // falls through to the general block renderer, same as the top
-          // level, so no cell content is silently dropped.
+          // A cell holds block+ content, not bare inline runs; anything richer than one paragraph falls through to the general block renderer so nothing is silently dropped.
           const isHeader = cell.type.name === 'table_header';
           const onlyParagraph = cell.childCount === 1 && cell.firstChild!.type.name === 'paragraph';
           const children: Block[] = onlyParagraph
@@ -243,18 +213,7 @@ function listItemOf(
   return out;
 }
 
-/**
- * Word document (.docx) bytes, via the `docx` package. Covers headings,
- * emphasis/strike/underline/code marks, links, bullet/ordered/task lists
- * (nested), blockquotes, code blocks, horizontal rules and tables.
- *
- * Deliberately a plain function, not exported alongside an `ExportCodec`
- * object (#181) — `docx.ts` wraps this behind a dynamic `import()` so the
- * `docx` package (~100kB gzipped) only loads into a page that actually
- * triggers a Word export, instead of bloating the main bundle for every
- * visitor. This file may pull in the full package at module scope; only
- * import it lazily.
- */
+// Plain function, not an ExportCodec object (#181): docx.ts wraps this behind a dynamic import() so the ~100kB docx package only loads into a page that actually triggers a Word export. Only import this file lazily.
 export async function encodeDocx(doc: Y.Doc): Promise<Uint8Array> {
   const root = readPmDoc(doc);
   const document = new Document({

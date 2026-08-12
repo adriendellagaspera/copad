@@ -12,63 +12,44 @@ import type { LocalCacheEnabled } from './cache.js';
 import type { TurnPrefs } from './turn.js';
 import { FALLBACK_NAME, FALLBACK_COLOR } from './peerDefaults.js';
 
-/** ws:// or wss://: the only schemes y-webrtc / y-websocket understand. */
 const WS_URL = /^wss?:\/\/\S+$/i;
 
-/** Single cast site for SignalingUrl. */
 export function parseSignalingUrl(raw: string): SignalingUrl | null {
   return WS_URL.test(raw) ? (raw as SignalingUrl) : null;
 }
 
-/** Single cast site for WebsocketUrl. */
 export function parseWebsocketUrl(raw: string): WebsocketUrl | null {
   return WS_URL.test(raw) ? (raw as WebsocketUrl) : null;
 }
 
-/** The ICE URL schemes WebRTC understands: stun:, turn:, turns:. */
 const ICE_URL = /^(?:stun|turns?):\S+$/i;
 
-/** Single cast site for StunUrl; call from resolveIceServers or any ICE config parser. */
 export function parseStunUrl(raw: string): StunUrl | null {
   return ICE_URL.test(raw) ? (raw as StunUrl) : null;
 }
 
-/** Single cast site for TurnUrl; call from resolveIceServers or any ICE config parser. */
 export function parseTurnUrl(raw: string): TurnUrl | null {
   return ICE_URL.test(raw) ? (raw as TurnUrl) : null;
 }
 
-/** Cast site for TurnUsername from user form input. Any non-null string is accepted;
- *  validation (required, format) is the caller's responsibility at the UI layer. */
 export function parseTurnUsername(raw: string): TurnUsername {
   return raw as TurnUsername;
 }
 
-/** Cast site for TurnCredential from user form input. */
 export function parseTurnCredential(raw: string): TurnCredential {
   return raw as TurnCredential;
 }
 
-/** http(s):// endpoint that mints ICE servers. Single cast site for IceServersUrl. */
 const HTTP_URL = /^https?:\/\/\S+$/i;
 export function parseIceServersUrl(raw: string): IceServersUrl | null {
   return HTTP_URL.test(raw) ? (raw as IceServersUrl) : null;
 }
 
-/** Classify one ICE URL string by scheme, routing it through the matching cast
- *  site so a mixed `urls` array becomes properly branded `(StunUrl | TurnUrl)`. */
 function parseIceUrl(raw: string): StunUrl | TurnUrl | null {
   return /^stun:/i.test(raw.trim()) ? parseStunUrl(raw.trim()) : parseTurnUrl(raw.trim());
 }
 
-/**
- * Parse an ICE-servers HTTP response (`{ iceServers: [{ urls, username?, credential? }] }`,
- * the shape returned by Cloudflare's TURN credentials API and most managed relays)
- * into branded {@link IceServer}s. Every field access is guarded and malformed
- * entries/urls are dropped, so a bad or partial response yields `[]` rather than
- * throwing. The single IO-boundary parse site for fetched ICE config. `urls` may
- * be a string or an array of strings per the RTCIceServer shape.
- */
+// Matches the shape Cloudflare's TURN credentials API and most managed relays return: { iceServers: [{ urls, username?, credential? }] }.
 export function parseIceServersResponse(raw: unknown): IceServer[] {
   if (typeof raw !== 'object' || raw === null) return [];
   const entries = (raw as Record<string, unknown>)['iceServers'];
@@ -97,11 +78,6 @@ export function parseIceServersResponse(raw: unknown): IceServer[] {
   return servers;
 }
 
-/**
- * Parse an unknown awareness state value arriving from a peer browser.
- * All field access is guarded: malformed peer data produces safe fallbacks.
- * This is the single cast site for DisplayName and CursorColor from network data.
- */
 export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
   const obj = (typeof raw === 'object' && raw !== null) ? raw as Record<string, unknown> : {};
   const user = (typeof obj['user'] === 'object' && obj['user'] !== null)
@@ -138,45 +114,34 @@ export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
   };
 }
 
-/** Parse a raw string from storage as a RoomId: the single cast site for RoomId from localStorage/URL. */
 export function parseRoomId(raw: string | null): RoomId | null {
   const trimmed = (raw ?? '').trim();
   return trimmed ? (trimmed as RoomId) : null;
 }
 
-/** Parse the `?selfProbe=` URL param a `MeetingJoinDialog`-opened tab carries:
- *  the single cast site for {@link SelfProbeMarker} from the URL. */
 export function parseSelfProbeMarker(raw: string | null): SelfProbeMarker | null {
   const trimmed = (raw ?? '').trim();
   return trimmed ? (trimmed as SelfProbeMarker) : null;
 }
 
-/** Parse a raw string as a RoomName: the single cast site for RoomName, used
- *  for the shared Y.Doc value and for user input from the rename field. Empty /
- *  whitespace-only names become null (the room falls back to showing its id). */
 export function parseRoomName(raw: string | null): RoomName | null {
   const trimmed = (raw ?? '').trim();
   return trimmed ? (trimmed as RoomName) : null;
 }
 
-/** Parse a stored string as a RoomCredential: the single cast site for RoomCredential from localStorage/URL. */
 export function parseRoomCredential(raw: string | null): RoomCredential | null {
   const trimmed = (raw ?? '').trim();
   return trimmed ? (trimmed as RoomCredential) : null;
 }
 
-/** Parse the local-cache on/off flag; defaults to enabled (anything but '0'). */
 export function parseLocalCacheEnabled(raw: string | null): LocalCacheEnabled {
   return (raw !== '0') as LocalCacheEnabled;
 }
 
-/** Parse a stored room-encryption fingerprint: a SHA-256 hex digest, or null
- *  when absent/malformed. Single cast site for {@link KeyFingerprint} from storage. */
 export function parseKeyFingerprint(raw: string | null): KeyFingerprint | null {
   return raw && /^[0-9a-f]{64}$/.test(raw) ? (raw as KeyFingerprint) : null;
 }
 
-/** Parse a JSON-encoded room list from localStorage into typed RoomIds. */
 export function parseRoomList(raw: string | null): RoomId[] {
   try {
     const list: unknown = raw ? JSON.parse(raw) : [];
@@ -190,7 +155,6 @@ export function parseRoomList(raw: string | null): RoomId[] {
   }
 }
 
-/** Runtime TURN prefs when none are stored (or the stored value is malformed). */
 const TURN_PREFS_FALLBACK: TurnPrefs = {
   urls: [],
   username: parseTurnUsername(''),
@@ -198,8 +162,6 @@ const TURN_PREFS_FALLBACK: TurnPrefs = {
   fallback: FallbackTurnPolicy.OpenRelay,
 };
 
-/** Parse persisted runtime TURN prefs from localStorage JSON: the single
- *  narrowing site, filling any missing/invalid field from the defaults. */
 export function parseTurnPrefs(raw: string | null): TurnPrefs {
   if (!raw) return { ...TURN_PREFS_FALLBACK };
   try {
@@ -230,19 +192,12 @@ export function parseTurnPrefs(raw: string | null): TurnPrefs {
   }
 }
 
-/** Parse a stored/typed display name: the single cast site for DisplayName
- *  from localStorage. Empty, whitespace-only or absent falls back to
- *  {@link FALLBACK_NAME}, honoring a `VITE_FALLBACK_NAME` override the same
- *  way {@link parsePeerAwarenessState} does for a peer's own name. */
 export function parseDisplayName(raw: string | null): DisplayName {
   const trimmed = raw?.trim();
   return trimmed ? (trimmed as DisplayName) : FALLBACK_NAME;
 }
 
-/** Parse a stored colour against the *current* palette: the single cast site
- *  for CursorColor from localStorage. A value absent, or no longer in the
- *  palette (a shrunk/reordered palette), degrades to `pickDefault()` rather
- *  than surfacing an unknown colour. */
+// Degrades to pickDefault() rather than surfacing a color no longer in the current (shrunk/reordered) palette.
 export function parseStoredColor(
   raw: string | null,
   palette: readonly CursorColor[],

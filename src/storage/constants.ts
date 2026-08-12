@@ -1,26 +1,9 @@
-/**
- * Storage-vertical constants: backend endpoints, the shared cloud folder, OAuth
- * popup tuning, default filenames, encoding limits, and the localStorage keys
- * each backend persists under.
- *
- * Every endpoint, host, path, folder, and tunable reads a `VITE_*` override so a
- * deployment can react to a provider rotating a domain or a regional split (e.g.
- * pCloud's US/EU hosts) without a rebuild. Only two kinds stay fixed: the
- * localStorage **keys** (storage identity — changing them orphans saved state)
- * and the default filenames/branch (user-facing content, edited in Settings).
- */
-
 import type { Filename, StorageId } from './types.js';
 import { storageKey, type StorageKey } from '../persistence/local.js';
 import type { Milliseconds } from '../time.js';
 
 // ── Backend ids (single source of truth) ──────────────────────────────────────
 
-/**
- * Brand a set of backend-id literals, keyed by themselves — the single
- * `as StorageId` site for backend ids. Each id is written once; the cast and the
- * typed `STORAGE_ID.<id>` lookup come for free, and adding a backend is one word.
- */
 function storageIds<const Ids extends readonly string[]>(
   ...ids: Ids
 ): { readonly [Id in Ids[number]]: StorageId } {
@@ -29,21 +12,10 @@ function storageIds<const Ids extends readonly string[]>(
   };
 }
 
-/** The canonical id for each storage backend — the single source of truth. */
 export const STORAGE_ID = storageIds('dropbox', 'pcloud', 'webdav', 'github', 'gitlab', 's3', 'sharepoint', 'gdrive', 'onedrive', 'local');
 
-/**
- * A config field's name, doubling as the storage sub-key for that field. Adapter-
- * defined (`repo`, `appKey`, …), so it's the open arm of a {@link KeyPurpose} —
- * branded once at the configStore boundary rather than enumerated here.
- */
 export type ConfigFieldName = string & { readonly _brand: 'ConfigFieldName' };
 
-/**
- * The slot a value persists in under a backend's namespace. The fixed singleton
- * slots are spelled out so call sites are typo-checked; a {@link ConfigFieldName}
- * is the open arm for per-field config keys.
- */
 export type KeyPurpose =
   | 'token'
   | 'session'
@@ -52,26 +24,21 @@ export type KeyPurpose =
   | 'rooms'
   | ConfigFieldName;
 
-/** localStorage key for one of a backend's persisted values: `storage.<id>.<purpose>`. */
 export const backendKey = (id: StorageId, purpose: KeyPurpose): StorageKey =>
   storageKey(`storage.${id}.${purpose}`);
 
 // ── Env-override helpers (the env IO boundary for this vertical) ───────────────
 
-/** Trimmed string override, or `fallback` when the var is unset or blank. */
 const envStr = (raw: string | undefined, fallback: string): string => {
   const v = raw?.trim();
   return v ? v : fallback;
 };
 
-/** Positive-integer override, or `fallback` when the var is unset or invalid. */
 const envInt = (raw: string | undefined, fallback: number): number => {
   const n = Number(raw);
   return Number.isInteger(n) && n > 0 ? n : fallback;
 };
 
-/** Boolean override ("1"/"true"/"yes" ⇒ true, "0"/"false"/"no" ⇒ false, case-
- *  insensitive), or `fallback` when the var is unset, blank, or unrecognized. */
 const envBool = (raw: string | undefined, fallback: boolean): boolean => {
   const v = raw?.trim().toLowerCase();
   if (v === '1' || v === 'true' || v === 'yes') return true;
@@ -81,99 +48,48 @@ const envBool = (raw: string | undefined, fallback: boolean): boolean => {
 
 // ── Backend enable/disable ──────────────────────────────────────────────────────
 
-/**
- * Whether each backend is offered in this deployment — `backends()` filters on
- * this, so a disabled backend never appears as a pill or in Settings. Each id
- * can be flipped independently via `VITE_ENABLE_<ID>` (e.g. `VITE_ENABLE_
- * GITLAB=false`). Keyed via `STORAGE_ID.<id>` (not bareword string literals) —
- * `StorageId` is a brand over `string`, so only a value already branded there
- * type-checks as a key.
- *
- * Backends already relied on in production default to enabled; a newly added
- * backend should default to *disabled* until it's been connected to a real
- * account outside production, then flip to `true` in its own dedicated PR.
- */
+// A backend not yet connected to a real account outside production defaults to disabled; flip to true in its own dedicated PR once it has been.
 export const BACKEND_ENABLED: Record<StorageId, boolean> = {
-  // Disabled by default — pending review before re-enabling.
   [STORAGE_ID.dropbox]: envBool(import.meta.env.VITE_ENABLE_DROPBOX, false),
-  // Disabled by default — pending review before re-enabling.
   [STORAGE_ID.pcloud]: envBool(import.meta.env.VITE_ENABLE_PCLOUD, false),
   [STORAGE_ID.webdav]: envBool(import.meta.env.VITE_ENABLE_WEBDAV, true),
-  // Disabled by default — pending review before re-enabling.
   [STORAGE_ID.github]: envBool(import.meta.env.VITE_ENABLE_GITHUB, false),
   [STORAGE_ID.local]: envBool(import.meta.env.VITE_ENABLE_LOCAL, true),
-  // Not yet connected to a real GitLab account outside production — stays
-  // hidden until that's done, then flips to `true` in its own dedicated PR.
   [STORAGE_ID.gitlab]: envBool(import.meta.env.VITE_ENABLE_GITLAB, false),
-  // Not yet connected to a real S3-compatible bucket outside production —
-  // stays hidden until that's done, then flips to `true` in its own PR.
   [STORAGE_ID.s3]: envBool(import.meta.env.VITE_ENABLE_S3, false),
-  // Not yet connected to a real Microsoft 365 account outside production —
-  // stays hidden until that's done, then flips to `true` in its own PR.
   [STORAGE_ID.sharepoint]: envBool(import.meta.env.VITE_ENABLE_SHAREPOINT, false),
-  // Not yet connected to a real Google account outside production — stays
-  // hidden until that's done, then flips to `true` in its own dedicated PR.
   [STORAGE_ID.gdrive]: envBool(import.meta.env.VITE_ENABLE_GDRIVE, false),
-  // Not yet connected to a real personal Microsoft account outside
-  // production — stays hidden until that's done, then flips to `true` in
-  // its own dedicated PR.
   [STORAGE_ID.onedrive]: envBool(import.meta.env.VITE_ENABLE_ONEDRIVE, false),
 };
 
 // ── Cloud folder + default filenames ──────────────────────────────────────────
 
-/** Folder the cloud backends (Dropbox, pCloud) read and write within. */
 export const CLOUD_FOLDER = envStr(import.meta.env.VITE_CLOUD_FOLDER, '/copad');
-
-/** Default target filename for a backend with none saved yet (native CRDT format). */
 export const DEFAULT_FILENAME = envStr(import.meta.env.VITE_DEFAULT_FILENAME, 'document.yjs') as Filename;
-
-/** GitHub's default target file — human-readable Markdown rather than `.yjs`. */
 export const GITHUB_DEFAULT_FILENAME = envStr(import.meta.env.VITE_GITHUB_DEFAULT_FILENAME, 'notes.md') as Filename;
-
-/** GitLab's default target file — human-readable Markdown, committable alongside code. */
 export const GITLAB_DEFAULT_FILENAME = envStr(import.meta.env.VITE_GITLAB_DEFAULT_FILENAME, 'notes.md') as Filename;
 
 // ── GitHub ────────────────────────────────────────────────────────────────────
 
-/** GitHub REST API base — override for a GitHub Enterprise host. */
 export const GITHUB_API_URL = envStr(import.meta.env.VITE_GITHUB_API_URL, 'https://api.github.com');
-
-/** Branch committed to when none is configured. Already deployment-settable via
- *  the `branch` config field's `VITE_GITHUB_BRANCH` lock, so no separate override here. */
 export const GITHUB_DEFAULT_BRANCH = 'main';
-
-/** Marks a GitHub token as validated (set after a successful GET /user). */
 export const GITHUB_VALIDATED_KEY: StorageKey = backendKey(STORAGE_ID.github, 'validated');
 
 // ── GitLab ──────────────────────────────────────────────────────────────────
-// A GitLab PAT + project are reusable config (like GitHub), not per-session
-// credentials — so GitLab mirrors GitHub's configFields + validated-flag shape.
 
-/** GitLab instance base URL committed to when none is configured (self-hosted → override in Settings). */
 export const GITLAB_DEFAULT_HOST = envStr(import.meta.env.VITE_GITLAB_HOST, 'https://gitlab.com');
-
-/** REST API path appended to the instance host — `${host}${GITLAB_API_PATH}`. */
 export const GITLAB_API_PATH = envStr(import.meta.env.VITE_GITLAB_API_PATH, '/api/v4');
-
-/** Branch committed to when none is configured. Deployment-settable via the
- *  `branch` config field's `VITE_GITLAB_BRANCH` lock, so no separate override here. */
 export const GITLAB_DEFAULT_BRANCH = 'main';
-
-/** Marks a GitLab token as validated (set after a successful GET /user). */
 export const GITLAB_VALIDATED_KEY: StorageKey = backendKey(STORAGE_ID.gitlab, 'validated');
 
 // ── S3-compatible ───────────────────────────────────────────────────────────
 
-/** Object-key prefix (folder) the S3 backend reads/writes within. */
 export const S3_PREFIX = envStr(import.meta.env.VITE_S3_PREFIX, 'copad');
 export const S3_KEY: StorageKey = backendKey(STORAGE_ID.s3, 'conf');
 
 // ── SharePoint / OneDrive (Microsoft Graph) ─────────────────────────────────
 
-/** Microsoft Graph API base — override for a national cloud (e.g. GCC High, 21Vianet). */
 export const GRAPH_API_URL = envStr(import.meta.env.VITE_GRAPH_API_URL, 'https://graph.microsoft.com/v1.0');
-/** Drive folder (relative to the drive root) the backend reads/writes within. */
 export const SHAREPOINT_FOLDER = envStr(import.meta.env.VITE_SHAREPOINT_FOLDER, 'Documents');
 export const SHAREPOINT_KEY: StorageKey = backendKey(STORAGE_ID.sharepoint, 'conf');
 
@@ -183,30 +99,20 @@ export const GDRIVE_AUTH_URL = envStr(import.meta.env.VITE_GDRIVE_AUTH_URL, 'htt
 export const GDRIVE_TOKEN_URL = envStr(import.meta.env.VITE_GDRIVE_TOKEN_URL, 'https://oauth2.googleapis.com/token');
 export const GDRIVE_FILES_URL = envStr(import.meta.env.VITE_GDRIVE_FILES_URL, 'https://www.googleapis.com/drive/v3/files');
 export const GDRIVE_UPLOAD_URL = envStr(import.meta.env.VITE_GDRIVE_UPLOAD_URL, 'https://www.googleapis.com/upload/drive/v3/files');
-/** OAuth scope — `drive.file` limits access to files this app itself creates. */
 export const GDRIVE_SCOPE = envStr(import.meta.env.VITE_GDRIVE_SCOPE, 'https://www.googleapis.com/auth/drive.file');
 export const GDRIVE_TOKEN_KEY: StorageKey = backendKey(STORAGE_ID.gdrive, 'token');
 
 // ── OneDrive (personal — Microsoft identity platform "consumers" tenant) ────
-// The `consumers` tenant accepts only personal Microsoft accounts (rejecting
-// work/school accounts), which is what distinguishes this backend from
-// `sharepointStorage()`'s OneDrive-for-Business fallback — no usage overlap.
+// `consumers` accepts only personal accounts, rejecting work/school ones — the split from sharepointStorage()'s OneDrive-for-Business, no usage overlap.
 
 export const ONEDRIVE_AUTH_URL = envStr(import.meta.env.VITE_ONEDRIVE_AUTH_URL, 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize');
 export const ONEDRIVE_TOKEN_URL = envStr(import.meta.env.VITE_ONEDRIVE_TOKEN_URL, 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token');
-/** AppFolder scope — valid only for personal accounts, confines access to a
- *  dedicated `Apps/<AppName>` folder rather than the whole personal drive,
- *  mirroring Google Drive's `drive.file`. */
 export const ONEDRIVE_SCOPE = envStr(import.meta.env.VITE_ONEDRIVE_SCOPE, 'Files.ReadWrite.AppFolder offline_access');
 export const ONEDRIVE_TOKEN_KEY: StorageKey = backendKey(STORAGE_ID.onedrive, 'token');
 
 // ── OAuth redirect ────────────────────────────────────────────────────────────
 
-/**
- * Where the OAuth provider redirects back to — `VITE_REDIRECT_URI` override, else
- * the app's own `redirect.html`. A function rather than a const because it reads
- * `location.origin` at call time (not available at module load under SSR).
- */
+// A function, not a const: reads location.origin at call time, unavailable at module load under SSR.
 export function oauthRedirectUri(): string {
   return envStr(import.meta.env.VITE_REDIRECT_URI, `${location.origin}/redirect.html`);
 }
@@ -222,13 +128,9 @@ export const DROPBOX_TOKEN_KEY: StorageKey = backendKey(STORAGE_ID.dropbox, 'tok
 // ── pCloud ────────────────────────────────────────────────────────────────────
 
 export const PCLOUD_SESSION_KEY: StorageKey = backendKey(STORAGE_ID.pcloud, 'session');
-/** Global (US) API host — accounts in location id 1. Overridable if pCloud moves it. */
 export const PCLOUD_API_HOST = envStr(import.meta.env.VITE_PCLOUD_API_HOST, 'api.pcloud.com');
-/** EU API host — accounts in location id 2. */
 export const PCLOUD_EU_API_HOST = envStr(import.meta.env.VITE_PCLOUD_EU_API_HOST, 'eapi.pcloud.com');
-/** API path that resolves a file's download link. */
 export const PCLOUD_GETFILELINK_PATH = envStr(import.meta.env.VITE_PCLOUD_GETFILELINK_PATH, '/getfilelink');
-/** API path that uploads a file. */
 export const PCLOUD_UPLOAD_PATH = envStr(import.meta.env.VITE_PCLOUD_UPLOAD_PATH, '/uploadfile');
 
 // ── WebDAV ────────────────────────────────────────────────────────────────────
@@ -237,13 +139,9 @@ export const WEBDAV_KEY: StorageKey = backendKey(STORAGE_ID.webdav, 'conf');
 
 // ── OAuth popup ───────────────────────────────────────────────────────────────
 
-/** How long to wait for the OAuth popup to post its code back before giving up. */
 export const OAUTH_TIMEOUT_MS = envInt(import.meta.env.VITE_OAUTH_TIMEOUT_MS, 5 * 60_000) as Milliseconds;
-
-/** Popup window features for the OAuth flow. */
 export const OAUTH_POPUP_FEATURES = envStr(import.meta.env.VITE_OAUTH_POPUP_FEATURES, 'width=520,height=640');
 
 // ── Encoding ──────────────────────────────────────────────────────────────────
 
-/** Chunk size for chunked base64 of large files (stays within stack limits). */
 export const BASE64_CHUNK = envInt(import.meta.env.VITE_BASE64_CHUNK, 0x8000);
