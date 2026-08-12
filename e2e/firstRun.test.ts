@@ -1,12 +1,5 @@
 import { test, expect } from './fixtures';
 
-/**
- * First run: a visitor with no link and a deployment with no `VITE_DEFAULT_ROOM`
- * gets a private room of their own (encrypted, contract §5) rather than landing
- * in a room shared with every other bare visitor. The room is then findable
- * again from the local library without having kept its URL.
- */
-
 test('a bare visit mints a private encrypted room and stays in it across a reload', async ({ page }) => {
   await page.goto('/');
   await page.locator('.ProseMirror').waitFor();

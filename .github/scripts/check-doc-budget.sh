@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# AGENTS.md + CLAUDE.md together must stay at or under 200 lines: CLAUDE.md
-# opens with @AGENTS.md, so any reader gets the sum. Move prose out (to
-# docs/architecture.md) rather than compress it into denser prose.
+# AGENTS.md + CLAUDE.md must stay at or under 200 lines together: CLAUDE.md opens
+# with @AGENTS.md, so a reader gets the sum.
 set -Eeuo pipefail
 
 MAX_LINES=200

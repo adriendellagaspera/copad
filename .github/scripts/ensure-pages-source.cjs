@@ -1,15 +1,10 @@
-// Make GitHub Pages serve the gh-pages branch at / (root).
+// Make GitHub Pages serve the gh-pages branch at / (root), on every deploy.
 //
-// The branch-based deploy scheme (production + pr-<N>/ previews coexisting on
-// gh-pages) only works when Pages' source is the gh-pages branch. Left on the
-// default "GitHub Actions" source, every push to gh-pages is silently ignored:
-// the live site keeps serving a stale pre-migration artifact, so the root may
-// look fine while every /copad/pr-<N>/ preview 404s.
+// Left on the default "GitHub Actions" source, every push to gh-pages is silently ignored:
+// the root keeps serving a stale artifact while every /copad/pr-<N>/ preview 404s.
+// Best-effort — it never throws, so a token without the rights only warns.
 //
-// This self-heals that setting on every deploy. Best-effort: it never throws,
-// so it can't fail the build — it only warns with the manual fix if the token
-// lacks the rights.
-//
+// Invoked from .github/workflows/deploy.yml via actions/github-script.
 // Invoked from .github/workflows/deploy.yml via actions/github-script.
 module.exports = async ({ github, context, core }) => {
   const owner = context.repo.owner;

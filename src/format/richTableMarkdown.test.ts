@@ -79,8 +79,7 @@ describe('markdownCodec round-trip with rich table cells', () => {
     const md = new TextDecoder().decode(bytes);
     expect(md).toContain('<table>');
     expect(md).toContain('<h2>Heading in a cell</h2>');
-    // Never emits the broken pipe-table shape for this table (a heading has
-    // no pipe-table equivalent, and must not silently truncate/flatten it).
+    // A heading has no pipe-table equivalent, so the table must not be flattened into one.
     expect(md).not.toContain('| Heading in a cell |');
   });
 

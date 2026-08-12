@@ -1,21 +1,11 @@
 import { test, expect } from './fixtures';
 
-/**
- * Regression test for the encrypted-room privacy hole: opening an encrypted room's
- * link without its `#k=` fragment must NOT still show the (cached) content. Instead
- * the room is gated, and the local cache is encrypted at rest so it can't be read
- * back without the key.
- */
-
 const ROOM = 'enc-lock';
 const SECRET = 'top-secret-passage';
 const KEY = 'top-secret-key-please-keep';
 
 test('an encrypted room without its key is gated and its cache is unreadable', async ({ page }) => {
-  // Every room is encrypted from creation (contract §5) — the Share dialog no
-  // longer offers to add a key to an existing room, so this simulates that
-  // default the same way a real "New document" link would: `#k=` from the first
-  // visit.
+  // Every room is encrypted from creation (docs/contract.md §5), as a real "New document" link would be.
   await page.goto(`/?room=${ROOM}#k=${KEY}`);
   const ed = page.locator('.ProseMirror');
   await ed.waitFor();
@@ -25,16 +15,9 @@ test('an encrypted room without its key is gated and its cache is unreadable', a
   // Let the local cache flush the content to IndexedDB before we check it at rest.
   await page.waitForTimeout(1200);
 
-  // Read the cache at rest: the plaintext DB should be gone, the encrypted one
-  // populated, and the secret text unrecoverable from its raw bytes. PBKDF2 key
-  // derivation + the migration's IndexedDB write can lag under load, so this polls
-  // rather than assuming a fixed delay is enough (that flaked on slower CI
-  // runners). Crucially, it only opens the encrypted DB with a bare
-  // `indexedDB.open(name)` (no version) once `databases()` confirms it already
-  // exists — opening it any earlier would race the app's own create-with-upgrade
-  // call, and whichever open wins first locks in the schema, permanently
-  // stranding the app without its object store if we won that race with an
-  // upgrade-less open of our own.
+  // Poll: PBKDF2 derivation and the migration write lag under CI load.
+  // Only open the encrypted DB once `databases()` lists it — an earlier version-less open would
+  // win the race against the app's create-with-upgrade and strand it without its object store.
   let atRest!: { hasPlaintextDb: boolean; hasEncryptedDb: boolean; recordCount: number; leaks: boolean };
   await expect
     .poll(
@@ -74,21 +57,17 @@ test('an encrypted room without its key is gated and its cache is unreadable', a
   expect(atRest.recordCount).toBeGreaterThan(0);
   expect(atRest.leaks).toBe(false);
 
-  // Arrive without the key — the link's `#k=` is the only place it lives — and the
-  // room must now be gated rather than serving its cached plaintext.
   await page.goto(`/?room=${ROOM}`);
 
   await expect(page.getByRole('heading', { name: /encrypted/i })).toBeVisible();
   await expect(page.locator('.ProseMirror')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText(SECRET);
 
-  // A wrong key is rejected and keeps the room locked.
   await page.locator('input[aria-label="Document key or password"]').fill('not-the-password');
   await page.getByRole('button', { name: 'Unlock' }).click();
   await expect(page.getByText(/doesn't match/i)).toBeVisible();
   await expect(page.locator('.ProseMirror')).toHaveCount(0);
 
-  // The correct key unlocks the room and decrypts the cached content.
   const keyInput = page.locator('input[aria-label="Document key or password"]');
   await keyInput.fill('');
   await keyInput.fill(KEY);
@@ -97,18 +76,16 @@ test('an encrypted room without its key is gated and its cache is unreadable', a
 });
 
 test('text typed the instant an encrypted room opens is still cached', async ({ page }) => {
-  // A URL `#k=` key encrypts the room (and its cache) from the first mount, giving
-  // a brand-new encrypted cache. Typing immediately races that cache's async init;
-  // the edits must still be captured (regression: a fresh cache dropped them).
+  // Typing immediately races a brand-new encrypted cache's async init; the edits must survive it.
   const room = 'enc-immediate';
   await page.goto(`/?room=${room}#k=instant-key-abc123`);
   const ed = page.locator('.ProseMirror');
   await ed.waitFor();
   await ed.click();
-  await page.keyboard.type('typed the instant it opened'); // no wait — beat the cache init
+  await page.keyboard.type('typed the instant it opened');
   await page.waitForTimeout(1200);
 
-  await page.reload(); // reload keeps the #k= key in the URL
+  await page.reload();
   await expect(page.locator('.ProseMirror')).toContainText('typed the instant it opened', {
     timeout: 15_000,
   });

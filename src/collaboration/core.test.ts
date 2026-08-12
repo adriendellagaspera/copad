@@ -8,7 +8,6 @@ import type { RoomId } from './types.js';
 
 const ROOM = 'room' as RoomId;
 
-// Mutable transport state the fake hooks read, so a test can drive transitions.
 let attached: boolean;
 let peers: number;
 let reaching: number;
@@ -32,11 +31,11 @@ describe('createCollabCore status machine', () => {
     const core = makeCore();
     const seen: string[] = [];
     core.onStatus((s) => seen.push(s));
-    expect(seen[0]).toBe('connecting'); // fires immediately with the current value
+    expect(seen[0]).toBe('connecting');
 
     attached = true;
     core.emitStatus();
-    expect(seen.at(-1)).toBe('waiting'); // attached but no peers
+    expect(seen.at(-1)).toBe('waiting');
 
     peers = 1;
     core.emitStatus();
@@ -92,7 +91,7 @@ describe('createCollabCore unreachable timeout', () => {
 
     attached = false;
     core.emitStatus();
-    expect(seen.at(-1)).toBe('connecting'); // fresh window, not still unreachable
+    expect(seen.at(-1)).toBe('connecting');
     vi.advanceTimersByTime(CONNECT_TIMEOUT_MS - 1);
     expect(seen.at(-1)).toBe('connecting');
     core.destroy();
@@ -131,7 +130,7 @@ describe('createCollabCore unreachable timeout', () => {
 
     Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
     window.dispatchEvent(new Event('online'));
-    expect(seen.at(-1)).toBe('connecting'); // fresh window starts now, not already expired
+    expect(seen.at(-1)).toBe('connecting');
     core.destroy();
   });
 });
@@ -167,7 +166,7 @@ describe('createCollabCore presence (RoomPresence, beside ConnStatus)', () => {
     const core = makeCore();
     const seen: PresenceKind[] = [];
     core.onPresence((p) => seen.push(p.kind));
-    expect(seen[0]).toBe(PresenceKind.Unknown); // fires immediately, not attached
+    expect(seen[0]).toBe(PresenceKind.Unknown);
 
     attached = true;
     core.emitStatus();
@@ -227,18 +226,18 @@ describe('createCollabCore presence (RoomPresence, beside ConnStatus)', () => {
     const seen: unknown[] = [];
     core.onPresence((p) => seen.push(p));
     attached = true;
-    core.emitStatus(); // → Alone, notifies
+    core.emitStatus();
     const afterFirst = seen.length;
     const firstObject = seen.at(-1);
 
-    core.emitStatus(); // still Alone — must NOT notify again
+    core.emitStatus();
     core.emitStatus();
     core.emitStatus();
     expect(seen.length).toBe(afterFirst);
-    expect(seen.at(-1)).toBe(firstObject); // same identity, not just equal
+    expect(seen.at(-1)).toBe(firstObject);
 
     peers = 1;
-    core.emitStatus(); // real transition → Accompanied, notifies with a fresh object
+    core.emitStatus();
     expect(seen.length).toBe(afterFirst + 1);
     expect(seen.at(-1)).not.toBe(firstObject);
     core.destroy();

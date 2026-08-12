@@ -28,7 +28,6 @@ describe('trackPresenceActivity', () => {
     vi.setSystemTime(0);
     const awareness = newAwareness();
     awareness.setLocalState({ hello: 'world' });
-    // Simulate this peer having been present for a while already.
     const activity = trackPresenceActivity(awareness);
     expect(activity.idleMs(awareness.clientID)).toBe(0);
     activity.destroy();
@@ -60,7 +59,7 @@ describe('trackPresenceActivity', () => {
 
     vi.setSystemTime(5_000);
     awareness.setLocalState({ cursor: 2 });
-    // No longer tracked, but idleMs still reflects the last-known touch (0 at t=0 -> now 5000).
+    // Untracked, yet idleMs still reports the last-known touch.
     expect(activity.idleMs(awareness.clientID)).toBe(5_000);
   });
 

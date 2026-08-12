@@ -74,9 +74,7 @@ describe('About', () => {
 });
 
 describe('the room analogy', () => {
-  // A room has no owner (docs/contract.md §1), so the page must not narrate one
-  // side inviting another: an owner/guest split is the single easiest way for
-  // this copy to drift back into promising standing access to a document.
+  // A room has no owner (docs/contract.md §1); owner/guest copy would promise standing access.
   const OWNERSHIP_WORDS = ['guest', 'owner', 'invitee', 'the host'];
 
   for (const transport of [Transport.P2P, Transport.Hub]) {

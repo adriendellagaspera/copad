@@ -12,11 +12,7 @@ describe('schema', () => {
   });
 
   it('every mark is non-inclusive, so typing after a closed mark exits it instead of continuing inside', () => {
-    // prosemirror-schema-basic's strong/em/code default to inclusive: true;
-    // link already ships inclusive: false. Every mark here must match link's
-    // behaviour (CommonMark/Word/Docs/Notion: closing a mark always exits
-    // it) — otherwise typing right after e.g. `**bold**` or `` `code` ``
-    // silently continues inside the mark.
+    // prosemirror-schema-basic defaults strong/em/code to inclusive: true; link ships false.
     for (const name of ['strong', 'em', 'code', 'strike', 'underline', 'link']) {
       expect(schema.marks[name].spec.inclusive, `${name}.spec.inclusive`).toBe(false);
     }
@@ -106,10 +102,8 @@ describe('schema', () => {
     expect(doc.child(1).child(0).type.name).toBe('table_cell');
   });
 
-  // `table` moved to its own `tableBlock` group (kept out of cellContent, so
-  // tables can't nest inside cells) — every non-cell content expression that
-  // used to draw from the plain `block` group must still admit it, or this
-  // silently regresses which containers a table can live in.
+  // `table` sits in its own `tableBlock` group (out of cellContent, so tables cannot nest),
+  // so every non-cell content expression must admit it explicitly.
   it('allows a table nested inside a blockquote', () => {
     const { blockquote, table, table_row, table_cell, paragraph } = schema.nodes;
     const t = table.create(null, table_row.create(null, table_cell.create(null, paragraph.create())));

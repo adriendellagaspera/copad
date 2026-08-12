@@ -3,8 +3,7 @@ import type { RoomId } from './types.js';
 
 const ROOM = 'r' as RoomId;
 
-// Mock location.hash and history.replaceState before importing secretLink,
-// since the module reads location.hash at call time.
+// secretLink reads location.hash at call time, so the stubs must precede its import.
 let mockHash = '';
 const replaceState = vi.fn();
 vi.stubGlobal('location', { get hash() { return mockHash; }, pathname: '/', search: '' });
@@ -16,7 +15,6 @@ beforeEach(() => {
   replaceState.mockClear();
 });
 
-// Dynamic import so the stubs above are in place before the module initialises.
 const { secretLink, currentSecretKey } = await import('./secretLink.js');
 
 describe('secretLink', () => {

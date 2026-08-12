@@ -8,7 +8,6 @@ function paragraphState(text = 'hi'): EditorState {
   const para = text ? schema.node('paragraph', null, schema.text(text)) : schema.node('paragraph');
   const doc = schema.node('doc', null, [para]);
   let state = EditorState.create({ schema, doc });
-  // place cursor inside the paragraph
   state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1)));
   return state;
 }
@@ -55,7 +54,7 @@ describe('block commands', () => {
     const cell = types.header_cell.create(null, [schema.nodes.paragraph.create(null, schema.text('x'))]);
     const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
     let state = EditorState.create({ schema, doc });
-    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 4))); // inside the cell's paragraph
+    state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 4)));
     let dispatched = false;
     let next: typeof state | null = null;
     const handled = commands.horizontalRule(state, (tr) => {
@@ -66,13 +65,12 @@ describe('block commands', () => {
     expect(dispatched).toBe(true);
     const table = next!.doc.firstChild!;
     expect(table.type.name).toBe('table');
-    expect(table.childCount).toBe(1); // still one row, table wasn't corrupted
+    expect(table.childCount).toBe(1);
   });
 
   it('insertTable creates a 3x3 table with a header row', () => {
     const next = apply(paragraphState(''), commands.insertTable);
-    // child(0) is the leading escape-hatch paragraph added since the table
-    // would otherwise be the doc's sole node — see the dedicated test below.
+    // child(0) is the leading escape-hatch paragraph — see the dedicated test below.
     const table = next.doc.child(1);
     expect(table?.type.name).toBe('table');
     expect(table?.childCount).toBe(3);
@@ -83,12 +81,12 @@ describe('block commands', () => {
   it('insertTable parks the caret in the first header cell, not wherever replaceSelectionWith would default to', () => {
     const next = apply(paragraphState(''), commands.insertTable);
     const $from = next.selection.$from;
-    // depth 1 = table, depth 2 = row, depth 3 = the cell the caret sits in.
+    // depth 1 = table, 2 = row, 3 = cell.
     expect($from.node(1).type.name).toBe('table');
     expect($from.node(2).type.name).toBe('table_row');
     expect($from.node(3).type.name).toBe('table_header');
-    expect($from.index(2)).toBe(0); // first cell of the first row
-    expect($from.index(1)).toBe(0); // first row of the table
+    expect($from.index(2)).toBe(0);
+    expect($from.index(1)).toBe(0);
   });
 
   it('insertTable on a doc with only an empty paragraph adds an empty paragraph on BOTH sides, so the table is never the doc\'s sole node — otherwise ArrowUp/ArrowDown at the table\'s edge has nothing to escape into and swallows the key (see tableArrowVertical), trapping the caret', () => {
@@ -115,7 +113,6 @@ describe('block commands', () => {
 
   it('insertTable is a no-op inside an existing table', () => {
     const withTable = apply(paragraphState(''), commands.insertTable);
-    // Move the cursor inside the first header cell.
     let cellPos = -1;
     withTable.doc.descendants((node, pos) => {
       if (node.type.name === 'table_header' && cellPos === -1) cellPos = pos + 1;
@@ -160,7 +157,6 @@ describe('block commands', () => {
     const quoted = apply(paragraphState('q'), commands.blockquote);
     expect(quoted.doc.firstChild?.type.name).toBe('blockquote');
     const back = apply(quoted, commands.blockquote);
-    // Lifted out — not a blockquote-in-a-blockquote (the old infinite-nest bug).
     expect(back.doc.firstChild?.type.name).toBe('paragraph');
     expect(back.doc.firstChild?.textContent).toBe('q');
   });
@@ -177,7 +173,7 @@ describe('block commands', () => {
   });
 
   it('runCommand executes against a view-like object without throwing', () => {
-    // runCommand calls view.focus(); provide a minimal stub.
+    // runCommand calls view.focus(), so the stub must carry one.
     const state = paragraphState();
     let dispatched = false;
     const view = {
@@ -211,7 +207,6 @@ describe('activeInputMarks', () => {
   });
 
   it('reports marks inherited from the caret position', () => {
-    // A paragraph whose text carries the strong mark; caret placed inside it.
     const strong = schema.marks.strong.create();
     const para = schema.node('paragraph', null, schema.text('hi', [strong]));
     const doc = schema.node('doc', null, [para]);
@@ -259,15 +254,12 @@ describe('activeBlockLabel', () => {
 
 describe('activeBlockContext', () => {
   it('anchors to the start of the current line, not the matched ancestor', () => {
-    // A heading anchors to its own start (the whole node is one line).
     const heading = apply(paragraphState(), commands.h2);
     expect(activeBlockContext(heading)).toEqual({ label: 'H2', pos: 1 });
   });
 
   it('anchors a quoted paragraph to the paragraph itself, not the blockquote', () => {
     const quote = apply(paragraphState(), commands.blockquote);
-    // blockquote > paragraph > "hi": the paragraph's own content starts one
-    // position deeper than the blockquote's.
     const ctx = activeBlockContext(quote);
     expect(ctx?.label).toBe('Quote');
     expect(ctx?.pos).toBe(2);

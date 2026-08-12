@@ -1,63 +1,40 @@
 import { test, expect } from './fixtures';
 
-/**
- * End-to-end test: two browser instances share a Yjs document via y-webrtc.
- *
- * Both pages join the same room. y-webrtc syncs via WebRTC data channels
- * between peers AND via BroadcastChannel for same-browser peers. The test
- * uses two pages in the same browser context so BroadcastChannel acts as the
- * reliable in-process sync path (WebRTC ICE may still be negotiated in the
- * background — whichever channel wins first, the result must be identical).
- *
- * What this proves: two independent Yjs documents converge to the same state
- * when a user types in one page, matching the P2P collaboration guarantee.
- */
 test('two instances sync text via WebRTC', async ({ browser }) => {
-  // Pages in the same context share BroadcastChannel (same browsing context group,
-  // same origin) which y-webrtc uses for local peer sync.
+  // Same context: y-webrtc syncs local peers over BroadcastChannel, the reliable path here.
   const ctx = await browser.newContext();
   const page1 = await ctx.newPage();
   const page2 = await ctx.newPage();
-  // The two pages discover each other over BroadcastChannel well within the gate's
-  // grace window, so they're never confirmed-alone and the gate stays dormant.
-
-  // A shared link, not a bare `/`: with no `VITE_DEFAULT_ROOM`, two bare visits mint two private rooms and never meet.
+  // Without a shared room, two bare visits mint two private rooms and never meet.
   await Promise.all([page1.goto('/?room=pw-sync'), page2.goto('/?room=pw-sync')]);
 
   const editor1 = page1.locator('.ProseMirror');
   const editor2 = page2.locator('.ProseMirror');
 
-  // Wait for both editors to mount.
   await Promise.all([editor1.waitFor(), editor2.waitFor()]);
 
-  // Wait until each peer sees the other in the awareness channel. Presence now
-  // lives in the app header: each page shows exactly one *other* peer's avatar
-  // (self is the separate identity menu) once the awareness channel has synced.
+  // Each page shows exactly one *other* avatar; self lives in the identity menu.
   const others1 = page1.locator('.session .presence .avatar');
   const others2 = page2.locator('.session .presence .avatar');
   await expect(others1).toHaveCount(1, { timeout: 20_000 });
   await expect(others2).toHaveCount(1, { timeout: 5_000 });
 
-  // Give ProseMirror a moment to finish all initial syncing before typing.
+  // Let initial sync settle before typing.
   await page1.waitForTimeout(300);
 
-  // Click the editor and wait for it to be focused before typing.
   await editor1.click();
   await page1.waitForFunction(() =>
     document.querySelector('.ProseMirror') === document.activeElement
   );
 
   const text = 'Hello from page 1';
-  // Use pressSequentially with delay so ProseMirror processes each key in turn.
+  // Per-key delay so ProseMirror processes each keystroke in turn.
   await editor1.pressSequentially(text, { delay: 30 });
 
-  // Verify that page 1 itself shows the typed text.
   await expect(editor1).toContainText(text, { timeout: 5_000 });
 
-  // Now verify the sync to page 2 (via BroadcastChannel or WebRTC).
   await expect(editor2).toContainText(text, { timeout: 10_000 });
 
-  // Reverse direction: type in page 2 and verify it appears in page 1.
   await editor2.click();
   await page2.waitForFunction(() =>
     document.querySelector('.ProseMirror') === document.activeElement

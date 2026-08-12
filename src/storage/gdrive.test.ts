@@ -79,7 +79,6 @@ describe('gdriveStorage load', () => {
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ files: [{ id: 'fid' }] }) } as unknown as Response)
       .mockResolvedValueOnce({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(bytes.buffer) } as unknown as Response);
     expect(await storage.load()).toEqual({ format: 'binary', bytes });
-    // First call is the name search, second the media download of the found id.
     expect(mockFetch.mock.calls[0][0]).toContain('q=');
     expect(mockFetch.mock.calls[1][0]).toContain('/fid?alt=media');
   });
@@ -110,8 +109,7 @@ describe('gdriveStorage save', () => {
   });
 
   it('drops a second save that overlaps an in-flight one, instead of racing to create two files', async () => {
-    // The search resolves only once we let it — while it's pending, a second
-    // save() call must not also start a "no fileId yet" create.
+    // While the search is still pending, a second save() must not start its own create.
     let resolveSearch!: (v: unknown) => void;
     mockFetch.mockImplementationOnce(
       () => new Promise((resolve) => { resolveSearch = () => resolve({ ok: true, json: () => Promise.resolve({ files: [] }) }); }),
@@ -125,7 +123,6 @@ describe('gdriveStorage save', () => {
     resolveSearch({});
     const [firstReceipt, secondReceipt] = await Promise.all([first, second]);
 
-    // Exactly one search + one create + one PATCH — never a second create.
     expect(mockFetch).toHaveBeenCalledTimes(3);
     expect(mockFetch.mock.calls.filter(c => c[1]?.method === 'POST')).toHaveLength(1);
     expect(firstReceipt).toEqual({ landing: 'landed' });

@@ -14,7 +14,6 @@ const TEST_ROOM = 'document' as RoomId;
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
-// Minimal localStorage shim for Node test environment.
 const store: Record<string, string> = {};
 const localStorageMock = {
   getItem: (key: string) => store[key] ?? null,
@@ -28,8 +27,6 @@ beforeEach(() => {
   mockFetch.mockReset();
   localStorageMock.clear();
 });
-
-// ── Dropbox ──────────────────────────────────────────────────────────────────
 
 describe('dropboxStorage', () => {
   let auth: StorageAuth;
@@ -102,8 +99,6 @@ describe('dropboxStorage', () => {
     await expect(storage.load()).rejects.toThrow('Dropbox: not connected');
   });
 });
-
-// ── WebDAV ───────────────────────────────────────────────────────────────────
 
 describe('webdavStorage', () => {
   let auth: StorageAuth;

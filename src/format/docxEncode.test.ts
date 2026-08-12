@@ -83,7 +83,6 @@ describe('encodeDocx', () => {
   it('produces a valid .docx (zip) archive containing word/document.xml', async () => {
     const bytes = await encodeDocx(seeded());
     expect(bytes).toBeInstanceOf(Uint8Array);
-    // ZIP local file header magic number.
     expect(bytes[0]).toBe(0x50);
     expect(bytes[1]).toBe(0x4b);
     const xml = await documentXml(bytes);
@@ -101,7 +100,6 @@ describe('encodeDocx', () => {
   it('renders nested bullet lists and restarts a second ordered list at a fresh instance', async () => {
     const xml = await documentXml(await encodeDocx(seeded()));
     expect(xml).toContain('nested');
-    // Two distinct <w:numId> values for the two separate ordered_list nodes.
     const numIds = new Set([...xml.matchAll(/<w:numId w:val="(\d+)"\/>/g)].map((m) => m[1]));
     expect(numIds.size).toBeGreaterThanOrEqual(2);
   });
@@ -120,8 +118,7 @@ describe('encodeDocx', () => {
   });
 
   it('renders a cell holding more than a single paragraph (list, heading, …)', async () => {
-    // Regression: a cell is block+ content, not bare inline text — a cell
-    // renderer that assumes the latter silently drops every character.
+    // A cell is block+ content; a renderer assuming bare inline text drops every character.
     const { paragraph, heading, bullet_list, list_item, table, table_row, table_header, table_cell } = schema.nodes;
     const doc = new Y.Doc();
     writePmDoc(
@@ -148,18 +145,16 @@ describe('encodeDocx', () => {
   });
 
   it('sizes table columns as an equal percentage of the full table width', async () => {
-    // Regression: an unset table/cell width falls back to a handful of twips
-    // (near-zero), collapsing every column to unreadable slivers.
+    // An unset table/cell width falls back to a few twips, collapsing columns to slivers.
     const xml = await documentXml(await encodeDocx(seeded()));
     expect(xml).toContain('<w:tblW w:type="pct" w:w="100%"/>');
     const cellWidths = [...xml.matchAll(/<w:tcW w:type="pct" w:w="([\d.]+)%"\/>/g)].map((m) => Number(m[1]));
     expect(cellWidths.length).toBeGreaterThan(0);
-    for (const w of cellWidths) expect(w).toBeCloseTo(50, 0); // seeded() is a 2-column table
+    for (const w of cellWidths) expect(w).toBeCloseTo(50, 0);
   });
 
   it('sets a legible default body font/size, not OOXML\'s bare 10pt fallback', async () => {
-    // Regression: an empty docDefaults leaves body text at the spec's own
-    // fallback (10pt, no named font), reading as illegibly small.
+    // An empty docDefaults leaves body text at OOXML's own 10pt/no-font fallback.
     const xml = await stylesXml(await encodeDocx(seeded()));
     expect(xml).toContain('<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Georgia"');
     expect(xml).toContain('<w:sz w:val="24"/>');

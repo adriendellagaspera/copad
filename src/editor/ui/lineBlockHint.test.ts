@@ -9,17 +9,15 @@ import { lineBlockHintPlugin } from './lineBlockHint.js';
 
 const plugin = lineBlockHintPlugin();
 
-/** `plugin.props.decorations` is typed with `this: Plugin`, and its return
- * type is the general `DecorationSource` union — narrow both here so the
- * rest of the test file can use `DecorationSet`'s concrete `.find()`. */
+/** Narrows `plugin.props.decorations` (typed `this: Plugin`, returning the general
+  * `DecorationSource`) to the concrete `DecorationSet` the tests call `.find()` on. */
 function getDecorations(state: EditorState): DecorationSet | null {
   const result = plugin.props.decorations?.call(plugin, state);
   return (result as DecorationSet | null | undefined) ?? null;
 }
 
 function toDOM(d: Decoration): HTMLElement {
-  // `.type.toDOM` isn't part of Decoration's public TS surface, but it's how
-  // ProseMirror itself renders a widget decoration.
+  // `.type.toDOM` is off Decoration's public TS surface but is how ProseMirror renders a widget.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (d as any).type.toDOM(undefined, undefined);
 }

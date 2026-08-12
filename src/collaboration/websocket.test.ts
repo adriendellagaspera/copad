@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// Replace the real y-websocket provider with a tiny event emitter we can drive.
 vi.mock('y-websocket', () => {
   class Awareness {
     states = new Map<number, unknown>([[1, {}]]); // self is always present
@@ -49,7 +48,6 @@ vi.mock('y-websocket', () => {
   return { WebsocketProvider };
 });
 
-// Capture IndexeddbPersistence construction without touching real IndexedDB.
 vi.mock('y-indexeddb', () => {
   class IndexeddbPersistence {
     name: string;
@@ -81,20 +79,16 @@ describe('websocketCollab status mapping', () => {
     const seen: string[] = [];
     collab.onStatus((s) => seen.push(s));
 
-    // Socket not open yet → 'connecting'.
     expect(seen[0]).toBe('connecting');
 
-    // Socket attaches but we're alone in the room → 'waiting', not 'connected'.
     provider().wsconnected = true;
     provider().emit('status', { status: 'connected' });
     expect(seen.at(-1)).toBe('waiting');
 
-    // Another peer's awareness appears → 'connected'.
     provider().awareness.states.set(2, {});
     provider().awareness.emit('change');
     expect(seen.at(-1)).toBe('connected');
 
-    // Socket drops → back to 'connecting'.
     provider().wsconnected = false;
     provider().emit('status', { status: 'disconnected' });
     expect(seen.at(-1)).toBe('connecting');
@@ -106,7 +100,7 @@ describe('websocketCollab status mapping', () => {
     const collab = websocketCollab({ url: HUB })(ROOM);
     let synced = true;
     collab.onSynced((b) => (synced = b));
-    expect(synced).toBe(false); // initial
+    expect(synced).toBe(false);
 
     provider().emit('sync', true);
     expect(synced).toBe(true);

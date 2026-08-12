@@ -35,8 +35,6 @@ function configureAndValidate(auth: StorageAuth) {
   localStorage.setItem('storage.github.validated', '1');
 }
 
-// ── Auth ─────────────────────────────────────────────────────────────────────
-
 describe('githubStorage auth', () => {
   it('is not authenticated before setup', () => {
     const { auth } = setup();
@@ -105,8 +103,6 @@ describe('githubStorage auth', () => {
   });
 });
 
-// ── Config ───────────────────────────────────────────────────────────────────
-
 describe('githubStorage config', () => {
   it('exposes repo, branch, and token configFields', () => {
     const { auth } = setup();
@@ -138,8 +134,6 @@ describe('githubStorage config', () => {
   });
 });
 
-// ── Load ─────────────────────────────────────────────────────────────────────
-
 describe('githubStorage load', () => {
   let auth: StorageAuth;
   let storage: Storage;
@@ -155,7 +149,6 @@ describe('githubStorage load', () => {
   });
 
   it('decodes base64 text content on 200', async () => {
-    // notes.md → contentFormat: 'text'
     const text = 'Hello, world!';
     const b64 = btoa(text);
     mockFetch.mockResolvedValueOnce({
@@ -176,7 +169,6 @@ describe('githubStorage load', () => {
     } as unknown as Response);
     await storage.load();
 
-    // The next save should include the cached SHA
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -207,8 +199,6 @@ describe('githubStorage load', () => {
     expect(url).toContain('ref=main');
   });
 });
-
-// ── Save ─────────────────────────────────────────────────────────────────────
 
 describe('githubStorage save', () => {
   let auth: StorageAuth;
@@ -329,12 +319,9 @@ describe('githubStorage save', () => {
   });
 });
 
-// ── contentFormat ─────────────────────────────────────────────────────────────
-
 describe('githubStorage contentFormat', () => {
   it('is text for .md files (the default)', () => {
     const { storage } = setup();
-    // Default filename is notes.md
     expect(storage.contentFormat).toBe('text');
   });
 
@@ -351,8 +338,6 @@ describe('githubStorage contentFormat', () => {
     expect(storage.contentFormat).toBe('text');
   });
 });
-
-// ── Browse (Phase 2 import) ───────────────────────────────────────────────────
 
 describe('githubStorage list', () => {
   let auth: StorageAuth;
