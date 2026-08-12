@@ -19,7 +19,7 @@ import type { RoomCredential } from './roomAccess.js';
 import { parseRoomList, parseLocalCacheEnabled } from './parse.js';
 import { localStore } from '../persistence/local.js';
 import { KEY_LOCAL_CACHE, KEY_CACHED_ROOMS, CACHE_DB_PREFIX, ENC_CACHE_DB_PREFIX } from './constants.js';
-import { attachEncryptedCache, loadEncryptedInto, writeEncryptedSnapshot } from './encryptedCache.js';
+import { attachEncryptedCache } from './encryptedCache.js';
 
 /** An IndexedDB database name produced by {@link cacheDbName} — namespaced under the app prefix. */
 export type CacheDbName = string & { readonly _brand: 'CacheDbName' };
@@ -89,62 +89,6 @@ export async function clearLocalCache(): Promise<void> {
     rooms.flatMap((r) => [deleteDb(cacheDbName(r)), deleteDb(encCacheDbName(r))]),
   );
   cachedRooms.clear();
-}
-
-/** Load a room's plaintext (y-indexeddb) cache into a scratch doc, then detach. */
-async function loadPlaintextInto(doc: Y.Doc, room: RoomId): Promise<void> {
-  const idb = new IndexeddbPersistence(cacheDbName(room), doc);
-  try {
-    await idb.whenSynced;
-  } finally {
-    await idb.destroy(); // closes the connection; does not delete the data
-  }
-}
-
-/** Write a scratch doc's state into a room's plaintext cache, then detach. */
-async function writePlaintextSnapshot(doc: Y.Doc, room: RoomId): Promise<void> {
-  const idb = new IndexeddbPersistence(cacheDbName(room), doc);
-  try {
-    await idb.whenSynced;
-  } finally {
-    await idb.destroy();
-  }
-}
-
-/**
- * Move a room's local cache from one key to another when its encryption changes,
- * so content survives the switch *and* no copy is left readable under the old
- * scheme. `from`/`to` are the old/new room credentials (`null` = plaintext).
- *
- * Both keys are known at the moment encryption is changed (in the Share dialog),
- * which is the only time an encrypted source can be decrypted — hence migration
- * happens there, before the editor reconnects under the new key. A no-op when the
- * key is unchanged or the local cache is turned off.
- */
-export async function migrateRoomCache(
-  room: RoomId,
-  from: RoomCredential | null,
-  to: RoomCredential | null,
-): Promise<void> {
-  if (from === to || !localCacheEnabled()) return;
-  const scratch = new Y.Doc();
-  try {
-    // Read the current content out of the old cache…
-    if (from) await loadEncryptedInto(scratch, room, from);
-    else await loadPlaintextInto(scratch, room);
-    // …write it into the new one…
-    if (to) await writeEncryptedSnapshot(scratch, room, to);
-    else await writePlaintextSnapshot(scratch, room);
-    // …and delete the old store when it's a different database (plaintext ⇄
-    // encrypted). A key rotation (encrypted → encrypted) reuses the same database,
-    // which writeEncryptedSnapshot already overwrote, so there's nothing to drop.
-    if ((from != null) !== (to != null)) {
-      await deleteDb(from ? encCacheDbName(room) : cacheDbName(room));
-    }
-    rememberCachedRoom(room);
-  } finally {
-    scratch.destroy();
-  }
 }
 
 /** A handle to a doc's attached local cache; call destroy() to detach. */
