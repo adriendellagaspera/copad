@@ -7,8 +7,8 @@
   import type { RoomId } from '../collaboration/types.js';
   import { Transport } from '../collaboration/types.js';
   import { roomPassword, clearRoomPassword, type RoomCredential } from '../collaboration/roomAccess.js';
-  import { currentSecretKey, clearSecretKey, rotateSecretKey } from '../collaboration/secretLink.js';
-  import { rememberRoomEncryption, forgetRoomEncryption } from '../collaboration/roomLock.js';
+  import { currentSecretKey, rotateSecretKey } from '../collaboration/secretLink.js';
+  import { rememberRoomEncryption } from '../collaboration/roomLock.js';
   import { migrateRoomCache } from '../collaboration/cache.js';
   import { copyText } from './clipboard.js';
   import type { Milliseconds } from '../time.js';
@@ -19,7 +19,6 @@
     LinkExposure,
     RoomSecurityKind,
     SHARE_TITLE,
-    SecurityChange,
     ShareView,
     emailShareUrl,
     isEncrypted,
@@ -56,7 +55,6 @@
   } = $props();
 
   const CONFIRM_FLASH_MS = 4_000 as Milliseconds;
-  const REMOVE_CONFIRM_MS = 4_000 as Milliseconds;
   const COPIED_FLASH_MS = 2_000 as Milliseconds;
 
   let linkInputEl = $state<HTMLInputElement | undefined>();
@@ -82,13 +80,11 @@
       role = InviteRole.Editor;
       exposure = LinkExposure.Unshared;
       copyFeedback = CopyFeedback.Idle;
-      clearRemoveConfirm();
       clearConfirm();
     }
   });
 
   $effect(() => () => {
-    clearTimeout(confirmRemoveTimer);
     clearTimeout(confirmTimer);
     clearTimeout(copiedTimer);
   });
@@ -122,56 +118,22 @@
     storedPw = null;
     noteLinkChanged(beforeUrl);
     onSecurityChange?.();
-    flashConfirm(SecurityChange.SecureLink);
-  }
-
-
-  async function removeEncryption(): Promise<void> {
-    const before = currentKey();
-    const beforeUrl = url;
-    clearSecretKey();
-    clearRoomPassword(room);
-    forgetRoomEncryption(room);
-    await migrateRoomCache(room, before, null);
-    linkKey = null;
-    storedPw = null;
-    clearRemoveConfirm();
-    noteLinkChanged(beforeUrl);
-    onSecurityChange?.();
-    flashConfirm(SecurityChange.EncryptionRemoved);
-  }
-
-  let confirmingRemove = $state(false);
-  let confirmRemoveTimer: ReturnType<typeof setTimeout> | undefined;
-
-  function clearRemoveConfirm(): void {
-    clearTimeout(confirmRemoveTimer);
-    confirmingRemove = false;
-  }
-
-  function requestRemoveEncryption(): void {
-    if (confirmingRemove) {
-      clearTimeout(confirmRemoveTimer);
-      void removeEncryption();
-      return;
-    }
-    confirmingRemove = true;
-    confirmRemoveTimer = setTimeout(() => (confirmingRemove = false), REMOVE_CONFIRM_MS);
+    flashConfirm();
   }
 
   // Inline, not a toast: on mobile a fixed toast would sit under the dialog's own sheet.
-  let confirmed = $state<SecurityChange | null>(null);
+  let confirmed = $state(false);
   let confirmTimer: ReturnType<typeof setTimeout> | undefined;
 
   function clearConfirm(): void {
     clearTimeout(confirmTimer);
-    confirmed = null;
+    confirmed = false;
   }
 
-  function flashConfirm(change: SecurityChange): void {
+  function flashConfirm(): void {
     clearTimeout(confirmTimer);
-    confirmed = change;
-    confirmTimer = setTimeout(() => (confirmed = null), CONFIRM_FLASH_MS);
+    confirmed = true;
+    confirmTimer = setTimeout(() => (confirmed = false), CONFIRM_FLASH_MS);
   }
 
   let copiedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -223,7 +185,6 @@
 
   async function goTo(next: ShareView): Promise<void> {
     view = next;
-    clearRemoveConfirm();
     clearConfirm();
     await tick();
     if (next === ShareView.Security) securityEl?.focus();
@@ -381,11 +342,7 @@
       <p class="sec-confirm" role="status" class:is-empty={!confirmed}>
         {#if confirmed}
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
-          {#if confirmed === SecurityChange.SecureLink}
-            Secure link created. Anyone with the link can read this document
-          {:else}
-            Encryption removed from this document
-          {/if}
+          Secure link created. Anyone with the link can read this document
         {/if}
       </p>
 
@@ -400,14 +357,6 @@
           <strong>Secure link.</strong> Anyone with the full link can read this document: the key
           travels inside the link itself, never through our servers.
         </p>
-        <div class="sec-actions">
-          <button class:danger={confirmingRemove} onclick={requestRemoveEncryption}>
-            {confirmingRemove ? 'Click again to confirm' : 'Remove encryption'}
-          </button>
-          {#if confirmingRemove}
-            <span class="confirm-note">Collaborators' current link will stop working.</span>
-          {/if}
-        </div>
       {:else if security.kind === RoomSecurityKind.Password}
         <p class="sec-note">
           <strong>Document password.</strong> This deployment asks everyone for a password before
@@ -720,16 +669,6 @@
   }
   .sec-actions button {
     min-height: 44px;
-  }
-  .sec-actions button.danger {
-    color: var(--danger);
-    border-color: var(--danger);
-  }
-  .confirm-note {
-    margin: var(--sp-1) 0 var(--sp-3);
-    color: var(--danger);
-    font-size: 0.75rem;
-    line-height: 1.4;
   }
   .sec-secondary {
     color: var(--text-faint);

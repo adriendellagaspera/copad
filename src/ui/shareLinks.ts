@@ -33,12 +33,6 @@ export type CopyFeedback = (typeof CopyFeedback)[keyof typeof CopyFeedback];
 export const LinkExposure = { Unshared: 'unshared', Shared: 'shared', Stale: 'stale' } as const;
 export type LinkExposure = (typeof LinkExposure)[keyof typeof LinkExposure];
 
-export const SecurityChange = {
-  SecureLink: 'secure-link',
-  EncryptionRemoved: 'encryption-removed',
-} as const;
-export type SecurityChange = (typeof SecurityChange)[keyof typeof SecurityChange];
-
 export const RoomSecurityKind = {
   None: 'none',
   Relayed: 'relayed',
