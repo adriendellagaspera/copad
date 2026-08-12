@@ -27,7 +27,6 @@
     warning?: ConflictWarning;
     transport: Transport;
     encrypted?: RoomEncrypted;
-    /** Only a surface where the labels *are* the point has room for them below 720px. */
     keepLabels?: KeepSegmentLabels;
     onclick?: () => void;
   } = $props();

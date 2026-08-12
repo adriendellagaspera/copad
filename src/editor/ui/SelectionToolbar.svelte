@@ -31,7 +31,6 @@
 
   let { view, editorState, toasts }: Props = $props();
 
-  // Visibility (pointer: fine vs coarse) is gated in editor.css, not here.
   let hostText = $state<HTMLDivElement | undefined>();
   let hostPill = $state<HTMLDivElement | undefined>();
   let hostTable = $state<HTMLDivElement | undefined>();
@@ -64,7 +63,7 @@
   const pointerProfile = (): PointerProfile =>
     typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches ? 'fine' : 'coarse';
 
-  // Once Tab moves focus into a panel button, the view itself is blurred, so the panel must stay up regardless.
+  // Tab into a panel button blurs the view itself, so the panel must stay up.
   const focusOf = (v: EditorView): EditorFocus => {
     if (v.hasFocus()) return 'editor';
     const el = document.activeElement;
@@ -117,7 +116,7 @@
 
     const host = surfaces.text === 'selection' ? hostText : hostPill;
     const size = { width: host?.offsetWidth ?? 0, height: host?.offsetHeight ?? 0 };
-    // coordsAtPos can throw a DOM range error while a burst of transactions is still flushing into the view.
+    // coordsAtPos throws a DOM range error while transactions are still flushing into the view.
     let start, end;
     try {
       start = v.coordsAtPos(from);
@@ -161,13 +160,13 @@
 
   const FOCUSABLE_SEL = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
-  // Gated on visibility, not host existence: hidden panels stay display:none, so their buttons must not be offered as focus targets.
+  // Gated on visibility, not host existence: a hidden panel stays display:none.
   const focusableEls = (): HTMLElement[] => [
     ...(bubbleVisible && hostText ? Array.from(hostText.querySelectorAll<HTMLElement>(FOCUSABLE_SEL)) : []),
     ...(tableVisible && hostTable ? Array.from(hostTable.querySelectorAll<HTMLElement>(FOCUSABLE_SEL)) : []),
   ];
 
-  // Shift-F10/Menu is the OS right-click equivalent; Alt-Shift-\ is a backup for Mac laptops without a Menu key.
+  // Shift-F10/Menu is the OS right-click equivalent; Alt-Shift-\ backs it up on Macs without a Menu key.
   $effect(() => {
     const v = view;
     if (!v) return;
@@ -197,7 +196,7 @@
         e.preventDefault();
         const v = view;
         if (v) {
-          // Collapse to a caret so reposition()'s empty-selection check closes the bubble.
+          // Collapse to a caret so reposition() closes the bubble.
           const { to } = v.state.selection;
           v.dispatch(v.state.tr.setSelection(TextSelection.create(v.state.doc, to)));
           v.focus();
@@ -239,7 +238,6 @@
 >
   <Toolbar {view} {editorState} {toasts} showTableStructure={false} />
 </div>
-<!-- Read-only: pointer-events are disabled in CSS so it never steals focus or clicks from the writing surface. -->
 <div
   class="caret-hint"
   class:visible={pillVisible}

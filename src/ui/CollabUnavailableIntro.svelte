@@ -10,13 +10,9 @@
     onDismiss,
   }: {
     open: DialogOpen;
-    /** Whether this room is saved to the local user's own storage backend. */
     saved: boolean;
-    /** Label of the backend saving it (only meaningful when `saved`). */
     storageLabel: string | null;
-    /** Open Settings to connect a storage backend. */
     onConnectStorage: () => void;
-    /** Acknowledge — falls back to the ambient SyncBanner's neutral reminder, unchanged. */
     onDismiss: () => void;
   } = $props();
 

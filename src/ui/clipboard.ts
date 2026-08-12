@@ -1,12 +1,10 @@
-/** Clipboard write, browser-API boundary. `navigator.clipboard` needs a secure
- *  context and user-activation in some browsers; `execCommand('copy')` against a
- *  detached, off-screen textarea is the fallback that still works without either. */
+/** `navigator.clipboard` needs a secure context and user activation; the textarea fallback needs neither. */
 export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    /* fall through to the manual fallback */
+    /* no clipboard permission */
   }
   const el = document.createElement('textarea');
   el.value = text;

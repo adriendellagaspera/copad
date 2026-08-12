@@ -14,9 +14,7 @@
     max?: number;
     size?: number;
     onSelect?: (clientId: number) => void;
-    /** Ids that should play the unlock moment's entrance (docs/contract.md §4.1:
-     *  "the peer's avatar enters in their colour") — an already-present peer's
-     *  avatar never re-triggers it. */
+    /** Only these play the unlock entrance (docs/contract.md §4.1); a present peer never re-triggers it. */
     justJoinedIds?: number[];
   } = $props();
 
@@ -32,9 +30,6 @@
       .join(', ')
   );
   const count = $derived(users.length);
-  // Overlap scales with avatar size so the stack reads consistently at any
-  // size — roughly a quarter of the diameter, matching the header capsule's
-  // 24px/-7px spec.
   const overlap = $derived(-Math.round(size * 0.29));
 </script>
 

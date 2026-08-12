@@ -2,9 +2,6 @@ import { Plugin } from 'prosemirror-state';
 import { schema } from './schema.js';
 import { taskItemChecked } from './parse.js';
 
-/** Clicking a task_item's checkbox toggles its `checked` attr — no NodeView
- *  needed, the checkbox is part of the node's static toDOM output; this
- *  plugin only intercepts the click. */
 export const taskItemCheckboxPlugin = new Plugin({
   props: {
     handleClick(view, pos, event) {

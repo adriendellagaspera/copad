@@ -1,14 +1,7 @@
-/**
- * Editor language + spellcheck preferences — browser-aware, persisted.
- * Language defaults to 'auto' (follows navigator.language); users can override
- * with any BCP-47 tag. Spellcheck defaults on and is independent of language.
- */
-
 import { localStore } from '../persistence/local.js';
 import type { SpellcheckEnabled } from './types.js';
 import { nsKey } from '../config.js';
 
-/** 'auto' defers to navigator.language; any other value is a BCP-47 tag. */
 export type LanguageChoice = string & { readonly _brand: 'LanguageChoice' };
 export const LANGUAGE_AUTO = 'auto' as LanguageChoice;
 
@@ -37,8 +30,7 @@ export function createLanguage() {
   let choice = $state<LanguageChoice>(languageStore.read());
   let spellcheck = $state(spellcheckStore.read());
 
-  // 'auto' resolves to the browser locale at runtime — no reactivity needed
-  // because navigator.language is fixed for the page lifetime.
+  // navigator.language is fixed for the page lifetime, so it needs no reactivity.
   const resolved = $derived<string>(choice === LANGUAGE_AUTO ? navigator.language : choice);
 
   function setChoice(next: LanguageChoice): void {

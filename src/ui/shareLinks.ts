@@ -53,10 +53,7 @@ export interface RoomSecuritySources {
   readonly envPassword: RoomCredential | null;
 }
 
-/** Precedence must stay identical to `App.svelte`'s `roomCipher`. The hub arm
- *  comes first because no credential encrypts anything there: `websocket.ts`
- *  never reads the cipher, and passes no `cacheKey`, so wire and cache are both
- *  plaintext (docs/contract.md §2). */
+/** Precedence must stay identical to `App.svelte`'s `roomCipher`; the hub arm encrypts nothing (docs/contract.md §2). */
 export function roomSecurity(sources: RoomSecuritySources): RoomSecurity {
   if (sources.transport !== Transport.P2P) return { kind: RoomSecurityKind.Relayed };
   if (sources.linkKey) return { kind: RoomSecurityKind.SecretLink, key: sources.linkKey };

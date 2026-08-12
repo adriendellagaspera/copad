@@ -1,5 +1,4 @@
-/** No clocks and no DOM inside: time-dependent inputs arrive pre-computed, same
- *  split as `writeGate.ts`. */
+/** No clocks and no DOM inside: time-dependent inputs arrive pre-computed, same split as `writeGate.ts`. */
 
 import type { DisplayName } from '../collaboration/types.js';
 import { ConnStatus, PresenceKind, Transport } from '../collaboration/types.js';
@@ -82,8 +81,7 @@ export function waitingSinceLabel(at: EpochMs): WaitingSinceLabel {
   }) as WaitingSinceLabel;
 }
 
-/** Remote, user-chosen text in a flex row that must not overflow at 390px —
- *  clamped here rather than trusting CSS alone. */
+/** Remote text clamped here, not in CSS, so a flex row cannot overflow at 390px. */
 export function peerLabel(name: DisplayName | null): DisplayName {
   const trimmed = name?.trim() ?? '';
   if (trimmed === '') return ANONYMOUS_PEER;
@@ -130,8 +128,7 @@ export function bannerToneFor(tier: BannerTier): BannerTone {
   return BannerTone.Neutral;
 }
 
-/** Excludes `waitingSince` and the storage label on purpose: including either
- *  would resurrect a dismissed strip and re-collapse an open disclosure. */
+/** Excludes `waitingSince` and the storage label: either would resurrect a dismissed strip. */
 export function tierSignature(tier: BannerTier): TierSignature {
   if (tier.kind === BannerTierKind.Gated) return `gated:${tier.transport}` as TierSignature;
   if (tier.kind === BannerTierKind.Alone) return `alone:${tier.variant}` as TierSignature;

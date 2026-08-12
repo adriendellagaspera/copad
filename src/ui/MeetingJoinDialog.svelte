@@ -19,7 +19,7 @@
   let inputEl = $state<HTMLInputElement | undefined>();
   let pending = $state(false);
 
-  // Best-effort, non-blocking, hub-only (see presenceProbe.ts for the WebRTC gap).
+  // Hub-only and best-effort — presenceProbe.ts has no WebRTC equivalent.
   function announcePresence(room: RoomId, selfMarker: SelfProbeMarker): void {
     if (!hallUrl) return;
     const probe = probeWebsocketPresence(room, { url: hallUrl, selfMarker });
@@ -56,7 +56,6 @@
     onclose();
   }
 
-  // The whole action is "copy the meeting link, paste" — no separate Go click.
   function onPaste(e: ClipboardEvent): void {
     const text = e.clipboardData?.getData('text');
     if (!text) return;

@@ -13,13 +13,11 @@
   const items = $derived<SlashItem[]>(st?.active && editorState ? menuItems(editorState, st.query) : []);
   const index = $derived(items.length ? Math.min(st?.active ? st.index : 0, items.length - 1) : 0);
 
-  // Keep the keyboard-active item visible as ArrowUp/Down/Tab move past the menu's edges.
   $effect(() => {
-    index;
+    index; // tracked so the active item is scrolled back into view on every move
     menuEl?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
   });
 
-  // Anchor the menu just below the "/" in viewport coordinates.
   const coords = $derived.by(() => {
     if (!open || !view || !st) return null;
     try {

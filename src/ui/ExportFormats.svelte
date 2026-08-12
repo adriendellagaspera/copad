@@ -21,12 +21,7 @@
     ondone?.();
   }
 
-  // No client-side PDF library: window.print() + the dedicated print
-  // stylesheet (src/styles/print.css) gives real, selectable text via the
-  // browser's own renderer — "Save as PDF" in the native print dialog — for
-  // zero bundle cost and better fidelity than an HTML-to-canvas library. Not
-  // a Codec (there's nothing to encode ahead of time), so it's a plain
-  // action alongside the codec-driven ones rather than another list item.
+  // Not a Codec: the browser's own "Save as PDF" plus src/styles/print.css beats bundling a PDF renderer.
   function printToPdf(): void {
     ondone?.();
     window.print();

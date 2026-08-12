@@ -19,7 +19,6 @@ export function createToasts() {
   const timers = new Map<number, ReturnType<typeof setTimeout>>();
   const deadlines = new Map<number, EpochMs>();
   const remaining = new Map<number, Milliseconds>();
-  // group widens the dedupe key beyond an exact repeat, so related-but-differently-worded toasts swap in place.
   const slots = new Map<number, string>();
 
   function schedule(id: number, ttl: Milliseconds): void {

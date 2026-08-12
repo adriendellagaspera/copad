@@ -25,9 +25,7 @@
 </div>
 
 <style>
-  /* Same segmented-control language as .settings-nav-item (Settings.svelte)
-     — an active option gets the surface + shadow, not a color swap, so it
-     reads as one control family across the drawer. */
+  /* Same segmented control as .settings-nav-item (Settings.svelte). */
   .theme-select {
     display: inline-flex;
     background: var(--surface-2);

@@ -3,11 +3,7 @@ import { schema } from './schema.js';
 import { headingLevel, linkHref, taskItemChecked } from './parse.js';
 import { richTableToHtml } from '../format/tableMarkdown.js';
 
-/** Serialize inline content (text + marks) of a textblock to Markdown.
- *  `hardBreak` is the text a `hard_break` node becomes — the standard
- *  trailing-two-spaces convention by default, overridden to `<br>` for GFM
- *  table cells (see the `table` case below), since a real newline can't
- *  appear inside a single-line pipe-table row. */
+// `hardBreak` is overridden to `<br>` for GFM cells: a pipe-table row is one line.
 export function serializeInline(node: PMNode, hardBreak = '  \n'): string {
   let out = '';
   node.forEach((child) => {
@@ -25,9 +21,7 @@ export function serializeInline(node: PMNode, hardBreak = '  \n'): string {
       if (has('strong')) text = `**${text}**`;
       if (has('em')) text = `*${text}*`;
       if (has('strike')) text = `~~${text}~~`;
-      // No `has('underline')` branch, deliberately: Markdown has no native
-      // underline syntax (same as the real Codec in format/markdown.ts), so
-      // underlined text is copied as plain text.
+      // No underline branch: Markdown has no underline syntax, so it copies as plain text.
     }
     if (link) { const href = linkHref(link); if (href) text = `[${text}](${href})`; }
     out += text;
@@ -35,20 +29,10 @@ export function serializeInline(node: PMNode, hardBreak = '  \n'): string {
   return out;
 }
 
-/** A cell counts as "simple" — expressible as one line of a GFM pipe-table
- *  row — only when its sole child is a single plain paragraph (no lists,
- *  headings, quotes, code blocks, dividers, or multiple paragraphs). */
 function isSimpleCell(cell: PMNode): boolean {
   return cell.childCount === 1 && cell.firstChild!.type.name === 'paragraph';
 }
 
-/** How a table renders to Markdown, decided once per table rather than
- *  re-derived at each caller: every cell simple → the GFM pipe-table lines
- *  themselves; anything richer → `'rich'`, leaving the actual rendering
- *  (embedded HTML, or a no-DOM plain-text degrade) to the caller, since that
- *  choice depends on the environment, not the table's own shape. Shared with
- *  the lossless round-trip `Codec` in `format/markdown.ts`, so the simple/
- *  rich decision lives in exactly one place. */
 export type TableRender = { kind: 'simple'; lines: string[] } | { kind: 'rich' };
 
 export function classifyTable(table: PMNode): TableRender {
@@ -59,11 +43,6 @@ export function classifyTable(table: PMNode): TableRender {
   return simple ? { kind: 'simple', lines: simpleTableToMarkdownLines(table) } : { kind: 'rich' };
 }
 
-/** GFM pipe-table lines for a table whose every cell is simple (see
- *  {@link classifyTable}). Reads each cell's sole paragraph directly
- *  (`cell.firstChild`) rather than the cell itself, since every cell wraps
- *  its content in a paragraph (`cellContent: 'block+'`, see schema.ts) even
- *  in the simple case. */
 function simpleTableToMarkdownLines(table: PMNode): string[] {
   const rows: string[][] = [];
   table.forEach((row) => {
@@ -125,11 +104,7 @@ function serializeBlock(node: PMNode, indent = ''): string {
       return lines.join('\n');
     }
     case 'table': {
-      // Rich (multi-block) cell content has no GFM pipe-table equivalent —
-      // fall back to an embedded raw HTML block, same as the lossless
-      // round-trip Codec (format/markdown.ts) does, and safe to call
-      // unconditionally here since this function only ever runs in the
-      // browser (the "Copy as Markdown" toolbar button).
+      // richTableToHtml needs a DOM; safe here, this path only runs in the browser.
       const render = classifyTable(node);
       return render.kind === 'simple' ? render.lines.join('\n') : richTableToHtml(node);
     }
@@ -144,7 +119,6 @@ function serializeChildren(node: PMNode, indent = ''): string {
   return blocks.join('\n\n');
 }
 
-/** Serialize the whole document to Markdown. */
 export function docToMarkdown(doc: PMNode): string {
   return serializeChildren(doc).replace(/\n{3,}/g, '\n\n').trim() + '\n';
 }
