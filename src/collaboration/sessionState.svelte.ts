@@ -1,11 +1,4 @@
-// Shared reactive bridge for session-level collaboration state.
-//
-// Connection status, presence, save status and transport diagnostics are all
-// derived from the `collab` instance the Editor owns — but they are now shown in
-// App's header, which sits outside the Editor block. Same pattern as
-// roomName.svelte.ts: the Editor pushes these values as they change; the header
-// reads them reactively. Only one Editor is mounted at a time, so a single
-// module-level holder is enough; the Editor resets it on teardown.
+// A module-level holder works because only one Editor is mounted at a time.
 
 import type { PeerUser } from '../ui/types.js';
 import { SaveStatus } from '../ui/types.js';
@@ -17,17 +10,13 @@ import type { EpochMs } from '../time.js';
 /** Every accompanying peer shares this browser's id — a second tab, not a stranger. */
 export type SoloBrowser = boolean & { readonly _brand: 'SoloBrowser' };
 
-/** The document is still a single empty block: a blank page, whoever blanked it. */
 export type DocEmpty = boolean & { readonly _brand: 'DocEmpty' };
 
-/** The ProseMirror content holds DOM focus. */
 export type EditorFocused = boolean & { readonly _brand: 'EditorFocused' };
 
-/** Clients the room's awareness reports, self included. */
+/** Self included. */
 export type PeerCount = number & { readonly _brand: 'PeerCount' };
 
-/** Diagnostics access for the connection dialog — present only while a session
- *  is live, and only on transports that expose it (WebRTC). */
 export interface SessionDiagnostics {
   readonly transport: Transport;
   readonly getDiagnostics?: () => Promise<Diagnostics>;
@@ -35,14 +24,13 @@ export interface SessionDiagnostics {
 }
 
 let conn = $state<ConnStatus>(ConnStatus.Connecting);
-// Feeds the write gate, not the status pill. Defaults to Unknown: never lock on ignorance.
+// Unknown by default: never lock on ignorance (docs/contract.md §2.2).
 let presence = $state<RoomPresence>({ kind: PresenceKind.Unknown });
 let soloBrowser = $state<SoloBrowser>(false as SoloBrowser);
 let saveStatus = $state<SaveStatus>(SaveStatus.Idle);
-// Branch (b)'s state machine (docs/contract.md §3.2/§3.3, persistHealth.ts).
 let persistHealth = $state<PersistHealth>(UNPROVEN);
 let regime = $state<PersistRegime>(PersistRegime.Cold);
-// Repeats on every keystroke, unlike the one-way `regime` latch: extends the departure linger (contract §4).
+// Repeats on every keystroke, unlike the one-way `regime` latch.
 let lastLocalEditAt = $state<EpochMs | null>(null);
 let docEmpty = $state<DocEmpty>(true as DocEmpty);
 let users = $state<PeerUser[]>([]);
@@ -51,7 +39,6 @@ let diag = $state<SessionDiagnostics>({ transport: Transport.P2P });
 let editing = $state<EditorFocused>(false as EditorFocused);
 let jumpToPeer = $state<((clientId: number) => void) | undefined>(undefined);
 
-/** Reactive accessor read by the header. */
 export const sessionState = {
   get conn(): ConnStatus {
     return conn;
@@ -132,7 +119,6 @@ export function setSessionJumpToPeer(value: ((clientId: number) => void) | undef
   jumpToPeer = value;
 }
 
-/** Restore defaults when the Editor unmounts (room change / teardown). */
 export function resetSessionState(): void {
   conn = ConnStatus.Connecting;
   presence = { kind: PresenceKind.Unknown };

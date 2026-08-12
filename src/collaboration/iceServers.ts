@@ -1,15 +1,6 @@
-// Fetch dynamic ICE servers from an HTTP endpoint.
-//
-// Some TURN providers (notably Cloudflare) don't hand out a static username /
-// password: you mint short-lived credentials from a *secret* API token, which
-// must never reach the browser. The pattern is a tiny server-side endpoint (a
-// Cloudflare Worker, see `deploy/ice-worker/`) that holds the API token and
-// returns freshly-minted `{ iceServers: [...] }` JSON. This module fetches from
-// that endpoint; `App.svelte` uses the result in place of the static VITE_TURN_*
-// config when `VITE_ICE_SERVERS_URL` is set.
-//
-// Failures are swallowed to an empty list: a missing/slow/broken endpoint must
-// degrade to the env/public-default ICE path, never break the app.
+// The endpoint (`deploy/ice-worker/`) exists because providers like Cloudflare
+// mint short-lived TURN credentials from a secret token that must stay off the
+// browser. Empty list on failure: callers fall back to the static ICE config.
 
 import type { IceServer, IceServersUrl } from './types.js';
 import { parseIceServersResponse } from './parse.js';

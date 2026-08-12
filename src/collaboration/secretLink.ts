@@ -4,11 +4,7 @@ import { RoomAccessMode } from './roomAccess.js';
 import type { RoomCipher } from './roomCipher.js';
 import { parseRoomCredential } from './parse.js';
 
-/**
- * Dual-port type: `secretLink()` satisfies both {@link RoomAccess} and
- * {@link RoomCipher} because the URL-fragment key is simultaneously the
- * access gate (you need the link) and the y-webrtc encryption key.
- */
+/** Dual port: the fragment key is both the access gate and the cipher key. */
 export type SecretLinkPort = RoomAccess & RoomCipher;
 
 const FRAGMENT_KEY = 'k';
@@ -30,15 +26,7 @@ export function mintSecretKey(): RoomCredential {
   return crypto.randomUUID() as RoomCredential;
 }
 
-/**
- * A randomly generated key embedded in the URL `#k=` fragment.
- *
- * - First visitor: a new UUID is generated and written into the URL hash.
- *   Sharing the full URL (including `#k=`) grants both access and decryption.
- * - Returning visitor or tab reload: the existing key is read from the hash
- *   — no new key is generated, so the existing encrypted room keeps working.
- * - The hash fragment is client-side only; the signaling server never sees it.
- */
+/** Mints only when the hash carries no key: a fresh one would orphan the room. */
 export function secretLink(): SecretLinkPort {
   const existing = parseKey();
   const key: RoomCredential = existing ?? mintSecretKey();
@@ -50,8 +38,7 @@ export function secretLink(): SecretLinkPort {
   };
 }
 
-/** The key currently in the URL `#k=` fragment, or `null` — *without* generating
- *  one (unlike {@link secretLink}). For UI that inspects the current state. */
+/** Never mints, unlike {@link secretLink}. */
 export function currentSecretKey(): RoomCredential | null {
   return parseKey();
 }

@@ -1,27 +1,5 @@
-/**
- * "Is anyone in this room?" without joining it: no `Y.Doc` attach, no content
- * sync, no room key. See docs/contract.md §6.1.
- *
- * Works because the stock `@y/websocket-server` pushes a room's current
- * awareness states to every new connection unprompted (`setupWSConnection` in
- * its `utils.js`), before this probe sends a byte. Reading that message never
- * requires decoding the sync frame or the room key, since awareness state is
- * unencrypted (`PresenceBar` already shows it that way).
- *
- * Known cost, out of scope (see §6.1): the stock server only frees a room's
- * `Y.Doc` on disconnect when persistence is configured; the bundled binary
- * configures none, so every probed room leaks one `Y.Doc` for the server's
- * lifetime.
- *
- * WebRTC/P2P has no equivalent probe (see §6.1 for the full analysis).
- * Signaling messages are AES-encrypted whenever the room has a key
- * (`publishSignalingMessage` in `y-webrtc.js`), so a keyless prober is
- * silently dropped by real peers, so this probe's core property cannot hold
- * there. Provoking a reply without a key would also mean publishing a forged
- * `announce`, making a real peer spin up a genuine `RTCPeerConnection`
- * visible in its own UI as a phantom "Reaching" connection: a side effect on
- * the probed peer's device this module's design forbids.
- */
+// Hub only, and it sends nothing: `@y/websocket-server` pushes a room's
+// awareness states to every new connection unprompted. See docs/contract.md §6.1.
 
 import * as decoding from 'lib0/decoding';
 import type { RoomId, WebsocketUrl } from './types.js';
@@ -40,11 +18,7 @@ export const HallPresenceKind = {
 } as const;
 export type HallPresenceKind = (typeof HallPresenceKind)[keyof typeof HallPresenceKind];
 
-/**
- * `unknown` never collapses into `empty` (docs/contract.md §2.2): connecting
- * or undetermined stays `unknown`. Peers can take ~89s (P2P) / ~31s (hub) to
- * register as gone, so `lastSeen` must not be read as still-present sooner.
- */
+/** A departure takes ~31s to register, so `lastSeen` is never "present now". */
 export type HallPresence =
   | { readonly kind: 'unknown' }
   | { readonly kind: 'empty' }
@@ -58,10 +32,8 @@ export interface PresenceProbe {
 export interface WebsocketPresenceProbeOptions {
   url: WebsocketUrl;
   settleMs?: Milliseconds;
-  /** Recognizes and discards this probe's own about-to-open tab's self-join
-   *  awareness broadcast. Omit when no matching join is in flight. */
+  /** Discards the about-to-open tab's own self-join broadcast. */
   selfMarker?: SelfProbeMarker;
-  /** Inject a `WebSocket` constructor for tests; defaults to the global. */
   webSocketImpl?: typeof WebSocket;
 }
 
@@ -122,7 +94,7 @@ export function probeWebsocketPresence(
   ws.onmessage = (event: MessageEvent) => {
     const decoder = decoding.createDecoder(new Uint8Array(event.data as ArrayBuffer));
     const messageType = decoding.readVarUint(decoder);
-    if (messageType !== MESSAGE_AWARENESS) return; // never decode MESSAGE_SYNC, no doc content read
+    if (messageType !== MESSAGE_AWARENESS) return;
     clientCount = readAwarenessPeerCount(decoding.readVarUint8Array(decoder), opts.selfMarker);
     emit(
       clientCount > 0
