@@ -3,7 +3,12 @@ import type { RoomId } from '../collaboration/types.js';
 import type { DocHeading, HeadingLevel, HeadingText, DocPos } from '../editor/ui/outline.js';
 import {
   parsePaletteInput,
+  parsePaletteItemId,
   paletteGroups,
+  actionItemId,
+  insertItemId,
+  headingItemId,
+  paletteItemName,
   type PaletteAction,
   type PaletteInsert,
   type PaletteRoom,
@@ -87,6 +92,30 @@ describe('parsePaletteInput', () => {
   });
 });
 
+describe('parsePaletteItemId', () => {
+  it('round-trips every constructor', () => {
+    expect(parsePaletteItemId(headingItemId(42 as DocPos))).toEqual({ kind: 'heading', pos: 42 });
+    expect(parsePaletteItemId(insertItemId(paletteItemName('Table')))).toEqual({
+      kind: 'insert',
+      name: 'Table',
+    });
+    expect(parsePaletteItemId(actionItemId(paletteItemName('export')))).toEqual({
+      kind: 'action',
+      name: 'export',
+    });
+  });
+
+  it('keeps a room id whole, colons and all', () => {
+    expect(parsePaletteItemId('room:a:b' as PaletteItemId)).toEqual({ kind: 'room', room: 'a:b' });
+  });
+
+  it('falls back to an action rather than a bogus document position', () => {
+    expect(parsePaletteItemId('heading:nope' as PaletteItemId).kind).toBe('action');
+    expect(parsePaletteItemId('heading:-3' as PaletteItemId).kind).toBe('action');
+    expect(parsePaletteItemId('nonsense' as PaletteItemId).kind).toBe('action');
+  });
+});
+
 describe('paletteGroups', () => {
   it('rests on recent rooms and the first headings, never blank', () => {
     expect(labels(SOURCES, '')).toEqual([
@@ -144,6 +173,12 @@ describe('paletteGroups', () => {
     const twins = [headingOf(2, 'Notes', 4), headingOf(2, 'Notes', 90)];
     const [group] = paletteGroups({ ...SOURCES, headings: twins }, parsePaletteInput('#notes'));
     expect(group.items.map((i) => i.id)).toEqual(['heading:4', 'heading:90']);
+  });
+
+  it('round-trips a row id back into what picking it means', () => {
+    const [inDoc, yours] = paletteGroups(SOURCES, parsePaletteInput(''));
+    expect(parsePaletteItemId(inDoc.items[0].id)).toEqual({ kind: 'heading', pos: 0 });
+    expect(parsePaletteItemId(yours.items[0].id)).toEqual({ kind: 'room', room: 'r1' });
   });
 
   it('survives every source being empty', () => {

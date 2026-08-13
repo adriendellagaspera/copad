@@ -1,13 +1,13 @@
 <script lang="ts">
-  import type { SpellcheckEnabled, ResolvedLanguage } from './ui/types.js';
+  import type { SpellcheckEnabled, ResolvedLanguage, DialogOpen } from './ui/types.js';
   import { onMount, onDestroy, untrack } from 'svelte';
-  import { EditorState } from 'prosemirror-state';
+  import { EditorState, TextSelection } from 'prosemirror-state';
   import type { Transaction } from 'prosemirror-state';
   import { EditorView } from 'prosemirror-view';
   import { ySyncPlugin, ySyncPluginKey, yCursorPlugin, yUndoPlugin } from 'y-prosemirror';
   import { schema } from './editor/schema.js';
   import { buildPlugins, stripNestedTables } from './editor/plugins.js';
-  import { slashMenuPlugin } from './editor/ui/slashMenu.js';
+  import { slashMenuPlugin, SLASH_ITEMS, menuItems } from './editor/ui/slashMenu.js';
   import { placeholderPlugin, isSoleEmptyBlock } from './editor/ui/placeholder.js';
   import { lineBlockHintPlugin } from './editor/ui/lineBlockHint.js';
   import { keyboardInset, collapseKeyboardInset } from './ui/keyboardInset.svelte.js';
@@ -18,6 +18,20 @@
   import LinkPopover from './editor/ui/LinkPopover.svelte';
   import WordCount from './editor/ui/WordCount.svelte';
   import Outline from './editor/ui/Outline.svelte';
+  import CommandPalette from './ui/CommandPalette.svelte';
+  import { memoiseHeadings, type DocPos } from './editor/ui/outline.js';
+  import {
+    insertItemId,
+    paletteItemName,
+    parsePaletteItemId,
+    type PaletteAction,
+    type PaletteItemId,
+    type PaletteItemKeywords,
+    type PaletteItemLabel,
+    type PaletteItemName,
+    type PaletteRoom,
+    type PaletteSources,
+  } from './ui/commandPalette.js';
   import ShortcutBar from './editor/ui/ShortcutBar.svelte';
   import type { PeerUser } from './ui/types.js';
   import { SaveStatus } from './ui/types.js';
@@ -87,12 +101,24 @@
     importRequest?: { bytes: Uint8Array; filename: Filename } | null;
     onImportHandled?: () => void;
     autofocusTitle?: boolean;
+    /** The command palette lives here, not in App, because its two document
+     *  sources — headings and insertable blocks — and the jump that a heading
+     *  row performs all need the live view. App owns the rest: the trigger,
+     *  the open flag, and every row that isn't a heading or a block. */
+    paletteOpen?: DialogOpen;
+    onPaletteClose?: () => void;
+    paletteActions?: readonly PaletteAction[];
+    paletteRooms?: readonly PaletteRoom[];
+    /** A picked row this component can't resolve itself — an action or a room. */
+    onPaletteCommand?: (id: PaletteItemId) => void;
   };
 
   let {
     storage, name, color, room, role = SessionRole.Writer, selfProbeMarker = null, connect, toasts,
     lang = 'en' as ResolvedLanguage, spellcheck = true as SpellcheckEnabled,
     writeLocked = false, writeSoloAt = null, importRequest = null, onImportHandled, autofocusTitle = false,
+    paletteOpen = false as DialogOpen, onPaletteClose, paletteActions = [], paletteRooms = [],
+    onPaletteCommand,
   }: Props = $props();
 
   let lastWriteSoloAt = untrack(() => writeSoloAt);
@@ -469,6 +495,57 @@
     view?.destroy();
     collab.destroy();
   });
+
+  // ── The command palette's document half ─────────────────────────────────────
+
+  const headingsFor = memoiseHeadings();
+  const headings = $derived(headingsFor(editorState?.doc ?? null));
+
+  // Same trap as `canImport` above: a programmatic dispatch bypasses
+  // `view.editable`, so inserting a block has to re-check the gate. Gated, the
+  // rows are withheld rather than shown dead — the contract already treats the
+  // slash menu as inactive read-only, and these are the same commands.
+  const canInsert = $derived(role === SessionRole.Writer && !writeLocked);
+
+  const paletteInserts = $derived(
+    editorState && canInsert
+      ? menuItems(editorState, '').map((item) => ({
+          id: insertItemId(paletteItemName(item.title)),
+          label: item.title as PaletteItemLabel,
+          keywords: item.keywords as PaletteItemKeywords,
+        }))
+      : [],
+  );
+
+  const paletteSources = $derived<PaletteSources>({
+    headings,
+    actions: paletteActions,
+    rooms: paletteRooms,
+    inserts: paletteInserts,
+  });
+
+  function jumpToHeading(pos: DocPos): void {
+    if (!view) return;
+    const target = Math.min(pos + 1, view.state.doc.content.size);
+    view.dispatch(
+      view.state.tr.setSelection(TextSelection.create(view.state.doc, target)).scrollIntoView(),
+    );
+    view.focus();
+  }
+
+  function runInsert(name: PaletteItemName): void {
+    const item = SLASH_ITEMS.find((i) => i.title === name);
+    if (!item || !view || !canInsert) return;
+    item.command(view.state, view.dispatch, view);
+    view.focus();
+  }
+
+  function onPalettePick(id: PaletteItemId): void {
+    const target = parsePaletteItemId(id);
+    if (target.kind === 'heading') jumpToHeading(target.pos);
+    else if (target.kind === 'insert') runInsert(target.name);
+    else onPaletteCommand?.(id);
+  }
 </script>
 
 <main class="editor" aria-label="Document">
@@ -489,9 +566,15 @@
     <ShortcutBar {editorState} />
     <span class="spacer"></span>
     <WordCount {editorState} />
-    <Outline {view} {editorState} />
+    <Outline {view} {headings} />
   </div>
   <SelectionToolbar {view} {editorState} {toasts} />
   <SlashMenu {view} {editorState} />
   <LinkPopover {view} {editorState} />
+  <CommandPalette
+    open={paletteOpen}
+    sources={paletteSources}
+    onclose={() => onPaletteClose?.()}
+    onpick={onPalettePick}
+  />
 </main>

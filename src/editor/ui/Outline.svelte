@@ -1,17 +1,11 @@
 <script lang="ts">
   import type { EditorView } from 'prosemirror-view';
-  import type { EditorState } from 'prosemirror-state';
   import { TextSelection } from 'prosemirror-state';
-  import { memoiseHeadings, type DocPos } from './outline.js';
+  import type { DocHeading, DocPos } from './outline.js';
 
-  let { view, editorState }: { view: EditorView | null; editorState: EditorState | null } =
-    $props();
-
-  // `editorState` is a new object on every transaction — selection moves and
-  // remote edits included — so the memo, not the derived, is what keeps the
-  // walk off the hot path.
-  const headingsFor = memoiseHeadings();
-  const headings = $derived(headingsFor(editorState?.doc ?? null));
+  // Headings arrive already walked and memoised: the Editor owns the one walk,
+  // shared with the command palette, so opening this panel costs nothing.
+  let { view, headings }: { view: EditorView | null; headings: readonly DocHeading[] } = $props();
 
   let open = $state(false);
   let triggerBtn = $state<HTMLButtonElement | undefined>();

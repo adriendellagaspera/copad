@@ -1,5 +1,5 @@
 import type { RoomId } from '../collaboration/types.js';
-import type { DocHeading } from '../editor/ui/outline.js';
+import type { DocHeading, DocPos } from '../editor/ui/outline.js';
 
 /** What the user typed, prefix stripped. */
 export type PaletteQuery = string & { readonly _brand: 'PaletteQuery' };
@@ -18,6 +18,13 @@ export type PaletteItemKeywords = string & { readonly _brand: 'PaletteItemKeywor
 
 /** A group's heading in the result list. */
 export type PaletteGroupLabel = string & { readonly _brand: 'PaletteGroupLabel' };
+
+/** A code-facing name for an action or insert row — distinct from its {@link PaletteItemLabel}, which is user-facing. */
+export type PaletteItemName = string & { readonly _brand: 'PaletteItemName' };
+
+/** The one cast site for {@link PaletteItemName} — names are defined in source
+ *  (an action's identity, a slash item's title), never parsed from user input. */
+export const paletteItemName = (raw: string): PaletteItemName => raw as PaletteItemName;
 
 /** Which sources a query searches — narrowed by a leading `#`, `>` or `/`. */
 export type PaletteScope =
@@ -71,6 +78,40 @@ export interface PaletteGroup {
   readonly items: readonly PaletteItem[];
 }
 
+/** What picking a row means. The component resolves this, never a raw string. */
+export type PaletteTarget =
+  | { readonly kind: 'heading'; readonly pos: DocPos }
+  | { readonly kind: 'insert'; readonly name: PaletteItemName }
+  | { readonly kind: 'room'; readonly room: RoomId }
+  | { readonly kind: 'action'; readonly name: PaletteItemName };
+
+export const headingItemId = (pos: DocPos): PaletteItemId => `heading:${pos}` as PaletteItemId;
+export const roomItemId = (room: RoomId): PaletteItemId => `room:${room}` as PaletteItemId;
+export const insertItemId = (name: PaletteItemName): PaletteItemId => `insert:${name}` as PaletteItemId;
+export const actionItemId = (name: PaletteItemName): PaletteItemId => `action:${name}` as PaletteItemId;
+
+/**
+ * The other half of the id constructors above — a row's id back into what it
+ * means. An unrecognised id reads as an action, which is the arm whose
+ * handler is a lookup that can miss harmlessly rather than a document write.
+ */
+export function parsePaletteItemId(id: PaletteItemId): PaletteTarget {
+  const cut = id.indexOf(':');
+  const rest = id.slice(cut + 1);
+  switch (id.slice(0, cut)) {
+    case 'heading': {
+      const pos = Number(rest);
+      if (Number.isInteger(pos) && pos >= 0) return { kind: 'heading', pos: pos as DocPos };
+      break;
+    }
+    case 'insert':
+      return { kind: 'insert', name: rest as PaletteItemName };
+    case 'room':
+      return { kind: 'room', room: rest as RoomId };
+  }
+  return { kind: 'action', name: rest as PaletteItemName };
+}
+
 const IN_DOCUMENT = 'In this document' as PaletteGroupLabel;
 const ACTIONS = 'Actions' as PaletteGroupLabel;
 const YOUR_DOCUMENTS = 'Your documents' as PaletteGroupLabel;
@@ -107,7 +148,7 @@ function headingItems(headings: readonly DocHeading[], query: PaletteQuery): Pal
   return headings
     .filter((h) => matches(query, h.text, ''))
     .map((h) => ({
-      id: `heading:${h.pos}` as PaletteItemId,
+      id: headingItemId(h.pos),
       label: h.text as string as PaletteItemLabel,
       hint: `Heading ${h.level}` as PaletteItemHint,
     }));
@@ -125,7 +166,7 @@ function named(
 function roomItems(rooms: readonly PaletteRoom[], query: PaletteQuery): PaletteItem[] {
   return rooms
     .filter((r) => matches(query, r.label, r.room))
-    .map((r) => ({ id: `room:${r.room}` as PaletteItemId, label: r.label, hint: r.hint }));
+    .map((r) => ({ id: roomItemId(r.room), label: r.label, hint: r.hint }));
 }
 
 function nonEmpty(groups: readonly PaletteGroup[]): PaletteGroup[] {
