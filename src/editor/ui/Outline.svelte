@@ -2,33 +2,21 @@
   import type { EditorView } from 'prosemirror-view';
   import type { EditorState } from 'prosemirror-state';
   import { TextSelection } from 'prosemirror-state';
-  import { headingLevel } from '../parse.js';
-  import { nodeNameOf } from '../schema.js';
+  import { memoiseHeadings, type DocPos } from './outline.js';
 
   let { view, editorState }: { view: EditorView | null; editorState: EditorState | null } =
     $props();
 
-  interface Heading {
-    level: number;
-    text: string;
-    pos: number;
-  }
-
-  const headings = $derived.by<Heading[]>(() => {
-    if (!editorState) return [];
-    const list: Heading[] = [];
-    editorState.doc.descendants((node, pos) => {
-      if (nodeNameOf(node) === 'heading') {
-        list.push({ level: headingLevel(node), text: node.textContent || 'Untitled', pos });
-      }
-    });
-    return list;
-  });
+  // `editorState` is a new object on every transaction — selection moves and
+  // remote edits included — so the memo, not the derived, is what keeps the
+  // walk off the hot path.
+  const headingsFor = memoiseHeadings();
+  const headings = $derived(headingsFor(editorState?.doc ?? null));
 
   let open = $state(false);
   let triggerBtn = $state<HTMLButtonElement | undefined>();
 
-  function goto(pos: number): void {
+  function goto(pos: DocPos): void {
     if (!view) return;
     const target = Math.min(pos + 1, view.state.doc.content.size);
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, target)).scrollIntoView());
