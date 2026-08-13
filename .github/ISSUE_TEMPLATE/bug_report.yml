@@ -1,14 +1,14 @@
 name: Bug report
-description: Report something that's broken
+description: Shipped behavior contradicts the intent or the contract
 title: "<short imperative title>"
-labels: ["bug"]
+labels: ["type:bug"]
 body:
   - type: markdown
     attributes:
       value: |
         Keep it short — a scannable issue gets triaged, a long one doesn't. Cite `file:line` instead of describing code in prose.
 
-        **Labels** (maintainer sets these on triage): one area — `editor` / `storage` / `ux` / `mobile-ux` / `presence` / `contract` — plus `P0`–`P3` only if priority is already known, otherwise leave it unset.
+        **Labels** — the type is already set. On triage a maintainer adds one or more `area:`, and `surface:` if it is touch- or desktop-specific. Until an `area:` is set, `status:needs-triage` stays on automatically. The vocabulary is [`.github/labels.cjs`](../labels.cjs).
   - type: textarea
     id: problem
     attributes:

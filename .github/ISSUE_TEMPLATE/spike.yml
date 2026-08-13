@@ -1,0 +1,35 @@
+name: Spike
+description: A timeboxed investigation whose deliverable is an answer
+title: "<the thing to find out>"
+labels: ["type:spike"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A spike ends in a finding, not a feature. It closes when the question is answered — including when the answer is "this doesn't work", which is the outcome that saves the most time.
+
+        The moment it has no bound, it stops being a spike. Set one.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What you don't know, and what it would unblock.
+    validations:
+      required: true
+  - type: textarea
+    id: bound
+    attributes:
+      label: Bound
+      description: What stops the investigation — a time budget, a throwaway prototype that either works or doesn't, a doc read to its end.
+    validations:
+      required: true
+  - type: textarea
+    id: deliverable
+    attributes:
+      label: Deliverable
+      description: The finding, and where it lands. Throwaway code stays throwaway.
+      value: |
+        - [ ] Finding recorded in
+        - [ ] Follow-up filed, or the door explicitly closed
+    validations:
+      required: true
