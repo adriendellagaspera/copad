@@ -1,21 +1,13 @@
 import { DOMParser as PMDOMParser, DOMSerializer } from 'prosemirror-model';
 import { schema } from '../editor/schema.js';
 import { writePmDoc, readPmDoc } from './pm.js';
+import { requireDom } from './dom.js';
 import type { Codec } from './types.js';
 import { extensionOf } from './types.js';
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
-
-function requireDom(): void {
-  if (
-    typeof window === 'undefined' ||
-    typeof window.DOMParser === 'undefined' ||
-    typeof document === 'undefined'
-  ) {
-    throw new Error('HTML format requires a browser environment');
-  }
-}
+const REQUIRES_DOM = 'HTML format requires a browser environment';
 
 /**
  * HTML, via ProseMirror's own DOM parser/serializer driven by our schema — so
@@ -29,13 +21,13 @@ export const htmlCodec: Codec = {
   extensions: ['.html', '.htm'].map(extensionOf),
 
   decode(bytes, doc) {
-    requireDom();
+    requireDom(REQUIRES_DOM);
     const dom = new window.DOMParser().parseFromString(decoder.decode(bytes), 'text/html');
     writePmDoc(doc, PMDOMParser.fromSchema(schema).parse(dom.body));
   },
 
   encode(doc) {
-    requireDom();
+    requireDom(REQUIRES_DOM);
     const node = readPmDoc(doc);
     const fragment = DOMSerializer.fromSchema(schema).serializeFragment(node.content, { document });
     const container = document.createElement('div');

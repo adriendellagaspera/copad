@@ -138,6 +138,16 @@ export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
   };
 }
 
+/** Single read site for a peer's `cursor` awareness field (y-prosemirror's
+ *  own anchor/head shape) — do not read `awareness.getStates()` elsewhere.
+ *  Stays `unknown`: every caller only compares it for change detection
+ *  (`JSON.stringify` equality), never destructures it, so there is nothing
+ *  to narrow into. */
+export function parsePeerCursorValue(raw: unknown): unknown {
+  const obj = (typeof raw === 'object' && raw !== null) ? raw as Record<string, unknown> : {};
+  return obj['cursor'];
+}
+
 /** Parse a raw string from storage as a RoomId: the single cast site for RoomId from localStorage/URL. */
 export function parseRoomId(raw: string | null): RoomId | null {
   const trimmed = (raw ?? '').trim();

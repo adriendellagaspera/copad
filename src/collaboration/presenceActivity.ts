@@ -8,6 +8,7 @@
 
 import type { Awareness } from 'y-protocols/awareness';
 import { now, type Milliseconds, type EpochMs } from '../time.js';
+import { parsePeerCursorValue } from './parse.js';
 
 /** Idle-time thresholds (ms) — below FADE_START a peer renders at full
  *  strength; between FADE_START and FADE_DONE it fades; at/after FADE_DONE
@@ -36,8 +37,8 @@ export function trackPresenceActivity(awareness: Awareness): PresenceActivity {
   const lastCursor = new Map<number, string>();
 
   const cursorKey = (clientId: number): string | undefined => {
-    const state = awareness.getStates().get(clientId) as { cursor?: unknown } | undefined;
-    return state?.cursor == null ? undefined : JSON.stringify(state.cursor);
+    const cursor = parsePeerCursorValue(awareness.getStates().get(clientId));
+    return cursor == null ? undefined : JSON.stringify(cursor);
   };
 
   const touch = (clientId: number): void => {

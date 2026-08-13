@@ -10,15 +10,13 @@ import { schema } from '../editor/schema.js';
 import { taskItemChecked } from '../editor/parse.js';
 import { writePmDoc, readPmDoc } from './pm.js';
 import { classifyTable } from '../editor/markdown.js';
-import { richTableToHtml, parseHtmlTable } from './tableMarkdown.js';
+import { richTableToHtml, parseHtmlTable, tableToPipeTableLines } from './tableMarkdown.js';
+import { hasDom } from './dom.js';
 import type { Codec } from './types.js';
 import { extensionOf } from './types.js';
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
-
-const hasDom = (): boolean =>
-  typeof window !== 'undefined' && typeof window.DOMParser !== 'undefined' && typeof document !== 'undefined';
 
 // Reuse the markdown-it engine behind the default parser, but turn on the GFM
 // extras the CommonMark preset ships disabled: strikethrough (`~~…~~`, mapped
@@ -191,20 +189,8 @@ const serializer = new MarkdownSerializer(
  *  outside a browser (this codec, unlike `htmlCodec`, isn't documented as
  *  browser-only). */
 function richTableToPlainTextLines(table: PMNode): string[] {
-  const rows: string[][] = [];
-  table.forEach((row) => {
-    const cells: string[] = [];
-    row.forEach((cell) => {
-      cells.push(cell.textContent.replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim());
-    });
-    rows.push(cells);
-  });
-  const colCount = rows[0]?.length ?? 0;
-  return [
-    `| ${(rows[0] ?? []).join(' | ')} |`,
-    `| ${Array(colCount).fill('---').join(' | ')} |`,
-    ...rows.slice(1).map((cells) => `| ${cells.join(' | ')} |`),
-  ];
+  return tableToPipeTableLines(table, (cell) =>
+    cell.textContent.replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim());
 }
 
 /** A bare `[ ] `/`[x] `/`[X] ` at the start of a list item's first paragraph —

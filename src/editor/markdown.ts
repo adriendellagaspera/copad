@@ -1,7 +1,7 @@
 import type { Node as PMNode, Mark } from 'prosemirror-model';
 import { schema } from './schema.js';
 import { headingLevel, linkHref, taskItemChecked } from './parse.js';
-import { richTableToHtml } from '../format/tableMarkdown.js';
+import { richTableToHtml, tableToPipeTableLines } from '../format/tableMarkdown.js';
 
 /** Serialize inline content (text + marks) of a textblock to Markdown.
  *  `hardBreak` is the text a `hard_break` node becomes — the standard
@@ -65,21 +65,10 @@ export function classifyTable(table: PMNode): TableRender {
  *  its content in a paragraph (`cellContent: 'block+'`, see schema.ts) even
  *  in the simple case. */
 function simpleTableToMarkdownLines(table: PMNode): string[] {
-  const rows: string[][] = [];
-  table.forEach((row) => {
-    const cells: string[] = [];
-    row.forEach((cell) => {
-      const para = cell.firstChild;
-      cells.push(para ? serializeInline(para, '<br>').replace(/\|/g, '\\|').trim() : '');
-    });
-    rows.push(cells);
+  return tableToPipeTableLines(table, (cell) => {
+    const para = cell.firstChild;
+    return para ? serializeInline(para, '<br>').replace(/\|/g, '\\|').trim() : '';
   });
-  const colCount = rows[0]?.length ?? 0;
-  return [
-    `| ${(rows[0] ?? []).join(' | ')} |`,
-    `| ${Array(colCount).fill('---').join(' | ')} |`,
-    ...rows.slice(1).map((cells) => `| ${cells.join(' | ')} |`),
-  ];
 }
 
 function serializeBlock(node: PMNode, indent = ''): string {
@@ -101,29 +90,11 @@ function serializeBlock(node: PMNode, indent = ''): string {
     case 'bullet_list':
     case 'ordered_list': {
       const ordered = t === 'ordered_list';
-      const lines: string[] = [];
       let i = 1;
-      node.forEach((item) => {
-        const marker = ordered ? `${i}. ` : '- ';
-        const body = serializeChildren(item, indent + ' '.repeat(marker.length)).trimEnd();
-        const [first, ...rest] = body.split('\n');
-        lines.push(indent + marker + first.trimStart());
-        rest.forEach((l) => lines.push(l));
-        i += 1;
-      });
-      return lines.join('\n');
+      return serializeListItems(node, indent, () => (ordered ? `${i++}. ` : '- '));
     }
-    case 'task_list': {
-      const lines: string[] = [];
-      node.forEach((item) => {
-        const marker = `- [${taskItemChecked(item) ? 'x' : ' '}] `;
-        const body = serializeChildren(item, indent + ' '.repeat(marker.length)).trimEnd();
-        const [first, ...rest] = body.split('\n');
-        lines.push(indent + marker + first.trimStart());
-        rest.forEach((l) => lines.push(l));
-      });
-      return lines.join('\n');
-    }
+    case 'task_list':
+      return serializeListItems(node, indent, (item) => `- [${taskItemChecked(item) ? 'x' : ' '}] `);
     case 'table': {
       // Rich (multi-block) cell content has no GFM pipe-table equivalent —
       // fall back to an embedded raw HTML block, same as the lossless
@@ -136,6 +107,21 @@ function serializeBlock(node: PMNode, indent = ''): string {
     default:
       return serializeInline(node);
   }
+}
+
+/** Shared body for `bullet_list`/`ordered_list`/`task_list`: one line per
+ *  item, indented to align continuation lines under the marker `marker(item)`
+ *  produces for that item. */
+function serializeListItems(list: PMNode, indent: string, marker: (item: PMNode) => string): string {
+  const lines: string[] = [];
+  list.forEach((item) => {
+    const m = marker(item);
+    const body = serializeChildren(item, indent + ' '.repeat(m.length)).trimEnd();
+    const [first, ...rest] = body.split('\n');
+    lines.push(indent + m + first.trimStart());
+    rest.forEach((l) => lines.push(l));
+  });
+  return lines.join('\n');
 }
 
 function serializeChildren(node: PMNode, indent = ''): string {

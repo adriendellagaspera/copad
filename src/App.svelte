@@ -7,6 +7,8 @@
   import type { StorageBackend } from './storage/index.js';
   import { savedRoomsStore } from './storage/savedRooms.js';
   import { filenameForRoom, firstFileCollision } from './storage/filename.js';
+  import { parseFilename } from './storage/parse.js';
+  import { DEFAULT_FILENAME } from './storage/constants.js';
   import type { Filename, StorageId } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
   import { websocketCollab } from './collaboration/websocket.js';
@@ -551,7 +553,10 @@
     } catch {
       return; // cancelled
     }
-    pendingImport = { bytes: new Uint8Array(await file.arrayBuffer()), filename: file.name as Filename };
+    pendingImport = {
+      bytes: new Uint8Array(await file.arrayBuffer()),
+      filename: parseFilename(file.name, DEFAULT_FILENAME),
+    };
   }
 
   // Superset of `writeLocked`: drives SyncBanner's tiering during the pre-lock
