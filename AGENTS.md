@@ -1,12 +1,10 @@
 # Copad — rules for AI agents
 
-**Keep this file lean.** It's imported wholesale into every Claude Code
-session via `CLAUDE.md`'s `@AGENTS.md` — an import loads at launch same as
-inline content, so it doesn't dodge Claude Code's own guidance to target
-under 200 lines of loaded memory before adherence drops. Add a rule only if
-it's general (applies across the codebase, not one file) and relevant on
-nearly every task; anything narrower belongs as an in-code comment (see
-Comments below) or in `docs/architecture.md`.
+**Keep this file lean.** `CLAUDE.md`'s `@AGENTS.md` imports it wholesale into
+every session, and an import costs the same context as inline content — hence
+the 200-line budget (`npm run check:doc-budget`). Add a rule only if it is
+general and relevant on nearly every task; anything narrower belongs in an
+in-code comment (see Comments) or in `docs/architecture.md`.
 
 ## Commands
 
@@ -143,9 +141,11 @@ Playwright e2e suite (`npm run e2e`).
 - Prefer fixing the code over explaining it: a comment that feels necessary
   usually marks a bad name or a missing type.
 - When you touch a file, bring its existing comments down to this bar.
-- Same bar off-repo: issues, PRs, review comments — table/checklist over
-  narrative; link rather than paraphrase what the link already says; state the
-  delta, never the process that produced it.
+- **Never post a comment** — not on an issue, a PR, or a review. An agent may
+  update an issue/PR **body or title**, and only when explicitly asked: the body
+  is the single source of truth and threads stay empty. Same bar there —
+  table/checklist over narrative, link rather than paraphrase what the link
+  already says, state the delta and never the process that produced it.
 
 ## Checklist before every commit
 
