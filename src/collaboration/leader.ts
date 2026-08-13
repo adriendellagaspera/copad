@@ -11,7 +11,7 @@
 
 import type { StorageId, Filename } from '../storage/types.js';
 import type { BrowserId } from './browserId.js';
-import type { PersistTarget, PeerAwarenessState } from './types.js';
+import type { PersistTarget, PeerAwarenessState, ClientId } from './types.js';
 
 /**
  * The key two peers share **iff** they write the same physical file: same
@@ -32,9 +32,9 @@ export function persistTargetKey(browser: BrowserId, storage: StorageId, filenam
  * reflected in `states` still wins when no lower-id peer shares its target.
  */
 export function isPersistLeader(
-  selfId: number,
+  selfId: ClientId,
   target: PersistTarget | undefined,
-  states: ReadonlyMap<number, PeerAwarenessState>,
+  states: ReadonlyMap<ClientId, PeerAwarenessState>,
 ): boolean {
   if (!target) return false;
   let min = selfId;

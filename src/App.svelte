@@ -71,7 +71,7 @@
   import { KEY_COLLAB_UNAVAILABLE_SEEN, KEY_STORAGE_INTRO_SEEN } from './collaboration/constants.js';
   import { localStore } from './persistence/local.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
-  import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer, WebsocketUrl } from './collaboration/types.js';
+  import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer, WebsocketUrl, ClientId } from './collaboration/types.js';
   import { SessionRole, PresenceKind, Transport } from './collaboration/types.js';
   import { writeGateFor, gateSettleMs, gateLingerMs, type SoloOptIn } from './collaboration/writeGate.js';
   import { departureLingerDeadline } from './collaboration/departureHysteresis.js';
@@ -510,7 +510,7 @@
   // effect's `wasAccompanied` so the two don't fight over one boolean. Never
   // calls `.focus()`; never steal focus.
   let wasUnlockedAccompanied = false;
-  let justJoinedIds = $state<number[]>([]);
+  let justJoinedIds = $state<ClientId[]>([]);
   let unlockLine = $state<string | null>(null);
   let unlockLineTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
