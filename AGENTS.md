@@ -75,9 +75,8 @@ Playwright e2e suite (`npm run e2e`).
     `src/collaboration/parse.ts`; do not read awareness state elsewhere.
   - External API JSON → type the interface, cast at `response.json()`.
   - Filename from browser API → cast to `Filename` inside the storage adapter.
-  - ProseMirror node/mark kind → `nodeNameOf(node)`/`markNameOf(mark)`
-    (`src/editor/schema.ts`), never a bare `node.type.name` compared to a
-    literal: the closed union makes a typo a compile error, not a false check.
+  - ProseMirror node/mark kind → `nodeNameOf`/`markNameOf` (`src/editor/schema.ts`),
+    never a bare `type.name` vs a literal: the closed union makes a typo an error.
 
 ## Finding things
 
@@ -162,8 +161,9 @@ Not mechanically checkable — review judgment only:
 - [ ] No unguarded `as unknown`, no widening casts outside parsers.
 - [ ] Every new domain value (URL, id, name, key) has a branded type.
 - [ ] New IO boundaries call a parse/resolve function; raw data does not escape.
-- [ ] No `node.type.name`/`mark.type.name` string comparison — use
-      `nodeNameOf`/`markNameOf` against `NodeName`/`MarkName`.
+- [ ] Code *navigating* node kinds uses `nodeNameOf`/`markNameOf`, never a bare
+      `type.name` compared to a literal; a schema name in a config literal takes
+      `satisfies NodeName`. Test assertions are exempt: a typo fails them anyway.
 - [ ] New function signatures use named types, not bare primitives.
 - [ ] New Svelte props use named types in `$props()`.
 - [ ] No OO-suffixed name unless it's genuinely not the pattern being banned
