@@ -25,17 +25,16 @@ Playwright e2e suite (`npm run e2e`).
 
 ## The contract comes first
 
+- **Every fact lives in exactly one place; everywhere else links to it.** A
+  restatement is a second copy that drifts, and the drifted copy is read as
+  true. Governs code comments, docs, issues and PRs alike.
 - [`docs/contract.md`](docs/contract.md) is **binding, not indicative**. Read it
   before changing anything about presence, the write gate, storage durability,
   room identifiers, or what the editor allows when alone.
-- Changing behaviour it describes means updating it **in the same commit**. A
-  spec that lags the code is worse than no spec: it is read as true.
-- The same holds for [`docs/architecture.md`](docs/architecture.md) and
-  `README.md`. When you touch an area they describe, bring their description
-  back in line — these files brief every agent, so a stale line propagates
-  into work that was never wrong on purpose. (`CLAUDE.md` carries no
-  description of its own — it only points here — so there's nothing in it to
-  go stale.)
+- Changing behaviour it describes means updating it **in the same commit**; the
+  same holds for [`docs/architecture.md`](docs/architecture.md) and `README.md`.
+  These files brief every agent, so a stale line propagates into work that was
+  never wrong on purpose.
 
 ## Type system rules
 
@@ -143,9 +142,8 @@ Playwright e2e suite (`npm run e2e`).
 - When you touch a file, bring its existing comments down to this bar.
 - **Never post a comment** — not on an issue, a PR, or a review. An agent may
   update an issue/PR **body or title**, and only when explicitly asked: the body
-  is the single source of truth and threads stay empty. Same bar there —
-  table/checklist over narrative, link rather than paraphrase what the link
-  already says, state the delta and never the process that produced it.
+  is where the information lives and threads stay empty. Same bar there —
+  table/checklist over narrative, state the delta never the process.
 
 ## Checklist before every commit
 
