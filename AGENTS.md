@@ -77,6 +77,11 @@ Playwright e2e suite (`npm run e2e`).
     `src/collaboration/parse.ts`; do not read awareness state elsewhere.
   - External API JSON → type the interface, cast at `response.json()`.
   - Filename from browser API → cast to `Filename` inside the storage adapter.
+  - ProseMirror node/mark kind → never compare `node.type.name`/`mark.type.name`
+    to a string literal. Use `nodeNameOf(node)` / `markNameOf(mark)`
+    (`src/editor/schema.ts`), which cast once to the closed `NodeName` /
+    `MarkName` union so a typo in a comparison or `switch` case is a compile
+    error (TS2367/TS2678), not a silently-false runtime check.
 
 ## Finding things
 
@@ -162,6 +167,8 @@ Not mechanically checkable — review judgment only:
 - [ ] No unguarded `as unknown`, no widening casts outside parsers.
 - [ ] Every new domain value (URL, id, name, key) has a branded type.
 - [ ] New IO boundaries call a parse/resolve function; raw data does not escape.
+- [ ] No `node.type.name`/`mark.type.name` string comparison — use
+      `nodeNameOf`/`markNameOf` against `NodeName`/`MarkName`.
 - [ ] New function signatures use named types, not bare primitives.
 - [ ] New Svelte props use named types in `$props()`.
 - [ ] No OO-suffixed name unless it's genuinely not the pattern being banned

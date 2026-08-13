@@ -21,6 +21,7 @@ import {
 } from 'docx';
 import { readPmDoc } from './pm.js';
 import { headingLevel, linkHref, taskItemChecked } from '../editor/parse.js';
+import { nodeNameOf, markNameOf } from '../editor/schema.js';
 
 const HEADING_LEVELS = [
   HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3,
@@ -63,7 +64,7 @@ function runStyleOf(node: PMNode): { style: IRunStylePropertiesOptions; href: st
   const style: { bold?: boolean; italics?: boolean; strike?: boolean; underline?: object; font?: string } = {};
   let href: string | null = null;
   node.marks.forEach((mark) => {
-    switch (mark.type.name) {
+    switch (markNameOf(mark)) {
       case 'strong': style.bold = true; break;
       case 'em': style.italics = true; break;
       case 'strike': style.strike = true; break;
@@ -82,7 +83,7 @@ function runStyleOf(node: PMNode): { style: IRunStylePropertiesOptions; href: st
 function runsOf(inline: PMNode, forceStyle: IRunStylePropertiesOptions = {}): ParagraphChild[] {
   const runs: ParagraphChild[] = [];
   inline.forEach((child) => {
-    if (child.type.name === 'hard_break') {
+    if (nodeNameOf(child) === 'hard_break') {
       runs.push(new TextRun({ break: 1 }));
       return;
     }
@@ -118,7 +119,7 @@ function blocksOf(container: PMNode, counter: OrderedCounter, depth = -1, ordere
  *  the same distinction Word itself makes between separate lists and
  *  multi-level ones. */
 function blockOf(node: PMNode, counter: OrderedCounter, depth: number, orderedInstance: number): Block[] {
-  switch (node.type.name) {
+  switch (nodeNameOf(node)) {
     case 'paragraph':
       return [new Paragraph({ children: runsOf(node) })];
 
@@ -131,7 +132,7 @@ function blockOf(node: PMNode, counter: OrderedCounter, depth: number, orderedIn
     case 'blockquote': {
       const out: Block[] = [];
       node.forEach((child) => {
-        if (child.type.name === 'paragraph') {
+        if (nodeNameOf(child) === 'paragraph') {
           const runs = runsOf(child);
           out.push(new Paragraph({
             children: runs.length ? runs : [new TextRun('')],
@@ -208,8 +209,8 @@ function blockOf(node: PMNode, counter: OrderedCounter, depth: number, orderedIn
           // before (with header bold forced onto its runs); anything richer
           // falls through to the general block renderer, same as the top
           // level, so no cell content is silently dropped.
-          const isHeader = cell.type.name === 'table_header';
-          const onlyParagraph = cell.childCount === 1 && cell.firstChild!.type.name === 'paragraph';
+          const isHeader = nodeNameOf(cell) === 'table_header';
+          const onlyParagraph = cell.childCount === 1 && nodeNameOf(cell.firstChild!) === 'paragraph';
           const children: Block[] = onlyParagraph
             ? [new Paragraph({ children: runsOf(cell.firstChild!, isHeader ? { bold: true } : {}) })]
             : blocksOf(cell, counter);
@@ -234,7 +235,7 @@ function listItemOf(
 ): Block[] {
   const out: Block[] = [];
   item.forEach((child, _offset, i) => {
-    if (i === 0 && child.type.name === 'paragraph') {
+    if (i === 0 && nodeNameOf(child) === 'paragraph') {
       out.push(new Paragraph({ children: runsOf(child), ...extra }));
     } else {
       out.push(...blockOf(child, counter, level, orderedInstance));

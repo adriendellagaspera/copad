@@ -6,7 +6,7 @@ import {
 } from 'prosemirror-markdown';
 import { Fragment } from 'prosemirror-model';
 import type { Node as PMNode } from 'prosemirror-model';
-import { schema } from '../editor/schema.js';
+import { schema, nodeNameOf } from '../editor/schema.js';
 import { taskItemChecked } from '../editor/parse.js';
 import { writePmDoc, readPmDoc } from './pm.js';
 import { classifyTable } from '../editor/markdown.js';
@@ -238,7 +238,7 @@ function taskifyBulletList(list: PMNode): PMNode | null {
   let allMatch = true;
   list.forEach((item) => {
     const firstChild = item.firstChild;
-    if (!firstChild || firstChild.type.name !== 'paragraph') {
+    if (!firstChild || nodeNameOf(firstChild) !== 'paragraph') {
       allMatch = false;
       return;
     }
@@ -260,7 +260,7 @@ function taskifyBulletList(list: PMNode): PMNode | null {
 /** Recursively convert every checkbox-shaped bullet_list in a parsed document
  *  into a task_list. */
 function taskifyLists(node: PMNode): PMNode {
-  if (node.type.name === 'bullet_list') {
+  if (nodeNameOf(node) === 'bullet_list') {
     const converted = taskifyBulletList(node);
     if (converted) return converted;
   }

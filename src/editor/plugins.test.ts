@@ -6,7 +6,7 @@ import { tableNodeTypes, CellSelection, selectedRect } from 'prosemirror-tables'
 import { yUndoPluginKey } from 'y-prosemirror';
 import { baseKeymap, chainCommands } from 'prosemirror-commands';
 import { splitListItem } from 'prosemirror-schema-list';
-import { schema } from './schema.js';
+import { schema, nodeNameOf } from './schema.js';
 import {
   markRuleHandler,
   linkRuleHandler,
@@ -1589,10 +1589,10 @@ describe('table-structure keymap survives macOS Option-key character composition
   it('Alt-Shift-h (toggle header row) fires even when event.key is a composed character', () => {
     const handleKeyDown = findHandleKeyDown();
     const { view } = stateWithOneCellTable();
-    const wasHeader = view.state.doc.firstChild!.firstChild!.firstChild!.type.name === 'table_header';
+    const wasHeader = nodeNameOf(view.state.doc.firstChild!.firstChild!.firstChild!) === 'table_header';
     const handled = handleKeyDown(view, fakeEvent({ key: '˙', keyCode: 72, altKey: true, shiftKey: true }));
     expect(handled).toBe(true);
-    const isHeaderNow = view.state.doc.firstChild!.firstChild!.firstChild!.type.name === 'table_header';
+    const isHeaderNow = nodeNameOf(view.state.doc.firstChild!.firstChild!.firstChild!) === 'table_header';
     expect(isHeaderNow).toBe(!wasHeader);
   });
 
