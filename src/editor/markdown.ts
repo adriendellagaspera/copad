@@ -83,7 +83,7 @@ function simpleTableToMarkdownLines(table: PMNode): string[] {
 }
 
 function serializeBlock(node: PMNode, indent = ''): string {
-  const t = node.type.name;
+  const t = nodeNameOf(node);
   switch (t) {
     case 'paragraph':
       return indent + serializeInline(node);

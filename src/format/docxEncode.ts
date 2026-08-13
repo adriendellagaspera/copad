@@ -21,7 +21,7 @@ import {
 } from 'docx';
 import { readPmDoc } from './pm.js';
 import { headingLevel, linkHref, taskItemChecked } from '../editor/parse.js';
-import { nodeNameOf } from '../editor/schema.js';
+import { nodeNameOf, markNameOf } from '../editor/schema.js';
 
 const HEADING_LEVELS = [
   HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3,
@@ -64,7 +64,7 @@ function runStyleOf(node: PMNode): { style: IRunStylePropertiesOptions; href: st
   const style: { bold?: boolean; italics?: boolean; strike?: boolean; underline?: object; font?: string } = {};
   let href: string | null = null;
   node.marks.forEach((mark) => {
-    switch (mark.type.name) {
+    switch (markNameOf(mark)) {
       case 'strong': style.bold = true; break;
       case 'em': style.italics = true; break;
       case 'strike': style.strike = true; break;
