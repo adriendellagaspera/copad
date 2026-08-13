@@ -2,6 +2,7 @@
   import { fly } from 'svelte/transition';
   import Avatar from './Avatar.svelte';
   import type { PeerUser } from './types.js';
+  import type { ClientId } from '../collaboration/types.js';
 
   let {
     users,
@@ -13,11 +14,11 @@
     users: PeerUser[];
     max?: number;
     size?: number;
-    onSelect?: (clientId: number) => void;
+    onSelect?: (clientId: ClientId) => void;
     /** Ids that should play the unlock moment's entrance (docs/contract.md §4.1:
      *  "the peer's avatar enters in their colour") — an already-present peer's
      *  avatar never re-triggers it. */
-    justJoinedIds?: number[];
+    justJoinedIds?: ClientId[];
   } = $props();
 
   const reducedMotion =

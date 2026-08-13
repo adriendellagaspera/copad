@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { SpellcheckEnabled } from './ui/types.js';
+  import type { SpellcheckEnabled, ResolvedLanguage } from './ui/types.js';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { EditorState } from 'prosemirror-state';
   import type { Transaction } from 'prosemirror-state';
@@ -33,10 +33,11 @@
     CursorColor,
     PeerAwarenessState,
     RoomPresence,
+    ClientId,
   } from './collaboration/types.js';
   import { ConnStatus, PresenceKind, SessionRole } from './collaboration/types.js';
   import type { RoomName, PersistTarget } from './collaboration/types.js';
-  import { parsePeerAwarenessState, parseRoomName } from './collaboration/parse.js';
+  import { parsePeerAwarenessState, parseRoomName, parseClientId } from './collaboration/parse.js';
   import { nextPersistHealth, nextRegime, UNPROVEN, PersistRegime, type PersistHealth } from './collaboration/persistHealth.js';
   import { browserId } from './collaboration/browserId.js';
   import type { SelfProbeMarker } from './collaboration/selfProbeMarker.js';
@@ -79,7 +80,7 @@
     selfProbeMarker?: SelfProbeMarker | null;
     connect: CollabConnect;
     toasts: Toasts;
-    lang?: string;
+    lang?: ResolvedLanguage;
     spellcheck?: SpellcheckEnabled;
     /** When true the editor is read-only: the write gate (`writeGateFor()` in
      *  `App.svelte`) is holding. This component only reflects it. */
@@ -102,7 +103,7 @@
 
   let {
     storage, name, color, room, role = SessionRole.Writer, selfProbeMarker = null, connect, toasts,
-    lang = 'en', spellcheck = true as SpellcheckEnabled,
+    lang = 'en' as ResolvedLanguage, spellcheck = true as SpellcheckEnabled,
     writeLocked = false, writeSoloAt = null, importRequest = null, onImportHandled, autofocusTitle = false,
   }: Props = $props();
 
@@ -171,17 +172,17 @@
   });
 
   // ── Presence (derived from awareness) ──────────────────────────────────────
-  const parsedStates = (): ReadonlyMap<number, PeerAwarenessState> => {
-    const result = new Map<number, PeerAwarenessState>();
+  const parsedStates = (): ReadonlyMap<ClientId, PeerAwarenessState> => {
+    const result = new Map<ClientId, PeerAwarenessState>();
     collab.awareness.getStates().forEach((raw, id) => {
-      result.set(id, parsePeerAwarenessState(raw));
+      result.set(parseClientId(id), parsePeerAwarenessState(raw));
     });
     return result;
   };
 
   const readUsers = (): PeerUser[] => {
     const states = parsedStates();
-    const selfId = collab.doc.clientID;
+    const selfId = parseClientId(collab.doc.clientID);
     const list: PeerUser[] = [];
     states.forEach((state, id) => {
       list.push({
@@ -198,7 +199,7 @@
 
   const readSoloBrowser = (): SoloBrowser => {
     const states = parsedStates();
-    const selfId = collab.doc.clientID;
+    const selfId = parseClientId(collab.doc.clientID);
     const mine = browserId();
     let sawOther = false;
     for (const [id, state] of states) {
@@ -349,7 +350,7 @@
   // Leader election is scoped by target so two owners on different backends each
   // persist their own copy, while peers sharing one file elect a single writer.
   const isLeader = (): boolean =>
-    isPersistLeader(collab.doc.clientID, myPersistTarget(), parsedStates());
+    isPersistLeader(parseClientId(collab.doc.clientID), myPersistTarget(), parsedStates());
 
   const flush = (): void => {
     const s = storage;

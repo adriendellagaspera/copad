@@ -62,6 +62,10 @@ export type FallbackTurnPolicy = (typeof FallbackTurnPolicy)[keyof typeof Fallba
 export type DisplayName = string & { readonly _brand: 'DisplayName' };
 export type CursorColor = string & { readonly _brand: 'CursorColor' };
 
+/** A peer's Yjs awareness client id — assigned by Yjs itself (`Y.Doc#clientID`,
+ *  `Awareness#getStates()` keys), never constructed locally. */
+export type ClientId = number & { readonly _brand: 'ClientId' };
+
 export interface PeerUser {
   readonly name: DisplayName;
   readonly color: CursorColor;

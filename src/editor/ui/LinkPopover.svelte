@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { EditorView } from 'prosemirror-view';
   import type { EditorState } from 'prosemirror-state';
+  import type { Node as PMNode } from 'prosemirror-model';
   import { TextSelection } from 'prosemirror-state';
   import { setLink, removeLink, linkAround, normalizeHref, isValidHref } from '../linkCommands.js';
   import { runCommand } from '../commands.js';
@@ -23,7 +24,7 @@
   // The doc the popover was opened against, kept by reference (ProseMirror
   // nodes are immutable — any content change produces a new object). Used
   // to auto-dismiss if the document changes underneath the popover.
-  let openDoc = $state<unknown>(null);
+  let openDoc = $state.raw<PMNode | null>(null);
 
   function openPopover(): void {
     if (!view) return;

@@ -7,7 +7,8 @@
  */
 
 import type { DecorationAttrs } from 'prosemirror-view';
-import type { PeerUser, CursorColor } from '../../collaboration/types.js';
+import type { PeerUser, CursorColor, ClientId } from '../../collaboration/types.js';
+import { parseClientId } from '../../collaboration/parse.js';
 import { fadeTier, type PresenceActivity } from '../../collaboration/presenceActivity.js';
 
 /** Tags a rendered cursor/selection element with its owning clientId so
@@ -18,7 +19,8 @@ import { fadeTier, type PresenceActivity } from '../../collaboration/presenceAct
 export const PRESENCE_ATTR = 'data-presence-client';
 
 export function remoteCursorBuilder(activity: PresenceActivity) {
-  return (user: PeerUser, clientId: number): HTMLElement => {
+  return (user: PeerUser, rawClientId: number): HTMLElement => {
+    const clientId = parseClientId(rawClientId);
     const cursor = document.createElement('span');
     cursor.classList.add('ProseMirror-yjs-cursor');
     cursor.setAttribute(PRESENCE_ATTR, String(clientId));
@@ -33,11 +35,14 @@ export function remoteCursorBuilder(activity: PresenceActivity) {
 }
 
 export function remoteSelectionBuilder(activity: PresenceActivity) {
-  return (user: PeerUser, clientId: number): DecorationAttrs => ({
-    style: `background-color: ${user.color}70; --presence-fade: ${fadeTier(activity.idleMs(clientId)).toFixed(2)}`,
-    class: 'ProseMirror-yjs-selection',
-    [PRESENCE_ATTR]: String(clientId),
-  });
+  return (user: PeerUser, rawClientId: number): DecorationAttrs => {
+    const clientId = parseClientId(rawClientId);
+    return {
+      style: `background-color: ${user.color}70; --presence-fade: ${fadeTier(activity.idleMs(clientId)).toFixed(2)}`,
+      class: 'ProseMirror-yjs-selection',
+      [PRESENCE_ATTR]: String(clientId),
+    };
+  };
 }
 
 /**
@@ -55,9 +60,9 @@ export function remoteSelectionBuilder(activity: PresenceActivity) {
  */
 export function refreshPresenceFade(root: Element, activity: PresenceActivity): void {
   root.querySelectorAll<HTMLElement>(`[${PRESENCE_ATTR}]`).forEach((el) => {
-    const clientId = Number(el.getAttribute(PRESENCE_ATTR));
-    if (Number.isNaN(clientId)) return;
-    el.style.setProperty('--presence-fade', fadeTier(activity.idleMs(clientId)).toFixed(2));
+    const raw = Number(el.getAttribute(PRESENCE_ATTR));
+    if (Number.isNaN(raw)) return;
+    el.style.setProperty('--presence-fade', fadeTier(activity.idleMs(parseClientId(raw))).toFixed(2));
   });
 }
 
@@ -144,7 +149,7 @@ function flashOnce(el: HTMLElement, color: CursorColor | undefined): void {
  * wrong place, which is what made this look broken while a peer had an
  * active selection instead of a bare caret.
  */
-export function jumpToPresence(root: Element, clientId: number, color?: CursorColor): void {
+export function jumpToPresence(root: Element, clientId: ClientId, color?: CursorColor): void {
   const cursor = root.querySelector<HTMLElement>(`.ProseMirror-yjs-cursor[${PRESENCE_ATTR}="${clientId}"]`);
   const selection = root.querySelectorAll<HTMLElement>(`.ProseMirror-yjs-selection[${PRESENCE_ATTR}="${clientId}"]`);
   const target = cursor ?? selection[0];

@@ -1,4 +1,4 @@
-import { choosePanel, type PanelPosition, type PanelSize, type Rect, type Viewport } from './tableAnchor.js';
+import { choosePanel, clamp, type PanelPosition, type PanelSize, type Rect, type Viewport } from './tableAnchor.js';
 
 /** A distance in CSS pixels — the breathing room between an anchor and a
  *  floating surface. */
@@ -74,8 +74,6 @@ export function chooseSurfaces(input: SurfaceInput): FloatingSurfaces {
 }
 
 export type Placement = { shown: false } | { shown: true; at: PanelPosition };
-
-const clamp = (value: number, low: number, high: number): number => Math.max(low, Math.min(value, high));
 
 function intersects(a: Rect, b: Rect): boolean {
   return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;

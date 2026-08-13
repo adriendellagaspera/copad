@@ -1,5 +1,9 @@
 import type { EditorView } from 'prosemirror-view';
 
+/** Confines `value` to `[low, high]` — the one clamp every floating-panel
+ *  positioning function (this module and `floatingSurfaces.ts`) shares. */
+export const clamp = (value: number, low: number, high: number): number => Math.max(low, Math.min(value, high));
+
 /** A `getBoundingClientRect()`-shaped rectangle — kept structural (not a
  *  `DOMRect` import) so the positioning math below is testable with plain
  *  numbers, no DOM required. */
@@ -55,14 +59,15 @@ export function positionTablePanel(
   viewport: Viewport,
   gap: number,
 ): PanelPosition {
-  const left = Math.max(
+  const left = clamp(
+    table.left + table.width / 2 - panelSize.width / 2,
     gap,
-    Math.min(table.left + table.width / 2 - panelSize.width / 2, viewport.width - panelSize.width - gap),
+    viewport.width - panelSize.width - gap,
   );
 
   const fitsBelow = table.bottom + gap + panelSize.height <= viewport.height - gap;
   const preferredTop = fitsBelow ? table.bottom + gap : table.top - panelSize.height - gap;
-  const top = Math.max(gap, Math.min(preferredTop, viewport.height - panelSize.height - gap));
+  const top = clamp(preferredTop, gap, viewport.height - panelSize.height - gap);
 
   return { top, left };
 }

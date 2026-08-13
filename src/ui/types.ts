@@ -1,8 +1,8 @@
-import type { DisplayName, CursorColor } from '../collaboration/types.js';
+import type { DisplayName, CursorColor, ClientId } from '../collaboration/types.js';
 
 /** A peer present in the room (derived from y-protocols awareness state). */
 export interface PeerUser {
-  id: number;
+  id: ClientId;
   name: DisplayName;
   color: CursorColor;
   self?: boolean;
@@ -22,5 +22,8 @@ export type DialogTitle = string & { readonly _brand: 'DialogTitle' };
 /** A dialog body that supplies its own padding, so the shell adds none. */
 export type DialogFlush = boolean & { readonly _brand: 'DialogFlush' };
 export type SpellcheckEnabled = boolean & { readonly _brand: 'SpellcheckEnabled' };
+/** A resolved BCP-47 language tag — `LanguageChoice` (`language.svelte.ts`)
+ *  after its `'auto'` sentinel has been settled against `navigator.language`. */
+export type ResolvedLanguage = string & { readonly _brand: 'ResolvedLanguage' };
 /** Open Settings with the Advanced section expanded and focused. */
 export type FocusAdvanced = boolean & { readonly _brand: 'FocusAdvanced' };

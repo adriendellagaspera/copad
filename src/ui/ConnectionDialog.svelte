@@ -3,7 +3,7 @@
   import type { ConflictWarning, DialogOpen, DialogTitle, RoomEncrypted, StorageAttached } from './types.js';
   import Dialog from './Dialog.svelte';
   import PresenceBar from './PresenceBar.svelte';
-  import type { Diagnostics } from '../collaboration/types.js';
+  import type { Diagnostics, ClientId } from '../collaboration/types.js';
   import { ConnStatus, Transport, IceCandidateType } from '../collaboration/types.js';
   import { SaveStatus } from './types.js';
   import type { PeerUser } from './types.js';
@@ -37,14 +37,14 @@
     peers?: PeerUser[];
     getDiagnostics?: () => Promise<Diagnostics>;
     reconnect?: () => void;
-    jumpToPeer?: (clientId: number) => void;
+    jumpToPeer?: (clientId: ClientId) => void;
     onConnectStorage: () => void;
     onOpenConnectionSettings?: () => void;
   } = $props();
 
   const TITLE = 'Connection & storage' as DialogTitle;
 
-  function selectPeer(clientId: number): void {
+  function selectPeer(clientId: ClientId): void {
     onclose();
     jumpToPeer?.(clientId);
   }

@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { persistTargetKey, isPersistLeader } from './leader.js';
 import type { BrowserId } from './browserId.js';
-import type { PersistTarget, PeerAwarenessState } from './types.js';
+import type { PersistTarget, PeerAwarenessState, ClientId } from './types.js';
 import type { StorageId, Filename } from '../storage/types.js';
 import { SessionRole } from './types.js';
+
+const id = (n: number): ClientId => n as ClientId;
 
 const INSTALL_A = 'browser-a' as BrowserId;
 const INSTALL_B = 'browser-b' as BrowserId;
@@ -45,32 +47,32 @@ describe('isPersistLeader', () => {
   const U = persistTargetKey(INSTALL_B, GITHUB, DOC);
 
   it('is not a leader when not persisting (no target)', () => {
-    expect(isPersistLeader(5, undefined, new Map([[5, persister(undefined, false)]]))).toBe(false);
+    expect(isPersistLeader(id(5), undefined, new Map([[id(5), persister(undefined, false)]]))).toBe(false);
   });
 
   it('is the leader when alone on its target', () => {
-    expect(isPersistLeader(5, T, new Map([[5, persister(T)]]))).toBe(true);
+    expect(isPersistLeader(id(5), T, new Map([[id(5), persister(T)]]))).toBe(true);
   });
 
   it('the lowest clientID leads among peers sharing a target', () => {
-    const states = new Map([[3, persister(T)], [5, persister(T)]]);
-    expect(isPersistLeader(3, T, states)).toBe(true);
-    expect(isPersistLeader(5, T, states)).toBe(false);
+    const states = new Map([[id(3), persister(T)], [id(5), persister(T)]]);
+    expect(isPersistLeader(id(3), T, states)).toBe(true);
+    expect(isPersistLeader(id(5), T, states)).toBe(false);
   });
 
   it('peers on distinct targets each lead their own (no starving)', () => {
-    const states = new Map([[3, persister(U)], [5, persister(T)]]);
+    const states = new Map([[id(3), persister(U)], [id(5), persister(T)]]);
     // clientID 5 has a *higher* id but a different target than 3 → still leads T.
-    expect(isPersistLeader(5, T, states)).toBe(true);
-    expect(isPersistLeader(3, U, states)).toBe(true);
+    expect(isPersistLeader(id(5), T, states)).toBe(true);
+    expect(isPersistLeader(id(3), U, states)).toBe(true);
   });
 
   it('ignores peers that share the target but cannot persist', () => {
-    const states = new Map([[3, persister(T, false)], [5, persister(T)]]);
-    expect(isPersistLeader(5, T, states)).toBe(true);
+    const states = new Map([[id(3), persister(T, false)], [id(5), persister(T)]]);
+    expect(isPersistLeader(id(5), T, states)).toBe(true);
   });
 
   it('leads even if self is not yet reflected in the states map', () => {
-    expect(isPersistLeader(5, T, new Map())).toBe(true);
+    expect(isPersistLeader(id(5), T, new Map())).toBe(true);
   });
 });

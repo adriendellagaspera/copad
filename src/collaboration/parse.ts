@@ -1,5 +1,5 @@
 import type {
-  DisplayName, CursorColor, PeerAwarenessState, PersistTarget, RoomId, RoomName,
+  DisplayName, CursorColor, ClientId, PeerAwarenessState, PersistTarget, RoomId, RoomName,
   SignalingUrl, WebsocketUrl,
   StunUrl, TurnUrl, TurnUsername, TurnCredential, IceServer, IceServersUrl,
 } from './types.js';
@@ -136,6 +136,23 @@ export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
     ...(browserId ? { browserId } : {}),
     ...(selfProbeMarker ? { selfProbeMarker } : {}),
   };
+}
+
+/** Single cast site for {@link ClientId} — Yjs assigns these itself
+ *  (`Y.Doc#clientID`, `Awareness#getStates()` keys), so this is where that
+ *  raw `number` becomes a branded, unforgeable identity. */
+export function parseClientId(raw: number): ClientId {
+  return raw as ClientId;
+}
+
+/** Single read site for a peer's `cursor` awareness field (y-prosemirror's
+ *  own anchor/head shape) — do not read `awareness.getStates()` elsewhere.
+ *  Stays `unknown`: every caller only compares it for change detection
+ *  (`JSON.stringify` equality), never destructures it, so there is nothing
+ *  to narrow into. */
+export function parsePeerCursorValue(raw: unknown): unknown {
+  const obj = (typeof raw === 'object' && raw !== null) ? raw as Record<string, unknown> : {};
+  return obj['cursor'];
 }
 
 /** Parse a raw string from storage as a RoomId: the single cast site for RoomId from localStorage/URL. */

@@ -8,6 +8,8 @@
 
 import type { Awareness } from 'y-protocols/awareness';
 import { now, type Milliseconds, type EpochMs } from '../time.js';
+import { parsePeerCursorValue, parseClientId } from './parse.js';
+import type { ClientId } from './types.js';
 
 /** Idle-time thresholds (ms) — below FADE_START a peer renders at full
  *  strength; between FADE_START and FADE_DONE it fades; at/after FADE_DONE
@@ -19,7 +21,7 @@ export interface PresenceActivity {
   /** Milliseconds since this client's awareness state last changed (cursor
    *  moved, selection changed, …). A client never observed reports 0 — treat
    *  first sight as "active now" so a peer doesn't render pre-faded. */
-  idleMs(clientId: number): Milliseconds;
+  idleMs(clientId: ClientId): Milliseconds;
   destroy(): void;
 }
 
@@ -32,25 +34,25 @@ export interface PresenceActivity {
  *  idle time never accumulates. So we compare the cursor value itself and
  *  only touch the timestamp when it actually differs from what we last saw. */
 export function trackPresenceActivity(awareness: Awareness): PresenceActivity {
-  const lastActive = new Map<number, EpochMs>();
-  const lastCursor = new Map<number, string>();
+  const lastActive = new Map<ClientId, EpochMs>();
+  const lastCursor = new Map<ClientId, string>();
 
-  const cursorKey = (clientId: number): string | undefined => {
-    const state = awareness.getStates().get(clientId) as { cursor?: unknown } | undefined;
-    return state?.cursor == null ? undefined : JSON.stringify(state.cursor);
+  const cursorKey = (clientId: ClientId): string | undefined => {
+    const cursor = parsePeerCursorValue(awareness.getStates().get(clientId));
+    return cursor == null ? undefined : JSON.stringify(cursor);
   };
 
-  const touch = (clientId: number): void => {
+  const touch = (clientId: ClientId): void => {
     lastActive.set(clientId, now());
     const key = cursorKey(clientId);
     if (key !== undefined) lastCursor.set(clientId, key);
   };
 
-  awareness.getStates().forEach((_state, clientId) => touch(clientId));
+  awareness.getStates().forEach((_state, clientId) => touch(parseClientId(clientId)));
 
   const onChange = ({ added, updated }: { added: number[]; updated: number[]; removed: number[] }): void => {
-    added.forEach(touch);
-    updated.forEach((clientId) => {
+    added.map(parseClientId).forEach(touch);
+    updated.map(parseClientId).forEach((clientId) => {
       const key = cursorKey(clientId);
       if (key !== lastCursor.get(clientId)) touch(clientId);
     });

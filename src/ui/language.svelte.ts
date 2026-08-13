@@ -5,7 +5,7 @@
  */
 
 import { localStore } from '../persistence/local.js';
-import type { SpellcheckEnabled } from './types.js';
+import type { SpellcheckEnabled, ResolvedLanguage } from './types.js';
 import { nsKey } from '../config.js';
 
 /** 'auto' defers to navigator.language; any other value is a BCP-47 tag. */
@@ -39,7 +39,9 @@ export function createLanguage() {
 
   // 'auto' resolves to the browser locale at runtime — no reactivity needed
   // because navigator.language is fixed for the page lifetime.
-  const resolved = $derived<string>(choice === LANGUAGE_AUTO ? navigator.language : choice);
+  const resolved = $derived<ResolvedLanguage>(
+    (choice === LANGUAGE_AUTO ? navigator.language : choice) as ResolvedLanguage,
+  );
 
   function setChoice(next: LanguageChoice): void {
     choice = next;
