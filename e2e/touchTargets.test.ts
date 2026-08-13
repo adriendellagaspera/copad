@@ -12,6 +12,38 @@ type Px = number & { readonly _brand: 'Px' };
 type Overflows = boolean & { readonly _brand: 'Overflows' };
 
 const TOUCH_FLOOR = 44 as Px;
+/** #291's widest pill decision (a) can carry at 320px. */
+const PILL_CEILING = 106.41 as Px;
+
+type SegmentText = string & { readonly _brand: 'SegmentText' };
+type StateLabels = string & { readonly _brand: 'StateLabels' };
+type HowReached = string & { readonly _brand: 'HowReached' };
+type Provenance = 'observed' | 'constructed';
+type RoomFragment = string & { readonly _brand: 'RoomFragment' };
+type VariantName = string & { readonly _brand: 'VariantName' };
+
+interface PillState {
+  readonly labels: StateLabels;
+  readonly how: HowReached;
+  readonly provenance: Provenance;
+  readonly viewport: ViewportLabel;
+  readonly width: Px;
+  readonly labelBoxWidth: Px;
+}
+
+interface Variant {
+  readonly name: VariantName;
+  readonly fragment: RoomFragment;
+  readonly tail: readonly SegmentText[];
+}
+
+const VARIANTS: readonly Variant[] = [
+  { name: 'plain' as VariantName, fragment: '' as RoomFragment, tail: [] },
+  // `#k=` is the room key a real "New document" link carries; it turns the "Encrypted" segment on.
+  { name: 'encrypted' as VariantName, fragment: '#k=pill-state-key' as RoomFragment, tail: ['Encrypted' as SegmentText] },
+];
+
+const pillStates: PillState[] = [];
 
 interface Measurement {
   readonly element: ElementName;
@@ -125,6 +157,102 @@ async function measureDock(page: Page, viewport: ViewportLabel): Promise<void> {
   await dockRow(page, viewport);
 }
 
+function dockPill(page: Page): Locator {
+  return page.locator('.mobile-dock .chip');
+}
+
+/**
+ * Below 720px `.seg-label` is clipped to 1px, so a state is identified by label text the
+ * layout never pays for — hence `allTextContents()` rather than a visible-text assertion.
+ */
+async function measurePillState(
+  page: Page,
+  viewport: ViewportLabel,
+  expected: readonly SegmentText[],
+  how: HowReached,
+  provenance: Provenance = 'observed',
+): Promise<void> {
+  const pill = dockPill(page);
+  const labels = expected.join(' + ') as StateLabels;
+  await expect
+    .poll(async () => (await pill.locator('.seg-label').allTextContents()).map((t) => t.trim()), {
+      timeout: 30_000,
+      message: `pill never reached ${labels}`,
+    })
+    .toEqual([...expected]);
+  const m = await measure(`pill: ${labels}` as ElementName, viewport, pill);
+  const labelBox = await pill.locator('.seg-label').first().boundingBox();
+  pillStates.push({
+    labels,
+    how,
+    provenance,
+    viewport,
+    width: m.width,
+    labelBoxWidth: px(labelBox?.width ?? 0),
+  });
+}
+
+/** No signaling socket ever opens: the pill sits on Connecting, then times out to Can't connect. */
+async function blockSignaling(page: Page): Promise<void> {
+  await page.routeWebSocket((url) => url.port === '4444', (ws) => ws.close());
+}
+
+const DAV_PATH = '/dav';
+
+/**
+ * A stand-in WebDAV server: the only storage backend whose login is a plain fetch, so the
+ * durability segment's states are driven through the real Settings flow and a real save.
+ */
+async function mockWebdav(page: Page, putStatus: number, putDelayMs: number): Promise<void> {
+  await page.route(
+    (url) => url.pathname === DAV_PATH || url.pathname.startsWith(`${DAV_PATH}/`),
+    async (route) => {
+      if (route.request().method() !== 'PUT') return route.fulfill({ status: 404, body: '' });
+      if (putDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, putDelayMs));
+      return route.fulfill({ status: putStatus, body: '' });
+    },
+  );
+}
+
+async function openStorageSettings(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Storage', exact: true }).click();
+  const tile = page.getByRole('button', { name: 'WebDAV / Nextcloud' });
+  await tile.click();
+}
+
+/** Field help text repeats other fields' names, so the label span is matched whole. */
+function settingsField(page: Page, label: string): Locator {
+  return page
+    .locator('label.field')
+    .filter({ has: page.locator('.field-label', { hasText: new RegExp(`^\\s*${label}\\s*$`) }) })
+    .locator('input');
+}
+
+async function connectWebdav(page: Page): Promise<void> {
+  await openStorageSettings(page);
+  const field = (label: string): Locator => settingsField(page, label);
+  await field('WebDAV folder URL').fill(new URL(DAV_PATH, page.url()).href);
+  await field('Username').fill('measure');
+  await field('App password').fill('measure');
+  await page.getByRole('button', { name: 'Connect WebDAV / Nextcloud' }).click();
+  await expect(page.getByRole('button', { name: 'Disconnect' })).toBeVisible({ timeout: 30_000 });
+  await page.keyboard.press('Escape');
+  await expect(dockPill(page)).toBeVisible();
+}
+
+/** Typing hides the dock (`.dock-hidden`); blurring brings it back with the save status kept. */
+async function typeThenLeaveEditor(page: Page): Promise<void> {
+  // Attached storage satisfies the write gate on its own, so the escape hatch may not be there.
+  const writeSolo = page.getByRole('button', { name: 'Write alone anyway' });
+  if (await writeSolo.isVisible()) await writeSolo.click();
+  const editor = page.locator('.ProseMirror[contenteditable="true"]');
+  await expect(editor).toBeVisible({ timeout: 30_000 });
+  await editor.click();
+  await page.keyboard.type('measuring the pill');
+  await editor.evaluate((el) => (el as HTMLElement).blur());
+}
+
 function report(): void {
   if (measurements.length === 0 && dockRows.length === 0) return;
   const lines = [
@@ -141,6 +269,13 @@ function report(): void {
   for (const d of dockRows) {
     lines.push(
       `${d.row} | ${d.viewport} | ${d.controlsWidth} | ${d.scrollWidth} | ${d.clientWidth} | ${d.overflows ? 'YES' : 'no'}`,
+    );
+  }
+  lines.push('--- status pill states (#292) vs the 106.41px ceiling (#291) ---');
+  lines.push('state | reached | provenance | viewport | width | label box | <= 106.41?');
+  for (const s of pillStates) {
+    lines.push(
+      `${s.labels} | ${s.how} | ${s.provenance} | ${s.viewport} | ${s.width} | ${s.labelBoxWidth} | ${s.width <= PILL_CEILING ? 'yes' : 'NO'}`,
     );
   }
   lines.push('=== END MEASURED ===', '');
@@ -171,6 +306,131 @@ for (const width of [320, 390] as const) {
       await expect(pill.locator('.seg.secure')).toHaveCount(1);
       await measure('dock: status pill (encrypted)' as ElementName, viewport, pill);
       await dockRow(page, `${width}px encrypted` as ViewportLabel);
+    });
+
+    for (const v of VARIANTS) {
+      const room = (name: string): string => `/?room=${name}-${v.name}-${width}${v.fragment}`;
+      const state = (...segs: readonly SegmentText[]): readonly SegmentText[] => [...segs, ...v.tail];
+
+      test(`measures the pill while the signaling server never answers (${v.name})`, async ({ page }) => {
+        await blockSignaling(page);
+        await openRoom(page, room('pill-unreachable'));
+        await measurePillState(
+          page,
+          viewport,
+          state('Connecting…' as SegmentText, 'Not saved' as SegmentText),
+          'signaling socket closed on open' as HowReached,
+        );
+        await measurePillState(
+          page,
+          viewport,
+          state("Can't connect" as SegmentText, 'Not saved' as SegmentText),
+          'same, past CONNECT_TIMEOUT_MS' as HowReached,
+        );
+      });
+
+      test(`measures the pill with the network down (${v.name})`, async ({ page, context }) => {
+        await openRoom(page, room('pill-offline'));
+        await context.setOffline(true);
+        await measurePillState(
+          page,
+          viewport,
+          state('Offline' as SegmentText, 'Not saved' as SegmentText),
+          'context.setOffline(true)' as HowReached,
+        );
+      });
+
+      // A second tab of the same browser is a real peer: y-webrtc counts its BroadcastChannel
+      // connection, so this needs no WebRTC media path to reach Connected.
+      test(`measures the pill with a peer in the room (${v.name})`, async ({ page, context }) => {
+        const url = room('pill-connected');
+        await openRoom(page, url);
+        const peer = await context.newPage();
+        try {
+          await openRoom(peer, url);
+          await measurePillState(
+            page,
+            viewport,
+            state('Direct' as SegmentText, 'Not saved' as SegmentText),
+            'a second tab joined the room' as HowReached,
+          );
+        } finally {
+          await peer.close();
+        }
+      });
+    }
+
+    // The app's service worker serves fetches outside `page.route`'s reach, so the WebDAV
+    // stand-in only answers with it blocked.
+    test.describe('with a stand-in WebDAV server', () => {
+      test.use({ serviceWorkers: 'block' });
+
+      for (const v of VARIANTS) {
+        const room = (name: string): string => `/?room=${name}-${v.name}-${width}${v.fragment}`;
+        const state = (...segs: readonly SegmentText[]): readonly SegmentText[] => [...segs, ...v.tail];
+
+        test(`measures the pill while a save is in flight and lands (${v.name})`, async ({ page }) => {
+          await mockWebdav(page, 201, 2_500);
+          await openRoom(page, room('pill-saving'));
+          await connectWebdav(page);
+          await measurePillState(
+            page,
+            viewport,
+            state('Waiting' as SegmentText, 'Saved' as SegmentText),
+            'WebDAV connected in Settings, nothing written yet' as HowReached,
+          );
+          await typeThenLeaveEditor(page);
+          await measurePillState(
+            page,
+            viewport,
+            state('Waiting' as SegmentText, 'Saving…' as SegmentText),
+            'edit with the mock WebDAV PUT held 2.5s' as HowReached,
+          );
+          await measurePillState(
+            page,
+            viewport,
+            state('Waiting' as SegmentText, 'Saved' as SegmentText),
+            'the same PUT answering 201' as HowReached,
+          );
+        });
+
+        test(`measures the pill after a failed save (${v.name})`, async ({ page }) => {
+          await mockWebdav(page, 500, 0);
+          await openRoom(page, room('pill-save-failed'));
+          await connectWebdav(page);
+          await typeThenLeaveEditor(page);
+          await measurePillState(
+            page,
+            viewport,
+            state('Waiting' as SegmentText, 'Save failed' as SegmentText),
+            'edit with the mock WebDAV PUT answering 500' as HowReached,
+          );
+        });
+
+        test(`measures the pill with two rooms saving to one file (${v.name})`, async ({ page }) => {
+          await mockWebdav(page, 201, 0);
+          const first = `pill-conflict-a-${v.name}-${width}`;
+          await openRoom(page, `/?room=${first}${v.fragment}`);
+          await connectWebdav(page);
+
+          await openRoom(page, room('pill-conflict-b'));
+          // Reconnecting is what adds a second room to the saved set; the file name then collides.
+          await openStorageSettings(page);
+          await page.getByRole('button', { name: 'Disconnect' }).click();
+          await page.keyboard.press('Escape');
+          await connectWebdav(page);
+          await openStorageSettings(page);
+          await settingsField(page, 'File name \\(this room\\)').fill(`${first}.yjs`);
+          await page.keyboard.press('Escape');
+
+          await measurePillState(
+            page,
+            viewport,
+            state('Waiting' as SegmentText, 'Conflict' as SegmentText),
+            'a second saved room renamed onto the first room\'s file' as HowReached,
+          );
+        });
+      }
     });
 
     test('measures the formatting toolbar buttons', async ({ page }) => {
