@@ -1,14 +1,15 @@
 name: Enhancement
-description: Propose a feature or improvement
+description: A capability that doesn't exist, or one below the bar
 title: "<short imperative title>"
-labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
         Keep it short — a scannable issue gets triaged, a long one doesn't. No "Motivation"/"SOTA"/"Context" essays; cite `file:line` instead of describing code in prose.
 
-        **Labels** (maintainer sets these on triage): one area — `editor` / `storage` / `ux` / `mobile-ux` / `presence` / `contract` / `epic` — plus `P0`–`P3` only if priority is already known, otherwise leave it unset.
+        **Labels** — deliberately none at creation: `type:feature` (a capability that does not exist) vs `type:polish` (one that exists but is below the bar) is a triage call, not a filing one. A maintainer sets it with one or more `area:`; until then `status:needs-triage` stays on automatically. The vocabulary is [`.github/labels.cjs`](../labels.cjs).
+
+        Investigating rather than building? Use **Spike**. Asking rather than proposing? Use **Decision**.
   - type: textarea
     id: problem
     attributes:

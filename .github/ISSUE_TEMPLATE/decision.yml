@@ -1,0 +1,45 @@
+name: Decision
+description: An open question that has to be arbitrated before work can start
+title: "<the question, as a question>"
+labels: ["type:decision", "status:needs-decision"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The deliverable is a **decision**, not code. It closes when the answer reaches its durable home — `docs/contract.md`, `docs/architecture.md`, a test that enforces it, or the code itself. Leaving the decision here and closing is the one ending that doesn't work: an issue is not a durable home.
+
+        A rejection closes this too. "No, and here is why" is an answer.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: One sentence, answerable. What is blocked on it?
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options
+      description: A table — one row per option, one column for what it costs. Cite file:line where an option is already half-built.
+      value: |
+        | Option | Trade-off |
+        |---|---|
+        |  |  |
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: Decision
+      description: Left empty until it's taken. Then the option, the date, and the reason the others lost.
+    validations:
+      required: false
+  - type: textarea
+    id: home
+    attributes:
+      label: Durable home
+      description: Where the decision lands, and what closes this issue.
+      value: |
+        - [ ] Recorded in
+    validations:
+      required: true

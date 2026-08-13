@@ -1,0 +1,53 @@
+name: Labels
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/labels.cjs', '.github/scripts/sync-labels.cjs']
+  pull_request:
+    paths: ['.github/labels.cjs', '.github/scripts/sync-labels.cjs']
+  workflow_dispatch:
+    inputs:
+      prune:
+        description: Delete labels absent from .github/labels.cjs
+        type: boolean
+        default: true
+  issues:
+    types: [opened, reopened, labeled, unlabeled]
+
+permissions:
+  issues: write
+
+jobs:
+  # A pull request plans only: a fork's token cannot write labels, and a label
+  # deletion is not reviewable once it has happened.
+  sync:
+    if: github.event_name != 'issues'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: labels-sync
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        env:
+          LABELS_APPLY: ${{ github.event_name != 'pull_request' }}
+          LABELS_PRUNE: ${{ github.event_name != 'workflow_dispatch' || inputs.prune }}
+        with:
+          script: |
+            const sync = require('./.github/scripts/sync-labels.cjs');
+            await sync({ github, context, core });
+
+  hygiene:
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: labels-hygiene-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const check = require('./.github/scripts/check-issue-labels.cjs');
+            await check({ github, context, core });
