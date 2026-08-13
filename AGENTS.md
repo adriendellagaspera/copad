@@ -140,12 +140,12 @@ Playwright e2e suite (`npm run e2e`).
 - Prefer fixing the code over explaining it: a comment that feels necessary
   usually marks a bad name or a missing type.
 - When you touch a file, bring its existing comments down to this bar.
-- **Never post a comment** — not on an issue, a PR, or a review. An agent may
-  update an issue/PR **body or title**, and only when explicitly asked: the body
-  is where the information lives and threads stay empty. Same bar there —
-  table/checklist over narrative, state the delta never the process. The one
-  comment a PR carries is the preview link, upserted and removed by CI
-  (`.github/workflows/pr-preview.yml`) — not yours to write or delete.
+- **Comments belong to humans.** An agent never posts one. It reads what a human
+  wrote, challenges it when the code says otherwise, and — with that human in
+  session — folds the outcome into the body, the title, or the code: the change
+  is the reply. Bodies are where information lives; same bar there — table over
+  narrative, the delta not the process. The only non-human comment is CI's
+  preview link (`.github/workflows/pr-preview.yml`), not yours to write or delete.
 
 ## Checklist before every commit
 
