@@ -1,7 +1,7 @@
-import type { DisplayName, CursorColor } from '../collaboration/types.js';
+import type { DisplayName, CursorColor, ClientId } from '../collaboration/types.js';
 
 export interface PeerUser {
-  id: number;
+  id: ClientId;
   name: DisplayName;
   color: CursorColor;
   self?: boolean;
@@ -19,4 +19,5 @@ export type DialogOpen = boolean & { readonly _brand: 'DialogOpen' };
 export type DialogTitle = string & { readonly _brand: 'DialogTitle' };
 export type DialogFlush = boolean & { readonly _brand: 'DialogFlush' };
 export type SpellcheckEnabled = boolean & { readonly _brand: 'SpellcheckEnabled' };
+export type ResolvedLanguage = string & { readonly _brand: 'ResolvedLanguage' };
 export type FocusAdvanced = boolean & { readonly _brand: 'FocusAdvanced' };

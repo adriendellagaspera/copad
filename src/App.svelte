@@ -7,6 +7,8 @@
   import type { StorageBackend } from './storage/index.js';
   import { savedRoomsStore } from './storage/savedRooms.js';
   import { filenameForRoom, firstFileCollision } from './storage/filename.js';
+  import { parseFilename } from './storage/parse.js';
+  import { DEFAULT_FILENAME } from './storage/constants.js';
   import type { Filename, StorageId } from './storage/types.js';
   import { webrtcCollab } from './collaboration/webrtc.js';
   import { websocketCollab } from './collaboration/websocket.js';
@@ -69,7 +71,7 @@
   import { KEY_COLLAB_UNAVAILABLE_SEEN, KEY_STORAGE_INTRO_SEEN } from './collaboration/constants.js';
   import { localStore } from './persistence/local.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
-  import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer, WebsocketUrl } from './collaboration/types.js';
+  import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer, WebsocketUrl, ClientId } from './collaboration/types.js';
   import { SessionRole, PresenceKind, Transport } from './collaboration/types.js';
   import { writeGateFor, gateSettleMs, gateLingerMs, type SoloOptIn } from './collaboration/writeGate.js';
   import { departureLingerDeadline } from './collaboration/departureHysteresis.js';
@@ -479,7 +481,7 @@
 
   // Separate flag from the departure effect's `wasAccompanied`; never steals focus (contract §4.1).
   let wasUnlockedAccompanied = false;
-  let justJoinedIds = $state<number[]>([]);
+  let justJoinedIds = $state<ClientId[]>([]);
   let unlockLine = $state<string | null>(null);
   let unlockLineTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
@@ -520,7 +522,10 @@
     } catch {
       return; // cancelled
     }
-    pendingImport = { bytes: new Uint8Array(await file.arrayBuffer()), filename: file.name as Filename };
+    pendingImport = {
+      bytes: new Uint8Array(await file.arrayBuffer()),
+      filename: parseFilename(file.name, DEFAULT_FILENAME),
+    };
   }
 
   // Superset of `writeLocked`: also covers the grace window before the clocks let the gate hold.

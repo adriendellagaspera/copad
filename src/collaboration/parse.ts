@@ -1,5 +1,5 @@
 import type {
-  DisplayName, CursorColor, PeerAwarenessState, PersistTarget, RoomId, RoomName,
+  DisplayName, CursorColor, ClientId, PeerAwarenessState, PersistTarget, RoomId, RoomName,
   SignalingUrl, WebsocketUrl,
   StunUrl, TurnUrl, TurnUsername, TurnCredential, IceServer, IceServersUrl,
 } from './types.js';
@@ -112,6 +112,16 @@ export function parsePeerAwarenessState(raw: unknown): PeerAwarenessState {
     ...(browserId ? { browserId } : {}),
     ...(selfProbeMarker ? { selfProbeMarker } : {}),
   };
+}
+
+export function parseClientId(raw: number): ClientId {
+  return raw as ClientId;
+}
+
+// Stays `unknown`: callers only compare it for change detection, never destructure it.
+export function parsePeerCursorValue(raw: unknown): unknown {
+  const obj = (typeof raw === 'object' && raw !== null) ? raw as Record<string, unknown> : {};
+  return obj['cursor'];
 }
 
 export function parseRoomId(raw: string | null): RoomId | null {

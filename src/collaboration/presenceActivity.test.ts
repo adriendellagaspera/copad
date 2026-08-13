@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as Y from 'yjs';
 import { Awareness } from 'y-protocols/awareness';
 import { trackPresenceActivity, fadeTier, FADE_START_MS, FADE_DONE_MS } from './presenceActivity.js';
+import { parseClientId } from './parse.js';
 import type { Milliseconds } from '../time.js';
 
 function newAwareness(): Awareness {
@@ -19,7 +20,7 @@ describe('trackPresenceActivity', () => {
     const awareness = newAwareness();
     awareness.setLocalState({ hello: 'world' });
     const activity = trackPresenceActivity(awareness);
-    expect(activity.idleMs(awareness.clientID)).toBe(0);
+    expect(activity.idleMs(parseClientId(awareness.clientID))).toBe(0);
     activity.destroy();
   });
 
@@ -29,7 +30,7 @@ describe('trackPresenceActivity', () => {
     const awareness = newAwareness();
     awareness.setLocalState({ hello: 'world' });
     const activity = trackPresenceActivity(awareness);
-    expect(activity.idleMs(awareness.clientID)).toBe(0);
+    expect(activity.idleMs(parseClientId(awareness.clientID))).toBe(0);
     activity.destroy();
   });
 
@@ -41,10 +42,10 @@ describe('trackPresenceActivity', () => {
     const activity = trackPresenceActivity(awareness);
 
     vi.setSystemTime(10_000);
-    expect(activity.idleMs(awareness.clientID)).toBe(10_000);
+    expect(activity.idleMs(parseClientId(awareness.clientID))).toBe(10_000);
 
     awareness.setLocalState({ cursor: 2 });
-    expect(activity.idleMs(awareness.clientID)).toBe(0);
+    expect(activity.idleMs(parseClientId(awareness.clientID))).toBe(0);
 
     activity.destroy();
   });
@@ -60,13 +61,13 @@ describe('trackPresenceActivity', () => {
     vi.setSystemTime(5_000);
     awareness.setLocalState({ cursor: 2 });
     // Untracked, yet idleMs still reports the last-known touch.
-    expect(activity.idleMs(awareness.clientID)).toBe(5_000);
+    expect(activity.idleMs(parseClientId(awareness.clientID))).toBe(5_000);
   });
 
   it('reports 0 for an unknown client id', () => {
     const awareness = newAwareness();
     const activity = trackPresenceActivity(awareness);
-    expect(activity.idleMs(999999)).toBe(0);
+    expect(activity.idleMs(parseClientId(999999))).toBe(0);
     activity.destroy();
   });
 });

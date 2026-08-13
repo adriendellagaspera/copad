@@ -1,13 +1,15 @@
 // `--presence-fade` (0 = just active, 1 = fully idle) is turned into opacity by editor.css: an idle peer dims rather than disappears; only leaving the room removes their cursor.
 
 import type { DecorationAttrs } from 'prosemirror-view';
-import type { PeerUser, CursorColor } from '../../collaboration/types.js';
+import type { PeerUser, CursorColor, ClientId } from '../../collaboration/types.js';
+import { parseClientId } from '../../collaboration/parse.js';
 import { fadeTier, type PresenceActivity } from '../../collaboration/presenceActivity.js';
 
 export const PRESENCE_ATTR = 'data-presence-client';
 
 export function remoteCursorBuilder(activity: PresenceActivity) {
-  return (user: PeerUser, clientId: number): HTMLElement => {
+  return (user: PeerUser, rawClientId: number): HTMLElement => {
+    const clientId = parseClientId(rawClientId);
     const cursor = document.createElement('span');
     cursor.classList.add('ProseMirror-yjs-cursor');
     cursor.setAttribute(PRESENCE_ATTR, String(clientId));
@@ -22,19 +24,22 @@ export function remoteCursorBuilder(activity: PresenceActivity) {
 }
 
 export function remoteSelectionBuilder(activity: PresenceActivity) {
-  return (user: PeerUser, clientId: number): DecorationAttrs => ({
-    style: `background-color: ${user.color}70; --presence-fade: ${fadeTier(activity.idleMs(clientId)).toFixed(2)}`,
-    class: 'ProseMirror-yjs-selection',
-    [PRESENCE_ATTR]: String(clientId),
-  });
+  return (user: PeerUser, rawClientId: number): DecorationAttrs => {
+    const clientId = parseClientId(rawClientId);
+    return {
+      style: `background-color: ${user.color}70; --presence-fade: ${fadeTier(activity.idleMs(clientId)).toFixed(2)}`,
+      class: 'ProseMirror-yjs-selection',
+      [PRESENCE_ATTR]: String(clientId),
+    };
+  };
 }
 
 // ProseMirror reuses a keyed cursor widget's DOM node across decoration recomputes instead of calling toDOM again, so forcing a recompute on a timer would never re-run remoteCursorBuilder for an untouched peer — this mutates the existing element directly instead.
 export function refreshPresenceFade(root: Element, activity: PresenceActivity): void {
   root.querySelectorAll<HTMLElement>(`[${PRESENCE_ATTR}]`).forEach((el) => {
-    const clientId = Number(el.getAttribute(PRESENCE_ATTR));
-    if (Number.isNaN(clientId)) return;
-    el.style.setProperty('--presence-fade', fadeTier(activity.idleMs(clientId)).toFixed(2));
+    const raw = Number(el.getAttribute(PRESENCE_ATTR));
+    if (Number.isNaN(raw)) return;
+    el.style.setProperty('--presence-fade', fadeTier(activity.idleMs(parseClientId(raw))).toFixed(2));
   });
 }
 
@@ -74,7 +79,7 @@ function flashOnce(el: HTMLElement, color: CursorColor | undefined): void {
 }
 
 // The cursor widget, not the selection highlight, is the scroll target: y-prosemirror renders exactly one cursor widget per peer, but a selection can split into several small/near-empty spans whose getBoundingClientRect() is an unreliable scroll anchor.
-export function jumpToPresence(root: Element, clientId: number, color?: CursorColor): void {
+export function jumpToPresence(root: Element, clientId: ClientId, color?: CursorColor): void {
   const cursor = root.querySelector<HTMLElement>(`.ProseMirror-yjs-cursor[${PRESENCE_ATTR}="${clientId}"]`);
   const selection = root.querySelectorAll<HTMLElement>(`.ProseMirror-yjs-selection[${PRESENCE_ATTR}="${clientId}"]`);
   const target = cursor ?? selection[0];

@@ -75,15 +75,16 @@ Playwright e2e suite (`npm run e2e`).
     `src/collaboration/parse.ts`; do not read awareness state elsewhere.
   - External API JSON → type the interface, cast at `response.json()`.
   - Filename from browser API → cast to `Filename` inside the storage adapter.
+  - ProseMirror node/mark kind → `nodeNameOf(node)`/`markNameOf(mark)`
+    (`src/editor/schema.ts`), never a bare `node.type.name` compared to a
+    literal: the closed union makes a typo a compile error, not a false check.
 
 ## Finding things
 
-- `npm run docs` generates a markdown API index (TypeDoc) into `docs/api/` —
-  git-ignored, regenerate on demand. Every export, its doc comment, and its
-  exact source location, always current because it's read straight from the
-  code. Prefer it (or `grep` — names are grep-unambiguous by the rule above)
-  over asking; there is no hand-maintained "where things live" doc to read
-  instead, on purpose.
+- `npm run docs` generates a TypeDoc markdown index into `docs/api/` —
+  git-ignored, regenerate on demand: every export, its doc comment and its
+  exact location, read straight from the code. Prefer it or `grep`; there is
+  no hand-maintained "where things live" doc, on purpose.
 
 ## Hexagonal architecture rules
 
@@ -104,10 +105,8 @@ Playwright e2e suite (`npm run e2e`).
   `XxxService`, `XxxHandler`. Not gated — false positives exist (`markRuleHandler`,
   `kService`); stays a review call.
 - Use factory functions (`foo(): FooType`) returning plain objects, not classes.
-  **Partially gated**: `no-restricted-syntax` in `eslint.config.js` bans a class
-  `implements`-ing a port (the actual OO-adapter pattern this rule targets);
-  `class X extends Error` stays legal — subclassing a built-in for a real
-  `instanceof`/stack trace isn't the pattern being banned.
+  **Partially gated**: `no-restricted-syntax` bans a class `implements`-ing a
+  port; `class X extends Error` stays legal — not the pattern being banned.
 - Name branded types after what the value **is**: `RoomId` not `id`,
   `CursorColor` not `color`, `FileExtension` not `ext`.
 - Brand names must be unambiguous under `grep` across the whole codebase.
@@ -163,6 +162,8 @@ Not mechanically checkable — review judgment only:
 - [ ] No unguarded `as unknown`, no widening casts outside parsers.
 - [ ] Every new domain value (URL, id, name, key) has a branded type.
 - [ ] New IO boundaries call a parse/resolve function; raw data does not escape.
+- [ ] No `node.type.name`/`mark.type.name` string comparison — use
+      `nodeNameOf`/`markNameOf` against `NodeName`/`MarkName`.
 - [ ] New function signatures use named types, not bare primitives.
 - [ ] New Svelte props use named types in `$props()`.
 - [ ] No OO-suffixed name unless it's genuinely not the pattern being banned

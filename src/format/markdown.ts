@@ -6,19 +6,17 @@ import {
 } from 'prosemirror-markdown';
 import { Fragment } from 'prosemirror-model';
 import type { Node as PMNode } from 'prosemirror-model';
-import { schema } from '../editor/schema.js';
+import { schema, nodeNameOf } from '../editor/schema.js';
 import { taskItemChecked } from '../editor/parse.js';
 import { writePmDoc, readPmDoc } from './pm.js';
 import { classifyTable } from '../editor/markdown.js';
-import { richTableToHtml, parseHtmlTable } from './tableMarkdown.js';
+import { richTableToHtml, parseHtmlTable, tableToPipeTableLines } from './tableMarkdown.js';
+import { hasDom } from './dom.js';
 import type { Codec } from './types.js';
 import { extensionOf } from './types.js';
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
-
-const hasDom = (): boolean =>
-  typeof window !== 'undefined' && typeof window.DOMParser !== 'undefined' && typeof document !== 'undefined';
 
 // GFM strikethrough/tables are disabled by the CommonMark preset; `html: true` turns on raw HTML *block* recognition (not html_inline), needed for richTableToHtml's fallback below.
 const MarkdownItClass = defaultMarkdownParser.tokenizer.constructor as new (
@@ -131,20 +129,8 @@ const serializer = new MarkdownSerializer(
 
 // No-DOM degrade for a rich table cell: flattens block structure to plain text rather than throwing, since unlike htmlCodec this codec isn't documented as browser-only.
 function richTableToPlainTextLines(table: PMNode): string[] {
-  const rows: string[][] = [];
-  table.forEach((row) => {
-    const cells: string[] = [];
-    row.forEach((cell) => {
-      cells.push(cell.textContent.replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim());
-    });
-    rows.push(cells);
-  });
-  const colCount = rows[0]?.length ?? 0;
-  return [
-    `| ${(rows[0] ?? []).join(' | ')} |`,
-    `| ${Array(colCount).fill('---').join(' | ')} |`,
-    ...rows.slice(1).map((cells) => `| ${cells.join(' | ')} |`),
-  ];
+  return tableToPipeTableLines(table, (cell) =>
+    cell.textContent.replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim());
 }
 
 // markdown-it has no dedicated checklist token; this is the standard way editors bolt GFM task lists onto a plain parser.
@@ -171,7 +157,7 @@ function taskifyBulletList(list: PMNode): PMNode | null {
   let allMatch = true;
   list.forEach((item) => {
     const firstChild = item.firstChild;
-    if (!firstChild || firstChild.type.name !== 'paragraph') {
+    if (!firstChild || nodeNameOf(firstChild) !== 'paragraph') {
       allMatch = false;
       return;
     }
@@ -191,7 +177,7 @@ function taskifyBulletList(list: PMNode): PMNode | null {
 }
 
 function taskifyLists(node: PMNode): PMNode {
-  if (node.type.name === 'bullet_list') {
+  if (nodeNameOf(node) === 'bullet_list') {
     const converted = taskifyBulletList(node);
     if (converted) return converted;
   }

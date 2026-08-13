@@ -2,6 +2,7 @@
   import { fly } from 'svelte/transition';
   import Avatar from './Avatar.svelte';
   import type { PeerUser } from './types.js';
+  import type { ClientId } from '../collaboration/types.js';
 
   let {
     users,
@@ -13,9 +14,9 @@
     users: PeerUser[];
     max?: number;
     size?: number;
-    onSelect?: (clientId: number) => void;
+    onSelect?: (clientId: ClientId) => void;
     /** Only these play the unlock entrance (docs/contract.md §4.1); a present peer never re-triggers it. */
-    justJoinedIds?: number[];
+    justJoinedIds?: ClientId[];
   } = $props();
 
   const reducedMotion =

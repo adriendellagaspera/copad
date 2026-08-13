@@ -1,4 +1,5 @@
 import { Schema } from 'prosemirror-model';
+import type { Node as PMNode, Mark } from 'prosemirror-model';
 import { schema as basicSchema } from 'prosemirror-schema-basic';
 import { addListNodes } from 'prosemirror-schema-list';
 import { tableNodes } from 'prosemirror-tables';
@@ -82,4 +83,44 @@ const marks = basicSchema.spec.marks
     },
   });
 
-export const schema = new Schema({ nodes, marks });
+/** Every node name this schema produces. The single source of truth other
+ *  modules compare against — never a bare string — so a typo in a
+ *  `nodeNameOf(node) === '…'` check is a compile error (TS2367/TS2678), not a
+ *  silent runtime false. */
+export type NodeName =
+  | 'doc'
+  | 'paragraph'
+  | 'blockquote'
+  | 'horizontal_rule'
+  | 'heading'
+  | 'code_block'
+  | 'text'
+  | 'image'
+  | 'hard_break'
+  | 'ordered_list'
+  | 'bullet_list'
+  | 'list_item'
+  | 'task_list'
+  | 'task_item'
+  | 'table'
+  | 'table_row'
+  | 'table_cell'
+  | 'table_header';
+
+/** Every mark name this schema produces — see {@link NodeName}. */
+export type MarkName = 'link' | 'em' | 'strong' | 'code' | 'strike' | 'underline';
+
+export const schema = new Schema<NodeName, MarkName>({ nodes, marks });
+
+/** The one place a ProseMirror node's runtime `string` name is cast to the
+ *  schema's closed `NodeName` union — the IO boundary crossing from
+ *  prosemirror-model into typed code. Every other module compares against
+ *  this, never `node.type.name` directly. */
+export function nodeNameOf(node: PMNode): NodeName {
+  return node.type.name as NodeName;
+}
+
+/** Mark equivalent of {@link nodeNameOf}. */
+export function markNameOf(mark: Mark): MarkName {
+  return mark.type.name as MarkName;
+}

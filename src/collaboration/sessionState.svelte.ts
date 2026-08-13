@@ -3,7 +3,7 @@
 import type { PeerUser } from '../ui/types.js';
 import { SaveStatus } from '../ui/types.js';
 import { ConnStatus, PresenceKind, Transport } from './types.js';
-import type { Diagnostics, RoomPresence } from './types.js';
+import type { Diagnostics, RoomPresence, ClientId } from './types.js';
 import { UNPROVEN, PersistRegime, type PersistHealth } from './persistHealth.js';
 import type { EpochMs } from '../time.js';
 
@@ -37,7 +37,7 @@ let users = $state<PeerUser[]>([]);
 let peers = $state<PeerCount>(1 as PeerCount);
 let diag = $state<SessionDiagnostics>({ transport: Transport.P2P });
 let editing = $state<EditorFocused>(false as EditorFocused);
-let jumpToPeer = $state<((clientId: number) => void) | undefined>(undefined);
+let jumpToPeer = $state<((clientId: ClientId) => void) | undefined>(undefined);
 
 export const sessionState = {
   get conn(): ConnStatus {
@@ -76,7 +76,7 @@ export const sessionState = {
   get editing(): EditorFocused {
     return editing;
   },
-  get jumpToPeer(): ((clientId: number) => void) | undefined {
+  get jumpToPeer(): ((clientId: ClientId) => void) | undefined {
     return jumpToPeer;
   },
 };
@@ -115,7 +115,7 @@ export function setSessionDiagnostics(value: SessionDiagnostics): void {
 export function setSessionEditing(value: EditorFocused): void {
   editing = value;
 }
-export function setSessionJumpToPeer(value: ((clientId: number) => void) | undefined): void {
+export function setSessionJumpToPeer(value: ((clientId: ClientId) => void) | undefined): void {
   jumpToPeer = value;
 }
 

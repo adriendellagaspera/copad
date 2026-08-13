@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { splitListItem, liftListItem, sinkListItem } from 'prosemirror-schema-list';
-import { schema } from './schema.js';
+import { schema, nodeNameOf } from './schema.js';
 
 function stateWithChecked(text: string, checked: boolean, cursorAtEnd = true) {
   const para = text ? schema.node('paragraph', null, schema.text(text)) : schema.node('paragraph');
@@ -88,7 +88,7 @@ describe('checklist edge cases', () => {
     expect(parentItem?.attrs.checked).toBe(false);
     let sawNestedChecked = false;
     restored.descendants((node) => {
-      if (node.type.name === 'task_item' && node.textContent === 'child') {
+      if (nodeNameOf(node) === 'task_item' && node.textContent === 'child') {
         sawNestedChecked = node.attrs.checked === true;
       }
     });

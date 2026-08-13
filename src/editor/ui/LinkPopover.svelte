@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { EditorView } from 'prosemirror-view';
   import type { EditorState } from 'prosemirror-state';
+  import type { Node as PMNode } from 'prosemirror-model';
   import { TextSelection } from 'prosemirror-state';
   import { setLink, removeLink, linkAround, normalizeHref, isValidHref } from '../linkCommands.js';
   import { runCommand } from '../commands.js';
@@ -18,7 +19,7 @@
   let linkFrom = $state(0);
   let linkTo = $state(0);
   // ProseMirror nodes are immutable, so identity alone tells us if the doc changed underneath the popover.
-  let openDoc = $state<unknown>(null);
+  let openDoc = $state.raw<PMNode | null>(null);
 
   function openPopover(): void {
     if (!view) return;

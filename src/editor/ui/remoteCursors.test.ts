@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PRESENCE_ATTR, jumpToPresence } from './remoteCursors.js';
+import { parseClientId } from '../../collaboration/parse.js';
 import type { CursorColor } from '../../collaboration/types.js';
 
-const CLIENT_ID = 7;
+const CLIENT_ID = parseClientId(7);
 const COLOR = '#ff0000' as CursorColor;
 
 function cursorEl(clientId: number): HTMLElement {
@@ -113,8 +114,8 @@ describe('jumpToPresence', () => {
     const b = cursorEl(2);
     root.appendChild(a);
     root.appendChild(b);
-    jumpToPresence(root, 1, COLOR);
-    jumpToPresence(root, 2, COLOR);
+    jumpToPresence(root, parseClientId(1), COLOR);
+    jumpToPresence(root, parseClientId(2), COLOR);
     expect(a.classList.contains('presence-jump-flash')).toBe(true);
     expect(b.classList.contains('presence-jump-flash')).toBe(true);
     vi.advanceTimersByTime(1200);

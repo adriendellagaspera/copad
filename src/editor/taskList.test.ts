@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from 'vitest';
 import { EditorState } from 'prosemirror-state';
-import { schema } from './schema.js';
+import { schema, nodeNameOf } from './schema.js';
 import { taskItemCheckboxPlugin } from './taskList.js';
 
 function docWithTaskItem(checked: boolean) {
@@ -14,7 +14,7 @@ function docWithTaskItem(checked: boolean) {
 function posInsideTaskItem(state: EditorState): number {
   let pos = -1;
   state.doc.descendants((node, p) => {
-    if (node.isTextblock && node.type.name === 'paragraph') pos = p + 1;
+    if (node.isTextblock && nodeNameOf(node) === 'paragraph') pos = p + 1;
   });
   if (pos === -1) throw new Error('no paragraph found');
   return pos;

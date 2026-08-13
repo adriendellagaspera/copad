@@ -1,7 +1,7 @@
 import type { Node as PMNode, Mark } from 'prosemirror-model';
-import { schema } from './schema.js';
+import { schema, nodeNameOf, markNameOf, type MarkName } from './schema.js';
 import { headingLevel, linkHref, taskItemChecked } from './parse.js';
-import { richTableToHtml } from '../format/tableMarkdown.js';
+import { richTableToHtml, tableToPipeTableLines } from '../format/tableMarkdown.js';
 
 // `hardBreak` is overridden to `<br>` for GFM cells: a pipe-table row is one line.
 export function serializeInline(node: PMNode, hardBreak = '  \n'): string {
@@ -13,7 +13,7 @@ export function serializeInline(node: PMNode, hardBreak = '  \n'): string {
     }
     let text = child.text ?? '';
     const marks = child.marks;
-    const has = (name: string): Mark | undefined => marks.find((m) => m.type.name === name);
+    const has = (name: MarkName): Mark | undefined => marks.find((m) => markNameOf(m) === name);
     const link = has('link');
     if (has('code')) {
       text = `\`${text}\``;
@@ -30,7 +30,7 @@ export function serializeInline(node: PMNode, hardBreak = '  \n'): string {
 }
 
 function isSimpleCell(cell: PMNode): boolean {
-  return cell.childCount === 1 && cell.firstChild!.type.name === 'paragraph';
+  return cell.childCount === 1 && nodeNameOf(cell.firstChild!) === 'paragraph';
 }
 
 export type TableRender = { kind: 'simple'; lines: string[] } | { kind: 'rich' };
@@ -44,25 +44,14 @@ export function classifyTable(table: PMNode): TableRender {
 }
 
 function simpleTableToMarkdownLines(table: PMNode): string[] {
-  const rows: string[][] = [];
-  table.forEach((row) => {
-    const cells: string[] = [];
-    row.forEach((cell) => {
-      const para = cell.firstChild;
-      cells.push(para ? serializeInline(para, '<br>').replace(/\|/g, '\\|').trim() : '');
-    });
-    rows.push(cells);
+  return tableToPipeTableLines(table, (cell) => {
+    const para = cell.firstChild;
+    return para ? serializeInline(para, '<br>').replace(/\|/g, '\\|').trim() : '';
   });
-  const colCount = rows[0]?.length ?? 0;
-  return [
-    `| ${(rows[0] ?? []).join(' | ')} |`,
-    `| ${Array(colCount).fill('---').join(' | ')} |`,
-    ...rows.slice(1).map((cells) => `| ${cells.join(' | ')} |`),
-  ];
 }
 
 function serializeBlock(node: PMNode, indent = ''): string {
-  const t = node.type.name;
+  const t = nodeNameOf(node);
   switch (t) {
     case 'paragraph':
       return indent + serializeInline(node);
@@ -80,29 +69,11 @@ function serializeBlock(node: PMNode, indent = ''): string {
     case 'bullet_list':
     case 'ordered_list': {
       const ordered = t === 'ordered_list';
-      const lines: string[] = [];
       let i = 1;
-      node.forEach((item) => {
-        const marker = ordered ? `${i}. ` : '- ';
-        const body = serializeChildren(item, indent + ' '.repeat(marker.length)).trimEnd();
-        const [first, ...rest] = body.split('\n');
-        lines.push(indent + marker + first.trimStart());
-        rest.forEach((l) => lines.push(l));
-        i += 1;
-      });
-      return lines.join('\n');
+      return serializeListItems(node, indent, () => (ordered ? `${i++}. ` : '- '));
     }
-    case 'task_list': {
-      const lines: string[] = [];
-      node.forEach((item) => {
-        const marker = `- [${taskItemChecked(item) ? 'x' : ' '}] `;
-        const body = serializeChildren(item, indent + ' '.repeat(marker.length)).trimEnd();
-        const [first, ...rest] = body.split('\n');
-        lines.push(indent + marker + first.trimStart());
-        rest.forEach((l) => lines.push(l));
-      });
-      return lines.join('\n');
-    }
+    case 'task_list':
+      return serializeListItems(node, indent, (item) => `- [${taskItemChecked(item) ? 'x' : ' '}] `);
     case 'table': {
       // richTableToHtml needs a DOM; safe here, this path only runs in the browser.
       const render = classifyTable(node);
@@ -111,6 +82,21 @@ function serializeBlock(node: PMNode, indent = ''): string {
     default:
       return serializeInline(node);
   }
+}
+
+/** Shared body for `bullet_list`/`ordered_list`/`task_list`: one line per
+ *  item, indented to align continuation lines under the marker `marker(item)`
+ *  produces for that item. */
+function serializeListItems(list: PMNode, indent: string, marker: (item: PMNode) => string): string {
+  const lines: string[] = [];
+  list.forEach((item) => {
+    const m = marker(item);
+    const body = serializeChildren(item, indent + ' '.repeat(m.length)).trimEnd();
+    const [first, ...rest] = body.split('\n');
+    lines.push(indent + m + first.trimStart());
+    rest.forEach((l) => lines.push(l));
+  });
+  return lines.join('\n');
 }
 
 function serializeChildren(node: PMNode, indent = ''): string {

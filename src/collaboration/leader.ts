@@ -1,6 +1,6 @@
 import type { StorageId, Filename } from '../storage/types.js';
 import type { BrowserId } from './browserId.js';
-import type { PersistTarget, PeerAwarenessState } from './types.js';
+import type { PersistTarget, PeerAwarenessState, ClientId } from './types.js';
 
 /** Hashed so the account, path and name never travel in awareness. */
 export function persistTargetKey(browser: BrowserId, storage: StorageId, filename: Filename): PersistTarget {
@@ -12,9 +12,9 @@ export function persistTargetKey(browser: BrowserId, storage: StorageId, filenam
 
 /** `min` starts at `selfId` so a peer absent from its own `states` still wins. */
 export function isPersistLeader(
-  selfId: number,
+  selfId: ClientId,
   target: PersistTarget | undefined,
-  states: ReadonlyMap<number, PeerAwarenessState>,
+  states: ReadonlyMap<ClientId, PeerAwarenessState>,
 ): boolean {
   if (!target) return false;
   let min = selfId;

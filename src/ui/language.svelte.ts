@@ -1,5 +1,5 @@
 import { localStore } from '../persistence/local.js';
-import type { SpellcheckEnabled } from './types.js';
+import type { SpellcheckEnabled, ResolvedLanguage } from './types.js';
 import { nsKey } from '../config.js';
 
 export type LanguageChoice = string & { readonly _brand: 'LanguageChoice' };
@@ -31,7 +31,9 @@ export function createLanguage() {
   let spellcheck = $state(spellcheckStore.read());
 
   // navigator.language is fixed for the page lifetime, so it needs no reactivity.
-  const resolved = $derived<string>(choice === LANGUAGE_AUTO ? navigator.language : choice);
+  const resolved = $derived<ResolvedLanguage>(
+    (choice === LANGUAGE_AUTO ? navigator.language : choice) as ResolvedLanguage,
+  );
 
   function setChoice(next: LanguageChoice): void {
     choice = next;
