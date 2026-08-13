@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { tableNodeTypes } from 'prosemirror-tables';
-import { schema } from './schema.js';
+import { schema, nodeNameOf } from './schema.js';
 import { commands, runCommand, activeInputMarks, isInTable, isNodeActive, activeBlockLabel, activeBlockContext } from './commands.js';
 
 function paragraphState(text = 'hi'): EditorState {
@@ -45,7 +45,7 @@ describe('block commands', () => {
     const next = apply(paragraphState(''), commands.horizontalRule);
     let found = false;
     next.doc.descendants((n) => {
-      if (n.type.name === 'horizontal_rule') found = true;
+      if (nodeNameOf(n) === 'horizontal_rule') found = true;
     });
     expect(found).toBe(true);
   });
@@ -118,7 +118,7 @@ describe('block commands', () => {
     // Move the cursor inside the first header cell.
     let cellPos = -1;
     withTable.doc.descendants((node, pos) => {
-      if (node.type.name === 'table_header' && cellPos === -1) cellPos = pos + 1;
+      if (nodeNameOf(node) === 'table_header' && cellPos === -1) cellPos = pos + 1;
     });
     let state = withTable.apply(withTable.tr.setSelection(TextSelection.create(withTable.doc, cellPos)));
     expect(isInTable(state)).toBe(true);
@@ -133,7 +133,7 @@ describe('block commands', () => {
     const withTable = apply(paragraphState(''), commands.insertTable);
     let cellPos = -1;
     withTable.doc.descendants((node, pos) => {
-      if (node.type.name === 'table_cell' && cellPos === -1) cellPos = pos + 1;
+      if (nodeNameOf(node) === 'table_cell' && cellPos === -1) cellPos = pos + 1;
     });
     const state = withTable.apply(withTable.tr.setSelection(TextSelection.create(withTable.doc, cellPos)));
     const next = apply(state, commands.addRowAfter);

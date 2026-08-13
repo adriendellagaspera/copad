@@ -1,5 +1,5 @@
 import type { Node as PMNode, Mark } from 'prosemirror-model';
-import { schema } from './schema.js';
+import { schema, nodeNameOf, markNameOf, type MarkName } from './schema.js';
 import { headingLevel, linkHref, taskItemChecked } from './parse.js';
 import { richTableToHtml } from '../format/tableMarkdown.js';
 
@@ -17,7 +17,7 @@ export function serializeInline(node: PMNode, hardBreak = '  \n'): string {
     }
     let text = child.text ?? '';
     const marks = child.marks;
-    const has = (name: string): Mark | undefined => marks.find((m) => m.type.name === name);
+    const has = (name: MarkName): Mark | undefined => marks.find((m) => markNameOf(m) === name);
     const link = has('link');
     if (has('code')) {
       text = `\`${text}\``;
@@ -39,7 +39,7 @@ export function serializeInline(node: PMNode, hardBreak = '  \n'): string {
  *  row — only when its sole child is a single plain paragraph (no lists,
  *  headings, quotes, code blocks, dividers, or multiple paragraphs). */
 function isSimpleCell(cell: PMNode): boolean {
-  return cell.childCount === 1 && cell.firstChild!.type.name === 'paragraph';
+  return cell.childCount === 1 && nodeNameOf(cell.firstChild!) === 'paragraph';
 }
 
 /** How a table renders to Markdown, decided once per table rather than
