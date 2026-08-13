@@ -1,5 +1,6 @@
 import type { Node as PMNode } from 'prosemirror-model';
 import { headingLevel } from '../parse.js';
+import { nodeNameOf } from '../schema.js';
 
 /** A heading's depth, 1–6 as the schema allows. */
 export type HeadingLevel = number & { readonly _brand: 'HeadingLevel' };
@@ -24,7 +25,7 @@ const UNTITLED = 'Untitled' as HeadingText;
 export function headingsOf(doc: PMNode): DocHeading[] {
   const headings: DocHeading[] = [];
   doc.descendants((node, pos) => {
-    if (node.type.name !== 'heading') return;
+    if (nodeNameOf(node) !== 'heading') return;
     headings.push({
       level: headingLevel(node) as HeadingLevel,
       text: (node.textContent || UNTITLED) as HeadingText,
