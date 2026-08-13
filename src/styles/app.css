@@ -731,3 +731,48 @@ button.status-link {
     display: none;
   }
 }
+
+/* Palette trigger. A button, never an input: .capsule is width:fit-content with
+   an animated width transition, so a child that grew on focus would slide every
+   sibling under the pointer. Sits on the seam .cap-fill used to hold. */
+.cap-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 0 1 280px;
+  min-width: 0;
+  height: 36px;
+  margin: 0 var(--sp-3);
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text-faint);
+  font-size: var(--fs-300);
+  cursor: pointer;
+}
+.cap-search:hover {
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+}
+.cap-search svg {
+  flex: none;
+}
+.cap-search-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.cap-search-key {
+  flex: none;
+  padding: 0.05rem 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}

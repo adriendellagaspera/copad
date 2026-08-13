@@ -60,14 +60,31 @@
   import StorageIntro from './ui/StorageIntro.svelte';
   import FirstVisitIntro from './ui/FirstVisitIntro.svelte';
   import About from './ui/About.svelte';
+  import { modKey } from './ui/platform.js';
   import LibraryDialog from './ui/LibraryDialog.svelte';
   import {
     rememberRoomVisit,
     clearRoomHistory,
     libraryWorthy,
+    roomHistory,
+    roomVisitUrl,
+    openedLabel,
+    roomDiscriminator,
     type PagePath,
     type RoomEngagement,
   } from './collaboration/roomHistory.js';
+  import {
+    actionItemId,
+    parsePaletteItemId,
+    type PaletteAction,
+    type PaletteItemId,
+    type PaletteItemKeywords,
+    type PaletteItemHint,
+    type PaletteItemLabel,
+    type PaletteItemName,
+    type PaletteRoom,
+    paletteItemName,
+  } from './ui/commandPalette.js';
   import { KEY_COLLAB_UNAVAILABLE_SEEN, KEY_STORAGE_INTRO_SEEN } from './collaboration/constants.js';
   import { localStore } from './persistence/local.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
@@ -120,6 +137,8 @@
   let joinOpen = $state(CLOSED);
   let exportOpen = $state(CLOSED);
   let libraryOpen = $state(CLOSED);
+  let paletteOpen = $state(CLOSED);
+  const modLabel = modKey();
 
   const { access: envAccess, cipher: envCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
   const perRoomPassword = roomPassword();
@@ -687,6 +706,109 @@
   function newRoom(): void {
     window.open(newDocumentUrl(pagePath, newRoomId(), mintSecretKey()), '_blank', 'noopener');
   }
+
+  // ── The command palette ────────────────────────────────────────────────────
+  //
+  // App owns the actions and the remembered rooms; Editor owns the headings and
+  // the insertable blocks, which need the live view. Rows carry ids, not
+  // callbacks, so this is the one place a pick turns back into a call.
+
+  const action = (
+    name: PaletteItemName,
+    label: PaletteItemLabel,
+    keywords: PaletteItemKeywords,
+    run: () => void,
+  ): PaletteAction & { readonly run: () => void } => ({
+    id: actionItemId(name),
+    label,
+    keywords,
+    run,
+  });
+
+  const paletteActions = $derived([
+    action(
+      paletteItemName('new'),
+      'New document' as PaletteItemLabel,
+      'create blank' as PaletteItemKeywords,
+      newRoom,
+    ),
+    action(
+      paletteItemName('library'),
+      'Your documents' as PaletteItemLabel,
+      'library recent rooms open' as PaletteItemKeywords,
+      () => (libraryOpen = OPENED),
+    ),
+    action(
+      paletteItemName('share'),
+      'Share' as PaletteItemLabel,
+      'invite link collaborate' as PaletteItemKeywords,
+      () => (shareOpen = OPENED),
+    ),
+    action(
+      paletteItemName('export'),
+      'Export a copy' as PaletteItemLabel,
+      'download save markdown pdf word' as PaletteItemKeywords,
+      () => (exportOpen = OPENED),
+    ),
+    action(
+      paletteItemName('join'),
+      'Join a meeting link' as PaletteItemLabel,
+      'meeting paste' as PaletteItemKeywords,
+      () => (joinOpen = OPENED),
+    ),
+    action(
+      paletteItemName('settings'),
+      'Settings' as PaletteItemLabel,
+      'preferences storage language theme' as PaletteItemKeywords,
+      () => openSettings(),
+    ),
+    action(paletteItemName('about'), 'What Copad is' as PaletteItemLabel, 'help explain' as PaletteItemKeywords, openAbout),
+    ...(canImportHere
+      ? [
+          action(
+            paletteItemName('import'),
+            'Import a file' as PaletteItemLabel,
+            'upload open file' as PaletteItemKeywords,
+            importLocalFile,
+          ),
+        ]
+      : []),
+  ]);
+
+  const paletteRooms = $derived.by<PaletteRoom[]>(() => {
+    if (!paletteOpen) return [];
+    const reference = now();
+    return roomHistory()
+      .filter((visit) => visit.room !== room)
+      .map((visit) => ({
+        room: visit.room,
+        label: (visit.name ?? `Untitled ${roomDiscriminator(visit.room)}`) as PaletteItemLabel,
+        hint: openedLabel(visit.openedAt, reference) as string as PaletteItemHint,
+      }));
+  });
+
+  function onPaletteCommand(id: PaletteItemId): void {
+    const target = parsePaletteItemId(id);
+    if (target.kind === 'room') {
+      const visit = roomHistory().find((v) => v.room === target.room);
+      if (visit) window.open(roomVisitUrl(visit, pagePath), '_blank', 'noopener');
+      return;
+    }
+    paletteActions.find((a) => a.id === id)?.run();
+  }
+
+  // Unconditional, whatever holds focus — Link moved to Mod-Shift-K to free it
+  // (#280). Left alone it would reach the browser's own search bar.
+  $effect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'k' && e.key !== 'K') return;
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      e.preventDefault();
+      paletteOpen = OPENED;
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 </script>
 
 {#if route.kind === RouteKind.About}
@@ -745,7 +867,17 @@
       </svg>
     </button>
 
-    <div class="cap-fill"></div>
+    <button
+      class="cap-search"
+      onclick={() => (paletteOpen = OPENED)}
+      aria-haspopup="dialog"
+    >
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
+      </svg>
+      <span class="cap-search-text">Search documents, headings, actions</span>
+      <kbd class="cap-search-key">{modLabel}K</kbd>
+    </button>
 
     <div class="session">
       <StatusPill
@@ -837,6 +969,11 @@
     <button class="dock-btn" onclick={() => (joinOpen = OPENED)} title="Join a meeting link" aria-label="Join a meeting link">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+      </svg>
+    </button>
+    <button class="dock-btn" onclick={() => (paletteOpen = OPENED)} title="Search and commands" aria-label="Search and commands" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
       </svg>
     </button>
     <button class="dock-btn" onclick={() => (exportOpen = OPENED)} title="Export a copy of this document" aria-label="Export a copy of this document">
@@ -936,6 +1073,11 @@
       importRequest={pendingImport}
       onImportHandled={() => (pendingImport = null)}
       {autofocusTitle}
+      {paletteOpen}
+      onPaletteClose={() => (paletteOpen = CLOSED)}
+      {paletteActions}
+      {paletteRooms}
+      {onPaletteCommand}
     />
     <CollabUnavailableIntro
       open={showCollabUnavailableIntro}

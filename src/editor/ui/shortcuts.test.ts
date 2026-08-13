@@ -27,6 +27,14 @@ describe('editorShortcuts', () => {
     ]);
   });
 
+  it('shifts Link off Mod-K, which the command palette owns app-wide', () => {
+    expect(editorShortcuts(OS.Apple).find((s) => s.label === 'Link')?.keys).toEqual([
+      '⌘',
+      'Shift',
+      'K',
+    ]);
+  });
+
   it('uses no modifier for the slash command', () => {
     const commands = editorShortcuts(OS.Apple).find((s) => s.label === 'Commands');
     expect(commands?.keys).toEqual(['/']);

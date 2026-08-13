@@ -577,7 +577,9 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-Shift-x': toggleMark(s.marks.strike),
       // Mod-U alone is Chrome/Firefox's reserved View Source shortcut and can't be preventDefault-ed.
       'Mod-Shift-u': toggleMark(s.marks.underline),
-      'Mod-k': (_state, _dispatch, view) => {
+      // Bridge to the Svelte LinkPopover — handled by a listener on the editor DOM.
+      // Shifted because Mod-K is the command palette, app-wide and unconditional.
+      'Mod-Shift-k': (_state, _dispatch, view) => {
         view?.dom.dispatchEvent(new CustomEvent('copad:link', { bubbles: true }));
         return true;
       },
