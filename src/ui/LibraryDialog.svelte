@@ -24,11 +24,8 @@
   }: {
     open: DialogOpen;
     onclose: () => void;
-    /** The room this tab is in, marked in the list so it isn't reopened blindly. */
     current: RoomId;
-    /** Page path every entry's link is built against. */
     page: PagePath;
-    /** Create a new document (a new room, in a new tab). */
     onNew: () => void;
   } = $props();
 

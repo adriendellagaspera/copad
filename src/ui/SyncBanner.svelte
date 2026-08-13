@@ -1,6 +1,5 @@
 <script module lang="ts">
-  /** Whether the banner offers its dismiss control: false on a specimen, where a
-   *  control that cannot act is worse than none. */
+  /** False on a specimen, where a control that cannot act is worse than none. */
   export type Dismissible = boolean & { readonly _brand: 'Dismissible' };
 </script>
 
@@ -338,7 +337,7 @@
     color: var(--text-faint);
     line-height: 1.45;
   }
-  /* Pinned, not laid out: as a flex item it wrapped onto a line of its own once the actions filled the row. */
+  /* Pinned, not a flex item: as one it wraps onto its own line once the actions fill the row. */
   .dismiss {
     position: absolute;
     top: 0;
@@ -346,7 +345,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    /* >=44px hit area (WCAG 2.5.5) around a 13px glyph. */
+    /* WCAG 2.5.5 hit-area minimum. */
     min-width: 44px;
     min-height: 44px;
     padding: 0;
@@ -388,7 +387,7 @@
   .more:hover {
     color: var(--text);
   }
-  /* Touch needs the full 44px (WCAG 2.5.5); growing it everywhere would out-size the other action chips. */
+  /* WCAG 2.5.5 on touch only: everywhere would out-size the other action chips. */
   @media (pointer: coarse) {
     .more {
       min-height: 44px;

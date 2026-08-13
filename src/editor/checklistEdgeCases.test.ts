@@ -26,8 +26,7 @@ function apply(state: EditorState, cmd: (state: EditorState, dispatch?: (tr: unk
 describe('checklist edge cases', () => {
   it('Enter on a checked item starts the new item unchecked', () => {
     const state = stateWithChecked('done', true);
-    // Matches the real keymap binding in plugins.ts, which passes an explicit
-    // `checked: false` for the newly-created item.
+    // Mirrors the keymap binding in plugins.ts, which passes an explicit `checked: false`.
     const { next, applied } = apply(state, splitListItem(schema.nodes.task_item, { checked: false }));
     expect(applied).toBe(true);
     const list = next.doc.firstChild;
@@ -38,8 +37,6 @@ describe('checklist edge cases', () => {
 
   it('Backspace at the start of the only item lifts it out of the list (baseKeymap liftEmptyBlock)', () => {
     const state = stateWithChecked('', false, false);
-    // liftEmptyBlock is part of baseKeymap; task_item's own list behavior
-    // relies on the generic list-lift commands, exercised here directly.
     const { applied } = apply(state, liftListItem(schema.nodes.task_item));
     expect(applied).toBe(true);
   });
@@ -57,7 +54,6 @@ describe('checklist edge cases', () => {
     state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, secondStart)));
     const { next, applied } = apply(state, sinkListItem(schema.nodes.task_item));
     expect(applied).toBe(true);
-    // "two" is now nested inside "one"'s task_item as a child task_list.
     const outer = next.doc.firstChild;
     expect(outer?.childCount).toBe(1);
     const nestedList = outer?.firstChild?.lastChild;

@@ -1,25 +1,16 @@
-/** The write gate — a pure decision function for the contract's lock (`docs/contract.md`
- *  §3.4). No timers/DOM/`Date.now()` inside; time-dependent inputs arrive pre-computed
- *  (`aloneSettled`, `withinDepartureLinger`) — same split as `roomLock.ts` / `leader.ts`. */
+// Pure decision function for the contract's lock (docs/contract.md §3.4). No timers/DOM/Date.now() inside; time-dependent inputs arrive pre-computed, same split as roomLock.ts / leader.ts.
 
 import type { RoomPresence } from './types.js';
 import { PresenceKind, SessionRole, Transport } from './types.js';
 import type { Milliseconds } from '../time.js';
 
-/** The user's explicit "Write alone anyway" choice — never a bare boolean. */
 export type SoloOptIn = boolean & { readonly _brand: 'SoloOptIn' };
 
-/** How long presence must stay `Alone` before the gate may lock, per transport
- *  (docs/contract.md §2.1 — the transport with the better detection gets to
- *  trust its own "alone" faster). The hub's registry is authoritative, so a
- *  settled hub absence is trustworthy almost immediately. P2P discovery is
- *  one-directional and never retried — a slow announce must not read as a
- *  locked-out room, so it waits substantially longer before concluding alone. */
+// docs/contract.md §2.1: the hub's registry is authoritative, so a settled hub absence is trustworthy almost immediately; P2P discovery is one-directional and never retried, so a slow announce must not read as locked-out — it waits much longer before concluding alone.
 export const GATE_SETTLE_HUB_MS = 1_500 as Milliseconds;
 export const GATE_SETTLE_P2P_MS = 6_000 as Milliseconds;
 
-/** `Record`, not a ternary — adding a third `Transport` without an entry here
- *  fails to compile instead of silently falling through to a wrong default. */
+// Record, not a ternary: a third Transport without an entry here fails to compile instead of silently falling through.
 const SETTLE_MS: Record<Transport, Milliseconds> = {
   [Transport.Hub]: GATE_SETTLE_HUB_MS,
   [Transport.P2P]: GATE_SETTLE_P2P_MS,
@@ -29,14 +20,7 @@ export function gateSettleMs(transport: Transport): Milliseconds {
   return SETTLE_MS[transport];
 }
 
-/** How long after a peer's departure the room still counts as "just left", per
- *  transport. The hub's own awareness registry can keep reporting a departed
- *  peer as present for up to ~30s (y-protocols' `outdatedTimeout` sweep) —
- *  hub linger must cover that window or the gate would lock while the
- *  server's own list hasn't caught up, so it's a correction, not a courtesy.
- *  P2P's peer-close event is immediate and reliable, so its linger is a much
- *  shorter grace window for a mid-sentence writer, not a wait for stale data
- *  to expire. */
+// Hub linger must cover y-protocols' ~30s outdatedTimeout sweep (a correction, not a courtesy) or the gate would lock before the server's own list catches up; P2P's peer-close event is immediate, so its linger is just a short mid-sentence grace window.
 export const GATE_LINGER_HUB_MS = 30_000 as Milliseconds;
 export const GATE_LINGER_P2P_MS = 3_000 as Milliseconds;
 
@@ -52,16 +36,11 @@ export function gateLingerMs(transport: Transport): Milliseconds {
 export interface WriteGateInput {
   readonly role: SessionRole;
   readonly presence: RoomPresence;
-  /** This deployment can never sync across devices, so gating would be a dead end. */
   readonly collabUnavailable: boolean;
-  /** P2P only — the wiring layer never sets this on the hub. */
   readonly soloOptIn: SoloOptIn;
-  /** Branch (b): a storage backend of the user's own durably keeps this room. */
   readonly savedHere: boolean;
-  /** True once the current `Alone` presence has held for `gateSettleMs(transport)`;
-   *  ignored outside `presence.kind === Alone`. */
+  // Ignored outside presence.kind === Alone.
   readonly aloneSettled: boolean;
-  /** True while still within `gateLingerMs(transport)` of a peer's departure. */
   readonly withinDepartureLinger: boolean;
 }
 
@@ -71,7 +50,6 @@ export interface WriteGateOpen {
 export interface WriteGateHeld {
   readonly status: 'held';
 }
-/** Discriminated union — never a bare boolean (AGENTS.md "screaming names"). */
 export type WriteGate = WriteGateOpen | WriteGateHeld;
 
 const OPEN: WriteGateOpen = { status: 'open' };

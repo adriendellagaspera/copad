@@ -25,28 +25,16 @@ import {
   BASE64_CHUNK,
 } from './constants.js';
 
-/** localStorage + parsing for the token-validated flag, abstracted behind read/write/clear. */
 const validated = localStore<boolean>(
   GITLAB_VALIDATED_KEY,
   parseGitLabValidated,
   (on) => (on ? '1' : null),
 );
 
-// ── Branded types ─────────────────────────────────────────────────────────────
-
-/** A Personal Access Token verified against the GitLab API. */
 export type GitLabToken = string & { readonly _brand: 'GitLabToken' };
-
-/** A validated `namespace/project` path (subgroups allowed). */
 export type GitLabProject = string & { readonly _brand: 'GitLabProject' };
-
-/** A normalised instance host, e.g. `https://gitlab.com` (no trailing slash). */
 export type GitLabHost = string & { readonly _brand: 'GitLabHost' };
-
-/** A normalised branch name — always has a value (defaults to `'main'`). */
 export type GitLabBranch = string & { readonly _brand: 'GitLabBranch' };
-
-// ── Config ────────────────────────────────────────────────────────────────────
 
 const cfg = configStore(STORAGE_ID.gitlab, [
   {
@@ -80,23 +68,19 @@ const cfg = configStore(STORAGE_ID.gitlab, [
   },
 ]);
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function apiHeaders(token: GitLabToken): Record<string, string> {
   return { 'PRIVATE-TOKEN': token };
 }
 
-/** REST API base for the configured instance. */
 function apiBase(host: GitLabHost): string {
   return `${host}${GITLAB_API_PATH}`;
 }
 
-/** Files API endpoint for the target file (project + path both URL-encoded). */
 function filesUrl(host: GitLabHost, project: GitLabProject, path: Filename): string {
   return `${apiBase(host)}/projects/${encodeURIComponent(project)}/repository/files/${encodeURIComponent(path)}`;
 }
 
-/** Base64-encode, chunked to stay within stack limits on large files. */
+// Chunked: a single String.fromCharCode(...bytes) overflows the stack on large files.
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
   for (let i = 0; i < bytes.length; i += BASE64_CHUNK) {
@@ -105,23 +89,17 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-/** Decode GitLab's base64 file content (it inserts newlines every 60 chars). */
+// GitLab's base64 carries newlines every 60 chars.
 function base64ToBytes(b64: string): Uint8Array {
   const raw = atob(b64.replace(/\n/g, ''));
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
 
-// ── Factory ───────────────────────────────────────────────────────────────────
-
 export function gitlabStorage(room: RoomId): { auth: StorageAuth; storage: Storage } {
   const fileName = filenameStore(STORAGE_ID.gitlab, room, GITLAB_DEFAULT_FILENAME);
-  // Whether the target file already exists — decides POST (create) vs PUT (update).
-  // null = unknown; seeded by load() or a one-off existence check in save().
+  // GitLab splits create/update across POST/PUT; null = not yet known.
   let fileExists: boolean | null = null;
-  // Guard against concurrent in-flight commits.
   let committing = false;
-
-  // ── Credential resolvers (parse at the config boundary) ───────────────────
 
   function resolvedProject(): GitLabProject | null {
     return parseProject(cfg.config('project'));
@@ -130,8 +108,7 @@ export function gitlabStorage(room: RoomId): { auth: StorageAuth; storage: Stora
   function resolvedToken(): GitLabToken | null {
     const raw = cfg.config('token').trim();
     if (!raw) return null;
-    // Env-managed tokens are deployment-trusted; user-entered tokens require a
-    // successful login() (GET /user validation) before they are branded.
+    // Env-managed tokens are deployment-trusted; user-entered ones need login() first.
     if (cfg.configLocked('token')) return raw as GitLabToken;
     if (!validated.read()) return null;
     return raw as GitLabToken;
@@ -144,8 +121,6 @@ export function gitlabStorage(room: RoomId): { auth: StorageAuth; storage: Stora
   function resolvedBranch(): GitLabBranch {
     return parseGitLabBranch(cfg.config('branch'));
   }
-
-  // ── Commit helper ─────────────────────────────────────────────────────────
 
   async function commitFile(
     tok: GitLabToken,
@@ -160,7 +135,6 @@ export function gitlabStorage(room: RoomId): { auth: StorageAuth; storage: Stora
         : content.bytes;
     const path = fileName.get();
 
-    // Resolve create-vs-update if we don't yet know whether the file exists.
     if (fileExists === null) {
       const head = await fetch(
         `${filesUrl(host, project, path)}?ref=${encodeURIComponent(branch)}`,
@@ -181,17 +155,13 @@ export function gitlabStorage(room: RoomId): { auth: StorageAuth; storage: Stora
     });
 
     if (!res.ok) {
-      // Our fileExists guess may have picked the wrong verb — clear it to re-resolve.
       fileExists = null;
       throw writeFailure(classifyHttpStatus(res.status), `GitLab save failed: ${res.status}`);
     }
     fileExists = true;
   }
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
-
   function setConfig(name: string, value: string): void {
-    // Changing project, host, or token invalidates a prior Connect — force re-validation.
     if (name === 'token' || name === 'project' || name === 'host') validated.clear();
     cfg.setConfig(name, value);
   }
@@ -205,8 +175,7 @@ export function gitlabStorage(room: RoomId): { auth: StorageAuth; storage: Stora
       if (!rawToken || !project) {
         throw new Error('Fill in the project and token in Settings first.');
       }
-      // Use the raw string here — we are the validation step; GitLabToken is
-      // only produced after a successful response.
+      // Raw string on purpose: this call is what brands the token.
       const res = await fetch(`${apiBase(resolvedHost())}/user`, {
         headers: { 'PRIVATE-TOKEN': rawToken },
       });
@@ -223,18 +192,15 @@ export function gitlabStorage(room: RoomId): { auth: StorageAuth; storage: Stora
     },
 
     configFields: cfg.fields,
-    // Expose the effective host/branch defaults so Settings shows the real value.
+    // Settings shows the effective host/branch, not the empty raw values.
     config: (name) =>
       name === 'branch' ? resolvedBranch()
       : name === 'host' ? resolvedHost()
       : cfg.config(name),
     setConfig,
     configLocked: cfg.configLocked,
-    // project must be present and valid-format; host/branch default (always valid).
     configured: () => resolvedProject() !== null && cfg.config('token').trim().length > 0,
   };
-
-  // ── Storage ───────────────────────────────────────────────────────────────
 
   const storage: Storage = {
     id: STORAGE_ID.gitlab,
@@ -300,9 +266,10 @@ export function gitlabStorage(room: RoomId): { auth: StorageAuth; storage: Stora
       );
       if (!res.ok) return StorageAccess.Read;
 
+      // GitLab access levels: 50 = Owner, 30 = Developer.
       const level = parseGitLabAccessLevel(await res.json());
-      if (level >= 50) return StorageAccess.Owner;  // Owner
-      if (level >= 30) return StorageAccess.Write;  // Developer / Maintainer
+      if (level >= 50) return StorageAccess.Owner;
+      if (level >= 30) return StorageAccess.Write;
       return StorageAccess.Read;
     },
   };

@@ -32,7 +32,7 @@ afterEach(() => {
 describe('jumpToPresence', () => {
   it('is a no-op when the peer has no rendered decoration', () => {
     const root = document.createElement('div');
-    root.appendChild(cursorEl(CLIENT_ID + 1)); // a different peer
+    root.appendChild(cursorEl(CLIENT_ID + 1));
     expect(() => jumpToPresence(root, CLIENT_ID, COLOR)).not.toThrow();
     expect(root.querySelector('.presence-jump-flash')).toBeNull();
   });
@@ -57,7 +57,6 @@ describe('jumpToPresence', () => {
     jumpToPresence(root, CLIENT_ID, COLOR);
     expect(cursorScroll).toHaveBeenCalledTimes(1);
     expect(selectionScroll).not.toHaveBeenCalled();
-    // Both the cursor and the selection highlight flash, though.
     expect(cursor.classList.contains('presence-jump-flash')).toBe(true);
     expect(selection.classList.contains('presence-jump-flash')).toBe(true);
   });
@@ -82,13 +81,7 @@ describe('jumpToPresence', () => {
     expect(cursor.classList.contains('presence-jump-flash')).toBe(false);
   });
 
-  // Regression test: clicking the same peer repeatedly used to leave the
-  // flash animation stuck after a few rapid clicks — re-adding an
-  // already-present class is a DOM no-op (no CSS animation restart), and
-  // each click's independent removal timer could race a later click's
-  // timer, yanking the class off mid-flash. See jumpToPresence's doc
-  // comment / flashOnce for the fix (remove + reflow + re-add, one timer
-  // per element).
+  // Re-adding a class already present is a DOM no-op, so the CSS animation never restarts.
   it('restarts the flash — and its removal timer — on a rapid repeat click of the same peer', () => {
     const root = document.createElement('div');
     const cursor = cursorEl(CLIENT_ID);
@@ -103,20 +96,14 @@ describe('jumpToPresence', () => {
     removeSpy.mockClear();
     addSpy.mockClear();
     jumpToPresence(root, CLIENT_ID, COLOR); // second, rapid click
-    // The class must be dropped and re-applied, not left as a no-op add —
-    // that's what makes the CSS animation actually replay.
     expect(removeSpy).toHaveBeenCalledWith('presence-jump-flash');
     expect(addSpy).toHaveBeenCalledWith('presence-jump-flash');
     expect(cursor.classList.contains('presence-jump-flash')).toBe(true);
 
-    // The first click's removal timer would have fired at t=1200 — it must
-    // have been cancelled by the second click, or the class would drop here
-    // even though the second flash is still supposed to be playing.
+    // The first click's t=1200 timer must have been cancelled by the second click.
     vi.advanceTimersByTime(700); // t=1200
     expect(cursor.classList.contains('presence-jump-flash')).toBe(true);
 
-    // Only the second click's own timer (armed at t=500, firing at t=1700)
-    // should remove it.
     vi.advanceTimersByTime(500); // t=1700
     expect(cursor.classList.contains('presence-jump-flash')).toBe(false);
   });

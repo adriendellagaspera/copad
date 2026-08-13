@@ -88,8 +88,7 @@ describe('docToMarkdown', () => {
     ]);
     const out = md(t);
     expect(out).toContain('one<br>two');
-    // The whole row must stay on a single line — a real newline would break
-    // the pipe-table syntax.
+    // A real newline inside the row would break the pipe-table syntax.
     expect(out.split('\n').some((l) => l.includes('one') && l.includes('two'))).toBe(true);
   });
 

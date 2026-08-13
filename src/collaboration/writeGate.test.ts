@@ -75,29 +75,21 @@ describe('writeGateFor — full truth table', () => {
   });
 
   it('never locks on Connecting/Unreachable/Offline — all of those map to presence Unknown upstream', () => {
-    // core.ts's computePresenceKind() maps every non-attached / offline ConnStatus
-    // to PresenceKind.Unknown before it ever reaches this function; verifying the
-    // Unknown branch (above) is what enforces the acceptance criterion here.
     expect(writeGateFor({ ...BASE, presence: presence(PresenceKind.Unknown) }).status).toBe('open');
   });
 });
 
 describe('writeGateFor — unlock is immediate, lock is deferred (the core asymmetry)', () => {
   it('unlocks the same call the instant presence flips to Accompanied — no settle needed', () => {
-    // Start Held: alone, settled, nothing else protecting the writer.
     expect(writeGateFor(BASE).status).toBe('held');
-    // A peer arrives — even with `aloneSettled` still (stale) true, the very next
-    // call opens immediately. No fake-timer advance required: this is the point.
+    // Opens on the very next call even with `aloneSettled` stale-true — no timer advance.
     const next: WriteGateInput = { ...BASE, presence: presence(PresenceKind.Accompanied) };
     expect(writeGateFor(next).status).toBe('open');
   });
 
   it('does not lock the instant presence flips to Alone — stays open until settled', () => {
-    // Accompanied → open.
     const accompanied: WriteGateInput = { ...BASE, presence: presence(PresenceKind.Accompanied) };
     expect(writeGateFor(accompanied).status).toBe('open');
-    // The peer leaves. Presence flips to Alone, but `aloneSettled` starts false
-    // (the wiring layer hasn't run the grace timer yet) — still open.
     const justAlone: WriteGateInput = {
       ...BASE,
       presence: presence(PresenceKind.Alone),
@@ -105,8 +97,6 @@ describe('writeGateFor — unlock is immediate, lock is deferred (the core asymm
       withinDepartureLinger: true,
     };
     expect(writeGateFor(justAlone).status).toBe('open');
-    // Only once both the settle *and* the linger windows have separately elapsed
-    // (both flip to their "expired" value) does it hold.
     const settled: WriteGateInput = { ...justAlone, aloneSettled: true, withinDepartureLinger: false };
     expect(writeGateFor(settled).status).toBe('held');
   });
@@ -120,9 +110,7 @@ describe('writeGateFor — unlock is immediate, lock is deferred (the core asymm
   });
 });
 
-// docs/contract.md §2.1's inversion: the transport with the better detection
-// (the hub) gets to trust it faster; P2P's structurally unbounded false
-// negatives mean it must wait longer before concluding "alone".
+// docs/contract.md §2.1: the hub detects better, so it may trust 'alone' sooner than P2P.
 describe('gateSettleMs / gateLingerMs — the hub’s stricter contract (docs/contract.md §8)', () => {
   it('settles faster on the hub than on P2P', () => {
     expect(gateSettleMs(Transport.Hub)).toBe(GATE_SETTLE_HUB_MS);

@@ -139,8 +139,7 @@
   let fetchedIce = $state<IceServer[]>([]);
   const usesIce = transport === Transport.P2P;
   const iceServersUrl = usesIce ? resolveIceServersUrl(import.meta.env.VITE_ICE_SERVERS_URL) : undefined;
-  // Resolved before the first mount, not after: a post-mount rebuild races
-  // y-webrtc's async room deregistration (`openRoom()` throws "already exists").
+  // Resolved before first mount: a later rebuild races y-webrtc's async room deregistration.
   let iceReady = $state(!iceServersUrl);
   if (iceServersUrl) {
     void fetchIceServers(iceServersUrl).then((servers) => {
@@ -212,12 +211,7 @@
 
   let editorMounted = $state(true);
   let rebuilding = false;
-  /**
-   * Reconnect for a same-room config change (TURN/cache/security), remounting
-   * the Editor rather than swapping providers directly: a direct swap can
-   * construct the new provider before y-webrtc's async room deregistration
-   * completes, and `openRoom()` throws "already exists" for the same room name.
-   */
+  // Remount rather than swap providers: y-webrtc's async deregistration makes `openRoom()` throw.
   async function rebuildCollab(): Promise<void> {
     if (rebuilding) return;
     rebuilding = true;
@@ -258,8 +252,6 @@
   const COLORS: CursorColor[] = ['#e11d48', '#7c3aed', '#0891b2', '#16a34a', '#d97706', '#db2777'] as CursorColor[];
   let color = $state<CursorColor>(COLORS[Math.floor((now() / 1000) % COLORS.length)]);
 
-  // ── Document / room ────────────────────────────────────────────────────────
-
   // Read before `startFreshRoom` below rewrites the URL and adds one.
   const linkedRoomParam = new URLSearchParams(location.search).get('room');
   const landing = resolveLandingRoom(linkedRoomParam, import.meta.env.VITE_DEFAULT_ROOM, newRoomId);
@@ -282,20 +274,16 @@
       : SessionRole.Writer;
   }
 
-  // Present only on a tab MeetingJoinDialog just opened (`?selfProbe=`).
   function selfProbeMarkerFromUrl(): SelfProbeMarker | null {
     return parseSelfProbeMarker(new URLSearchParams(location.search).get('selfProbe'));
   }
 
-  // Fixed for the lifetime of this tab: a new document always opens a new tab
-  // (see `newRoom` below), so `room` never changes in place — there's no
-  // in-tab room switch to react to.
+  // Fixed for this tab's lifetime: a new document opens a new tab, never an in-place switch.
   const room: RoomId = landing.room;
   const sessionRole: SessionRole = roleFromUrl();
   const selfProbeMarker: SelfProbeMarker | null = selfProbeMarkerFromUrl();
 
-  // One-shot marker set by `newRoom()` below on the tab it opens; consumed and
-  // stripped here so a later reload of this same tab doesn't re-trigger it.
+  // Stripped once consumed, so a reload of this tab doesn't re-trigger it.
   function autofocusTitleFromUrl(): boolean {
     const params = new URLSearchParams(location.search);
     if (!params.has('new')) return false;
@@ -321,17 +309,13 @@
   let storage = $state<StorageBackend | null>(initialStorage());
   let name = $state<DisplayName>(storedName());
 
-  // Hand-off to Editor, which owns `collab.doc` and decodes into it.
   let pendingImport = $state<{ bytes: Uint8Array; filename: Filename } | null>(null);
 
   let tick = $state(0);
   const bump = () => { tick += 1; };
 
-  // ── Session presence / connection (header) ──────────────────────────────────
   let diagOpen = $state(CLOSED);
   const otherPeers = $derived(sessionState.users.filter((u) => !u.self));
-
-  // ── Settings ───────────────────────────────────────────────────────────────
 
   let settingsOpen = $state(CLOSED);
   let settingsFocus = $state<StorageId | undefined>(undefined);
@@ -368,8 +352,7 @@
     }
   }
 
-  // Per-user fact, not a room-level role: several people can each save their own
-  // copy under per-target autosave.
+  // Per-user, not room-level: several people can each save their own copy.
   const savedHere = $derived.by((): StorageAttached => {
     void tick;
     void room;
@@ -379,8 +362,7 @@
       savedRoomsStore(s.storage.id).saves(room)) as StorageAttached;
   });
 
-  // Another saved room resolving to the same file, detectable only within this
-  // browser, without a server-side coordination point.
+  // Detectable only within this browser: there is no server-side coordination point.
   const fileConflict = $derived.by((): RoomId | null => {
     void tick;
     void room;
@@ -400,14 +382,8 @@
     return `Room “${other}” also saves to ${file} on your ${s.storage.label}. They’ll overwrite each other. Rename this room’s file in Settings.` as ConflictWarning;
   });
 
-  // ── Write gate (docs/contract.md §1-§4) ──────────────────────────────────────
-  // writeGateFor() is pure; this section supplies its inputs and owns its two
-  // clocks (settle + departure-linger). Uncertain presence OPENS the gate: a
-  // false lockout is the costly failure (contract §2.2).
-  //
-  // durabilityHolds feeds branch (b), not the bare `savedHere` fact. Don't swap
-  // it in below, or a Broken room loses the flush() calls that could heal it
-  // (contract §3.2/§3.3).
+  // Inputs and clocks for the write gate (docs/contract.md §1-§4).
+  // `durabilityHolds`, not bare `savedHere`: a Broken room must keep its healing flush() calls (§3.2).
   const durabilityHolds = $derived(
     computeDurabilityHolds(savedHere, sessionState.persistHealth, sessionState.regime),
   );
@@ -415,8 +391,7 @@
   const soloOptIn = $derived((sessionState.diagnostics.transport === Transport.P2P &&
     soloRooms.includes(room)) as SoloOptIn);
 
-  // Set only by the explicit click, never when writeLocked flips false on its own.
-  // Editor's focus-on-unlock effect keys off this so it never steals focus (§4.1).
+  // Set only by the explicit click; Editor's focus-on-unlock effect keys off it (contract §4.1).
   let writeSoloAt = $state<EpochMs | null>(null);
 
   function allowWriteSolo(): void {
@@ -452,8 +427,7 @@
     return () => clearTimeout(t);
   });
 
-  // Tab title reflects waiting (contract §4.2). Captured once as a plain `let`,
-  // not `$state`, since the browser tab never reloads even though this module re-runs.
+  // Plain `let`: the tab never reloads even though this module re-runs.
   const baseTitle = document.title;
   $effect(() => {
     document.title = sessionState.presence.kind === PresenceKind.Alone ? `Waiting… · ${baseTitle}` : baseTitle;
@@ -487,8 +461,7 @@
     departedPeerName = lastPeers[0]?.name ?? null;
   });
 
-  // Re-arms on every keystroke instead of a flat timer, so it never cuts a
-  // mid-sentence writer off; capped in departureHysteresis.ts.
+  // Re-arms per keystroke so it never cuts a mid-sentence writer off; capped in departureHysteresis.ts.
   $effect(() => {
     if (departedAt === null) return;
     const deadline = departureLingerDeadline(
@@ -506,9 +479,7 @@
     return () => clearTimeout(t);
   });
 
-  // Fires once per arrival (contract §4.1): a separate flag from the departure
-  // effect's `wasAccompanied` so the two don't fight over one boolean. Never
-  // calls `.focus()`; never steal focus.
+  // Separate flag from the departure effect's `wasAccompanied`; never steals focus (contract §4.1).
   let wasUnlockedAccompanied = false;
   let justJoinedIds = $state<ClientId[]>([]);
   let unlockLine = $state<string | null>(null);
@@ -540,9 +511,7 @@
   );
   const writeLocked = $derived((gate.status === 'held') as WriteGateHeld);
 
-  // Import bypasses ProseMirror's `editable` check (writes straight into `collab.doc`),
-  // so this button re-derives the gate independently; Editor re-checks it again on
-  // the `pendingImport` hand-off.
+  // Import writes straight into `collab.doc`, bypassing ProseMirror's `editable` check.
   const canImportHere = $derived(sessionRole === SessionRole.Writer && !writeLocked);
 
   async function importLocalFile(): Promise<void> {
@@ -559,8 +528,7 @@
     };
   }
 
-  // Superset of `writeLocked`: drives SyncBanner's tiering during the pre-lock
-  // grace window before the clocks let writeGateFor return `held`.
+  // Superset of `writeLocked`: also covers the grace window before the clocks let the gate hold.
   const gateEligible = $derived(
     (sessionRole === SessionRole.Writer &&
       !collabUnavailable &&
@@ -569,9 +537,7 @@
       sessionState.presence.kind !== PresenceKind.Accompanied) as WriteGateArmable,
   );
 
-  // ── Collab-unavailable intro: a structurally local-only deployment ─────────
-  // One-time acknowledgment on first load of a permanently local-only deployment.
-  // Never blocks writing: purely informational, dismissible like any dialog.
+  // Informational only: a local-only deployment never blocks writing.
   const collabUnavailableSeenStore = localStore<boolean>(
     KEY_COLLAB_UNAVAILABLE_SEEN,
     (raw) => raw === 'true',
@@ -596,9 +562,7 @@
     openSettings();
   }
 
-  // ── Encrypted-room access gate ───────────────────────────────────────────────
-  // Until the async check resolves, `lockChecked` holds the Editor back so a
-  // locked room never mounts it and writes a plaintext cache without the key.
+  // `lockChecked` holds the Editor back so a locked room never caches plaintext without the key.
   const encryptedTransport = usesIce;
   const roomEncrypted = $derived.by((): RoomEncrypted => {
     void collabEpoch;
@@ -632,8 +596,7 @@
       lockChecked = true;
       return;
     }
-    // Never overwrite the stored fingerprint here: that's what lets a wrong key
-    // be detected instead of silently adopted.
+    // Never overwrite the stored fingerprint: it is what detects a wrong key.
     lockAllowSkip = false;
     lockChecked = false;
     let cancelled = false;
@@ -664,8 +627,6 @@
     return true;
   }
 
-  // ── Storage explainer ──────────────────────────────────────────────────────
-
   const storageIntroSeenStore = localStore<boolean>(
     KEY_STORAGE_INTRO_SEEN,
     (raw) => raw === 'true',
@@ -691,8 +652,6 @@
     markStorageIntroSeen();
     openSettings();
   }
-
-  // ── The local library ──────────────────────────────────────────────────────
 
   const pagePath = location.pathname as PagePath;
 
@@ -724,9 +683,7 @@
     location.href = aboutUrl(pagePath);
   }
 
-  // A new tab, never an in-place room switch: `backends(room)` captures `room`
-  // once by closure (storage/filename.ts), so there's no live pointer to retarget.
-  // CSPRNG room id (contract §5); the secret-link key encrypts the room by default.
+  // New tab, never in-place: `backends(room)` captures `room` by closure (storage/filename.ts).
   function newRoom(): void {
     window.open(newDocumentUrl(pagePath, newRoomId(), mintSecretKey()), '_blank', 'noopener');
   }
@@ -736,9 +693,7 @@
   <About onNewDocument={replaceWithNewDocument} {transport} page={pagePath} />
 {:else}
 <div class="app">
-  <!-- Not a heading: an <h1> here would give screen readers two level-1 titles
-       alongside the document's own (Editor.svelte's DocTitle). Hidden on mobile;
-       actions move to the bottom dock below. -->
+  <!-- Not an <h1>: DocTitle in Editor.svelte owns the page's only level-1 title. -->
   <header class="capsule">
     <button class="cap-mark" onclick={openAbout} title="What Copad is" aria-label="What Copad is">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -793,7 +748,6 @@
     <div class="cap-fill"></div>
 
     <div class="session">
-      <!-- Tap opens the connection/storage detail sheet. -->
       <StatusPill
         conn={sessionState.conn}
         saveStatus={sessionState.saveStatus}
@@ -841,8 +795,7 @@
     <div class="cap-theme"><ThemeToggle {theme} /></div>
   </header>
 
-  <!-- Mobile-only; hidden the instant the document has focus, when editor.css's
-       .fixed-toolbar takes the same slot. -->
+  <!-- Hidden once the document has focus: editor.css's .fixed-toolbar takes this slot. -->
   <div
     class="mobile-dock"
     class:dock-hidden={sessionState.editing}
@@ -906,8 +859,7 @@
     </button>
   </div>
 
-  <!-- One strip, escalation ladder: gated (blocks, transient) → collab-unavailable
-       (never blocks, permanent) → solo reminder (never blocks, transient). -->
+  <!-- One strip, escalation ladder: gated → collab-unavailable → solo reminder. -->
   <SyncBanner
     conn={sessionState.conn}
     presenceKind={sessionState.presence.kind}
@@ -942,7 +894,7 @@
     />
   {/if}
 
-  <!-- The unlock moment's one self-dismissing line (contract §4.1); never steals focus. -->
+  <!-- Self-dismissing; never steals focus (contract §4.1). -->
   {#if unlockLine}
     <div class="unlock-line" role="status" aria-live="polite" transition:fade={{ duration: reducedMotion ? 0 : 200 }}>
       {unlockLine}

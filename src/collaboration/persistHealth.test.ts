@@ -12,8 +12,7 @@ import {
 import { WriteFailureKind, WriteSkip, landed, skipped } from '../storage/writeOutcome.js';
 import type { EpochMs } from '../time.js';
 
-// A fake clock for this pure state machine — any number stands in for a
-// timestamp, cast at this one boundary rather than at every call site below.
+// Any number stands in for a timestamp; cast once here rather than at every call site.
 const at = (ms: number): EpochMs => ms as EpochMs;
 
 const PROVEN: PersistHealth = { kind: PersistHealthKind.Proven, at: at(1) };

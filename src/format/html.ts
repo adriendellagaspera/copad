@@ -9,12 +9,6 @@ const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 const REQUIRES_DOM = 'HTML format requires a browser environment';
 
-/**
- * HTML, via ProseMirror's own DOM parser/serializer driven by our schema — so
- * the tags we understand (headings, lists, blockquotes, bold/italic/strike…)
- * round-trip, and unknown markup is dropped to plain structure on import.
- * Requires a DOM, so it only runs in the browser.
- */
 export const htmlCodec: Codec = {
   id: 'html',
   label: 'HTML',

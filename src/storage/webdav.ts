@@ -9,10 +9,7 @@ import type { RoomId } from '../collaboration/types.js';
 import { landed, writeFailure, classifyHttpStatus, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import { STORAGE_ID, WEBDAV_KEY, DEFAULT_FILENAME } from './constants.js';
 
-/** The WebDAV folder URL, normalized (no trailing slash) once accepted at `login()` time. */
 export type WebDavBaseUrl = string & { readonly _brand: 'WebDavBaseUrl' };
-
-/** Base64-encoded `username:password` Basic-auth header value, computed once at `login()` time. */
 export type WebDavAuthHeader = string & { readonly _brand: 'WebDavAuthHeader' };
 
 const confStore = localStore<WebDavConf | null>(

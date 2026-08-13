@@ -1,13 +1,10 @@
 import { choosePanel, clamp, type PanelPosition, type PanelSize, type Rect, type Viewport } from './tableAnchor.js';
 
-/** A distance in CSS pixels — the breathing room between an anchor and a
- *  floating surface. */
 export type PixelGap = number & { readonly _brand: 'PixelGap' };
 
 export const PANEL_GAP = 8 as PixelGap;
 
-/** A `coordsAtPos()`-shaped rectangle — kept structural (not a `DOMRect`
- *  import) so the placement math below is testable with plain numbers. */
+// Structural, not `DOMRect`: keeps the placement math testable without a DOM.
 export type CaretRect = { left: number; right: number; top: number; bottom: number };
 
 export type PointerProfile = 'fine' | 'coarse';
@@ -37,27 +34,14 @@ export type SurfaceInput = {
   slashMenu: SlashMenuState;
 };
 
-/** The caret/selection-anchored formatting surface: at most one of the
- *  interactive bubble over a real selection and the read-only pill naming the
- *  marks a collapsed caret has armed. */
 export type TextSurface = 'hidden' | 'selection' | 'armed-caret';
 
-/** The table-structure panel, anchored to the table rather than the caret —
- *  independent of `TextSurface`, since a collapsed caret in a cell can have
- *  marks armed and still need its structure commands. */
 export type TableSurface = 'hidden' | 'shown';
 
 export type FloatingSurfaces = { text: TextSurface; table: TableSurface };
 
 const NOTHING: FloatingSurfaces = { text: 'hidden', table: 'hidden' };
 
-/**
- * Which floating surfaces show, as a pure decision separate from DOM
- * measurement — so "the bubble and the pill are mutually exclusive" and "a
- * bare caret never shows the text-formatting bubble" are provable without a
- * live view. The pill defers to the slash menu, which anchors to the same
- * caret and owns that space while open.
- */
 export function chooseSurfaces(input: SurfaceInput): FloatingSurfaces {
   if (input.pointer !== 'fine' || input.focus === 'elsewhere') return NOTHING;
 
@@ -88,12 +72,6 @@ const boxAt = (top: number, left: number, size: PanelSize): Rect => ({
   height: size.height,
 });
 
-/**
- * Places the formatting bubble over a real selection: centred on the two
- * endpoints, above them when there is room and below otherwise. Hidden
- * outright once the selection has scrolled past either edge of the viewport,
- * so it never tracks off-screen text over unrelated chrome.
- */
 export function placeSelectionBubble(
   start: CaretRect,
   end: CaretRect,
@@ -108,13 +86,7 @@ export function placeSelectionBubble(
   return { shown: true, at: { top, left } };
 }
 
-/**
- * Places the armed-marks pill over a collapsed caret. Prefers above, flips
- * below when that would leave the viewport or collide with `obstacle` — the
- * table-structure panel, the one surface that can share the caret's space,
- * since it anchors to the table's own edge and a caret in the first row sits
- * right under it.
- */
+// `obstacle` is the table panel — the one surface that can share the caret's space.
 export function placeCaretPill(
   caret: CaretRect,
   size: PanelSize,

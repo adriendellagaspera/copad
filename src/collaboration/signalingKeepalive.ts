@@ -1,27 +1,10 @@
-/**
- * Keep-alive pings for a hosted signaling server.
- *
- * Render (free / starter) and similar platforms spin down a service after
- * ~15 minutes of inactivity. The y-webrtc signaling server answers a plain
- * HTTP GET with "okay", so pinging it periodically over HTTP/HTTPS keeps the
- * process alive and avoids a multi-second cold start the next time a peer opens
- * the app — without any server-side change.
- *
- * Pinging keeps running while the tab is hidden (Page Visibility API): a
- * backgrounded-but-not-discarded tab still holds a live Collab connection to
- * this room (WebRTC data channels aren't gated on tab focus), so its signaling
- * server is exactly the one that matters to it. Stopping the ping there would
- * let that server go cold and pay a cold-start delay on the next reconnect —
- * on a tab that, from the user's side, never stopped syncing.
- */
+// The y-webrtc signaling server answers a plain HTTP GET, so hosts that spin
+// down on idle stay warm. Deliberately keeps pinging while the tab is hidden:
+// a backgrounded tab's WebRTC channels stay live, so its server still matters.
 
 import type { SignalingUrl, SignalingPingUrl } from './types.js';
 import { SIGNALING_KEEPALIVE_MS, SIGNALING_KEEPALIVE_TIMEOUT_MS } from './constants.js';
 
-/**
- * Parse a signaling URL into its HTTP(S) ping URL (`ws→http`, `wss→https`), or
- * `null` when it isn't a valid URL. The single cast site for {@link SignalingPingUrl}.
- */
 function pingUrlOf(url: SignalingUrl): SignalingPingUrl | null {
   try {
     const u = new URL(url as string);
@@ -32,14 +15,7 @@ function pingUrlOf(url: SignalingUrl): SignalingPingUrl | null {
   }
 }
 
-/**
- * Start periodic HTTP pings to each signaling server so a spin-down-on-idle host
- * stays warm. Returns a `stop` function that cancels the timer — call it from the
- * collab adapter's `destroy()`.
- *
- * An immediate ping fires on startup to wake a cold server fast, before
- * y-webrtc's first WebSocket attempt has a chance to fail against it.
- */
+/** Pings immediately so a cold server wakes before y-webrtc's first attempt. */
 export function startSignalingKeepalive(servers: SignalingUrl[]): () => void {
   const targets = servers
     .map(pingUrlOf)

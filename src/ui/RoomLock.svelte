@@ -10,28 +10,19 @@
     onSkip,
   }: {
     room: RoomId;
-    /** Why the room is locked: no key supplied, or the wrong one. */
     reason?: LockReason;
-    /** Try a key; resolves true when it unlocks the room, false when it's wrong. */
     onUnlock: (key: string) => Promise<boolean>;
-    /** Whether to offer opening the room without a password (deployment-gated
-     *  first visit only — never for a room known to be encrypted). */
+    /** Deployment-gated first visit only — never for a room known to be encrypted. */
     allowSkip?: boolean;
-    /** Open the room unencrypted, without a password. */
     onSkip?: () => void;
   } = $props();
 
   let value = $state('');
   let busy = $state(false);
-  // Set after a rejected attempt so we can show "that key doesn't match" without
-  // conflating it with the initial `reason === 'wrong'` (a key already in the URL).
+  // Distinct from `reason === 'wrong'`, which reports a key that arrived in the URL.
   let rejected = $state(false);
 
-  // `allowSkip` is only true for the deployment-mandated first-visit gate, where
-  // no key is on record yet and any password is accepted unverified (cooperative
-  // encryption, no peer to check against) — so the heading must not claim the
-  // document is actually encrypted. Every other case reaches here with a
-  // fingerprint already on record, i.e. verified encryption.
+  // Under `allowSkip` any password is accepted unverified, so the heading must not claim encryption.
   const heading = $derived(allowSkip ? 'This deployment requires a password' : 'This document is encrypted');
 
   async function submit(): Promise<void> {

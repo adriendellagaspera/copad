@@ -36,8 +36,7 @@
     open = false;
   }
 
-  // Escape has no focus target of its own, so return focus to the trigger
-  // (unlike the backdrop click, which already leaves focus wherever clicked).
+  // Escape has no focus target of its own, unlike a backdrop click.
   $effect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -50,7 +49,6 @@
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  // Roving Up/Down between headings (ARIA menu convention).
   function onMenuKeydown(e: KeyboardEvent): void {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     const items = Array.from(

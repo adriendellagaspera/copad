@@ -27,18 +27,9 @@ import {
   oauthRedirectUri,
 } from './constants.js';
 
-// ── Branded types ─────────────────────────────────────────────────────────────
-
-/** The id of a file in Google Drive. */
 export type GDriveFileId = string & { readonly _brand: 'GDriveFileId' };
-
-/** An OAuth2 access token issued by Google for the `drive.file` scope. */
 export type GDriveToken = string & { readonly _brand: 'GDriveToken' };
-
-/** A Google Cloud OAuth 2.0 Client ID (`*.apps.googleusercontent.com`). */
 export type GDriveClientId = string & { readonly _brand: 'GDriveClientId' };
-
-// ── Config ────────────────────────────────────────────────────────────────────
 
 const tokenStore = localStore<GDriveToken | null>(
   GDRIVE_TOKEN_KEY,
@@ -56,13 +47,10 @@ const cfg = configStore(STORAGE_ID.gdrive, [
   },
 ]);
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function authHeaders(token: GDriveToken): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
-/** Find the id of a non-trashed Drive file with this exact name, or null. */
 async function findFile(token: GDriveToken, name: Filename): Promise<GDriveFileId | null> {
   const q = encodeURIComponent(`name='${name.replace(/'/g, "\\'")}' and trashed=false`);
   const res = await fetch(`${GDRIVE_FILES_URL}?q=${q}&fields=files(id)`, {
@@ -72,22 +60,14 @@ async function findFile(token: GDriveToken, name: Filename): Promise<GDriveFileI
   return parseGDriveFileList(await res.json());
 }
 
-// ── Factory ───────────────────────────────────────────────────────────────────
-
 export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Storage } {
   const fileName = filenameStore(STORAGE_ID.gdrive, room);
-  // Id of the Drive file for the current filename — resolved by name (drive.file
-  // scope is name-based), cached in-memory, reset when the target filename changes.
   let fileId: GDriveFileId | null = null;
-  // Guard against concurrent in-flight saves: without it, two overlapping calls
-  // (e.g. autosave firing again before a slow save resolves) could each see no
-  // fileId yet and both create a same-named file — Drive doesn't enforce unique
-  // names, so that would silently leave two duplicate files behind.
+  // Drive allows duplicate names: overlapping saves without this guard create two files.
   let committing = false;
 
   const token = (): GDriveToken | null => tokenStore.read();
 
-  /** The configured OAuth Client ID, parsed at the config boundary. */
   function resolvedClientId(): GDriveClientId | null {
     return parseGDriveClientId(cfg.config('clientId'));
   }
@@ -192,7 +172,6 @@ export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Stora
 
       committing = true;
       try {
-        // Resolve (or create) the target file, then upload its media.
         fileId = fileId ?? await findFile(tok, fileName.get());
         if (!fileId) {
           const res = await fetch(`${GDRIVE_FILES_URL}?fields=id`, {
@@ -210,7 +189,7 @@ export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Stora
           body: bytes as unknown as BodyInit,
         });
         if (!res.ok) {
-          // 404 means the cached fileId is stale — clear it so the next attempt re-resolves.
+          // Drive answers 404 when the cached fileId is stale.
           if (res.status === 404) fileId = null;
           throw writeFailure(classifyHttpStatus(res.status), `Google Drive save failed: ${res.status}`);
         }
@@ -225,7 +204,7 @@ export function gdriveStorage(room: RoomId): { auth: StorageAuth; storage: Stora
       if (!tok) throw new Error('Google Drive: not connected');
 
       fileId = fileId ?? await findFile(tok, fileName.get());
-      if (!fileId) return StorageAccess.Write; // no file yet — user can create one
+      if (!fileId) return StorageAccess.Write;
 
       const res = await fetch(`${GDRIVE_FILES_URL}/${fileId}?fields=capabilities(canEdit)`, {
         headers: authHeaders(tok),

@@ -10,8 +10,7 @@ function docWithTaskItem(checked: boolean) {
   return schema.node('doc', null, [list]);
 }
 
-/** Position inside the task_item's paragraph content (any pos there resolves
- *  up to the task_item at some ancestor depth). */
+/** Any position in the task_item's paragraph — it resolves up to the task_item. */
 function posInsideTaskItem(state: EditorState): number {
   let pos = -1;
   state.doc.descendants((node, p) => {

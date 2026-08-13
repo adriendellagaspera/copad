@@ -1,12 +1,10 @@
 # Copad — rules for AI agents
 
-**Keep this file lean.** It's imported wholesale into every Claude Code
-session via `CLAUDE.md`'s `@AGENTS.md` — an import loads at launch same as
-inline content, so it doesn't dodge Claude Code's own guidance to target
-under 200 lines of loaded memory before adherence drops. Add a rule only if
-it's general (applies across the codebase, not one file) and relevant on
-nearly every task; anything narrower belongs as an in-code comment (see
-Comments below) or in `docs/architecture.md`.
+**Keep this file lean.** `CLAUDE.md`'s `@AGENTS.md` imports it wholesale into
+every session, and an import costs the same context as inline content — hence
+the 200-line budget (`npm run check:doc-budget`). Add a rule only if it is
+general and relevant on nearly every task; anything narrower belongs in an
+in-code comment (see Comments) or in `docs/architecture.md`.
 
 ## Commands
 
@@ -16,6 +14,7 @@ Comments below) or in `docs/architecture.md`.
 - `npm run test:scripts` — bash suites for the gh-pages deploy scripts.
 - `npm run build` — production build.
 - `npm run docs` — regenerates the API reference into `docs/api/` (git-ignored).
+- `npm run check:doc-budget` — fails if `AGENTS.md`+`CLAUDE.md` exceed 200 lines combined.
 - `npm run dev` — Vite dev server; needs `npm run signaling` (WebRTC, default)
   or `npm run collab` (WebSocket transport) running alongside it for
   collaboration to work locally.
@@ -26,17 +25,16 @@ Playwright e2e suite (`npm run e2e`).
 
 ## The contract comes first
 
+- **Every fact lives in exactly one place; everywhere else links to it.** A
+  restatement is a second copy that drifts, and the drifted copy is read as
+  true. Governs code comments, docs, issues and PRs alike.
 - [`docs/contract.md`](docs/contract.md) is **binding, not indicative**. Read it
   before changing anything about presence, the write gate, storage durability,
   room identifiers, or what the editor allows when alone.
-- Changing behaviour it describes means updating it **in the same commit**. A
-  spec that lags the code is worse than no spec: it is read as true.
-- The same holds for [`docs/architecture.md`](docs/architecture.md) and
-  `README.md`. When you touch an area they describe, bring their description
-  back in line — these files brief every agent, so a stale line propagates
-  into work that was never wrong on purpose. (`CLAUDE.md` carries no
-  description of its own — it only points here — so there's nothing in it to
-  go stale.)
+- Changing behaviour it describes means updating it **in the same commit**; the
+  same holds for [`docs/architecture.md`](docs/architecture.md) and `README.md`.
+  These files brief every agent, so a stale line propagates into work that was
+  never wrong on purpose.
 
 ## Type system rules
 
@@ -77,20 +75,16 @@ Playwright e2e suite (`npm run e2e`).
     `src/collaboration/parse.ts`; do not read awareness state elsewhere.
   - External API JSON → type the interface, cast at `response.json()`.
   - Filename from browser API → cast to `Filename` inside the storage adapter.
-  - ProseMirror node/mark kind → never compare `node.type.name`/`mark.type.name`
-    to a string literal. Use `nodeNameOf(node)` / `markNameOf(mark)`
-    (`src/editor/schema.ts`), which cast once to the closed `NodeName` /
-    `MarkName` union so a typo in a comparison or `switch` case is a compile
-    error (TS2367/TS2678), not a silently-false runtime check.
+  - ProseMirror node/mark kind → `nodeNameOf(node)`/`markNameOf(mark)`
+    (`src/editor/schema.ts`), never a bare `node.type.name` compared to a
+    literal: the closed union makes a typo a compile error, not a false check.
 
 ## Finding things
 
-- `npm run docs` generates a markdown API index (TypeDoc) into `docs/api/` —
-  git-ignored, regenerate on demand. Every export, its doc comment, and its
-  exact source location, always current because it's read straight from the
-  code. Prefer it (or `grep` — names are grep-unambiguous by the rule above)
-  over asking; there is no hand-maintained "where things live" doc to read
-  instead, on purpose.
+- `npm run docs` generates a TypeDoc markdown index into `docs/api/` —
+  git-ignored, regenerate on demand: every export, its doc comment and its
+  exact location, read straight from the code. Prefer it or `grep`; there is
+  no hand-maintained "where things live" doc, on purpose.
 
 ## Hexagonal architecture rules
 
@@ -108,16 +102,11 @@ Playwright e2e suite (`npm run e2e`).
 ## Naming conventions
 
 - No OO suffixes: not `XxxAdapter`, `XxxProvider`, `XxxFactory`, `XxxManager`,
-  `XxxService`, `XxxHandler`. Not gated: a blind suffix regex false-positives on
-  names that are legitimately not the OO pattern this bans — e.g.
-  `markRuleHandler` (`src/editor/plugins.ts`, a plain function handling an input
-  rule) and `kService` (`src/storage/s3.ts`, AWS's own SigV4 key-derivation term).
-  Stays a review call.
+  `XxxService`, `XxxHandler`. Not gated — false positives exist (`markRuleHandler`,
+  `kService`); stays a review call.
 - Use factory functions (`foo(): FooType`) returning plain objects, not classes.
-  **Partially gated**: `no-restricted-syntax` in `eslint.config.js` bans a class
-  `implements`-ing a port (the actual OO-adapter pattern this rule targets);
-  `class X extends Error` stays legal — subclassing a built-in for a real
-  `instanceof`/stack trace isn't the pattern being banned.
+  **Partially gated**: `no-restricted-syntax` bans a class `implements`-ing a
+  port; `class X extends Error` stays legal — not the pattern being banned.
 - Name branded types after what the value **is**: `RoomId` not `id`,
   `CursorColor` not `color`, `FileExtension` not `ext`.
 - Brand names must be unambiguous under `grep` across the whole codebase.
@@ -150,6 +139,12 @@ Playwright e2e suite (`npm run e2e`).
 - Prefer fixing the code over explaining it: a comment that feels necessary
   usually marks a bad name or a missing type.
 - When you touch a file, bring its existing comments down to this bar.
+- **Comments belong to humans.** An agent never posts one. It reads what a human
+  wrote, challenges it when the code says otherwise, and — with that human in
+  session — folds the outcome into the body, the title, or the code: the change
+  is the reply. Bodies are where information lives; same bar there — table over
+  narrative, the delta not the process. The only non-human comment is CI's
+  preview link (`.github/workflows/pr-preview.yml`), not yours to write or delete.
 
 ## Checklist before every commit
 

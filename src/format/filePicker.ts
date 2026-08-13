@@ -1,6 +1,6 @@
 import { knownExtensions } from './index.js';
 
-// showOpenFilePicker not yet in TypeScript's lib.dom.d.ts at this version.
+// showOpenFilePicker is absent from lib.dom.d.ts at this TypeScript version.
 declare global {
   interface Window {
     showOpenFilePicker(opts?: {
@@ -37,7 +37,6 @@ export function pickFileMobile(): Promise<File> {
   });
 }
 
-/** Prompt the user to pick one file from disk for reading — native picker when available, else a hidden `<input>`. */
 export async function pickFile(): Promise<File> {
   if (hasFsAccessApi()) {
     const [handle] = await window.showOpenFilePicker({

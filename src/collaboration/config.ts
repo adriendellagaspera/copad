@@ -1,12 +1,3 @@
-// Resolve the signaling server list, flagging the two ways it silently breaks
-// real-time collaboration on a deployed site:
-//
-// 1. No VITE_SIGNALING_URL set — falling back to ws://localhost only works in
-//    local dev. On any other origin there is no shared rendezvous, so peers on
-//    other devices never discover each other.
-// 2. An insecure ws:// server on an https:// page — browsers block this as
-//    mixed content, so the signaling socket never opens.
-
 import type { SignalingUrl, WebsocketUrl, StunUrl, TurnUrl, RoomId, IceServer, IceServersUrl } from './types.js';
 import { FallbackTurnPolicy } from './types.js';
 import type { RoomAccess } from './roomAccess.js';
@@ -23,24 +14,15 @@ const list = (raw: string | undefined): string[] =>
     .map((s) => s.trim())
     .filter(Boolean);
 
-
-
 export interface SignalingResolution {
-  /** Signaling servers to hand to y-webrtc (may be empty if misconfigured). */
   readonly servers: SignalingUrl[];
-  /** User-facing problem description, or undefined when the config is sound. */
   readonly warning?: string;
-  /** Developer-facing details for the browser console. */
   readonly technicalWarning?: string;
 }
 
-/** HTTP/HTTPS scheme of the current page, e.g. `'https:'`. */
 export type PageProtocol = string & { readonly _brand: 'PageProtocol' };
-
-/** Hostname of the current page, e.g. `'app.example.com'`. */
 export type PageHostname = string & { readonly _brand: 'PageHostname' };
 
-/** The page origin details needed to detect mixed-content and local-dev conditions. */
 export interface PageLocation {
   readonly protocol: PageProtocol;
   readonly hostname: PageHostname;
@@ -52,8 +34,6 @@ export function resolveSignaling(
 ): SignalingResolution {
   const isLocalHost = LOCAL_HOSTS.has(loc.hostname);
   const isSecurePage = loc.protocol === 'https:';
-  // list() is shared across signaling/STUN/TURN; parse each entry here, dropping
-  // anything that isn't a real ws/wss URL.
   const servers = list(raw)
     .map(parseSignalingUrl)
     .filter((s): s is SignalingUrl => s !== null);
@@ -96,31 +76,17 @@ export function resolveSignaling(
 }
 
 export interface WebsocketResolution {
-  /** Collaboration server URL, absent when the websocket transport is not configured. */
   readonly url?: WebsocketUrl;
-  /** Human-readable problem to surface, or undefined when the config is sound. */
   readonly warning?: string;
 }
 
-/** The collaboration transport, selected by `VITE_COLLAB_TRANSPORT`. */
 export type CollabTransport = 'webrtc' | 'websocket';
 
-/**
- * Choose the collaboration transport. Explicit by design (`VITE_COLLAB_TRANSPORT`)
- * rather than inferred from another var's presence: only `websocket` selects the
- * hub; anything else — unset, `webrtc`, or a typo — stays on the default WebRTC.
- * Accepts a raw string (env input is untrusted) and narrows it to CollabTransport.
- */
+// Anything but an exact 'websocket' match — unset, 'webrtc', a typo — stays on the default WebRTC, so a bad env value never silently breaks collaboration.
 export function resolveTransport(raw: string | undefined): CollabTransport {
   return (raw ?? '').trim().toLowerCase() === 'websocket' ? 'websocket' : 'webrtc';
 }
 
-/**
- * Parse the y-websocket (hub) URL, used when the transport is `websocket`.
- * `url` is absent when none is configured or the value isn't a ws/wss URL.
- * An insecure ws:// URL parses fine but is flagged below: the browser blocks it
- * as mixed content on an https:// page, yet it's still the configured URL.
- */
 export function resolveWebsocket(
   raw: string | undefined,
   loc: Pick<PageLocation, 'protocol'>,
@@ -141,13 +107,7 @@ export function resolveWebsocket(
   return { url };
 }
 
-/**
- * Public TURN relay used out-of-the-box when no TURN is configured, so a
- * desktop↔mobile session can still connect through carrier NAT. This is the free
- * OpenRelay project (metered.ca): best-effort and rate-limited — fine for a demo,
- * but configure your own (env or Settings) for anything serious. Disable via
- * `{ fallback: 'none' }` in `resolveIceServers`.
- */
+// The free OpenRelay project (metered.ca): best-effort and rate-limited, fine for a demo — configure your own for anything serious. Disable via `{ fallback: 'none' }` in resolveIceServers.
 export const DEFAULT_TURN: IceServer = {
   urls: [
     parseTurnUrl('turn:openrelay.metered.ca:80')!,
@@ -158,31 +118,16 @@ export const DEFAULT_TURN: IceServer = {
   credential: parseTurnCredential('openrelayproject'),
 };
 
-/**
- * A room's access gate paired with the cipher that encrypts it. Resolved as one
- * value so each strategy keeps its concrete type end-to-end — in particular the
- * `secret-link` object, which *is* both ports, is never widened to `RoomAccess`
- * and cast back to `RoomCipher`.
- */
 export interface RoomStrategy {
   readonly access: RoomAccess;
   readonly cipher: RoomCipher;
 }
 
-/** A cipher whose key material is exactly the access gate's credential, so the
- *  room is encrypted with the same secret used to admit peers. */
 function sharedKeyCipher(access: RoomAccess): RoomCipher {
   return { password: (room: RoomId) => access.credential(room) };
 }
 
-/**
- * Parse `VITE_ROOM_AUTH` into a typed {@link RoomStrategy} — the single place
- * where the raw env string crosses the domain boundary. Access and cipher are
- * built together so no strategy loses type information: `secret-link` yields one
- * {@link SecretLinkPort} object used directly as both ports (no cast). Unknown
- * values fall back to public + plaintext so a typo never silently breaks
- * collaboration.
- */
+// Unknown values fall back to public + plaintext so a typo never silently breaks collaboration.
 export function resolveRoomStrategy(raw: string | undefined): RoomStrategy {
   switch ((raw ?? '').trim().toLowerCase()) {
     case RoomAccessMode.SitePassword: {
@@ -202,7 +147,6 @@ export function resolveRoomStrategy(raw: string | undefined): RoomStrategy {
   }
 }
 
-/** Whether the room was minted for this visit rather than asked for by name. */
 export type RoomMinted = boolean & { readonly _brand: 'RoomMinted' };
 
 export interface LandingRoom {
@@ -210,8 +154,7 @@ export interface LandingRoom {
   readonly minted: RoomMinted;
 }
 
-/** Minting rather than adopting a default keeps a visitor's first act out of a
- *  stranger's document (docs/contract.md §5). */
+// Minting rather than adopting a default keeps a visitor's first act out of a stranger's document (docs/contract.md §5).
 export function resolveLandingRoom(
   roomParam: string | null,
   envDefaultRoom: string | undefined,
@@ -225,17 +168,11 @@ export function resolveLandingRoom(
   return { room: mint(), minted: true as RoomMinted };
 }
 
-/**
- * Parse `VITE_ICE_SERVERS_URL` into a branded {@link IceServersUrl}, or
- * `undefined` when unset/not an http(s) URL. When set, `App.svelte` fetches ICE
- * servers from it (short-lived TURN credentials minted server-side) in place of
- * the static `VITE_TURN_*` config. The single env cast site for this URL.
- */
+// When set, App.svelte fetches ICE servers from it (short-lived TURN credentials minted server-side) instead of the static VITE_TURN_* config.
 export function resolveIceServersUrl(raw: string | undefined): IceServersUrl | undefined {
   return parseIceServersUrl((raw ?? '').trim()) ?? undefined;
 }
 
-/** ICE server environment variables read at startup for WebRTC NAT traversal. */
 export interface IceEnv {
   VITE_STUN_URL?: string;
   VITE_TURN_URL?: string;
@@ -243,13 +180,6 @@ export interface IceEnv {
   VITE_TURN_PASSWORD?: string;
 }
 
-/**
- * Build the ICE server list for WebRTC. A public STUN server is enough for most
- * home/office NATs; a TURN relay is needed for restrictive networks — notably
- * mobile carriers (CGNAT / symmetric NAT), where STUN alone fails and
- * desktop↔phone sessions never connect. When no TURN is configured we fall back
- * to a public relay so it "just works" — unless `fallback` is `'none'`.
- */
 export function resolveIceServers(
   env: IceEnv,
   opts: { fallback?: FallbackTurnPolicy } = {},
@@ -257,8 +187,6 @@ export function resolveIceServers(
   const servers: IceServer[] = [];
 
   // VITE_STUN_URL="" (explicitly empty) disables the STUN default on purpose.
-  // list() is shared and returns plain strings; parse each entry here, dropping
-  // anything that isn't a real stun/turn(s) URL (the single STUN/TURN cast site).
   const stun = list(env.VITE_STUN_URL ?? DEFAULT_STUN)
     .map(parseStunUrl)
     .filter((s): s is StunUrl => s !== null);
@@ -268,15 +196,12 @@ export function resolveIceServers(
     .map(parseTurnUrl)
     .filter((t): t is TurnUrl => t !== null);
   if (turnUrls.length) {
-    // Env-var values cross the IO boundary here — parse to branded types so
-    // the rest of the domain never sees raw strings.
     servers.push({
       urls: turnUrls,
       ...(env.VITE_TURN_USERNAME ? { username: parseTurnUsername(env.VITE_TURN_USERNAME) } : {}),
       ...(env.VITE_TURN_PASSWORD ? { credential: parseTurnCredential(env.VITE_TURN_PASSWORD) } : {}),
     });
   } else if ((opts.fallback ?? FallbackTurnPolicy.OpenRelay) !== FallbackTurnPolicy.None) {
-    // No TURN configured — fall back to the public relay for restrictive NATs.
     servers.push(DEFAULT_TURN);
   }
 

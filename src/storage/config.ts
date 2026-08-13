@@ -2,21 +2,11 @@ import type { ConfigField, StorageId } from './types.js';
 import { localStore, type StorageKey } from '../persistence/local.js';
 import { backendKey, type ConfigFieldName } from './constants.js';
 
-/**
- * A single configuration field plus its build-time default. When `env` is set
- * (an operator configured it via a VITE_* variable) the field is *locked*: the
- * value can't be edited at runtime and is treated as managed by the deployment.
- */
 export interface ConfigSpec extends ConfigField {
-  /** Build-time value (env var). Present ⇒ the field is locked. */
+  /** Build-time value (VITE_* env var). Present ⇒ the field is locked. */
   env?: string;
 }
 
-/**
- * The slice of {@link Storage} that deals with one-time, operator/user-level
- * configuration (OAuth app keys and the like) — distinct from per-session
- * authentication. Persisted in `localStorage` under `storage.<id>.<name>`.
- */
 export interface ConfigStore {
   fields: ConfigField[];
   config(name: string): string;
@@ -25,16 +15,10 @@ export interface ConfigStore {
   configured(): boolean;
 }
 
-/**
- * Build a {@link ConfigStore} for a backend. Resolution order per field is
- * env var → saved value, matching the historic resolution chains in the
- * adapters (so values saved by the old credential form keep working).
- * localStorage and parsing are abstracted behind a per-field {@link localStore}.
- */
+// Resolution order per field: env var → saved value.
 export function configStore(id: StorageId, specs: ConfigSpec[]): ConfigStore {
   const spec = (name: string) => specs.find(s => s.name === name);
-  // A config field's name is its storage purpose — branded here, the one boundary
-  // where an adapter-defined field name crosses into a key.
+  // The one boundary where an adapter-defined field name becomes a storage key.
   const key = (name: string): StorageKey => backendKey(id, name as ConfigFieldName);
   const envOf = (name: string) => spec(name)?.env || '';
   const saved = (name: string) =>
@@ -42,13 +26,12 @@ export function configStore(id: StorageId, specs: ConfigSpec[]): ConfigStore {
   const value = (name: string) => envOf(name) || saved(name).read();
 
   return {
-    // Strip `env` from the public field descriptors — it's an implementation detail.
     fields: specs.map(({ env: _env, ...field }) => field),
 
     config: value,
 
     setConfig(name, raw) {
-      if (envOf(name)) return; // locked by the deployment — ignore writes
+      if (envOf(name)) return;
       saved(name).write(raw.trim());
     },
 

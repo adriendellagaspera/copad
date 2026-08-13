@@ -26,8 +26,6 @@
   let error = $state<string | null>(null);
   let picking = $state<Filename | null>(null);
 
-  // Only files a codec can actually read are worth showing — anything else
-  // would just bounce off the same check downstream, in Editor's applyImport().
   $effect(() => {
     const b = backend;
     if (!open || !b?.storage.list) return;

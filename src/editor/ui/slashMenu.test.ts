@@ -54,8 +54,6 @@ describe('slash menu applicability (menuItems)', () => {
   it('drops Table when the caret is already inside a table (no nesting)', () => {
     const items = menuItems(inTableCellState(), 'table').map((i) => i.title);
     expect(items).not.toContain('Table');
-    // A query with no applicable match yields an empty menu rather than one
-    // that deletes the trigger and inserts nothing.
     expect(items).toHaveLength(0);
   });
 
@@ -92,13 +90,11 @@ describe('slash menu Escape handling', () => {
     const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
     view.dom.dispatchEvent(event);
 
-    // The menu closes immediately regardless of what focus does afterward.
     expect(slashKey.getState(view.state)?.active).toBe(false);
     expect(event.defaultPrevented).toBe(true);
     expect(focusSpy).toHaveBeenCalledTimes(1);
 
-    // Simulate Firefox asynchronously blurring the contenteditable right
-    // after the Escape keydown, despite its default action being prevented.
+    // Firefox blurs the contenteditable asynchronously after Escape, despite preventDefault.
     view.dom.dispatchEvent(new FocusEvent('blur'));
 
     vi.runAllTimers();

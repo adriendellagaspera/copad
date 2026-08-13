@@ -54,8 +54,7 @@
     };
   });
 
-  // Window-level + capture: focus can land outside the dialog, and capture beats
-  // in-page listeners (e.g. a password-manager content script) to Escape first.
+  // Capture phase, on window: focus can sit outside the dialog, and a page listener must not swallow Escape first.
   $effect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent): void => {
@@ -130,7 +129,7 @@
     font-weight: 600;
   }
   .dialog-close {
-    /* min-width/height 44px: WCAG 2.5.5 hit-area minimum. */
+    /* WCAG 2.5.5 hit-area minimum. */
     display: inline-flex;
     align-items: center;
     justify-content: center;

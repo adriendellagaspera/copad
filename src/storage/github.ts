@@ -25,28 +25,16 @@ import {
   BASE64_CHUNK,
 } from './constants.js';
 
-/** localStorage + parsing for the token-validated flag, abstracted behind read/write/clear. */
 const validated = localStore<boolean>(
   GITHUB_VALIDATED_KEY,
   parseGitHubValidated,
   (on) => (on ? '1' : null),
 );
 
-// ── Branded types ─────────────────────────────────────────────────────────────
-
-/** A Personal Access Token verified against the GitHub API. */
 export type GitHubToken = string & { readonly _brand: 'GitHubToken' };
-
-/** A validated `owner/repo` repository reference. */
 export type GitHubRepo = string & { readonly _brand: 'GitHubRepo' };
-
-/** A normalised branch name — always has a value (defaults to `'main'`). */
 export type GitHubBranch = string & { readonly _brand: 'GitHubBranch' };
-
-/** A file SHA returned by the GitHub Contents API, required to update an existing file. */
 export type GitHubFileSha = string & { readonly _brand: 'GitHubFileSha' };
-
-// ── Config ────────────────────────────────────────────────────────────────────
 
 const cfg = configStore(STORAGE_ID.github, [
   {
@@ -73,8 +61,6 @@ const cfg = configStore(STORAGE_ID.github, [
   },
 ]);
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function apiHeaders(token: GitHubToken): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
@@ -83,7 +69,7 @@ function apiHeaders(token: GitHubToken): Record<string, string> {
   };
 }
 
-/** GitHub always requires base64. Chunked to stay within stack limits on large files. */
+// Chunked: a single String.fromCharCode(...bytes) overflows the stack on large files.
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
   for (let i = 0; i < bytes.length; i += BASE64_CHUNK) {
@@ -92,16 +78,11 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-// ── Factory ───────────────────────────────────────────────────────────────────
-
 export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Storage } {
   const fileName = filenameStore(STORAGE_ID.github, room, GITHUB_DEFAULT_FILENAME);
-  // Current file's SHA — required by GitHub to update an existing file.
+  // GitHub requires the current sha to overwrite an existing file.
   let fileSha: GitHubFileSha | null = null;
-  // Guard against concurrent in-flight commits.
   let committing = false;
-
-  // ── Credential resolvers (parse at the config boundary) ───────────────────
 
   function resolvedRepo(): GitHubRepo | null {
     return parseRepo(cfg.config('repo'));
@@ -110,8 +91,7 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
   function resolvedToken(): GitHubToken | null {
     const raw = cfg.config('token').trim();
     if (!raw) return null;
-    // Env-managed tokens are deployment-trusted; user-entered tokens require a
-    // successful login() (GET /user validation) before they are branded.
+    // Env-managed tokens are deployment-trusted; user-entered ones need login() first.
     if (cfg.configLocked('token')) return raw as GitHubToken;
     if (!validated.read()) return null;
     return raw as GitHubToken;
@@ -120,8 +100,6 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
   function resolvedBranch(): GitHubBranch {
     return parseBranch(cfg.config('branch'));
   }
-
-  // ── Commit helper ─────────────────────────────────────────────────────────
 
   async function commitFile(
     tok: GitHubToken,
@@ -150,7 +128,7 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
 
     if (!res.ok) {
       const err = parseGitHubErrorBody(await res.json().catch(() => ({})));
-      // 409 means our cached sha is stale — clear it so the next retry re-resolves.
+      // GitHub answers 409 when the cached sha is stale.
       if (res.status === 409) fileSha = null;
       throw writeFailure(classifyHttpStatus(res.status), String(err['message'] ?? res.status));
     }
@@ -158,10 +136,7 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
     fileSha = parseGitHubCommitResponse(await res.json()).content.sha;
   }
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
-
   function setConfig(name: string, value: string): void {
-    // Changing repo or token invalidates a prior Connect — force re-validation.
     if (name === 'token' || name === 'repo') validated.clear();
     cfg.setConfig(name, value);
   }
@@ -175,8 +150,7 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
       if (!rawToken || !repo) {
         throw new Error('Fill in the repository and token in Settings first.');
       }
-      // Use the raw string here — we are the validation step; GitHubToken is
-      // only produced after a successful response.
+      // Raw string on purpose: this call is what brands the token.
       const res = await fetch(`${GITHUB_API_URL}/user`, {
         headers: {
           Authorization: `Bearer ${rawToken}`,
@@ -197,15 +171,12 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
     },
 
     configFields: cfg.fields,
-    // Expose the 'main' default for branch so the Settings UI shows the effective value.
+    // Settings shows the effective branch, not the empty raw value.
     config: (name) => (name === 'branch' ? resolvedBranch() : cfg.config(name)),
     setConfig,
     configLocked: cfg.configLocked,
-    // repo must be present and valid-format; branch defaults to main (always valid).
     configured: () => resolvedRepo() !== null && cfg.config('token').trim().length > 0,
   };
-
-  // ── Storage ───────────────────────────────────────────────────────────────
 
   const storage: Storage = {
     id: STORAGE_ID.github,
@@ -241,7 +212,7 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
       const data = parseGitHubLoadResponse(await res.json());
       fileSha = data.sha;
 
-      // GitHub always returns base64; strip the newlines it inserts every 60 chars.
+      // GitHub's base64 carries newlines every 60 chars.
       const raw = atob(data.content.replace(/\n/g, ''));
       const bytes = Uint8Array.from(raw, (c) => c.charCodeAt(0));
 
@@ -265,11 +236,6 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
         committing = false;
       }
     },
-
-    // ── Browse (Phase 2 import) ─────────────────────────────────────────────
-    // Reuses the same Contents endpoint as load()/save() above — a directory
-    // path (here, the repo root) returns an array instead of a single file, so
-    // listing costs no new endpoint and no broader PAT scope.
 
     async list(): Promise<Filename[]> {
       const tok = resolvedToken();
@@ -302,8 +268,7 @@ export function githubStorage(room: RoomId): { auth: StorageAuth; storage: Stora
       const raw = atob(data.content.replace(/\n/g, ''));
       const bytes = Uint8Array.from(raw, (c) => c.charCodeAt(0));
 
-      // Unlike load(), the format is driven by *this* filename's extension —
-      // not the room's separately-configured target file.
+      // Format follows this filename, not the room's configured target.
       return extensionOf(filename) === '.yjs'
         ? { format: DocFormat.Binary, bytes }
         : { format: DocFormat.Text, text: new TextDecoder().decode(bytes) };

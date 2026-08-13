@@ -9,7 +9,6 @@ import { markdownCodec } from './markdown.js';
 import { codecForFilename, knownExtensions, DEFAULT_CODEC, exportCodecs } from './index.js';
 import type { Codec } from './types.js';
 
-// A representative document exercising headings, marks, lists.
 function sampleDoc() {
   const { paragraph, heading, bullet_list, list_item } = schema.nodes;
   const { strong, em, strike } = schema.marks;
@@ -70,7 +69,6 @@ describe('markdown codec', () => {
     const restored = await roundTrip(markdownCodec);
     const json = JSON.stringify(restored.toJSON());
     expect(restored.textContent).toContain('Title');
-    // strong/em/strike marks survive the round-trip
     expect(json).toContain('"strong"');
     expect(json).toContain('"em"');
     expect(json).toContain('"strike"');
@@ -178,7 +176,7 @@ describe('markdown codec', () => {
     expect(cell?.type.name).toBe('table_cell');
     const para = cell?.firstChild;
     expect(para?.type.name).toBe('paragraph');
-    expect(para?.childCount).toBe(3); // "one", hard_break, "two"
+    expect(para?.childCount).toBe(3);
     expect(para?.child(1).type.name).toBe('hard_break');
     expect(cell?.textContent).toBe('onetwo'); // hard_break itself carries no text
 
@@ -196,8 +194,7 @@ describe('markdown codec', () => {
     const restored = readPmDoc(dst);
     expect(restored.textContent).toContain('before');
     expect(restored.textContent).toContain('after');
-    // No DOM to parse it as a real table with — the raw markup survives as
-    // plain text instead of being silently dropped.
+    // With no DOM to parse real table markup, it survives as plain text rather than vanishing.
     expect(restored.textContent).toContain('<table>');
   });
 

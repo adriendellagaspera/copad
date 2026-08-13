@@ -15,25 +15,16 @@
   let inputEl = $state<HTMLInputElement | undefined>();
   let invalid = $derived(href.trim() !== '' && !isValidHref(href));
 
-  // The range the popover was opened for, captured up front (see openPopover)
-  // so apply()/unlink() always act on the text the user actually selected,
-  // never on whatever `view.state.selection` happens to be by the time they
-  // run — that live selection is deliberately collapsed to a caret below.
+  // Captured up front so apply()/unlink() act on the originally selected text, not the live selection (deliberately collapsed to a caret below).
   let linkFrom = $state(0);
   let linkTo = $state(0);
-  // The doc the popover was opened against, kept by reference (ProseMirror
-  // nodes are immutable — any content change produces a new object). Used
-  // to auto-dismiss if the document changes underneath the popover.
+  // ProseMirror nodes are immutable, so identity alone tells us if the doc changed underneath the popover.
   let openDoc = $state.raw<PMNode | null>(null);
 
   function openPopover(): void {
     if (!view) return;
     const state = view.state;
     const { from, to, empty } = state.selection;
-    // `linkAround` finds the *whole* link the caret rests on (even mid-link,
-    // reached by click or arrow — not just at its trailing edge), so opening
-    // Mod-K on an existing link edits it (Update/Unlink acting on the full
-    // span) instead of blankly offering to create a new one.
     const existing = linkAround(state);
     wasLinked = existing !== null;
     href = existing?.href ?? '';
@@ -46,18 +37,7 @@
     } catch {
       pos = null;
     }
-    // Collapse the live selection to a caret *before* handing focus to the
-    // popover's own <input> (the queueMicrotask below). Leaving a real,
-    // possibly cross-paragraph Selection active in the contenteditable
-    // while focus moves away asynchronously races prosemirror-view's own
-    // selectionchange-driven DOM sync: its DOMObserver reads the browser's
-    // current Selection back into a document position on every native
-    // `selectionchange` event, and losing focus mid-selection can hand it a
-    // now-stale position outside the document — this is what produced the
-    // reported "Position N out of range" / "setEnd on Range" crashes
-    // (reproduced via Ctrl+K opened over a selection, handing focus to this
-    // input). `linkFrom`/`linkTo` above remember the original range so
-    // apply()/unlink() can still act on it.
+    // Collapsing before the focus microtask below avoids racing prosemirror-view's selectionchange-driven DOM sync, which reproduced as "Position N out of range" crashes when focus moved away mid-selection.
     if (!empty) {
       view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, to)));
     }
@@ -65,13 +45,7 @@
     queueMicrotask(() => inputEl?.focus());
   }
 
-  // If the document changes while the popover is open — an undo/redo, a
-  // remote peer's edit, anything — the captured linkFrom/linkTo range and
-  // the wasLinked/href snapshot no longer describe anything well-defined:
-  // "the same range" may not even exist anymore. Rather than guess, close
-  // the popover; the user can re-open it against the current document. Our
-  // own selection-collapse dispatch above doesn't touch doc content, so it
-  // doesn't trigger this — only a real content change does.
+  // A doc change (undo, remote peer edit) invalidates the captured range; close rather than guess.
   $effect(() => {
     if (!open || openDoc === null || !editorState) return;
     if (editorState.doc !== openDoc) dismiss();
@@ -82,10 +56,7 @@
     view?.focus();
   }
 
-  // Cancel path (Escape / click-away): collapse the selection so focus lands
-  // straight back in the text, instead of leaving the prior selection active
-  // — which would pop the SelectionToolbar bubble right back up and make it
-  // look like a second dismissal is needed to really get back to editing.
+  // Collapses the selection on dismiss: leaving it active would pop SelectionToolbar right back up, looking like a second dismissal is needed.
   function dismiss(): void {
     if (view) {
       const { to } = view.state.selection;
@@ -94,11 +65,7 @@
     close();
   }
 
-  /** Clamp the captured range to the current document, in case it changed
-   *  underneath the popover in some way the doc-identity effect above
-   *  didn't already close it for (defense in depth — normally that effect
-   *  means apply()/unlink() only ever run against the same doc `linkFrom`/
-   *  `linkTo` were captured from). */
+  // Defense in depth: clamps in case the range outlived the doc-identity effect above that normally closes the popover on a change.
   function currentLinkRange(): { from: number; to: number } {
     if (!view) return { from: linkFrom, to: linkTo };
     const size = view.state.doc.content.size;
@@ -111,9 +78,7 @@
     if (!view) return;
     const h = href.trim();
     if (!h) {
-      // Empty input = remove the link. Act on the captured link range, not
-      // the live (collapsed) caret — otherwise removeLink only clears stored
-      // marks and leaves the link on the surrounding text intact.
+      // Acts on the captured range, not the live collapsed caret — otherwise removeLink only clears stored marks and leaves the link on the surrounding text.
       const { from, to } = currentLinkRange();
       if (from !== to) {
         view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
@@ -125,7 +90,6 @@
     if (!isValidHref(h)) return; // keep the popover open so the error stays visible
     const { from, to } = currentLinkRange();
     if (from === to) {
-      // No selection: insert the URL as linked text.
       const mark = view.state.schema.marks.link.create({ href: normalizeHref(h) });
       const tr = view.state.tr.insertText(h, from);
       tr.addMark(from, from + h.length, mark);
@@ -133,9 +97,7 @@
       close();
       return;
     }
-    // Restore the originally selected range — collapsed to a caret in
-    // openPopover to avoid the focus/selection race documented there — so
-    // setLink applies to the text the popover was actually opened for.
+    // Restore the range collapsed in openPopover so setLink applies to the text the popover was actually opened for.
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
     runCommand(view, setLink(h));
     close();
@@ -151,7 +113,6 @@
     close();
   }
 
-  // Bridge: Mod-k and the toolbar link button both dispatch `copad:link`.
   type CopadLinkEvent = CustomEvent<void>;
   $effect(() => {
     const dom = view?.dom;
@@ -161,13 +122,7 @@
     return () => dom.removeEventListener('copad:link', handler as EventListener);
   });
 
-  // Window-level Escape (matches IdentityMenu/Settings): the
-  // input's own onkeydown only fires once it holds focus, which a slow
-  // coordsAtPos or a delayed focus microtask can race — this guarantees
-  // Escape always dismisses the popover regardless of where focus landed.
-  // Capture phase so we see it before any other in-page listener (or a
-  // browser-extension content script on the input, e.g. a password manager)
-  // gets a chance to stopPropagation() or otherwise swallow the first press.
+  // Window-level, capture phase: guarantees Escape dismisses regardless of where focus landed, and fires before a page listener or extension (e.g. a password manager) can swallow it.
   $effect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent): void => {
@@ -205,13 +160,7 @@
         <span class="link-error">That doesn't look like a valid link</span>
       {/if}
     </div>
-    <!-- Act on mousedown for the mouse (preventDefault so the press never
-         blurs/dismisses the popover first — that blur is what silently broke
-         mouse-unlink) AND on Enter/Space keydown for the keyboard, so a
-         keyboard user can Tab here and Update/Unlink too. Deliberately NOT
-         plain onclick: a click here fires *after* the blur race and proved
-         unreliable. apply()/unlink() act on the captured linkFrom/linkTo
-         range regardless of which path fires. -->
+    <!-- mousedown (preventDefault) not onclick: a click fires after the blur/dismiss race and proved unreliable. Enter/Space cover keyboard use. -->
     <button
       class="primary"
       disabled={invalid}

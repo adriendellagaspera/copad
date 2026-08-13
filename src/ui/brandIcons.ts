@@ -6,14 +6,7 @@ interface BrandIcon {
   readonly hex: string;
 }
 
-// Official brand marks (Simple Icons, CC0 — https://simpleicons.org, built
-// exactly for representing third-party brands in another product's UI),
-// 24x24 viewBox, one flat path each. Only backends that are a single,
-// unambiguous brand get one here. S3 (any S3-compatible bucket: AWS, R2,
-// MinIO, B2, GCS…) and WebDAV (a protocol, not a company) aren't one brand;
-// Local is a browser API, not a brand; pCloud and SharePoint aren't in Simple
-// Icons' catalog. All of those fall back to the initial-letter monogram in
-// Settings.svelte rather than a fabricated or misattributed logo.
+// Simple Icons (CC0, https://simpleicons.org), 24x24 viewBox; a backend that is not one unambiguous brand gets no entry and falls back to a monogram.
 export const BRAND_ICONS: Partial<Record<StorageId, BrandIcon>> = {
   [STORAGE_ID.dropbox]: {
     hex: '0061FF',

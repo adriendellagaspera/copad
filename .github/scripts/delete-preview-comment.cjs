@@ -1,5 +1,4 @@
-// Delete the "Preview deployed" comment when a PR closes, so no link to the
-// removed preview directory is left behind.
+// Delete the "Preview deployed" comment when a PR closes, so no link outlives the preview.
 //
 // Invoked from .github/workflows/pr-preview.yml via actions/github-script.
 const MARKER = '<!-- gh-pages-preview -->';

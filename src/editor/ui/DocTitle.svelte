@@ -5,7 +5,6 @@
   type Props = {
     room: RoomId;
     name: RoomName | null;
-    /** Apply a rename to the current room (shared, never changes the id). */
     onRename: (raw: string) => void;
     autofocus?: boolean;
   };
@@ -29,15 +28,13 @@
     typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
 
   function autofocusInput(node: HTMLInputElement): void {
-    // Skip on touch: autofocusing here would pop the keyboard on a tab the user didn't tap into.
+    // Skip on touch: this would pop the keyboard on a tab the user didn't tap into.
     if (!autofocus || !isFinePointer()) return;
     node.focus();
     node.select();
   }
 </script>
 
-<!-- Rendered inside `.content` (Editor.svelte), not header chrome, so it scrolls
-     away with the document instead of occupying permanent header space. -->
 <div class="doc-title">
   <span class="sigil" aria-hidden="true">#</span>
   <input

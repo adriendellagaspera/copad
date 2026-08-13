@@ -18,16 +18,9 @@ import { STORAGE_ID, DEFAULT_FILENAME, GRAPH_API_URL, SHAREPOINT_FOLDER, SHAREPO
 
 // Microsoft Graph auth: a delegated Files.ReadWrite.All/Sites.ReadWrite.All token pasted by the user, short-lived like a WebDAV app password.
 
-/** A Microsoft Graph user id (from `/me` or a drive item's `createdBy.user.id`). */
 export type GraphUserId = string & { readonly _brand: 'GraphUserId' };
-
-/** A Microsoft Graph SharePoint site id (from `/sites/{host}:{path}`). */
 export type GraphSiteId = string & { readonly _brand: 'GraphSiteId' };
-
-/** Branded only after `/me` validates it: the single cast site for user-supplied tokens, in `login()`. */
 export type SharePointToken = string & { readonly _brand: 'SharePointToken' };
-
-/** A drive folder path the user configures (defaults to `SHAREPOINT_FOLDER`). */
 export type SharePointFolder = string & { readonly _brand: 'SharePointFolder' };
 
 const confStore = localStore<SharePointConf | null>(
@@ -64,12 +57,10 @@ function authHeaders(token: SharePointToken): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
-/** The drive root: a SharePoint site's default drive, or the user's OneDrive. */
 function driveRoot(c: SharePointConf): string {
   return c.siteId ? `${GRAPH_API_URL}/sites/${c.siteId}/drive` : `${GRAPH_API_URL}/me/drive`;
 }
 
-/** Path to the target file, relative to the drive root (folder + per-room name). */
 function itemPath(c: SharePointConf, filename: Filename): string {
   const folder = c.folder.replace(/^\/+|\/+$/g, '');
   return [folder, filename].filter(Boolean).join('/');
@@ -83,14 +74,13 @@ function driveContentUrl(c: SharePointConf, filename: Filename): string {
   return `${driveItemUrl(c, filename)}:/content`;
 }
 
-/** 401/403 mid-session means the pasted token (short-lived, ~1h) has expired. */
+// A pasted Graph token lasts ~1h, so a mid-session 401/403 means expiry, not denial.
 function graphErrorMessage(action: string, status: number): string {
   return status === 401 || status === 403
     ? 'SharePoint: your session has expired. Reconnect with a fresh access token in Settings.'
     : `SharePoint ${action} failed: ${status}`;
 }
 
-/** Resolve a SharePoint site URL to its Graph site id. */
 async function resolveSiteId(token: SharePointToken, siteUrl: string): Promise<GraphSiteId> {
   const url = new URL(siteUrl);
   const res = await fetch(`${GRAPH_API_URL}/sites/${url.hostname}:${url.pathname}`, {
@@ -113,7 +103,7 @@ export function sharepointStorage(room: RoomId): { auth: StorageAuth; storage: S
       const rawToken = token.trim();
       if (!rawToken) throw new Error('An access token is required');
 
-      // Raw string here: this fetch is the validation step SharePointToken depends on.
+      // Raw string on purpose: this call is what brands the token.
       const meRes = await fetch(`${GRAPH_API_URL}/me`, { headers: { Authorization: `Bearer ${rawToken}` } });
       if (meRes.status === 401) throw new Error('SharePoint: invalid or expired token');
       if (!meRes.ok) throw new Error(`SharePoint connect failed: ${meRes.status}`);

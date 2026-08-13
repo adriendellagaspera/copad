@@ -5,37 +5,23 @@ import { Transport } from './types.js';
 import type { LocalCacheEnabled } from './cache.js';
 import { createCollabCore } from './core.js';
 
-/**
- * Client ↔ server (hub) collaboration transport.
- *
- * Unlike {@link webrtcCollab}, this is **not** peer-to-peer: every client holds
- * one WebSocket to a central server that stores the doc, merges updates, and
- * rebroadcasts them. Because clients only make *outbound* connections to one
- * public server, there is no WebRTC and no NAT traversal — so it works through
- * carrier NAT / CGNAT / symmetric NAT where STUN/TURN would be required.
- *
- * Trade-off: the server is in the data path and sees plaintext Yjs updates, so
- * the WebRTC `password` (end-to-end encryption) does not apply here.
- */
+/** The hub sits in the data path and sees plaintext, so no `password` here
+ *  (docs/contract.md §2). */
 export interface WebsocketCollabOptions {
-  /** Validated hub URL that relays edits between clients. */
   url: WebsocketUrl;
-  /** Mirror the doc into IndexedDB so it survives a reload without a backend. */
   cache?: LocalCacheEnabled;
 }
 
 export function websocketCollab(opts: WebsocketCollabOptions): CollabConnect {
   return (room: RoomId): Collab => {
     const doc = new Y.Doc();
-    // RoomId extends string — cast back to string at the y-websocket IO boundary.
     const provider = new WebsocketProvider(opts.url, room as string, doc);
 
-    // Awareness holds every present client including us, so "peers" is size − 1.
+    // Awareness holds every present client including us.
     const peerCount = (): number => Math.max(0, provider.awareness.getStates().size - 1);
 
-    // `provider.wsconnected` means "attached to the server", not "peered". Peer
-    // presence comes from awareness, not the socket — so we also recompute on its
-    // 'change'. This mirrors the webrtc adapter so the status pill reads identically.
+    // `wsconnected` means attached to the server, not peered — presence comes
+    // from awareness, hence the extra 'change' subscription below.
     const core = createCollabCore({
       doc,
       room,
@@ -59,13 +45,11 @@ export function websocketCollab(opts: WebsocketCollabOptions): CollabConnect {
       reconnect() {
         provider.disconnect();
         provider.connect();
-        // A manual retry earns a fresh "can't connect" window rather than
-        // instantly re-reporting Unreachable from the last attempt's timeout.
+        // A manual retry earns a fresh window instead of the last attempt's timeout.
         core.resetConnectTimeout();
         core.emitStatus();
       },
       async getDiagnostics() {
-        // No per-peer carriage on the hub — everyone talks to the same server.
         return {
           transport: Transport.Hub,
           signaling: !!provider.wsconnected,
@@ -74,8 +58,7 @@ export function websocketCollab(opts: WebsocketCollabOptions): CollabConnect {
         };
       },
       destroy() {
-        // Drop the awareness listener, then core detaches the cache before we
-        // tear down the provider and doc.
+        // Unbind before core detaches the cache and the provider is torn down.
         provider.awareness.off('change', core.emitStatus);
         core.destroy();
         provider.destroy();

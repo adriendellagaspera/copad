@@ -2,8 +2,6 @@ import { readFileSync } from 'node:fs';
 import JSZip from 'jszip';
 import { test, expect, typeIntoEditor } from './fixtures';
 
-/** UI/UX regression tests for the redesigned chrome and editor features. */
-
 test('theme toggle flips and persists across reload', async ({ page }) => {
   await page.goto('/');
   await page.locator('.ProseMirror').waitFor();
@@ -54,9 +52,7 @@ test('word count reflects typed text', async ({ page }) => {
 });
 
 test('export a copy (Settings) exports the document as markdown', async ({ page }) => {
-  // Force the Blob/anchor fallback so this test observes a real Playwright
-  // download event regardless of whether the browser also supports the File
-  // System Access API's save picker.
+  // Force the Blob/anchor fallback so a real download event fires even where showSaveFilePicker exists.
   await page.addInitScript(() => { delete (window as { showSaveFilePicker?: unknown }).showSaveFilePicker; });
   await page.goto('/?room=pw-export');
   const ed = page.locator('.ProseMirror');
@@ -80,10 +76,7 @@ test('export a copy is reachable from the read-only band while write-gated', asy
   await page.goto('/?room=pw-export-gated');
   await page.locator('.ProseMirror').waitFor();
 
-  // Solo + P2P + live-only: the gate holds once presence has settled Alone
-  // (GATE_SETTLE_P2P_MS) — wait it out without clicking into the editor, since a
-  // click no longer silently opts into writing solo (contract §4.4's explicit
-  // escape hatch replaced that).
+  // Wait the gate out without clicking in: a click no longer opts into writing solo (contract §4.4).
   const banner = page.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 10_000 });
   await expect(banner).toContainText("You're the only one here");
@@ -167,25 +160,21 @@ test('PDF (print) export opens the browser print flow', async ({ page }) => {
 });
 
 test('print output hides the room-name field and the caret block-context hint', async ({ page }) => {
-  // Regression: DocTitle's `<input>` and the line-hint decoration both live
-  // inside `.content`/`.ProseMirror`, so the app-chrome exclusion rule
-  // (`.editor > :not(.content)`) can't reach them — they'd otherwise bleed
-  // into the printed output as garbled/overlapping text on top of the real
-  // heading.
+  // DocTitle's input and the line hint live inside `.content`, so the `.editor > :not(.content)`
+  // print exclusion cannot reach them.
   await page.goto('/?room=pw-print-clean');
   const ed = page.locator('.ProseMirror');
   await ed.waitFor();
   await ed.click();
   await page.keyboard.type('# Bonjour');
-  await page.waitForTimeout(100); // let the focused-caret line-hint decoration mount
+  await page.waitForTimeout(100);
 
   await page.emulateMedia({ media: 'print' });
   const docTitle = page.locator('.doc-title');
   const lineHint = page.locator('.line-hint-inline');
   await expect(docTitle).toHaveCSS('display', 'none');
   await expect(lineHint).toHaveCSS('display', 'none');
-  // display:none elements still carry text in the DOM (textContent doesn't
-  // reflect paint), so the real proof is zero rendered client rects.
+  // textContent survives display:none, so zero client rects is the real proof.
   expect(await docTitle.evaluate((el) => el.getClientRects().length)).toBe(0);
   expect(await lineHint.evaluate((el) => el.getClientRects().length)).toBe(0);
 });
@@ -204,7 +193,7 @@ test('print output stays white-background even in dark theme', async ({ page }) 
   }
 
   await page.emulateMedia({ media: 'print' });
-  // body's background-color transitions (base.css); let it settle before reading.
+  // body's background-color transitions (base.css); poll until it settles.
   await expect
     .poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor))
     .toBe('rgb(255, 255, 255)');

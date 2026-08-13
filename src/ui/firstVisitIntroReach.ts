@@ -1,7 +1,6 @@
 import { Transport } from '../collaboration/types.js';
 
-/** How far a word travels in the clear, per `docs/contract.md` §2 — only the
- *  peer-to-peer arm may claim end-to-end encryption. */
+/** Only the peer-to-peer arm may claim end-to-end encryption (docs/contract.md §2). */
 export const IntroReach = {
   Encrypted: 'encrypted',
   Relayed: 'relayed',

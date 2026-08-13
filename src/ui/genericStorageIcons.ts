@@ -1,12 +1,7 @@
 import { STORAGE_ID } from '../storage/constants.js';
 import type { StorageId } from '../storage/types.js';
 
-// Brand-neutral glyphs (Lucide, ISC license — https://lucide.dev) for
-// backends that aren't a single company: S3 is any S3-compatible bucket
-// (AWS, R2, MinIO, B2, GCS…), WebDAV is a protocol, Local is a browser file
-// picker. Same stroke style already hand-copied from Lucide elsewhere in
-// this app (the settings-gear and share icons in App.svelte) — inner markup
-// only, rendered inside a shared <svg> wrapper in Settings.svelte.
+// Lucide glyphs (ISC, https://lucide.dev); inner markup only, rendered inside Settings.svelte's shared <svg> wrapper.
 export const GENERIC_ICONS: Partial<Record<StorageId, string>> = {
   [STORAGE_ID.s3]:
     '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',

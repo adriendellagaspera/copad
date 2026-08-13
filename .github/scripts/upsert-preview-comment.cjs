@@ -1,7 +1,5 @@
 // Post (or update) the "Preview deployed" comment on a PR with its preview URL.
-//
-// Idempotent: a hidden marker identifies our comment, so repeated pushes update
-// the same comment instead of stacking new ones.
+// The hidden marker keeps it idempotent: pushes update one comment instead of stacking.
 //
 // Invoked from .github/workflows/pr-preview.yml via actions/github-script.
 const MARKER = '<!-- gh-pages-preview -->';

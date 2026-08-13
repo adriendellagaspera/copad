@@ -5,21 +5,7 @@ import { requireDom } from './dom.js';
 
 const REQUIRES_DOM = 'Rich table Markdown export/import requires a browser environment';
 
-/**
- * Serializes a table with any rich (non-simple) cell content as raw HTML —
- * GFM pipe-table syntax has no way to express a cell holding a list,
- * heading, or more than one paragraph (see `classifyTable` in
- * `editor/markdown.ts`, which decides which of the two a given table
- * needs). CommonMark/GFM explicitly permit a raw HTML block in Markdown
- * source (recognized by `markdownCodec`'s tokenizer via `html: true`,
- * restricted to *block*-position HTML — inline text that merely looks like
- * a tag, e.g. `a <b> in a sentence`, is unaffected), so this stays valid,
- * lossless Markdown for a document that has rich table cells — just not
- * pipe-table syntax for this one table. Requires a DOM (browser only, the
- * same constraint `htmlCodec` already has) — the caller decides per table
- * via `classifyTable` first, so plain documents with only simple tables
- * never hit this path.
- */
+// GFM pipe cells cannot hold multi-block content; a raw HTML block is still valid Markdown.
 export function richTableToHtml(table: PMNode): string {
   requireDom(REQUIRES_DOM);
   const dom = DOMSerializer.fromSchema(schema).serializeNode(table, { document });
@@ -28,13 +14,6 @@ export function richTableToHtml(table: PMNode): string {
   return container.innerHTML;
 }
 
-/**
- * Parses a `<table>…</table>` HTML block (as produced by `richTableToHtml`,
- * or written by hand) back into a `table` node, or `null` if the markup
- * doesn't actually contain one — some other, unrelated raw HTML block in
- * the source, which the caller should fall back to preserving as plain
- * text instead of silently dropping.
- */
 export function parseHtmlTable(html: string): PMNode | null {
   requireDom(REQUIRES_DOM);
   const dom = new window.DOMParser().parseFromString(html, 'text/html');

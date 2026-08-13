@@ -34,8 +34,6 @@ function configureAndValidate(auth: StorageAuth) {
   localStorage.setItem('storage.gitlab.validated', '1');
 }
 
-// ── Auth ─────────────────────────────────────────────────────────────────────
-
 describe('gitlabStorage auth', () => {
   it('is not authenticated before setup', () => {
     expect(setup().auth.isAuthenticated()).toBe(false);
@@ -101,8 +99,6 @@ describe('gitlabStorage auth', () => {
   });
 });
 
-// ── Config ───────────────────────────────────────────────────────────────────
-
 describe('gitlabStorage config', () => {
   it('exposes project, host, branch, and token configFields', () => {
     const names = setup().auth.configFields!.map(f => f.name);
@@ -132,8 +128,6 @@ describe('gitlabStorage config', () => {
   });
 });
 
-// ── Load / Save ──────────────────────────────────────────────────────────────
-
 describe('gitlabStorage load/save', () => {
   let auth: StorageAuth;
   let storage: Storage;
@@ -161,7 +155,6 @@ describe('gitlabStorage load/save', () => {
   });
 
   it('creates with POST when the file is absent, then base64-encodes the body', async () => {
-    // save with unknown existence → existence GET (404) → POST create
     mockFetch.mockResolvedValueOnce({ ok: false, status: 404 } as Response); // existence probe
     mockFetch.mockResolvedValueOnce({ ok: true, status: 201 } as Response);  // POST create
     await storage.save({ format: 'text', text: 'hello' });
@@ -223,8 +216,6 @@ describe('gitlabStorage load/save', () => {
     await first;
   });
 });
-
-// ── contentFormat + access ────────────────────────────────────────────────────
 
 describe('gitlabStorage contentFormat/access', () => {
   it('is text for .md (default) and binary for .yjs', () => {

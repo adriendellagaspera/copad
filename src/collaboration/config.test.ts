@@ -13,7 +13,6 @@ import {
 } from './config.js';
 import type { RoomId } from './types.js';
 
-// Stubs for secretLink (called when VITE_ROOM_AUTH=secret-link)
 vi.stubGlobal('location', { hash: '' });
 vi.stubGlobal('history', { replaceState: vi.fn() });
 vi.stubGlobal('crypto', { randomUUID: () => 'stub-uuid' });

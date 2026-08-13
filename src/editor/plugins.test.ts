@@ -42,18 +42,13 @@ import {
   stripNestedTables,
 } from './plugins.js';
 
-/** A bare 1×1 table (one header cell, no body row) — the smallest doc shape
- *  that can trap a caret at both the first and the last cell at once. The
- *  cell holds real block content (see schema.ts), so an empty cell still
- *  needs a child — `createAndFill()` gives it a single empty paragraph. */
+/** Smallest table that can trap a caret at its first and last cell at once. */
 function oneCellTable() {
   const types = tableNodeTypes(schema);
   return types.table.create(null, [types.row.create(null, [types.header_cell.createAndFill()!])]);
 }
 
-/** A one-paragraph doc containing `text`, with the handler invoked as if the
- *  caret sits right after `text` (mimicking the character that just closed
- *  the input rule). */
+/** Invokes `handler` with the caret right after `text`, as the closing input-rule character would. */
 function run(
   text: string,
   regexp: RegExp,
@@ -114,7 +109,6 @@ describe('inline mark input rules', () => {
     const next = run('say **hi**', BOLD_STAR_RULE, markRuleHandler(schema.marks.strong));
     expect(next?.doc.textContent).toBe('say hi');
     const text = next?.doc.firstChild;
-    // "say " stays unmarked, "hi" carries strong.
     expect(text?.textContent.startsWith('say ')).toBe(true);
   });
 
@@ -144,8 +138,6 @@ describe('link input rule', () => {
 
   it('parks the caret right after the inserted link text (not beyond it) — an unset selection biases past the insertion and, inside a table, lands in the NEXT cell', () => {
     const next = run('[hi](https://example.com)', LINK_RULE, linkRuleHandler(schema.marks.link));
-    // "hi" occupies positions 1..3; the caret must sit at 3, immediately after
-    // the link text, so subsequent typing continues in the same block/cell.
     expect(next?.selection.from).toBe(3);
     expect(next?.selection.empty).toBe(true);
   });
@@ -156,8 +148,6 @@ describe('link input rule', () => {
   });
 });
 
-/** Runs `command` at `selPos` in `doc` and returns { handled, next, dispatched }
- *  — `next` is the resulting state if a transaction was dispatched, else null. */
 function runCmd(
   command: Command,
   doc: ReturnType<typeof schema.node>,
@@ -211,8 +201,7 @@ describe('escapeCodeBlock', () => {
     const doc = schema.node('doc', null, [codeBlock, para]);
     const { next, dispatched } = run(doc, 3);
     expect(dispatched).toBe(true);
-    // No node was inserted: still exactly 2 children, and the paragraph's
-    // text is untouched (a naive exitCode would insert a 3rd, empty one).
+    // A naive exitCode would insert a 3rd, empty paragraph here.
     expect(next!.doc.childCount).toBe(2);
     expect(next!.doc.child(1).textContent).toBe('already here');
     expect(next!.selection.$head.parent).toBe(next!.doc.child(1));
@@ -286,7 +275,6 @@ describe('escapeCodeBlock', () => {
     const codeBlock = schema.node('code_block', null, schema.text('let x = 1'));
     const para = schema.node('paragraph', null, schema.text('next'));
     const doc = schema.node('doc', null, [codeBlock, para]);
-    // Position 1 = right at the very start of the code block's text.
     const { next } = run(doc, 1);
     expect(next!.doc.childCount).toBe(2);
     expect(next!.selection.$head.parent.textContent).toBe('next');
@@ -323,7 +311,6 @@ describe('escapeCodeBlock', () => {
     const codeBlock = schema.node('code_block', null, schema.text('let x = 1'));
     const para = schema.node('paragraph', null, schema.text('next'));
     const doc = schema.node('doc', null, [codeBlock, para]);
-    // from inside the code block (pos 3) to inside the paragraph (pos past it)
     const { handled, dispatched } = run(doc, 3, doc.content.size - 1);
     expect(handled).toBe(true);
     expect(dispatched).toBe(false);
@@ -345,7 +332,6 @@ describe('exitCodeBlockDown', () => {
   it('exits a trailing code block when the caret is at its very end', () => {
     const codeBlock = schema.node('code_block', null, schema.text('let x = 1'));
     const doc = schema.node('doc', null, [codeBlock]);
-    // pos 10 = right after the 9-char "let x = 1" (1 for the block start + 9).
     const { handled, next, dispatched } = run(doc, 10);
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
@@ -356,7 +342,6 @@ describe('exitCodeBlockDown', () => {
   it('returns false (native ArrowDown proceeds) when the caret is NOT at the end of the block', () => {
     const codeBlock = schema.node('code_block', null, schema.text('line one\nline two'));
     const doc = schema.node('doc', null, [codeBlock]);
-    // Position inside "line one", well before the block's end.
     const { handled, dispatched } = run(doc, 5);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
@@ -391,7 +376,6 @@ describe('exitCodeBlockDown', () => {
     const codeBlock = schema.node('code_block', null, schema.text('x'));
     const para = schema.node('paragraph', null, schema.text('next'));
     const doc = schema.node('doc', null, [codeBlock, para]);
-    // anchor inside the paragraph, head at the code block's end position.
     const { handled, dispatched } = run(doc, 5, 2);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
@@ -444,11 +428,9 @@ describe('exitCodeBlockOnBlankLine (triple-Enter exit)', () => {
   });
 
   it('requires the blank lines to be at the very end of the block, not just anywhere before the caret', () => {
-    // Two blank lines mid-block, then more text after the caret — the caret
-    // itself isn't at the block's end, so this must not fire.
     const codeBlock = schema.node('code_block', null, schema.text('a\n\nb'));
     const doc = schema.node('doc', null, [codeBlock]);
-    const { handled, dispatched } = run(doc, 4); // right after "a\n\n"
+    const { handled, dispatched } = run(doc, 4);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });
@@ -464,8 +446,6 @@ describe('exitCodeBlockOnBlankLine (triple-Enter exit)', () => {
     const codeBlock = schema.node('code_block', null, schema.text('foo\n\n'));
     const doc = schema.node('doc', null, [codeBlock]);
     const { next } = run(doc, 6);
-    // The code block is now back to just "foo" (no trailing blank lines) —
-    // a second call at the current selection must not fire again.
     const { handled, dispatched } = run(next!.doc, next!.selection.head);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
@@ -507,13 +487,12 @@ describe('clearEmptyCodeBlockBackward', () => {
   it("returns false when the caret is empty but NOT at the block's start, even if the block is empty (there's nothing before the caret in an empty block anyway, but guard the invariant explicitly)", () => {
     const codeBlock = schema.node('code_block');
     const doc = schema.node('doc', null, [codeBlock]);
-    // pos 1 is the only valid cursor position in a truly empty code block;
-    // simulate "not at start" via a non-empty block's start-of-second-line.
+    // pos 1 is the only cursor position in an empty code block, hence a second doc.
     const nonEmptyBlock = schema.node('code_block', null, schema.text('a\nb'));
     const doc2 = schema.node('doc', null, [nonEmptyBlock]);
     const { handled: h1 } = run(doc, 1);
-    expect(h1).toBe(true); // sanity: does fire for the genuinely empty case
-    const { handled: h2, dispatched: d2 } = run(doc2, 3); // mid-content, not start
+    expect(h1).toBe(true);
+    const { handled: h2, dispatched: d2 } = run(doc2, 3);
     expect(h2).toBe(false);
     expect(d2).toBe(false);
   });
@@ -535,16 +514,7 @@ describe('clearEmptyCodeBlockBackward', () => {
   });
 });
 
-/**
- * The real key resolution order buildPlugins wires for 'Enter': the custom
- * keymap's chain (list-item splitting, code-block exit) first, falling
- * through — since none of those apply to a plain paragraph — to baseKeymap's
- * own Enter (`newlineInCode`/`createParagraphNear`/`liftEmptyBlock`/
- * `splitBlock`). Cells hold real block content now (see schema.ts), so
- * there's no more `exitTableAtBoundary`/`preventEnterInTableCell` special
- * case in between — Enter inside a cell reaches `splitBlock` exactly like
- * Enter in a plain top-level paragraph does.
- */
+// The 'Enter' chain buildPlugins wires, falling through to baseKeymap's own Enter.
 const enterCommand: Command = chainCommands(
   exitCodeBlockOnBlankLine,
   splitListItem(schema.nodes.list_item),
@@ -557,19 +527,16 @@ describe('Enter inside a table cell (real block content, no more table-escape sp
     const types = tableNodeTypes(schema);
     const cell = types.header_cell.create(null, [schema.nodes.paragraph.create(null, schema.text('hello'))]);
     const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
-    // Split between "hel" and "lo". cellContentPos already resolves to the
-    // real start of the paragraph's text (see its doc comment).
     const pos = cellContentPos(doc, 'hello') + 3;
     const { handled, dispatched, next } = runCmd(enterCommand, doc, pos);
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
     const restoredCell = next!.doc.firstChild?.firstChild?.firstChild;
-    expect(restoredCell?.childCount).toBe(2); // two paragraphs now, same cell
+    expect(restoredCell?.childCount).toBe(2);
     expect(restoredCell?.child(0).type.name).toBe('paragraph');
     expect(restoredCell?.child(0).textContent).toBe('hel');
     expect(restoredCell?.child(1).type.name).toBe('paragraph');
     expect(restoredCell?.child(1).textContent).toBe('lo');
-    // Still one row, one cell — the table itself wasn't touched.
     expect(next!.doc.firstChild?.childCount).toBe(1);
     expect(next!.doc.firstChild?.firstChild?.childCount).toBe(1);
   });
@@ -578,16 +545,15 @@ describe('Enter inside a table cell (real block content, no more table-escape sp
     const types = tableNodeTypes(schema);
     const cell = types.header_cell.create(null, [schema.nodes.paragraph.create(null, schema.text('hello'))]);
     const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
-    const pos = cellContentPos(doc, 'hello'); // real start of the paragraph's text
+    const pos = cellContentPos(doc, 'hello');
     const { handled, dispatched, next } = runCmd(enterCommand, doc, pos);
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
     const restoredCell = next!.doc.firstChild?.firstChild?.firstChild;
     expect(restoredCell?.childCount).toBe(2);
     expect(restoredCell?.child(0).type.name).toBe('paragraph');
-    expect(restoredCell?.child(0).textContent).toBe(''); // fresh empty paragraph
-    expect(restoredCell?.child(1).textContent).toBe('hello'); // original content, untouched
-    // Still one row, one cell — no escape out of the table.
+    expect(restoredCell?.child(0).textContent).toBe('');
+    expect(restoredCell?.child(1).textContent).toBe('hello');
     expect(next!.doc.childCount).toBe(1);
     expect(next!.doc.firstChild?.type.name).toBe('table');
   });
@@ -599,14 +565,11 @@ describe('backspaceAtTableStart', () => {
   it('deletes an empty paragraph directly above the table', () => {
     const empty = schema.node('paragraph');
     const doc = schema.node('doc', null, [empty, oneCellTable()]);
-    // End of the empty paragraph, then into table/row/cell — snapped to the
-    // real reachable position inside the cell's own (empty) paragraph, same
-    // as cellContentRange/cellContentPos (see their doc comments).
     const cellStart = TextSelection.near(doc.resolve(empty.nodeSize + 3), 1).from;
     const { handled, dispatched, next } = runCmd(bs, doc, cellStart);
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
-    expect(next!.doc.childCount).toBe(1); // the empty paragraph is gone
+    expect(next!.doc.childCount).toBe(1);
     expect(next!.doc.firstChild?.type.name).toBe('table');
   });
 
@@ -617,7 +580,7 @@ describe('backspaceAtTableStart', () => {
     const { handled, dispatched, next } = runCmd(bs, doc, cellStart);
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
-    expect(next!.doc.childCount).toBe(2); // nothing deleted
+    expect(next!.doc.childCount).toBe(2);
     expect(next!.selection.$from.parent.textContent).toBe('above');
     expect(next!.selection.$from.parent.type.name).toBe('paragraph');
   });
@@ -638,9 +601,6 @@ describe('backspaceAtTableStart', () => {
       empty,
       tableNodeTypes(schema).table.create(null, [tableNodeTypes(schema).row.create(null, [cell])]),
     ]);
-    // Between "a" and "b" — cellContentPos already resolves to the real
-    // start of the cell's text, so "+1" lands one character in, not at
-    // the true start.
     const midCellPos = cellContentPos(doc, 'ab') + 1;
     const { handled, dispatched } = runCmd(bs, doc, midCellPos);
     expect(handled).toBe(false);
@@ -660,7 +620,7 @@ describe('backspaceAtTableStart', () => {
     const { handled, dispatched, next } = runCmd(bs, doc, cellContentPos(doc, 'B1'));
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
-    expect(next!.doc.childCount).toBe(2); // nothing deleted, no merge
+    expect(next!.doc.childCount).toBe(2);
     expect(next!.selection.$from.parent.textContent).toBe('above');
   });
 
@@ -682,7 +642,7 @@ describe('deleteAtTableEnd (forward-Delete mirror of backspaceAtTableStart)', ()
     const { handled, dispatched, next } = runCmd(del, doc, cellContentEnd(doc, ''));
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
-    expect(next!.doc.childCount).toBe(1); // the empty paragraph is gone
+    expect(next!.doc.childCount).toBe(1);
     expect(next!.doc.firstChild?.type.name).toBe('table');
   });
 
@@ -692,7 +652,7 @@ describe('deleteAtTableEnd (forward-Delete mirror of backspaceAtTableStart)', ()
     const { handled, dispatched, next } = runCmd(del, doc, cellContentEnd(doc, ''));
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
-    expect(next!.doc.childCount).toBe(2); // nothing deleted
+    expect(next!.doc.childCount).toBe(2);
     expect(next!.selection.$from.parent.textContent).toBe('below');
     expect(next!.selection.$from.parent.type.name).toBe('paragraph');
     expect(next!.selection.$from.parentOffset).toBe(0);
@@ -714,8 +674,6 @@ describe('deleteAtTableEnd (forward-Delete mirror of backspaceAtTableStart)', ()
       tableNodeTypes(schema).table.create(null, [tableNodeTypes(schema).row.create(null, [cell])]),
       after,
     ]);
-    // Between "a" and "b", not the cell's true content end. cellContentPos
-    // already resolves to the real start of the text (before "a").
     const midCellPos = cellContentPos(doc, 'ab') + 1;
     const { handled, dispatched } = runCmd(del, doc, midCellPos);
     expect(handled).toBe(false);
@@ -748,11 +706,7 @@ describe('deleteAtTableEnd (forward-Delete mirror of backspaceAtTableStart)', ()
   });
 });
 
-/** A 3×3 table (one header row + two body rows) with a distinct one-letter
- *  label per cell — A1/B1/C1 (header row), A2/B2/C2, A3/B3/C3 — so tests can
- *  tell exactly which cell the caret/selection ended up in. Each cell's text
- *  lives inside a wrapping paragraph — cells now hold real block content
- *  (`block+`, see schema.ts), not bare inline content. */
+/** 3×3 table whose cells carry distinct labels (A1…C3) so a test can name the cell it landed in. */
 function threeByThreeTable() {
   const types = tableNodeTypes(schema);
   const p = (text: string) => schema.nodes.paragraph.create(null, schema.text(text));
@@ -774,14 +728,7 @@ function threeByThreeTable() {
   return types.table.create(null, [headerRow, row2, row3]);
 }
 
-/** The position where a real caret actually rests at the start of a cell's
- *  content, for the cell whose text is exactly `label` — matches
- *  {@link cellContentRange}'s (plugins.ts) `start`. That's one depth level
- *  *inside* the cell's wrapping paragraph (`TextSelection.near` from the
- *  cell's own structural edge, biased forward), not the cell's raw
- *  structural edge itself: a real DOM caret can never rest at a non-inline
- *  position (see `cellContentRange`'s doc comment — this is exactly the bug
- *  that let a fresh table trap the caret with no ArrowUp/ArrowDown escape). */
+/** Real caret-reachable start of `label`'s cell — `cellContentRange`'s `start`, not the cell's structural edge, which no caret can rest at. */
 function cellContentPos(doc: ReturnType<typeof schema.node>, label: string): number {
   let pos = -1;
   doc.descendants((node, nodePos) => {
@@ -793,12 +740,7 @@ function cellContentPos(doc: ReturnType<typeof schema.node>, label: string): num
   return TextSelection.near(doc.resolve(pos), 1).from;
 }
 
-/** Mirror of {@link cellContentPos} for the *end* of a cell's content span —
- *  matches {@link cellContentRange}'s `end`: the real caret-reachable
- *  position (`TextSelection.near`, biased backward) rather than the cell's
- *  raw structural edge. Computed by walking the actual cell node's
- *  `content.size` rather than a hardcoded text-length offset, so it stays
- *  correct regardless of how many characters/blocks the cell holds. */
+/** Mirror of {@link cellContentPos} for the content end — `cellContentRange`'s `end`. */
 function cellContentEnd(doc: ReturnType<typeof schema.node>, label: string): number {
   let pos = -1;
   doc.descendants((node, nodePos) => {
@@ -836,7 +778,7 @@ describe('tableArrowVertical', () => {
     const { handled, dispatched, next } = runCmd(up, doc, cellContentPos(doc, 'B1'));
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
-    expect(next!.doc.childCount).toBe(2); // nothing inserted
+    expect(next!.doc.childCount).toBe(2);
     expect(next!.selection.$from.parent.textContent).toBe('above');
   });
 
@@ -884,11 +826,9 @@ describe('tableArrowVertical', () => {
       ]),
     ]);
     const doc = schema.node('doc', null, [threeByThreeTable(), secondTable]);
-    // Leave from B3 (column index 1, bottom row of the first table).
     const { handled, dispatched, next } = runCmd(down, doc, cellContentEnd(doc, 'B3'));
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
-    // Must land in the second table's column-1 cell (Y1), not silently reset to column 0 (X1).
     expect(next!.selection.$from.parent.textContent).toBe('Y1');
   });
 
@@ -908,9 +848,6 @@ describe('tableArrowVertical', () => {
       if (node.isText && node.text === 'one') endOfOne = pos + node.nodeSize;
     });
     const { handled, dispatched } = runCmd(down, doc, endOfOne);
-    // Not at the cell's true content end (there's a second paragraph after
-    // this one) — falls through to ordinary vertical caret movement, which
-    // already handles moving between blocks within one cell.
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });
@@ -928,7 +865,7 @@ describe('tableArrowVertical', () => {
     ]);
     let endOfTwo = -1;
     doc.descendants((node, pos) => {
-      if (node.isText && node.text === 'two') endOfTwo = pos + node.nodeSize; // real reachable end: right after "two", matching cellContentRange.end
+      if (node.isText && node.text === 'two') endOfTwo = pos + node.nodeSize;
     });
     const { handled, dispatched, next } = runCmd(down, doc, endOfTwo);
     expect(handled).toBe(true);
@@ -943,7 +880,6 @@ describe('tableArrowHorizontal', () => {
 
   it('returns false in the middle of a row — ordinary cell-to-cell movement is left to native caret handling', () => {
     const doc = schema.node('doc', null, [threeByThreeTable()]);
-    // End of B2's content ("B2"), a non-boundary cell — not the table's outer corner.
     const { handled, dispatched } = runCmd(right, doc, cellContentEnd(doc, 'B2'));
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
@@ -951,8 +887,6 @@ describe('tableArrowHorizontal', () => {
 
   it('returns false when not at the end/start of the cell\'s own content, even in a corner cell', () => {
     const doc = schema.node('doc', null, [threeByThreeTable()]);
-    // Between "C" and "3" of C3's content (the bottom-right corner cell), not
-    // yet at its end. cellContentPos already resolves to the real start.
     const { handled, dispatched } = runCmd(right, doc, cellContentPos(doc, 'C3') + 1);
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
@@ -1021,7 +955,7 @@ describe('tableArrowHorizontal', () => {
     const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])]), after]);
     let endOfTwo = -1;
     doc.descendants((node, pos) => {
-      if (node.isText && node.text === 'two') endOfTwo = pos + node.nodeSize; // real reachable end: right after "two", matching cellContentRange.end
+      if (node.isText && node.text === 'two') endOfTwo = pos + node.nodeSize;
     });
     const { handled, dispatched, next } = runCmd(right, doc, endOfTwo);
     expect(handled).toBe(true);
@@ -1042,7 +976,7 @@ describe('tableGoalColumnKey (remembered column across an escape/re-entry round 
 
   it('records the column of the cell just left when moving to another cell', () => {
     const doc = schema.node('doc', null, [threeByThreeTable()]);
-    const state = stateWithGoalColumnPlugin(doc, cellContentEnd(doc, 'C2')); // column index 2
+    const state = stateWithGoalColumnPlugin(doc, cellContentEnd(doc, 'C2'));
     let next: EditorState | null = null;
     tableArrowVertical(1)(state, (tr) => {
       next = state.apply(tr);
@@ -1053,7 +987,7 @@ describe('tableGoalColumnKey (remembered column across an escape/re-entry round 
   it('records the column being left when escaping the table entirely', () => {
     const after = schema.node('paragraph', null, schema.text('below'));
     const doc = schema.node('doc', null, [threeByThreeTable(), after]);
-    const state = stateWithGoalColumnPlugin(doc, cellContentEnd(doc, 'A3')); // column index 0, bottom row
+    const state = stateWithGoalColumnPlugin(doc, cellContentEnd(doc, 'A3'));
     let next: EditorState | null = null;
     tableArrowVertical(1)(state, (tr) => {
       next = state.apply(tr);
@@ -1069,8 +1003,6 @@ describe('tableGoalColumnKey (remembered column across an escape/re-entry round 
     });
     expect(tableGoalColumnKey.getState(state)).toBe(2);
 
-    // An ordinary selection-changing transaction (a click, arrow-left, etc.)
-    // with no meta of its own must clear the remembered column.
     state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1)));
     expect(tableGoalColumnKey.getState(state)).toBeNull();
   });
@@ -1083,8 +1015,6 @@ describe('tableGoalColumnKey (remembered column across an escape/re-entry round 
     });
     expect(tableGoalColumnKey.getState(state)).toBe(2);
 
-    // A transaction that doesn't touch the selection (e.g. a stray meta-only
-    // transaction) shouldn't reset the remembered column.
     state = state.apply(state.tr.setMeta('unrelated', true));
     expect(tableGoalColumnKey.getState(state)).toBe(2);
   });
@@ -1098,9 +1028,7 @@ describe('tableShiftArrow', () => {
   it('Shift-ArrowDown from the cell edge starts a CellSelection covering the cell and the one below it', () => {
     const cmd = tableShiftArrow('vert', 1);
     const doc = schema.node('doc', null, [threeByThreeTable()]);
-    // Caret at the cell's content *end* (dir 1): only there does Shift-Arrow
-    // cross into the next cell — mid-content it extends the text selection,
-    // same gate as tableArrowVertical/Horizontal.
+    // Only at the cell's content edge does Shift-Arrow cross cells.
     const state = stateAt(doc, cellContentEnd(doc, 'B2'));
     let next: EditorState | null = null;
     const handled = cmd(state, (tr) => {
@@ -1110,8 +1038,8 @@ describe('tableShiftArrow', () => {
     const sel = next!.selection;
     expect(sel).toBeInstanceOf(CellSelection);
     const rect = selectedRect(next!);
-    expect(rect.bottom - rect.top).toBe(2); // spans 2 rows
-    expect(rect.right - rect.left).toBe(1); // spans 1 column
+    expect(rect.bottom - rect.top).toBe(2);
+    expect(rect.right - rect.left).toBe(1);
   });
 
   it('Shift-ArrowRight from the cell edge starts a CellSelection covering the cell and the one to its right', () => {
@@ -1124,20 +1052,14 @@ describe('tableShiftArrow', () => {
     });
     expect(handled).toBe(true);
     const rect = selectedRect(next!);
-    expect(rect.right - rect.left).toBe(2); // spans 2 columns
-    expect(rect.bottom - rect.top).toBe(1); // spans 1 row
+    expect(rect.right - rect.left).toBe(2);
+    expect(rect.bottom - rect.top).toBe(1);
   });
 
   it('does NOT hijack Shift-Arrow into a CellSelection from mid-cell content', () => {
-    // Regression: a bare caret mid-content used to jump straight to a
-    // whole-cell selection, making it impossible to extend an ordinary text
-    // selection within a multi-block cell. Now Shift-Arrow only crosses cells
-    // at the cell's own content edge — anywhere else it returns false so the
-    // browser extends the text selection natively inside the cell.
     const right = tableShiftArrow('horiz', 1);
     const down = tableShiftArrow('vert', 1);
     const doc = schema.node('doc', null, [threeByThreeTable()]);
-    // Start of "B2" — not the content end, so neither axis should fire.
     const state = stateAt(doc, cellContentPos(doc, 'B2'));
     for (const cmd of [right, down]) {
       let dispatched = false;
@@ -1152,9 +1074,7 @@ describe('tableShiftArrow', () => {
   it('extends an existing CellSelection further in the given axis rather than restarting it', () => {
     const cmd = tableShiftArrow('vert', 1);
     const doc = schema.node('doc', null, [threeByThreeTable()]);
-    // CellSelection.create wants a position pointing AT the cell itself
-    // (resolve(pos).nodeAfter === the cell) — one depth level shallower than
-    // cellContentPos's real-caret-position, hence "- 2" here rather than "- 1".
+    // CellSelection.create wants a position pointing AT the cell — one depth shallower, hence -2.
     const anchorPos = cellContentPos(doc, 'B1');
     const headPos = cellContentPos(doc, 'B2');
     let state = EditorState.create({ schema, doc });
@@ -1166,7 +1086,7 @@ describe('tableShiftArrow', () => {
     });
     expect(handled).toBe(true);
     const rect = selectedRect(next!);
-    expect(rect.bottom - rect.top).toBe(3); // now spans all 3 rows (B1, B2, B3)
+    expect(rect.bottom - rect.top).toBe(3);
   });
 
   it('returns false at the table edge (no further cell in that axis/direction)', () => {
@@ -1211,9 +1131,8 @@ describe('tabAddsRowAtEnd', () => {
     const { handled, dispatched, next } = runCmd(tab, doc, cellContentEnd(doc, 'hi'));
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
-    expect(next!.doc.firstChild?.childCount).toBe(2); // grew from 1 row to 2
+    expect(next!.doc.firstChild?.childCount).toBe(2);
     expect(next!.selection.$from.parent.type.name).toBe('paragraph');
-    // The new row is the caret's ancestor row, and it's the table's last child.
     const table = next!.doc.firstChild!;
     const row = next!.selection.$from.node(next!.selection.$from.depth - 2); // paragraph -> cell -> row
     expect(row).toBe(table.lastChild);
@@ -1234,7 +1153,7 @@ describe('tabAddsRowAtEnd', () => {
     ]);
     const secondRow = types.row.create(null, [types.cell.createAndFill()!]);
     const doc = schema.node('doc', null, [types.table.create(null, [firstRow, secondRow])]);
-    const { handled, dispatched } = runCmd(tab, doc, cellContentEnd(doc, 'x')); // end of the first (non-last) row's only cell
+    const { handled, dispatched } = runCmd(tab, doc, cellContentEnd(doc, 'x'));
     expect(handled).toBe(false);
     expect(dispatched).toBe(false);
   });
@@ -1248,9 +1167,7 @@ describe('tabAddsRowAtEnd', () => {
 });
 
 describe('structural table commands never merge into a prior undo step', () => {
-  /** A state with a stand-in yUndoPlugin registered at the real y-prosemirror
-   *  `yUndoPluginKey` — enough for `getState()` to find it and read a fake
-   *  `undoManager.stopCapturing`, without spinning up a real Y.Doc/sync. */
+  /** Stand-in yUndoPlugin at the real `yUndoPluginKey`, avoiding a live Y.Doc/sync. */
   function stateWithFakeUndoManager(
     doc: ReturnType<typeof schema.node>,
     pos: number,
@@ -1303,10 +1220,10 @@ describe('structural table commands never merge into a prior undo step', () => {
 describe('insertHardBreak', () => {
   it('inserts a hard_break node at the caret in a plain paragraph', () => {
     const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('hi'))]);
-    const { handled, dispatched, next } = runCmd(insertHardBreak, doc, 2); // between "h" and "i"
+    const { handled, dispatched, next } = runCmd(insertHardBreak, doc, 2);
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
-    expect(next!.doc.firstChild?.childCount).toBe(3); // "h", hard_break, "i"
+    expect(next!.doc.firstChild?.childCount).toBe(3);
     expect(next!.doc.firstChild?.child(1).type.name).toBe('hard_break');
   });
 
@@ -1314,7 +1231,7 @@ describe('insertHardBreak', () => {
     const types = tableNodeTypes(schema);
     const cell = types.header_cell.create(null, [schema.nodes.paragraph.create(null, schema.text('ab'))]);
     const doc = schema.node('doc', null, [types.table.create(null, [types.row.create(null, [cell])])]);
-    const { handled, dispatched, next } = runCmd(insertHardBreak, doc, cellContentPos(doc, 'ab') + 1); // between "a" and "b"
+    const { handled, dispatched, next } = runCmd(insertHardBreak, doc, cellContentPos(doc, 'ab') + 1);
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
     const restoredParagraph = next!.doc.firstChild?.firstChild?.firstChild?.firstChild;
@@ -1334,7 +1251,7 @@ describe('insertHardBreak', () => {
 describe('insertTabCharacter / removeTabCharacterBefore', () => {
   it('inserts a literal tab character at the caret — Tab must never fall through to the browser default and escape the editor', () => {
     const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('hi'))]);
-    const { handled, dispatched, next } = runCmd(insertTabCharacter, doc, 2); // between "h" and "i"
+    const { handled, dispatched, next } = runCmd(insertTabCharacter, doc, 2);
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
     expect(next!.doc.textContent).toBe('h\ti');
@@ -1349,7 +1266,7 @@ describe('insertTabCharacter / removeTabCharacterBefore', () => {
 
   it('removeTabCharacterBefore deletes a tab immediately before the caret', () => {
     const doc = schema.node('doc', null, [schema.node('paragraph', null, schema.text('h\ti'))]);
-    const { handled, dispatched, next } = runCmd(removeTabCharacterBefore, doc, 3); // right after the tab
+    const { handled, dispatched, next } = runCmd(removeTabCharacterBefore, doc, 3);
     expect(handled).toBe(true);
     expect(dispatched).toBe(true);
     expect(next!.doc.textContent).toBe('hi');
@@ -1402,9 +1319,6 @@ describe('toggleBlockType', () => {
     const codeBlock = schema.node('code_block', null, schema.text('x'));
     const para = schema.node('paragraph', null, schema.text('y'));
     const doc = schema.node('doc', null, [codeBlock, para]);
-    // Selection from inside the code block to inside the paragraph — not
-    // "purely inside" the code block, so this must behave as "turn into
-    // code block" (setType), not the toggle-off branch.
     const { next } = run(doc, 2, 5);
     expect(next!.doc.firstChild?.type.name).toBe('code_block');
     expect(next!.doc.lastChild?.type.name).toBe('code_block');
@@ -1424,8 +1338,6 @@ describe('checklist input rule', () => {
   });
 
   it('wraps a plain paragraph into a task_list/task_item', () => {
-    // The paragraph holds only the trigger text — matching real typing: the
-    // rule fires the instant "[x] " is complete, before any further text.
     const next = run('[x] ', CHECKLIST_RULE, checklistRuleHandler(schema));
     expect(next?.doc.firstChild?.type.name).toBe('task_list');
     const item = next?.doc.firstChild?.firstChild;
@@ -1440,17 +1352,12 @@ describe('checklist input rule', () => {
   });
 
   it("sets checked on an existing task_item's own line instead of nesting another wrap", () => {
-    // Two task_items already exist (e.g. from pressing Enter on the first);
-    // typing "[x] " on the second item's blank line should just flip *that*
-    // item's checked attr, not fail silently (the bug a plain
-    // wrappingInputRule has: findWrapping doesn't know "already wrapped").
     const first = schema.node('task_item', { checked: false }, schema.node('paragraph', null, schema.text('one')));
     const second = schema.node('task_item', { checked: false }, schema.node('paragraph', null, schema.text('[x] two')));
     const list = schema.node('task_list', null, [first, second]);
     const doc = schema.node('doc', null, [list]);
     const state = EditorState.create({ schema, doc });
 
-    // Find where the second item's paragraph content starts.
     let secondParaStart = -1;
     state.doc.descendants((node, pos) => {
       if (node.isTextblock && node.textContent.startsWith('[x] two')) secondParaStart = pos + 1;
@@ -1463,7 +1370,7 @@ describe('checklist input rule', () => {
     const next = state.apply(tr!);
 
     expect(next.doc.firstChild?.type.name).toBe('task_list');
-    expect(next.doc.firstChild?.childCount).toBe(2); // no extra nesting/wrapping
+    expect(next.doc.firstChild?.childCount).toBe(2);
     expect(next.doc.firstChild?.child(0).attrs.checked).toBe(false);
     expect(next.doc.firstChild?.child(1).attrs.checked).toBe(true);
     expect(next.doc.firstChild?.child(1).textContent).toBe('two');
@@ -1498,15 +1405,14 @@ describe('horizontal rule input rule', () => {
       if (node.isText && node.text === 'a---b') textStart = pos;
     });
     const match = HORIZONTAL_RULE_RULE.exec('---') as RegExpMatchArray;
-    // Match spans just the "---" in the middle of "a---b".
     const tr = horizontalRuleHandler(schema)(state, match, textStart + 1, textStart + 4);
     expect(tr).not.toBeNull();
     const next = state.apply(tr!);
     const table = next.doc.firstChild!;
     expect(table.type.name).toBe('table');
-    expect(table.childCount).toBe(1); // still one row
+    expect(table.childCount).toBe(1);
     const restoredCell = table.firstChild!.firstChild!;
-    expect(restoredCell.childCount).toBe(3); // "a" paragraph, hr, "b" paragraph — split, not corrupted
+    expect(restoredCell.childCount).toBe(3);
     expect(restoredCell.child(0).textContent).toBe('a');
     expect(restoredCell.child(1).type.name).toBe('horizontal_rule');
     expect(restoredCell.child(2).textContent).toBe('b');
@@ -1526,7 +1432,7 @@ describe('horizontal rule input rule', () => {
     expect(tr).not.toBeNull();
     const next = state.apply(tr!);
     const restoredCell = next.doc.firstChild!.firstChild!.firstChild!;
-    expect(restoredCell.childCount).toBe(2); // hr, plus a fresh empty paragraph to type into
+    expect(restoredCell.childCount).toBe(2);
     expect(restoredCell.child(0).type.name).toBe('horizontal_rule');
     expect(restoredCell.child(1).type.name).toBe('paragraph');
     expect(restoredCell.child(1).content.size).toBe(0);
@@ -1534,18 +1440,8 @@ describe('horizontal rule input rule', () => {
 });
 
 describe('table-structure keymap survives macOS Option-key character composition', () => {
-  // On macOS, Option(+Shift)+<letter> can compose into an entirely
-  // unrelated accented/special character in `event.key`, depending on
-  // keyboard layout — confirmed live for at least one real combination.
-  // prosemirror-keymap's own event.keyCode-based fallback (see
-  // keydownHandler in prosemirror-keymap) rescues a binding *only* when it
-  // was registered in the `Shift-Alt-<lowercase>` shape (what that
-  // fallback always reconstructs) — never the `Alt-<UPPERCASE>` shorthand,
-  // which relies on `event.key` already being the correctly-cased letter
-  // and has nothing left to fall back on once that's a composed,
-  // unrelated character instead. This regression test simulates that
-  // composition directly against the real keymap `buildPlugins` wires, to
-  // catch a future table-shortcut binding written the fragile way.
+  // macOS Option composition can replace event.key entirely; prosemirror-keymap's
+  // keyCode fallback only rescues bindings written as `Shift-Alt-<lowercase>`.
   function findHandleKeyDown(): (view: unknown, event: KeyboardEvent) => boolean {
     const plugin = buildPlugins(schema).find((p) => p.props.handleKeyDown);
     if (!plugin?.props.handleKeyDown) throw new Error('no keymap plugin with handleKeyDown found');
@@ -1626,7 +1522,7 @@ describe('stripNestedTables', () => {
     const slice = new Slice(Fragment.from(outer), 0, 0);
 
     const stripped = stripNestedTables(slice, schema);
-    expect(tableCount(stripped)).toBe(1); // only the outer table remains
+    expect(tableCount(stripped)).toBe(1);
   });
 
   it('leaves a table nested in a blockquote OUTSIDE any cell untouched', () => {

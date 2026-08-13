@@ -9,8 +9,6 @@ const VIEWPORT = { width: 1000, height: 800 };
 const GAP = 8;
 
 function tableDoc(): ReturnType<typeof schema.node> {
-  // cellContent is 'block+' (see schema.ts) — cells hold real block content,
-  // so each cell's text lives inside a wrapping paragraph.
   const para = (text: string) => schema.node('paragraph', null, schema.text(text));
   const cell = (text: string) => schema.node('table_cell', null, [para(text)]);
   const headerCell = (text: string) => schema.node('table_header', null, [para(text)]);
@@ -33,8 +31,7 @@ function mountView(doc: ReturnType<typeof schema.node>): EditorView {
   return view;
 }
 
-/** A position inside the given text node's run, found by content rather than
- *  a hardcoded offset — resilient to schema/structure changes. */
+/** Position inside `text`'s node, found by content rather than a hardcoded offset. */
 function textPos(doc: ReturnType<typeof schema.node>, text: string): number {
   let found = -1;
   doc.descendants((node, pos) => {
@@ -48,7 +45,7 @@ describe('tableElementAt', () => {
   it('finds the ancestor <table> for a position inside a cell', () => {
     const doc = tableDoc();
     const view = mountView(doc);
-    const pos = textPos(doc, 'A'); // inside the first header cell's text
+    const pos = textPos(doc, 'A');
     const table = tableElementAt(view, pos);
     expect(table?.tagName).toBe('TABLE');
     view.destroy();
@@ -57,7 +54,7 @@ describe('tableElementAt', () => {
   it('returns null for a position outside any table', () => {
     const doc = tableDoc();
     const view = mountView(doc);
-    const pos = textPos(doc, 'after'); // the trailing paragraph, outside the table
+    const pos = textPos(doc, 'after');
     expect(tableElementAt(view, pos)).toBeNull();
     view.destroy();
   });
@@ -90,9 +87,6 @@ describe('positionTablePanel', () => {
   });
 
   it('clamps the top into the viewport for a table taller than the viewport — never off-screen below', () => {
-    // A table spanning well past the bottom of the viewport (e.g. scrolled,
-    // or simply many rows): naively placing the panel at table.bottom + gap
-    // would land it far below the visible area, unreachable by mouse.
     const tallTable: Rect = { top: 100, left: 400, right: 600, bottom: 1200, width: 200, height: 1100 };
     const panel = positionTablePanel(tallTable, panelSize, VIEWPORT, GAP);
     expect(panel.top).toBeGreaterThanOrEqual(GAP);
@@ -100,9 +94,6 @@ describe('positionTablePanel', () => {
   });
 
   it('clamps the top into the viewport when the table has scrolled above the top edge — never off-screen above', () => {
-    // table.top negative (scrolled past the viewport's top) with a short
-    // table: neither "below" (off past the bottom, if bottom is also
-    // negative) nor a naive "above" placement should ever escape upward.
     const scrolledPastTop: Rect = { top: -900, left: 400, right: 600, bottom: -840, width: 200, height: 60 };
     const panel = positionTablePanel(scrolledPastTop, panelSize, VIEWPORT, GAP);
     expect(panel.top).toBeGreaterThanOrEqual(GAP);
@@ -125,11 +116,8 @@ describe('choosePanel', () => {
   });
 
   it('shows nothing — never the text panel — for a bare caret isInTable says is in a table but no <table> element was resolved for', () => {
-    // Regression: isInTable (doc-structure) and tableElementAt (DOM lookup)
-    // can transiently disagree, e.g. right after a transaction before the
-    // view has re-rendered. Falling through to the text panel here would
-    // show a formatting bubble for an empty selection — the exact bug this
-    // whole split was meant to fix.
+    // isInTable (doc structure) and tableElementAt (DOM) transiently disagree right after a
+    // transaction, before the view re-renders.
     expect(choosePanel(true, true, false)).toBe('none');
   });
 });

@@ -33,40 +33,22 @@ export function filterItems(query: string): SlashItem[] {
   );
 }
 
-/**
- * Items matching `query` that can also actually *run* at the current
- * selection. A command that declines here — most importantly "Table" inside
- * an existing table, where nesting is disallowed — is dropped, so the menu
- * never offers a choice that would delete the "/query" trigger and then insert
- * nothing (which reads as the menu silently glitching). Applicability is the
- * command's own no-dispatch dry run, the standard ProseMirror "would this
- * apply?" probe — the same mechanism the toolbar uses to hide inapplicable
- * buttons. (This also hides "Text" while already in a plain paragraph, where
- * converting a paragraph to a paragraph is a no-op — harmless, since there's
- * nothing to convert.) Both the keyboard handler and the menu component use
- * this so mouse and keyboard selection stay in lockstep.
- */
+// Filtered by each command's own no-dispatch dry run, so the menu never offers a
+// choice that would delete the "/query" trigger and then insert nothing.
 export function menuItems(state: EditorState, query: string): SlashItem[] {
   return filterItems(query).filter((it) => it.command(state, undefined));
 }
 
-/**
- * Transaction metadata for the slash menu plugin.
- * - `dismiss` closes the menu and suppresses it for the current trigger position.
- * - `index` moves keyboard focus to the given list index.
- */
 export type SlashMenuMeta =
   | { readonly type: 'dismiss' }
   | { readonly type: 'index'; readonly index: number };
 
-/** The slash menu is closed. `triggerPos` is the position of the last dismissed trigger, or -1. */
 export interface SlashClosed {
   readonly active: false;
   readonly triggerPos: number;
   readonly dismissedFrom: number;
 }
 
-/** The slash menu is open at `triggerPos`, filtering items by `query`. */
 export interface SlashOpen {
   readonly active: true;
   readonly triggerPos: number;
@@ -79,7 +61,7 @@ export type SlashState = SlashClosed | SlashOpen;
 
 export const slashKey = new PluginKey<SlashState>('copad-slash');
 
-/** Parse transaction metadata for this plugin — the single cast site for SlashMenuMeta from tr.getMeta(). */
+// The single cast site for SlashMenuMeta out of the untyped tr.getMeta().
 export function getSlashMeta(tr: Transaction): SlashMenuMeta | undefined {
   const raw: unknown = tr.getMeta(slashKey);
   if (raw === null || raw === undefined || typeof raw !== 'object') return undefined;
@@ -93,14 +75,12 @@ export function getSlashMeta(tr: Transaction): SlashMenuMeta | undefined {
 
 const INACTIVE: SlashClosed = { active: false, triggerPos: -1, dismissedFrom: -1 };
 
-/** The result of parsing the current editor state for a slash-command trigger. */
 interface SlashParseResult {
   readonly active: boolean;
   readonly triggerPos: number;
   readonly query: string;
 }
 
-/** Detect a `/query` trigger at the cursor (block start or after whitespace). */
 function derive(state: EditorState): SlashParseResult {
   const sel = state.selection;
   if (!sel.empty) return { active: false, triggerPos: -1, query: '' };
@@ -184,20 +164,14 @@ export function setSlashIndex(view: EditorView, index: number): void {
   view.dispatch(view.state.tr.setMeta(slashKey, { type: 'index', index }));
 }
 
-/** Dismiss the menu and keep the caret in the document. */
 export function dismissSlash(view: EditorView): void {
   view.dispatch(view.state.tr.setMeta(slashKey, { type: 'dismiss' }));
   view.focus();
-  // Firefox can still blur the contenteditable right after an Escape
-  // keydown even though the key event's default action was prevented — that
-  // follow-up blur is a separate native action, not the keydown's own
-  // default, so it isn't cancelable from inside handleKeyDown and can undo
-  // the synchronous focus() above. Re-assert focus once more on the next
-  // tick to win that race.
+  // Firefox blurs the contenteditable after an Escape keydown in a separate,
+  // uncancelable native action — re-assert focus next tick to win that race.
   setTimeout(() => view.focus(), 0);
 }
 
-/** Delete the `/query` text, then run the chosen block command. */
 export function runSlashItem(view: EditorView, item: SlashItem): void {
   const st = slashKey.getState(view.state);
   if (!st?.active) return;

@@ -1,14 +1,5 @@
-// AES-GCM-encrypted local document cache.
-//
-// The plaintext cache (`cache.ts`, backed by y-indexeddb) mirrors the Y.Doc into
-// IndexedDB in the clear — fine for a public room, a privacy hole for an
-// encrypted one: removing the key and reloading would still show the cached
-// plaintext. This module is the encrypted counterpart, used automatically when a
-// room has a key: every Yjs update is encrypted (key derived from the room
-// credential) before it touches IndexedDB, so the at-rest bytes are unreadable
-// without the key. Reusing y-indexeddb wasn't possible — it has no hook to
-// transform bytes on the way in/out — so this is a deliberately small,
-// append-log persistence over raw IndexedDB.
+// Hand-rolled over raw IndexedDB because y-indexeddb has no hook to transform
+// bytes on the way in or out.
 
 import * as Y from 'yjs';
 import type { RoomId } from './types.js';
@@ -23,12 +14,9 @@ import {
 } from './roomCrypto.js';
 
 const STORE = 'updates';
-// After this many in-session appends, fold the log back into a single snapshot
-// so an encrypted cache can't grow without bound across a long editing session.
 const COMPACT_EVERY = 50;
 
-// Distinguishes updates we apply while *loading* the cache from genuine local
-// edits, so restoring the cache doesn't immediately re-persist what we just read.
+// Tags loads so restoring the cache doesn't echo straight back into it.
 const LOAD_ORIGIN = Symbol('encrypted-cache-load');
 
 function openDb(name: string): Promise<IDBDatabase> {
@@ -62,7 +50,6 @@ function append(db: IDBDatabase, rec: EncryptedRecord): Promise<void> {
   });
 }
 
-/** Replace the whole log with a single record — the compacted snapshot. */
 function replaceAll(db: IDBDatabase, rec: EncryptedRecord): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
@@ -74,11 +61,6 @@ function replaceAll(db: IDBDatabase, rec: EncryptedRecord): Promise<void> {
   });
 }
 
-/**
- * Mirror a doc into an encrypted IndexedDB store, keyed by the room credential.
- * Returns immediately with a handle; loading + key derivation happen async (like
- * y-indexeddb). `destroy()` detaches, and is safe to call before init finishes.
- */
 export function attachEncryptedCache(room: RoomId, doc: Y.Doc, cred: RoomCredential): LocalCache {
   const dbName = ENC_CACHE_DB_PREFIX + room;
   let db: IDBDatabase | undefined;
@@ -86,9 +68,7 @@ export function attachEncryptedCache(room: RoomId, doc: Y.Doc, cred: RoomCredent
   let destroyed = false;
   let ready = false;
   let sinceCompact = 0;
-  // Edits that arrive while the async init below is still running — before the DB
-  // and key are ready. Buffered rather than dropped, then flushed once ready, so
-  // text typed the instant a room unlocks is never lost from the cache.
+  // Edits arriving before the async init finishes; flushed once ready, never dropped.
   const pending: Uint8Array[] = [];
 
   const persist = async (update: Uint8Array): Promise<void> => {
@@ -104,10 +84,7 @@ export function attachEncryptedCache(room: RoomId, doc: Y.Doc, cred: RoomCredent
     }
   };
 
-  // Yjs hands the update handler a (update, origin) pair; ignore our own load
-  // writes so restoring the cache doesn't echo straight back into it. Subscribed
-  // synchronously (below) so no edit is missed; until init finishes, updates are
-  // buffered rather than written.
+  // Subscribed synchronously below so no edit is missed while init runs.
   const onUpdate = (update: Uint8Array, origin: unknown): void => {
     if (origin === LOAD_ORIGIN) return;
     if (!ready) {
@@ -139,20 +116,14 @@ export function attachEncryptedCache(room: RoomId, doc: Y.Doc, cred: RoomCredent
         return;
       }
       if (updates.length) {
-        // Apply all restored updates in one transaction, tagged so onUpdate skips them.
         Y.transact(doc, () => {
           for (const u of updates) Y.applyUpdate(doc, u, LOAD_ORIGIN);
         }, LOAD_ORIGIN);
       }
-      // Always compact to a single snapshot of the current full state. This bounds
-      // on-disk growth, drops any records written under a different key (a key
-      // change), AND — for a brand-new cache — captures edits already applied to
-      // the doc while this init ran (they'd otherwise never reach the store).
+      // Unconditional: also drops records written under a previous key and captures
+      // edits applied to the doc while this init ran.
       await replaceAll(db, await encryptUpdate(key, Y.encodeStateAsUpdate(doc)));
 
-      // Flush edits buffered during init that landed after the snapshot's encode.
-      // (Those already folded into the snapshot re-apply as harmless idempotent
-      // updates — Yjs updates are commutative — until the next compaction.)
       ready = true;
       const buffered = pending.splice(0);
       for (const update of buffered) await persist(update);

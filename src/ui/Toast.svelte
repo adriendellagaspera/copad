@@ -98,7 +98,7 @@
     line-height: 1.45;
   }
   .toast-close {
-    /* >=44px hit area (WCAG 2.5.5): grown via padding, not icon size. */
+    /* WCAG 2.5.5 hit-area minimum. */
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;

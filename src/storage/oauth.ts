@@ -1,4 +1,3 @@
-/** Generate a random base64url string of `len` bytes. */
 function randomString(len = 32): string {
   const bytes = crypto.getRandomValues(new Uint8Array(len));
   return btoa(String.fromCharCode(...bytes))
@@ -7,7 +6,6 @@ function randomString(len = 32): string {
     .replace(/=+$/, '');
 }
 
-/** Return { verifier, challenge } for OAuth 2 PKCE. */
 export async function pkceChallenge(): Promise<{ verifier: string; challenge: string }> {
   const verifier = randomString(48);
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
@@ -21,7 +19,6 @@ export async function pkceChallenge(): Promise<{ verifier: string; challenge: st
 import { parseOAuthCode } from './parse.js';
 import { OAUTH_TIMEOUT_MS, OAUTH_POPUP_FEATURES } from './constants.js';
 
-/** Open an OAuth popup and wait for the code to be posted back. */
 export function openOAuthPopup(authUrl: string, expectedState: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const popup = window.open(authUrl, 'oauth', OAUTH_POPUP_FEATURES);

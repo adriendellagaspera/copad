@@ -6,8 +6,7 @@ import { hasFsAccessApi, pickFileMobile } from '../format/filePicker.js';
 import { STORAGE_ID } from './constants.js';
 import { landed, writeFailure, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 
-// showSaveFilePicker not yet in TypeScript's lib.dom.d.ts at this version.
-// (showOpenFilePicker is declared in ../format/filePicker.js.)
+// showSaveFilePicker is missing from this TypeScript version's lib.dom.d.ts.
 declare global {
   interface Window {
     showSaveFilePicker(opts?: {
@@ -116,7 +115,6 @@ export function localFsStorage(): { auth: StorageAuth; storage: Storage } {
         }
         case LocalMode.Imported:
         case LocalMode.New:
-          // Structurally can't write back — terminal, not a transient hiccup.
           throw writeFailure(
             WriteFailureKind.Rejected,
             'this browser can\'t write files back (no File System Access API). ' +

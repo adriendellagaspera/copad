@@ -71,7 +71,6 @@ export function pcloudStorage(netFetch: Fetch, room: RoomId): { auth: StorageAut
 
         pcloudSdk.oauth.popup(
           clientId,
-          // This callback signature is the IO boundary — no response to parse.
           (token: string, locationid?: number) => {
             clearTimeout(timeout);
             const host = ((locationid ?? 1) === 2

@@ -20,24 +20,16 @@ import {
   oauthRedirectUri,
 } from './constants.js';
 
-// ── Branded types ─────────────────────────────────────────────────────────────
-
-/** An OAuth access token issued by Dropbox after a successful login. */
 export type DropboxToken = string & { readonly _brand: 'DropboxToken' };
-
-/** The Dropbox OAuth app's client id (App key), configured in Settings or locked via env. */
 export type DropboxAppKey = string & { readonly _brand: 'DropboxAppKey' };
 
-// The value read back out of localStorage was only ever written by the token
-// exchange below (via parseDropboxTokenResponse, the true mint site), so this
-// is a re-hydration cast, not a second validation step.
+// Re-hydration cast: parseDropboxTokenResponse is the only mint site.
 const tokenStore = localStore<DropboxToken | null>(
   DROPBOX_TOKEN_KEY,
   (raw) => raw as DropboxToken | null,
   (v) => v,
 );
 
-// Persisted under `storage.dropbox.appKey` — same key the old connect form used.
 const cfg = configStore(STORAGE_ID.dropbox, [
   {
     name: 'appKey',
@@ -52,12 +44,8 @@ export function dropboxStorage(room: RoomId): { auth: StorageAuth; storage: Stor
   const fileName = filenameStore(STORAGE_ID.dropbox, room);
   const filePath = () => `${CLOUD_FOLDER}/${fileName.get()}`;
 
-  // Shared state: token lives in localStorage but we read it through the store
-  // so both auth and storage see the same current value.
   const token = (): DropboxToken | null => tokenStore.read();
 
-  // Parse the configured app key at the point of use — the single boundary
-  // where the raw configured string becomes a DropboxAppKey.
   const resolvedAppKey = (): DropboxAppKey | null => parseDropboxAppKey(cfg.config('appKey'));
 
   const auth: StorageAuth = {
@@ -136,7 +124,8 @@ export function dropboxStorage(room: RoomId): { auth: StorageAuth; storage: Stor
         },
       });
 
-      if (res.status === 409) return null; // file not found
+      // Dropbox answers 409, not 404, for a missing file.
+      if (res.status === 409) return null;
       if (!res.ok) throw new Error(`Dropbox load failed: ${res.status}`);
       return { format: DocFormat.Binary, bytes: new Uint8Array(await res.arrayBuffer()) };
     },

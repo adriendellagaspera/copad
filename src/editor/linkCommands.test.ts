@@ -8,7 +8,6 @@ function stateWith(text: string): EditorState {
   return EditorState.create({ schema, doc });
 }
 
-/** Select the whole first paragraph's text. */
 function selectAll(state: EditorState): EditorState {
   const sel = TextSelection.create(state.doc, 1, state.doc.firstChild!.content.size + 1);
   return state.apply(state.tr.setSelection(sel));
@@ -87,14 +86,12 @@ describe('link commands', () => {
 
 describe('linkAround (whole-link range from a bare caret mid-link)', () => {
   it('returns the full link span + href from a caret resting in the MIDDLE of the link (not just its trailing edge)', () => {
-    // "hello" linked; place a collapsed caret between "he" and "llo" (pos 3).
     let state = selectAll(stateWith('hello'));
     setLink('example.com')(state, (tr) => (state = state.apply(tr)));
     state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 3)));
     const found = linkAround(state);
     expect(found).not.toBeNull();
     expect(found!.href).toBe('https://example.com');
-    // The whole "hello" run: from 1 to 6, not the zero-width caret at 3.
     expect(found!.from).toBe(1);
     expect(found!.to).toBe(6);
   });
@@ -105,9 +102,7 @@ describe('linkAround (whole-link range from a bare caret mid-link)', () => {
   });
 
   it('returns null for a caret resting right after a link, before unlinked text', () => {
-    // "hello world"; link only "hello" (positions 1-6), caret at the boundary
-    // (pos 6) — the link mark is `inclusive: false`, so this caret is NOT on
-    // the link, matching ProseMirror's own `$from.marks()` boundary rule.
+    // The link mark is `inclusive: false`, so a caret at its trailing edge is off the link.
     let state = stateWith('hello world');
     state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1, 6)));
     setLink('example.com')(state, (tr) => (state = state.apply(tr)));
@@ -116,10 +111,8 @@ describe('linkAround (whole-link range from a bare caret mid-link)', () => {
   });
 
   it('detects a link that is the first word of a paragraph, caret at its very start', () => {
-    // Regression: $from.marks() has no preceding sibling to compare against
-    // at a parent's own start, so it drops an inclusive:false mark there too
-    // — not just past the link's trailing edge. "hello" is the whole doc, so
-    // pos 1 is both the paragraph's start AND the link's start.
+    // At a parent's own start $from.marks() has no preceding sibling, so it drops an
+    // inclusive:false mark there too.
     let state = selectAll(stateWith('hello'));
     setLink('example.com')(state, (tr) => (state = state.apply(tr)));
     state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1)));
