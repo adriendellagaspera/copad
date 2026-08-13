@@ -6,7 +6,7 @@ import {
 } from 'prosemirror-markdown';
 import { Fragment } from 'prosemirror-model';
 import type { Node as PMNode } from 'prosemirror-model';
-import { schema, nodeNameOf } from '../editor/schema.js';
+import { schema, nodeNameOf, type NodeName, type MarkName } from '../editor/schema.js';
 import { taskItemChecked } from '../editor/parse.js';
 import { writePmDoc, readPmDoc } from './pm.js';
 import { classifyTable } from '../editor/markdown.js';
@@ -37,14 +37,14 @@ tokenizer.inline.ruler.before('html_inline', 'gfmHardBreak', (state, silent) => 
 
 const parser = new MarkdownParser(schema, tokenizer, {
   ...defaultMarkdownParser.tokens,
-  s: { mark: 'strike' },
+  s: { mark: 'strike' satisfies MarkName },
   // thead/tbody are structural wrappers our schema doesn't model (table is table_row+ directly).
-  table: { block: 'table' },
+  table: { block: 'table' satisfies NodeName },
   thead: { ignore: true },
   tbody: { ignore: true },
-  tr: { block: 'table_row' },
-  th: { block: 'table_header' },
-  td: { block: 'table_cell' },
+  tr: { block: 'table_row' satisfies NodeName },
+  th: { block: 'table_header' satisfies NodeName },
+  td: { block: 'table_cell' satisfies NodeName },
 });
 
 // MarkdownParser's declarative {block}/{node}/{mark}/{ignore} tokens config can't open a nested paragraph inside a cell or splice a prebuilt node; `tokenHandlers` is public but untyped, so this patches it post-construction instead.

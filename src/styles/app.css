@@ -639,7 +639,7 @@ button.status-link {
   .mobile-dock.dock-hidden {
     display: none;
   }
-  /* Hides the "set your name" nudge only on ~320px phones, where it pushes the settings button off the dock edge; avatar stays clickable, nudge still shows in the desktop capsule. */
+  /* Dropped in the dock to save width, kept in the capsule; not enough on its own — the row still overflows at 320px (e2e/touchTargets.test.ts). */
   .mobile-dock .identity-hint {
     display: none;
   }
