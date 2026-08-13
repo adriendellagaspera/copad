@@ -143,7 +143,9 @@ Playwright e2e suite (`npm run e2e`).
 - **Never post a comment** — not on an issue, a PR, or a review. An agent may
   update an issue/PR **body or title**, and only when explicitly asked: the body
   is where the information lives and threads stay empty. Same bar there —
-  table/checklist over narrative, state the delta never the process.
+  table/checklist over narrative, state the delta never the process. The one
+  comment a PR carries is the preview link, upserted and removed by CI
+  (`.github/workflows/pr-preview.yml`) — not yours to write or delete.
 
 ## Checklist before every commit
 
