@@ -138,6 +138,7 @@
 </script>
 
 {#snippet content()}
+    <span class="msg-row">
     <span class="ic" aria-hidden="true">
       {#if tier.kind === BannerTierKind.Gated}
         <!-- Calm dot, never a spinner: a spinner promises imminence it cannot keep (contract §4.2). -->
@@ -180,6 +181,7 @@
           <strong>You're writing alone.</strong> Nothing leaves this device yet.
         {/if}
       {/if}
+    </span>
     </span>
 
     {#if tier.kind === BannerTierKind.Gated}
@@ -334,6 +336,33 @@
     width: max-content;
     max-width: min(56rem, calc(100vw - 2 * var(--sp-4)));
     box-shadow: var(--shadow-lg);
+    /* Centered card, not a left-jammed row: icon+message and the actions each read as their own centered line. */
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-4) var(--sp-5);
+  }
+  .sync-banner.sheet .msg-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    max-width: 100%;
+  }
+  .sync-banner.sheet .msg {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+  }
+  .sync-banner.sheet .actions {
+    justify-content: center;
+  }
+  .sync-banner.sheet .aside {
+    max-width: 32rem;
+    text-align: center;
+  }
+  .sync-banner.sheet .dismiss {
+    top: var(--sp-2);
+    right: var(--sp-2);
   }
   @media (pointer: coarse), (max-width: 900px) {
     .sync-banner.sheet {
@@ -344,6 +373,9 @@
       width: auto;
       max-width: none;
     }
+  }
+  .msg-row {
+    display: contents;
   }
   .ic {
     flex-shrink: 0;
