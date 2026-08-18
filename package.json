@@ -1,6 +1,7 @@
 {
   "name": "copad",
   "private": true,
+  "license": "MIT",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -16,6 +17,8 @@
     "test:watch": "vitest",
     "test:scripts": "bash .github/scripts/deploy-gh-pages.test.sh && bash .github/scripts/check-deploy-drift.test.sh",
     "check:doc-budget": "bash .github/scripts/check-doc-budget.sh",
+    "check:audit": "npm audit --audit-level=high",
+    "check:licenses": "node .github/scripts/check-license-allowlist.mjs",
     "e2e": "playwright test"
   },
   "dependencies": {
@@ -50,6 +53,7 @@
     "globals": "^17.9.0",
     "happy-dom": "^20.10.6",
     "jszip": "^3.10.1",
+    "license-checker-rseidelsohn": "^4.4.2",
     "svelte-check": "^4.7.0",
     "svelte-eslint-parser": "^1.8.0",
     "typedoc": "^0.28.20",

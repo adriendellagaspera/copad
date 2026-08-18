@@ -21,6 +21,17 @@ jobs:
       - run: npm run check
       - run: npm run lint
       - run: npm run check:doc-budget
+
+      # High/critical only (--audit-level=high) — low/moderate are reported by
+      # `npm audit` but don't fail the build. One standing low-severity
+      # exception today: elliptic (GHSA-848j-6mx2-7j84), pulled in transitively
+      # via vite-plugin-node-polyfills' crypto-browserify chain (a Vite build
+      # plugin, not app code). The only fix is `npm audit fix --force`, which
+      # downgrades vite-plugin-node-polyfills 0.28.x -> 0.2.0 — a major,
+      # breaking rollback of the active version for a low-severity advisory.
+      # Revisit when a fixed vite-plugin-node-polyfills release exists.
+      - run: npm run check:audit
+      - run: npm run check:licenses
       - run: npm test
       - run: npm run test:scripts
 
