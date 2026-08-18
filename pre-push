@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Tier 2 of the two-tier gate (AGENTS.md "Commands"): the real gate, run once
+# per push rather than once per commit so committing stays free of it.
+# ci.yml (tier 3) remains the superset and runs on every push regardless, so
+# this tier isn't trying to reproduce it in full — only to make the common
+# failure (a lint/type/test regression) cheap to find before the CI round trip.
+#
+# Skip it with `git push --no-verify` — pushing a work-in-progress branch for
+# someone to look at is legitimate, and CI is still the authority.
+#
+# Measured on this tree: lint ~9s, check ~10s, test ~14s — ~30s combined.
+# Runs against the working tree (HEAD), not the individual commits being
+# pushed: unlike ./pre-commit's single wc -l, npm ci-ing a materialized copy
+# of each pushed commit just to lint/typecheck/test it would cost minutes, not
+# seconds, on this dependency tree. The common case — pushing a clean tree
+# right after committing — makes this equivalent; a force-push of older,
+# already-broken history is not caught here, only by CI on the PR itself.
+
+echo "Running lint"
+npm run --silent lint
+
+echo "Running check"
+npm run --silent check
+
+echo "Running test"
+npm run --silent test
