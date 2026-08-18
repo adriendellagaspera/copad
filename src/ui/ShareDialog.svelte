@@ -228,10 +228,10 @@
       </span>
       {#if saved}
         Saved to <strong>your {storageLabel ?? 'storage'}</strong>. Collaborators edit live but
-        can’t write to your storage; anyone who connects their own backend keeps their own saved copy.
+        can’t write to your storage; anyone who connects their own keeps their own saved copy.
       {:else}
         This document isn’t saved to any storage of yours: it lives in the live session and each
-        device’s local cache only. Connect a backend to save it to your own storage.
+        device’s local cache only. Connect storage to save it to your own.
       {/if}
     </p>
 

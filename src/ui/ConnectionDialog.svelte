@@ -106,7 +106,7 @@
         tone: 'muted',
         icon: 'cloudOff',
         head: 'Not saved',
-        sub: 'You edit live and a copy is cached on this device, but nothing of yours is kept for this room. Connect a storage backend to keep your own copy.',
+        sub: 'You edit live and a copy is cached on this device, but nothing of yours is kept for this room. Connect storage to keep your own copy.',
         cta: true,
       };
     },
