@@ -16,6 +16,7 @@
   import type { Theme } from './ui/theme.svelte.js';
   import { LANGUAGE_AUTO, parseLanguageChoice, type LanguageChoice } from './ui/language.svelte.js';
   import ThemeSelect from './ui/ThemeSelect.svelte';
+  import FontSelect from './ui/FontSelect.svelte';
   import ExportFormats from './ui/ExportFormats.svelte';
   import type { Toasts } from './ui/toasts.svelte.js';
   import { BRAND_ICONS } from './ui/brandIcons.js';
@@ -340,6 +341,8 @@
     </div>
     <p class="backend-blurb">Light, dark, or follow your system setting.</p>
     <ThemeSelect {theme} />
+    <p class="backend-blurb">Typeface, for the whole app — including About.</p>
+    <FontSelect />
   </section>
 
   <section class="backend">
