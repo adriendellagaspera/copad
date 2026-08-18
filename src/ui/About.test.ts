@@ -24,9 +24,9 @@ describe('About', () => {
     expect(page).toContain("You're the only one here.");
   });
 
-  it('holds the room specimen — its address and its live state — beside the hero', () => {
+  it('holds the room specimen — its address and its live state — in one demo', () => {
     expect(html(Transport.P2P)).toMatch(
-      /class="hero-exhibit[^"]*"[\s\S]*?url-id[\s\S]*?keep-labels/,
+      /class="demo demo-room[^"]*"[\s\S]*?url-id[\s\S]*?keep-labels/,
     );
   });
 
@@ -56,8 +56,9 @@ describe('About', () => {
     expect(html(Transport.P2P)).toMatch(/class="demo demo-banner[^"]*"[^>]*inert/);
   });
 
-  it('owns a scroll container of its own, since the body cannot scroll', () => {
-    expect(html(Transport.P2P)).toMatch(/class="about\b/);
+  it('scrolls the same way a room does, inside the editor card rather than the page', () => {
+    expect(html(Transport.P2P)).toMatch(/class="editor about-doc\b/);
+    expect(html(Transport.P2P)).toMatch(/class="content\b/);
   });
 
   it('links the contract as its privacy document', () => {

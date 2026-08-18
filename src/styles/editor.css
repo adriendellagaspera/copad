@@ -11,6 +11,9 @@
   /* min-height:0 lets .content scroll instead of growing past the fold. */
   flex: 1;
   min-height: 0;
+  /* Shared with About's own .editor (base.css): the browser morphs the About
+     document card into the room's document card across that navigation. */
+  view-transition-name: vt-doc;
 }
 
 .toolbar {
