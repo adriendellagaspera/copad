@@ -21,10 +21,19 @@ function parseThemeChoice(raw: string | null): ThemeChoice {
 
 const themeStore = localStore<ThemeChoice>(nsKey('theme'), parseThemeChoice, (v) => v);
 
+// try/catch, not a `typeof window` check: matches local.ts's own SSR idiom ("SSR... throw here").
+function systemDarkMedia(): MediaQueryList | null {
+  try {
+    return window.matchMedia('(prefers-color-scheme: dark)');
+  } catch {
+    return null;
+  }
+}
+
 export function createTheme() {
-  const mql = window.matchMedia('(prefers-color-scheme: dark)');
+  const mql = systemDarkMedia();
   let choice = $state<ThemeChoice>(themeStore.read());
-  let systemDark = $state(mql.matches);
+  let systemDark = $state(mql?.matches ?? false);
 
   const resolved = $derived<ResolvedTheme>(
     choice === ThemeChoice.System ? (systemDark ? ResolvedTheme.Dark : ResolvedTheme.Light) : choice
@@ -41,7 +50,7 @@ export function createTheme() {
     apply(next === ThemeChoice.System ? (systemDark ? ResolvedTheme.Dark : ResolvedTheme.Light) : next);
   }
 
-  mql.addEventListener('change', (e) => {
+  mql?.addEventListener('change', (e) => {
     systemDark = e.matches;
     if (choice === ThemeChoice.System) apply(e.matches ? ResolvedTheme.Dark : ResolvedTheme.Light);
   });

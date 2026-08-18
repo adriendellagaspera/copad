@@ -17,7 +17,7 @@
 
 <Dialog {open} {onclose} title={TITLE}>
   <p class="export-lead">
-    A one-off copy of this document, independent of any connected storage backend.
+    A one-off copy of this document, independent of any connected storage.
     Works while read-only.
   </p>
   <ExportFormats {baseName} {toasts} ondone={onclose} />

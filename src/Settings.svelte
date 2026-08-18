@@ -328,7 +328,7 @@
       <span class="backend-name">Export a copy</span>
     </div>
     <p class="backend-blurb">
-      A one-off copy of this document, independent of any connected storage backend.
+      A one-off copy of this document, independent of any connected storage.
       Works while read-only.
     </p>
     <ExportFormats baseName={exportBaseName} {toasts} />
@@ -349,7 +349,7 @@
     </div>
     <p class="backend-blurb">
       Keep a copy of your documents in this browser so they survive a reload and
-      work offline, even with no storage backend connected.
+      work offline, even with no storage connected.
     </p>
     <label class="toggle">
       <input
@@ -462,12 +462,12 @@
 
 {#snippet storageView()}
   <p class="settings-lead">
-    Configure your storage backends. App keys are saved in this browser and
+    Configure your storage providers. App keys are saved in this browser and
     reused across sessions: you only set them once.
   </p>
 
   {#if sortedBackends.length === 0}
-    <p class="settings-empty">No storage backends available.</p>
+    <p class="settings-empty">No storage providers available.</p>
   {/if}
 
   <div class="tile-grid">

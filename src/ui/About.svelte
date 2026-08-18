@@ -2,6 +2,8 @@
   import Avatar from './Avatar.svelte';
   import StatusPill from './StatusPill.svelte';
   import SyncBanner, { type Dismissible } from './SyncBanner.svelte';
+  import ThemeToggle from './ThemeToggle.svelte';
+  import { createTheme } from './theme.svelte.js';
   import { BRAND_ICONS } from './brandIcons.js';
   import { STORAGE_ID } from '../storage/constants.js';
   import { SaveStatus } from './types.js';
@@ -41,6 +43,7 @@
   const SPECIMEN_FIXED = false as Dismissible;
 
   const githubMark = BRAND_ICONS[STORAGE_ID.github];
+  const theme = createTheme();
 
   function noop(): void {}
 </script>
@@ -54,12 +57,8 @@
     </a>
     <span class="wordmark">Copad</span>
     <span class="cap-fill"></span>
-    <a class="cap-btn repo-link" href={REPO_URL} title="Copad on GitHub" aria-label="Copad on GitHub">
-      {#if githubMark}
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d={githubMark.path} /></svg>
-      {/if}
-    </a>
     <button class="cap-share" onclick={onNewDocument}>Start a document</button>
+    <div class="cap-theme"><ThemeToggle {theme} /></div>
   </header>
 
   <div class="editor about-doc">
@@ -115,7 +114,7 @@
         </blockquote>
         <p class="quiet">
           The durable artefact is the paper in your own drawer — the file in a
-          storage backend you connected. Anyone in the room can connect their own.
+          storage provider you connected. Anyone in the room can connect their own.
         </p>
 
         <hr />
@@ -247,16 +246,8 @@
     font-weight: 600;
     letter-spacing: -0.01em;
   }
-  .about-capsule .cap-mark,
-  .about-capsule .repo-link {
+  .about-capsule .cap-mark {
     text-decoration: none;
-  }
-  .about-capsule .repo-link {
-    color: var(--text-muted);
-  }
-  .about-capsule .repo-link:hover {
-    background: var(--surface-3);
-    color: var(--text);
   }
 
   /* prosemirror-view's stylesheet sets .ProseMirror to break-spaces (an editable
