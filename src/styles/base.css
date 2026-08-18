@@ -123,3 +123,21 @@ a {
     scroll-behavior: auto !important;
   }
 }
+
+/* Morphs the capsule and the document card across the real page navigation
+   between a room and /?about (both are full loads of this same index.html —
+   see route.ts). Opt-in lives on both ends since every page shares this file;
+   unsupported browsers just keep the instant swap they already had.
+   ::view-transition-group(*) is outside the `*` selector's reach above, so
+   reduced-motion is honoured by never opting in, not by a duration override. */
+@media not (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: auto;
+  }
+}
+::view-transition-group(root),
+::view-transition-group(vt-capsule),
+::view-transition-group(vt-doc) {
+  animation-duration: var(--dur-slow);
+  animation-timing-function: var(--ease);
+}

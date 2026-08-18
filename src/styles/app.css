@@ -33,6 +33,9 @@ header.capsule {
   box-shadow: var(--shadow-md);
   /* margin-bottom, not gap, for the same slide-out-jump reason as .app above. */
   margin-bottom: var(--sp-4);
+  /* Shared with About's own header.capsule (base.css): the browser morphs one
+     pill into the other across the room ↔ /?about navigation. */
+  view-transition-name: vt-capsule;
 }
 
 .cap-mark {
