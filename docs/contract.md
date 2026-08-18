@@ -200,7 +200,7 @@ Departure hysteresis re-arms when someone returns and is **extended by typing** 
 
 ### 4.1 The unlock moment — done
 
-The product moment. In order, ~450 ms: the **caret appears** (the editor becomes editable reactively, no remount — this is the real signal, physical and silent); the band folds away; the peer's avatar enters in their colour; one self-dismissing line — *Ada is here. The document is open.*
+The product moment. In order, ~450 ms: the **caret appears** (the editor becomes editable reactively, no remount — this is the real signal, physical and silent); the band fades away; the peer's avatar enters in their colour; one self-dismissing line — *Ada is here. The document is open.*
 
 Explicitly forbidden: sound, confetti, full-screen flash, modal. The contrast (nothing → caret) does all the work. **Never steal focus** — a background tab grabbing focus because someone joined is a hostile bug. `prefers-reduced-motion` keeps steps 1 and 4 only.
 

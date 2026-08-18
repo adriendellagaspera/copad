@@ -117,7 +117,7 @@
   import ExportDialog from './ui/ExportDialog.svelte';
   import { storedName, rememberName } from './collaboration/identity.js';
   import { roomName } from './collaboration/roomName.svelte.js';
-  import SyncBanner from './ui/SyncBanner.svelte';
+  import SyncBanner, { BannerPlacement } from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
   import { createTheme } from './ui/theme.svelte.js';
   import { createToasts } from './ui/toasts.svelte.js';
@@ -334,6 +334,18 @@
 
   let diagOpen = $state(CLOSED);
   const otherPeers = $derived(sessionState.users.filter((u) => !u.self));
+
+  const COMPACT_CHROME_QUERY = '(pointer: coarse), (max-width: 900px)';
+  let compactChrome = $state(
+    typeof matchMedia !== 'undefined' && matchMedia(COMPACT_CHROME_QUERY).matches,
+  );
+  $effect(() => {
+    const mql = matchMedia(COMPACT_CHROME_QUERY);
+    compactChrome = mql.matches;
+    const onChange = (e: MediaQueryListEvent) => { compactChrome = e.matches; };
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  });
 
   let settingsOpen = $state(CLOSED);
   let settingsFocus = $state<StorageId | undefined>(undefined);
@@ -971,25 +983,30 @@
   </div>
 
   <!-- One strip, escalation ladder: gated → collab-unavailable → solo reminder. -->
-  <SyncBanner
-    conn={sessionState.conn}
-    presenceKind={sessionState.presence.kind}
-    transport={sessionState.diagnostics.transport}
-    storageLabel={savedHere && storage ? storage.storage.label : null}
-    gated={writeLocked}
-    {gateEligible}
-    {collabUnavailable}
-    {waitingSince}
-    {departedPeerName}
-    {withinDepartureLinger}
-    onShare={() => (shareOpen = OPENED)}
-    onConnectStorage={() => openSettings()}
-    onExport={() => (exportOpen = OPENED)}
-    onWriteSolo={allowWriteSolo}
-    onCopyInviteLink={copyInviteLink}
-    onRetry={sessionState.diagnostics.reconnect}
-    onConnectionDetails={() => (diagOpen = OPENED)}
-  />
+  {#if !(compactChrome && sessionState.editing)}
+    <div class="sync-banner-sheet-anchor" style="--kb-inset: {keyboardInset.px}px">
+      <SyncBanner
+        placement={BannerPlacement.Sheet}
+        conn={sessionState.conn}
+        presenceKind={sessionState.presence.kind}
+        transport={sessionState.diagnostics.transport}
+        storageLabel={savedHere && storage ? storage.storage.label : null}
+        gated={writeLocked}
+        {gateEligible}
+        {collabUnavailable}
+        {waitingSince}
+        {departedPeerName}
+        {withinDepartureLinger}
+        onShare={() => (shareOpen = OPENED)}
+        onConnectStorage={() => openSettings()}
+        onExport={() => (exportOpen = OPENED)}
+        onWriteSolo={allowWriteSolo}
+        onCopyInviteLink={copyInviteLink}
+        onRetry={sessionState.diagnostics.reconnect}
+        onConnectionDetails={() => (diagOpen = OPENED)}
+      />
+    </div>
+  {/if}
 
   {#if introSlot.kind === IntroSlotKind.FirstVisit}
     <FirstVisitIntro
@@ -1129,6 +1146,9 @@
 <Toast {toasts} />
 
 <style>
+  .sync-banner-sheet-anchor {
+    display: contents;
+  }
   .unlock-line {
     padding: var(--sp-1) var(--sp-4) 0;
     color: var(--text-muted);

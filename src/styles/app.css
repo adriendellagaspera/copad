@@ -6,7 +6,7 @@
   padding: var(--sp-5) var(--sp-4) var(--sp-8);
   display: flex;
   flex-direction: column;
-  /* margin-bottom, not gap, spaces .app's children. gap is constant and would jump one frame when SyncBanner's slide-out removes the node; margin-bottom shrinks with it. */
+  /* margin-bottom, not gap, spaces .app's children. gap is constant and would jump one frame when a card like FirstVisitIntro/StorageIntro is removed; margin-bottom shrinks with it. */
   /* Fixed to the viewport, editor scrolls internally; dvh tracks mobile browser chrome, vh is the floor. */
   height: 100vh;
   height: 100dvh;
@@ -22,6 +22,8 @@ header.capsule {
   height: 52px;
   padding: 0 8px;
   margin: 0 auto;
+  position: relative;
+  z-index: var(--z-menu);
   /* Hugs its content (flex-start, fit-content) instead of stretching, so there's no dead gap for .cap-fill to eat; width transition (interpolate-size, tokens.css) animates peer/status changes instead of snapping. */
   align-self: flex-start;
   width: fit-content;

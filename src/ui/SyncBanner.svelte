@@ -1,10 +1,16 @@
 <script module lang="ts">
   /** False on a specimen, where a control that cannot act is worse than none. */
   export type Dismissible = boolean & { readonly _brand: 'Dismissible' };
+
+  export const BannerPlacement = {
+    Flow: 'flow',
+    Sheet: 'sheet',
+  } as const;
+  export type BannerPlacement = (typeof BannerPlacement)[keyof typeof BannerPlacement];
 </script>
 
 <script lang="ts">
-  import { slide } from 'svelte/transition';
+  import { slide, fade } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import type { DisplayName } from '../collaboration/types.js';
   import { ConnStatus, PresenceKind, Transport } from '../collaboration/types.js';
@@ -36,6 +42,7 @@
     departedPeerName = null,
     withinDepartureLinger = false as DepartureLingering,
     dismissible = true as Dismissible,
+    placement = BannerPlacement.Flow as BannerPlacement,
     onShare,
     onConnectStorage,
     onExport,
@@ -55,6 +62,7 @@
     departedPeerName?: DisplayName | null;
     withinDepartureLinger?: DepartureLingering;
     dismissible?: Dismissible;
+    placement?: BannerPlacement;
     onShare: () => void;
     onConnectStorage: () => void;
     onExport?: () => void;
@@ -129,13 +137,8 @@
   }
 </script>
 
-{#if show}
-  <div
-    class="sync-banner"
-    class:soft={tone === BannerTone.Neutral}
-    in:slide={{ duration: reducedMotion ? NO_MOTION : ENTER_MS }}
-    out:bannerOut={{ duration: reducedMotion ? NO_MOTION : EXIT_MS }}
-  >
+{#snippet content()}
+    <span class="msg-row">
     <span class="ic" aria-hidden="true">
       {#if tier.kind === BannerTierKind.Gated}
         <!-- Calm dot, never a spinner: a spinner promises imminence it cannot keep (contract §4.2). -->
@@ -178,6 +181,7 @@
           <strong>You're writing alone.</strong> Nothing leaves this device yet.
         {/if}
       {/if}
+    </span>
     </span>
 
     {#if tier.kind === BannerTierKind.Gated}
@@ -274,7 +278,28 @@
         {/if}
       </p>
     {/if}
-  </div>
+{/snippet}
+
+{#if show}
+  {#if placement === BannerPlacement.Flow}
+    <div
+      class="sync-banner flow"
+      class:soft={tone === BannerTone.Neutral}
+      in:slide={{ duration: reducedMotion ? NO_MOTION : ENTER_MS }}
+      out:bannerOut={{ duration: reducedMotion ? NO_MOTION : EXIT_MS }}
+    >
+      {@render content()}
+    </div>
+  {:else}
+    <div
+      class="sync-banner sheet"
+      class:soft={tone === BannerTone.Neutral}
+      in:fade={{ duration: reducedMotion ? NO_MOTION : ENTER_MS }}
+      out:fade={{ duration: reducedMotion ? NO_MOTION : EXIT_MS }}
+    >
+      {@render content()}
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -287,11 +312,9 @@
     padding: var(--sp-2) var(--sp-4);
     /* Reserve the corner the dismiss control is pinned to. */
     padding-right: 44px;
-    /* Own margin, not the parent's flex gap: `slide` animates margin, so removal shrinks instead of snapping. */
-    margin-bottom: var(--sp-4);
     background: color-mix(in srgb, var(--warn-soft) 55%, var(--surface-2));
     border: 1px solid color-mix(in srgb, var(--warn-border) 55%, var(--border));
-    border-radius: var(--r-md);
+    border-radius: var(--r-lg);
     color: var(--text-muted);
     font-size: var(--fs-300);
     line-height: 1.4;
@@ -299,6 +322,57 @@
   .sync-banner.soft {
     background: var(--surface-2);
     border-color: var(--border);
+  }
+  .sync-banner.flow {
+    /* Own margin, not the parent's flex gap: `slide` animates margin, so removal shrinks instead of snapping. */
+    margin-bottom: var(--sp-4);
+  }
+  .sync-banner.sheet {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(var(--sp-4) + env(safe-area-inset-bottom));
+    z-index: var(--z-menu);
+    width: max-content;
+    max-width: min(56rem, calc(100vw - 2 * var(--sp-4)));
+    box-shadow: var(--shadow-lg);
+    /* Centered card, not a left-jammed row: icon+message and the actions each read as their own centered line. */
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-4) var(--sp-5);
+  }
+  .sync-banner.sheet .msg-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    max-width: 100%;
+  }
+  .sync-banner.sheet .msg {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+  }
+  .sync-banner.sheet .actions {
+    justify-content: center;
+  }
+  .sync-banner.sheet .aside {
+    max-width: 32rem;
+    text-align: center;
+  }
+  .sync-banner.sheet .dismiss {
+    top: var(--sp-2);
+    right: var(--sp-2);
+  }
+  @media (pointer: coarse), (max-width: 900px) {
+    .sync-banner.sheet {
+      max-width: calc(100vw - 2 * var(--sp-4));
+      bottom: calc(50px + max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px) + var(--sp-2));
+      padding: var(--sp-3) var(--sp-4);
+    }
+  }
+  .msg-row {
+    display: contents;
   }
   .ic {
     flex-shrink: 0;
