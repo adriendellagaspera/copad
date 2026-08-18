@@ -99,13 +99,19 @@ describe('bannerTierFor', () => {
     });
   });
 
-  it('prefers the network tiers over the permanent one', () => {
-    expect(
-      bannerTierFor(input({ conn: ConnStatus.Unreachable, collabUnavailable: NO_COLLAB })).kind,
-    ).toBe(BannerTierKind.Unreachable);
+  it('prefers Offline over the permanent one, but the permanent one over Unreachable', () => {
     expect(bannerTierFor(input({ conn: ConnStatus.Offline, collabUnavailable: NO_COLLAB })).kind).toBe(
       BannerTierKind.Offline,
     );
+    expect(
+      bannerTierFor(input({ conn: ConnStatus.Unreachable, collabUnavailable: NO_COLLAB })).kind,
+    ).toBe(BannerTierKind.Unavailable);
+  });
+
+  it('still reports a real Unreachable when collab is otherwise available', () => {
+    expect(
+      bannerTierFor(input({ conn: ConnStatus.Unreachable, collabUnavailable: COLLAB })).kind,
+    ).toBe(BannerTierKind.Unreachable);
   });
 
   it('surfaces the collab-unavailable tier with the storage it still has', () => {

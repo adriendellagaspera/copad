@@ -105,10 +105,10 @@ export function bannerTierFor(input: BannerInput): BannerTier {
   if (input.presenceKind === PresenceKind.Reaching) return REACHING;
   if (input.withinDepartureLinger)
     return { kind: BannerTierKind.Departing, who: peerLabel(input.departedPeerName) };
-  if (input.conn === ConnStatus.Unreachable) return UNREACHABLE;
   if (input.conn === ConnStatus.Offline) return OFFLINE;
   if (input.collabUnavailable)
     return { kind: BannerTierKind.Unavailable, storageLabel: input.storageLabel };
+  if (input.conn === ConnStatus.Unreachable) return UNREACHABLE;
   if (input.conn === ConnStatus.Waiting && !input.gateEligible)
     return {
       kind: BannerTierKind.Alone,
