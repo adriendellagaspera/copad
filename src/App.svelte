@@ -120,11 +120,16 @@
   import SyncBanner, { BannerPlacement } from './ui/SyncBanner.svelte';
   import Toast from './ui/Toast.svelte';
   import { createTheme } from './ui/theme.svelte.js';
+  import { createFontChoice } from './ui/fontChoice.svelte.js';
   import { createToasts } from './ui/toasts.svelte.js';
   import { createLanguage } from './ui/language.svelte.js';
   import { initInputModality } from './ui/inputModality.js';
 
   const theme = createTheme();
+  // No control here — FontSelect (mounted inside Settings) owns the picker;
+  // this only applies whatever was last chosen as soon as the room loads,
+  // rather than leaving it stuck at default until Settings happens to open.
+  createFontChoice();
   const toasts = createToasts();
   const language = createLanguage();
   const reducedMotion =

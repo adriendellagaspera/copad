@@ -58,7 +58,7 @@
     padding: var(--sp-2) 0 var(--sp-4);
   }
   .sigil {
-    font-family: var(--font-mono);
+    font-family: var(--font-read);
     font-weight: 600;
     font-size: var(--fs-700);
     color: var(--text-faint);
@@ -68,7 +68,7 @@
   .title-input {
     flex: 1;
     min-width: 0;
-    font-family: var(--font-mono);
+    font-family: var(--font-read);
     font-weight: 600;
     font-size: var(--fs-700);
     line-height: 1.25;

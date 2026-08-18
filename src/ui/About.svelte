@@ -5,14 +5,30 @@
   import ThemeToggle from './ThemeToggle.svelte';
   import { createTheme } from './theme.svelte.js';
   import { createZoom } from './zoom.svelte.js';
+  import { createFontChoice } from './fontChoice.svelte.js';
+  import CommandPalette from './CommandPalette.svelte';
+  import {
+    parsePaletteItemId,
+    actionItemId,
+    paletteItemName,
+    type PaletteSources,
+    type PaletteAction,
+    type PaletteItemId,
+    type PaletteItemLabel,
+    type PaletteItemKeywords,
+  } from './commandPalette.js';
+  import type { DocHeading, HeadingLevel, HeadingText, DocPos } from '../editor/ui/outline.js';
+  import { modKey } from './platform.js';
   import { BRAND_ICONS } from './brandIcons.js';
   import { STORAGE_ID } from '../storage/constants.js';
   import { SaveStatus } from './types.js';
-  import type { KeepSegmentLabels, StorageAttached } from './types.js';
+  import type { DialogOpen, KeepSegmentLabels, StorageAttached } from './types.js';
   import type { StorageLabel } from '../storage/types.js';
   import type { WriteGateHeld } from './syncBannerTier.js';
   import { ConnStatus, PresenceKind, Transport } from '../collaboration/types.js';
+  import type { RoomId } from '../collaboration/types.js';
   import type { PagePath } from '../collaboration/roomHistory.js';
+  import { backends } from '../storage/index.js';
   import {
     CONTRACT_URL,
     DEPLOY_URL,
@@ -42,13 +58,79 @@
   const SPECIMEN_LABELS = true as KeepSegmentLabels;
   const SPECIMEN_GATED = true as WriteGateHeld;
   const SPECIMEN_FIXED = false as Dismissible;
+  const CLOSED = false as DialogOpen;
+  const OPENED = true as DialogOpen;
 
   const githubMark = BRAND_ICONS[STORAGE_ID.github];
   const theme = createTheme();
+
+  // Never used for real storage IO — auth.isAuthenticated() is a plain
+  // localStorage check in every backend, room-independent; this id only
+  // exists to construct the backend objects that check hangs off.
+  const SPECIMEN_ROOM = 'about-connected-check' as RoomId;
+  const connectedBackends = backends(SPECIMEN_ROOM).filter((b) => b.auth.isAuthenticated());
+
+  // No room actions wired (see #358, the harder deferred version) — but
+  // headings are real: About's own <h2>/<h3> elements, walked from the
+  // rendered page rather than duplicated as a second copy of their text.
+  // `pos` is an index into `headingElements` below, not a ProseMirror
+  // position — meaningless outside this component, same as everywhere else
+  // a DocPos is only valid against the doc it was read from.
+  let headingElements: HTMLElement[] = [];
+  let aboutHeadings = $state<readonly DocHeading[]>([]);
+
+  const START_ACTION: PaletteAction = {
+    id: actionItemId(paletteItemName('start')),
+    label: 'Start a document' as PaletteItemLabel,
+    keywords: 'new create room' as PaletteItemKeywords,
+  };
+  const paletteSources: PaletteSources = $derived({
+    headings: aboutHeadings,
+    actions: [START_ACTION],
+    rooms: [],
+    inserts: [],
+  });
+
+  const modLabel = modKey();
+  let paletteOpen = $state(CLOSED);
+
+  function onPalettePick(id: PaletteItemId): void {
+    const target = parsePaletteItemId(id);
+    if (target.kind === 'heading') headingElements[target.pos]?.scrollIntoView({ block: 'start' });
+    else if (target.kind === 'action') onNewDocument();
+  }
+
+  $effect(() => {
+    const elements = Array.from(
+      document.querySelectorAll<HTMLElement>('.ProseMirror h2, .ProseMirror h3'),
+    );
+    headingElements = elements;
+    aboutHeadings = elements.map(
+      (el, i): DocHeading => ({
+        level: (el.tagName === 'H2' ? 2 : 3) as HeadingLevel,
+        text: (el.textContent ?? '') as HeadingText,
+        pos: i as DocPos,
+      }),
+    );
+  });
+
+  $effect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'k' && e.key !== 'K') return;
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      e.preventDefault();
+      paletteOpen = OPENED;
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
   // No control here (this page has no status bar) — applies whatever zoom
   // level the reader already set from a room, since it renders the same
   // .ProseMirror the zoom scales there.
   createZoom();
+  // Same reasoning as zoom: no picker here, just apply whatever font choice
+  // was last set from a room's Settings.
+  createFontChoice();
 
   function noop(): void {}
 </script>
@@ -147,6 +229,33 @@
         {/each}
         <p class="fine">{copy.linkGrant}</p>
 
+        <h3>Nothing to remember either</h3>
+        <p>
+          Every room has the same command palette the editor uses — search headings,
+          jump to a peer, run an action, all from one box.
+        </p>
+        <button
+          class="cap-search palette-trigger"
+          onclick={() => (paletteOpen = OPENED)}
+          aria-haspopup="dialog"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
+          </svg>
+          <span class="cap-search-text">Search documents, headings, actions</span>
+          <kbd class="cap-search-key">{modLabel}K</kbd>
+        </button>
+        <p class="fine">
+          It opens for real — try it on this very page. It searches About's own
+          headings, not a room's, since this page isn't one.
+        </p>
+        <CommandPalette
+          open={paletteOpen}
+          sources={paletteSources}
+          onclose={() => (paletteOpen = CLOSED)}
+          onpick={onPalettePick}
+        />
+
         <hr />
 
         <h2>It will not let you write into the void</h2>
@@ -217,6 +326,19 @@
           Nobody writes to anyone else's file. Two people in one room, each keeping
           their own paper, is the normal case rather than a conflict to resolve.
         </p>
+        {#if connectedBackends.length > 0}
+          <p class="fine connected">
+            Already connected in this browser:
+            {#each connectedBackends as b (b.storage.id)}
+              <span class="connected-chip">
+                {#if BRAND_ICONS[b.storage.id]}
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d={BRAND_ICONS[b.storage.id]?.path} /></svg>
+                {/if}
+                {b.storage.label}
+              </span>
+            {/each}
+          </p>
+        {/if}
       </div>
     </div>
 
@@ -269,7 +391,7 @@
     margin: 0 0 var(--sp-2);
   }
   .doc-title .sigil {
-    font-family: var(--font-mono);
+    font-family: var(--font-read);
     font-weight: 600;
     font-size: var(--fs-700);
     color: var(--text-faint);
@@ -278,7 +400,7 @@
   }
   .ProseMirror .doc-title h1 {
     margin: 0;
-    font-family: var(--font-mono);
+    font-family: var(--font-read);
     font-weight: 600;
     font-size: var(--fs-700);
     line-height: 1.25;
@@ -298,6 +420,25 @@
     margin: 0 0 var(--sp-4);
     font-size: var(--fs-300);
     color: var(--text-faint);
+  }
+  .ProseMirror .connected {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5em;
+  }
+  .ProseMirror .connected-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+  }
+  .ProseMirror .connected-chip svg {
+    flex: none;
+  }
+  .ProseMirror .palette-trigger {
+    margin: var(--sp-2) 0 var(--sp-3);
+    max-width: 22em;
   }
   .ProseMirror strong {
     color: var(--text);
