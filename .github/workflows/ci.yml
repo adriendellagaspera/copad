@@ -32,6 +32,7 @@ jobs:
       # Revisit when a fixed vite-plugin-node-polyfills release exists.
       - run: npm run check:audit
       - run: npm run check:licenses
+      - run: npm run check:doc-structure
       - run: npm test
       - run: npm run test:scripts
 
