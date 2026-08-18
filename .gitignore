@@ -5,7 +5,10 @@ dist
 *.log
 .DS_Store
 *.tsbuildinfo
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/*.sh
 /e2e/test-results/
 /test-results/
 /playwright-report/
