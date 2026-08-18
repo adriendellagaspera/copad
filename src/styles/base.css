@@ -137,7 +137,8 @@ a {
 }
 ::view-transition-group(root),
 ::view-transition-group(vt-capsule),
-::view-transition-group(vt-doc) {
+::view-transition-group(vt-doc),
+::view-transition-group(vt-mark) {
   animation-duration: var(--dur-slow);
   animation-timing-function: var(--ease);
 }

@@ -50,6 +50,11 @@ header.capsule {
   color: var(--accent-contrast);
   display: grid;
   place-items: center;
+  /* Identical on both pages (same 28px badge, same icon), unlike the rest of
+     the capsule: this is what actually reads as gliding to a new position
+     across the room <-> About navigation, rather than the pill's own
+     vt-capsule group, which mostly swaps unrelated content underneath it. */
+  view-transition-name: vt-mark;
   cursor: pointer;
 }
 .cap-mark svg {
