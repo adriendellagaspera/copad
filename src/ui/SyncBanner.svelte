@@ -327,11 +327,23 @@
   }
   .sync-banner.sheet {
     position: fixed;
-    left: var(--sp-2);
-    right: var(--sp-2);
-    bottom: calc(50px + max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px) + var(--sp-2));
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(var(--sp-4) + env(safe-area-inset-bottom));
     z-index: var(--z-menu);
+    width: max-content;
+    max-width: min(56rem, calc(100vw - 2 * var(--sp-4)));
     box-shadow: var(--shadow-lg);
+  }
+  @media (pointer: coarse), (max-width: 900px) {
+    .sync-banner.sheet {
+      left: var(--sp-2);
+      right: var(--sp-2);
+      transform: none;
+      bottom: calc(50px + max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px) + var(--sp-2));
+      width: auto;
+      max-width: none;
+    }
   }
   .ic {
     flex-shrink: 0;

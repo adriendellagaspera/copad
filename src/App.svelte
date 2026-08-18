@@ -982,7 +982,8 @@
     </button>
   </div>
 
-  {#if compactChrome && !sessionState.editing}
+  <!-- One strip, escalation ladder: gated → collab-unavailable → solo reminder. -->
+  {#if !(compactChrome && sessionState.editing)}
     <div class="sync-banner-sheet-anchor" style="--kb-inset: {keyboardInset.px}px">
       <SyncBanner
         placement={BannerPlacement.Sheet}
@@ -1005,27 +1006,6 @@
         onConnectionDetails={() => (diagOpen = OPENED)}
       />
     </div>
-  {:else if !compactChrome}
-    <!-- One strip, escalation ladder: gated → collab-unavailable → solo reminder. -->
-    <SyncBanner
-      conn={sessionState.conn}
-      presenceKind={sessionState.presence.kind}
-      transport={sessionState.diagnostics.transport}
-      storageLabel={savedHere && storage ? storage.storage.label : null}
-      gated={writeLocked}
-      {gateEligible}
-      {collabUnavailable}
-      {waitingSince}
-      {departedPeerName}
-      {withinDepartureLinger}
-      onShare={() => (shareOpen = OPENED)}
-      onConnectStorage={() => openSettings()}
-      onExport={() => (exportOpen = OPENED)}
-      onWriteSolo={allowWriteSolo}
-      onCopyInviteLink={copyInviteLink}
-      onRetry={sessionState.diagnostics.reconnect}
-      onConnectionDetails={() => (diagOpen = OPENED)}
-    />
   {/if}
 
   {#if introSlot.kind === IntroSlotKind.FirstVisit}
