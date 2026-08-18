@@ -417,8 +417,9 @@
    negative margins matching its breakpoints exactly, so .editor reaches the
    viewport edges.
    Top is not cancelled via margin: that shifts .editor from wherever it
-   already sits (below SyncBanner when present), not from .app's padding-top;
-   .app's own top padding is 0 on mobile instead.
+   already sits (below FirstVisitIntro/StorageIntro/the unlock line, when
+   present), not from .app's padding-top; .app's own top padding is 0 on
+   mobile instead.
    Width-only trigger, not the pointer:coarse combo used elsewhere: a
    landscape tablet/touchscreen desktop wider than .app's 960px cap has room
    to spare, so that combo would misfire full-bleed there. */

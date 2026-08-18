@@ -1,10 +1,16 @@
 <script module lang="ts">
   /** False on a specimen, where a control that cannot act is worse than none. */
   export type Dismissible = boolean & { readonly _brand: 'Dismissible' };
+
+  export const BannerPlacement = {
+    Flow: 'flow',
+    Sheet: 'sheet',
+  } as const;
+  export type BannerPlacement = (typeof BannerPlacement)[keyof typeof BannerPlacement];
 </script>
 
 <script lang="ts">
-  import { slide } from 'svelte/transition';
+  import { slide, fade } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import type { DisplayName } from '../collaboration/types.js';
   import { ConnStatus, PresenceKind, Transport } from '../collaboration/types.js';
@@ -36,6 +42,7 @@
     departedPeerName = null,
     withinDepartureLinger = false as DepartureLingering,
     dismissible = true as Dismissible,
+    placement = BannerPlacement.Flow as BannerPlacement,
     onShare,
     onConnectStorage,
     onExport,
@@ -55,6 +62,7 @@
     departedPeerName?: DisplayName | null;
     withinDepartureLinger?: DepartureLingering;
     dismissible?: Dismissible;
+    placement?: BannerPlacement;
     onShare: () => void;
     onConnectStorage: () => void;
     onExport?: () => void;
@@ -129,13 +137,7 @@
   }
 </script>
 
-{#if show}
-  <div
-    class="sync-banner"
-    class:soft={tone === BannerTone.Neutral}
-    in:slide={{ duration: reducedMotion ? NO_MOTION : ENTER_MS }}
-    out:bannerOut={{ duration: reducedMotion ? NO_MOTION : EXIT_MS }}
-  >
+{#snippet content()}
     <span class="ic" aria-hidden="true">
       {#if tier.kind === BannerTierKind.Gated}
         <!-- Calm dot, never a spinner: a spinner promises imminence it cannot keep (contract §4.2). -->
@@ -274,7 +276,28 @@
         {/if}
       </p>
     {/if}
-  </div>
+{/snippet}
+
+{#if show}
+  {#if placement === BannerPlacement.Flow}
+    <div
+      class="sync-banner flow"
+      class:soft={tone === BannerTone.Neutral}
+      in:slide={{ duration: reducedMotion ? NO_MOTION : ENTER_MS }}
+      out:bannerOut={{ duration: reducedMotion ? NO_MOTION : EXIT_MS }}
+    >
+      {@render content()}
+    </div>
+  {:else}
+    <div
+      class="sync-banner sheet"
+      class:soft={tone === BannerTone.Neutral}
+      in:fade={{ duration: reducedMotion ? NO_MOTION : ENTER_MS }}
+      out:fade={{ duration: reducedMotion ? NO_MOTION : EXIT_MS }}
+    >
+      {@render content()}
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -287,8 +310,6 @@
     padding: var(--sp-2) var(--sp-4);
     /* Reserve the corner the dismiss control is pinned to. */
     padding-right: 44px;
-    /* Own margin, not the parent's flex gap: `slide` animates margin, so removal shrinks instead of snapping. */
-    margin-bottom: var(--sp-4);
     background: color-mix(in srgb, var(--warn-soft) 55%, var(--surface-2));
     border: 1px solid color-mix(in srgb, var(--warn-border) 55%, var(--border));
     border-radius: var(--r-md);
@@ -299,6 +320,18 @@
   .sync-banner.soft {
     background: var(--surface-2);
     border-color: var(--border);
+  }
+  .sync-banner.flow {
+    /* Own margin, not the parent's flex gap: `slide` animates margin, so removal shrinks instead of snapping. */
+    margin-bottom: var(--sp-4);
+  }
+  .sync-banner.sheet {
+    position: fixed;
+    left: var(--sp-2);
+    right: var(--sp-2);
+    bottom: calc(50px + max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px) + var(--sp-2));
+    z-index: var(--z-menu);
+    box-shadow: var(--shadow-lg);
   }
   .ic {
     flex-shrink: 0;
