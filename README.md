@@ -91,6 +91,21 @@ and connect it to enable save/restore.
 Local dev OAuth redirect: `http://localhost:5173/redirect.html` (register it in each
 provider's developer console alongside your production URL).
 
+### Git hooks
+
+[`./pre-commit`](./pre-commit) and [`./pre-push`](./pre-push) run a subset of `npm run
+lint`/`check`/`test` locally, so the common regression is cheap to find before a CI round
+trip. Link them once:
+
+```bash
+ln -sf ../../pre-commit .git/hooks/pre-commit
+ln -sf ../../pre-push .git/hooks/pre-push
+```
+
+Claude Code web sessions link both automatically at session start
+(`.claude/hooks/session-start.sh`). Skip either check with `git commit`/`push --no-verify`
+— CI is not skippable that way and remains the authority.
+
 ## Deployment
 
 1. **Frontend** — `npm run build` → deploy `dist/` anywhere static (Cloudflare

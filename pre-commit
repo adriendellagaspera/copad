@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Tier 1 of the two-tier gate (AGENTS.md "Commands"): the one check that never
+# touches the TypeScript compiler or ESLint, so committing stays instant.
+# Measured on this tree: ~0.2s. Everything else runs at push time (./pre-push)
+# or in CI (.github/workflows/ci.yml).
+#
+# Runs against the working tree, not a materialized index copy: unlike a
+# compiled-language gate, nothing here can pass on staged content and fail on
+# disk (wc -l reads whichever AGENTS.md/CLAUDE.md/docs/*.md are on disk, and a
+# partially-staged edit to those files is already the rare case worth a
+# slightly weaker guarantee against the cost of shelling out `git stash` on
+# every commit).
+
+echo "Running doc-budget check"
+npm run --silent check:doc-budget
