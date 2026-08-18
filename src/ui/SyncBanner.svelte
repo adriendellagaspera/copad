@@ -314,7 +314,7 @@
     padding-right: 44px;
     background: color-mix(in srgb, var(--warn-soft) 55%, var(--surface-2));
     border: 1px solid color-mix(in srgb, var(--warn-border) 55%, var(--border));
-    border-radius: var(--r-md);
+    border-radius: var(--r-lg);
     color: var(--text-muted);
     font-size: var(--fs-300);
     line-height: 1.4;
@@ -366,12 +366,9 @@
   }
   @media (pointer: coarse), (max-width: 900px) {
     .sync-banner.sheet {
-      left: var(--sp-2);
-      right: var(--sp-2);
-      transform: none;
+      max-width: calc(100vw - 2 * var(--sp-4));
       bottom: calc(50px + max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px) + var(--sp-2));
-      width: auto;
-      max-width: none;
+      padding: var(--sp-3) var(--sp-4);
     }
   }
   .msg-row {
