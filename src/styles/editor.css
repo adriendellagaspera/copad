@@ -310,7 +310,7 @@
 .ProseMirror h1,
 .ProseMirror h2,
 .ProseMirror h3 {
-  font-family: var(--font-ui);
+  font-family: var(--font-read);
   font-weight: 600;
   letter-spacing: -0.015em;
   line-height: var(--lh-tight);

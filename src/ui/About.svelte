@@ -391,7 +391,7 @@
     margin: 0 0 var(--sp-2);
   }
   .doc-title .sigil {
-    font-family: var(--font-mono);
+    font-family: var(--font-read);
     font-weight: 600;
     font-size: var(--fs-700);
     color: var(--text-faint);
@@ -400,7 +400,7 @@
   }
   .ProseMirror .doc-title h1 {
     margin: 0;
-    font-family: var(--font-mono);
+    font-family: var(--font-read);
     font-weight: 600;
     font-size: var(--fs-700);
     line-height: 1.25;
