@@ -31,7 +31,6 @@ export const CONNECT_TIMEOUT_MS = (
 
 export const KEY_LOCAL_CACHE = nsKey('localCache');
 export const KEY_CACHED_ROOMS = nsKey('cachedRooms');
-export const KEY_COLLAB_UNAVAILABLE_SEEN = nsKey('collabUnavailableSeen');
 export const KEY_STORAGE_INTRO_SEEN = nsKey('storageIntroSeen');
 export const KEY_ROOM_HISTORY = nsKey('roomHistory');
 export const ROOM_HISTORY_LIMIT = 50;
