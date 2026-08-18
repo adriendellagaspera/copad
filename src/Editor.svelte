@@ -18,6 +18,8 @@
   import LinkPopover from './editor/ui/LinkPopover.svelte';
   import WordCount from './editor/ui/WordCount.svelte';
   import Outline from './editor/ui/Outline.svelte';
+  import Zoom from './editor/ui/Zoom.svelte';
+  import { createZoom } from './ui/zoom.svelte.js';
   import CommandPalette from './ui/CommandPalette.svelte';
   import { memoiseHeadings, type DocPos } from './editor/ui/outline.js';
   import {
@@ -122,6 +124,8 @@
   }: Props = $props();
 
   let lastWriteSoloAt = untrack(() => writeSoloAt);
+
+  const zoom = createZoom();
 
   const SAVE_DEBOUNCE = 3_000 as Milliseconds;
 
@@ -567,6 +571,7 @@
     <span class="spacer"></span>
     <WordCount {editorState} />
     <Outline {view} {headings} />
+    <Zoom {zoom} />
   </div>
   <SelectionToolbar {view} {editorState} {toasts} />
   <SlashMenu {view} {editorState} />

@@ -292,7 +292,10 @@
   max-width: var(--measure);
   margin: 0 auto;
   font-family: var(--font-read);
-  font-size: var(--fs-500);
+  /* --zoom (ui/zoom.svelte.ts) scales font-size only: --measure is in ch and
+     every spacing rule below is em-based, both relative to font-size, so one
+     lever scales text, line spacing and the reading column's pixel width together. */
+  font-size: calc(var(--fs-500) * var(--zoom, 1));
   line-height: var(--lh-read);
   color: var(--text);
 }
@@ -398,7 +401,7 @@
     padding: var(--sp-4);
   }
   .ProseMirror {
-    font-size: var(--fs-400);
+    font-size: calc(var(--fs-400) * var(--zoom, 1));
   }
   .status {
     flex-wrap: wrap;

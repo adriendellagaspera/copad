@@ -4,6 +4,7 @@
   import SyncBanner, { type Dismissible } from './SyncBanner.svelte';
   import ThemeToggle from './ThemeToggle.svelte';
   import { createTheme } from './theme.svelte.js';
+  import { createZoom } from './zoom.svelte.js';
   import { BRAND_ICONS } from './brandIcons.js';
   import { STORAGE_ID } from '../storage/constants.js';
   import { SaveStatus } from './types.js';
@@ -44,6 +45,10 @@
 
   const githubMark = BRAND_ICONS[STORAGE_ID.github];
   const theme = createTheme();
+  // No control here (this page has no status bar) — applies whatever zoom
+  // level the reader already set from a room, since it renders the same
+  // .ProseMirror the zoom scales there.
+  createZoom();
 
   function noop(): void {}
 </script>
