@@ -879,6 +879,7 @@
         warning={conflictWarning}
         transport={sessionState.diagnostics.transport}
         encrypted={roomEncrypted}
+        {collabUnavailable}
         onclick={() => (diagOpen = OPENED)}
       />
       {#if otherPeers.length > 0}
@@ -939,6 +940,7 @@
       warning={conflictWarning}
       transport={sessionState.diagnostics.transport}
       encrypted={roomEncrypted}
+      {collabUnavailable}
       onclick={() => (diagOpen = OPENED)}
     />
     <div class="dock-fill"></div>

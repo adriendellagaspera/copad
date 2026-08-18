@@ -8,6 +8,7 @@
     StorageAttached,
   } from './types.js';
   import type { StorageLabel } from '../storage/types.js';
+  import type { CollabUnavailable } from './syncBannerTier.js';
 
   let {
     conn,
@@ -18,6 +19,7 @@
     transport,
     encrypted = false as RoomEncrypted,
     keepLabels = false as KeepSegmentLabels,
+    collabUnavailable = false as CollabUnavailable,
     onclick,
   }: {
     conn: ConnStatus;
@@ -28,6 +30,7 @@
     transport: Transport;
     encrypted?: RoomEncrypted;
     keepLabels?: KeepSegmentLabels;
+    collabUnavailable?: CollabUnavailable;
     onclick?: () => void;
   } = $props();
 
@@ -81,7 +84,9 @@
         tone: 'danger',
         icon: 'unreachable',
         pulse: STILL,
-        title: "The server didn't answer — click to retry" as SegmentTooltip,
+        title: (collabUnavailable
+          ? "This deployment doesn't support real-time sync"
+          : "The server didn't answer — click to retry") as SegmentTooltip,
       };
     if (conn === ConnStatus.Waiting)
       return {
