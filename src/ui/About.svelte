@@ -7,7 +7,17 @@
   import { createZoom } from './zoom.svelte.js';
   import { createFontChoice } from './fontChoice.svelte.js';
   import CommandPalette from './CommandPalette.svelte';
-  import type { PaletteSources } from './commandPalette.js';
+  import {
+    parsePaletteItemId,
+    actionItemId,
+    paletteItemName,
+    type PaletteSources,
+    type PaletteAction,
+    type PaletteItemId,
+    type PaletteItemLabel,
+    type PaletteItemKeywords,
+  } from './commandPalette.js';
+  import type { DocHeading, HeadingLevel, HeadingText, DocPos } from '../editor/ui/outline.js';
   import { modKey } from './platform.js';
   import { BRAND_ICONS } from './brandIcons.js';
   import { STORAGE_ID } from '../storage/constants.js';
@@ -60,11 +70,49 @@
   const SPECIMEN_ROOM = 'about-connected-check' as RoomId;
   const connectedBackends = backends(SPECIMEN_ROOM).filter((b) => b.auth.isAuthenticated());
 
-  // No actions wired (see #358): the real palette, searchable, honestly empty
-  // rather than faking room actions that don't apply with no room open.
-  const EMPTY_PALETTE_SOURCES: PaletteSources = { headings: [], actions: [], rooms: [], inserts: [] };
+  // No room actions wired (see #358, the harder deferred version) — but
+  // headings are real: About's own <h2>/<h3> elements, walked from the
+  // rendered page rather than duplicated as a second copy of their text.
+  // `pos` is an index into `headingElements` below, not a ProseMirror
+  // position — meaningless outside this component, same as everywhere else
+  // a DocPos is only valid against the doc it was read from.
+  let headingElements: HTMLElement[] = [];
+  let aboutHeadings = $state<readonly DocHeading[]>([]);
+
+  const START_ACTION: PaletteAction = {
+    id: actionItemId(paletteItemName('start')),
+    label: 'Start a document' as PaletteItemLabel,
+    keywords: 'new create room' as PaletteItemKeywords,
+  };
+  const paletteSources: PaletteSources = $derived({
+    headings: aboutHeadings,
+    actions: [START_ACTION],
+    rooms: [],
+    inserts: [],
+  });
+
   const modLabel = modKey();
   let paletteOpen = $state(CLOSED);
+
+  function onPalettePick(id: PaletteItemId): void {
+    const target = parsePaletteItemId(id);
+    if (target.kind === 'heading') headingElements[target.pos]?.scrollIntoView({ block: 'start' });
+    else if (target.kind === 'action') onNewDocument();
+  }
+
+  $effect(() => {
+    const elements = Array.from(
+      document.querySelectorAll<HTMLElement>('.ProseMirror h2, .ProseMirror h3'),
+    );
+    headingElements = elements;
+    aboutHeadings = elements.map(
+      (el, i): DocHeading => ({
+        level: (el.tagName === 'H2' ? 2 : 3) as HeadingLevel,
+        text: (el.textContent ?? '') as HeadingText,
+        pos: i as DocPos,
+      }),
+    );
+  });
 
   $effect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -198,14 +246,14 @@
           <kbd class="cap-search-key">{modLabel}K</kbd>
         </button>
         <p class="fine">
-          It opens for real — there's just nothing to find here yet, since this page
-          isn't a room.
+          It opens for real — try it on this very page. It searches About's own
+          headings, not a room's, since this page isn't one.
         </p>
         <CommandPalette
           open={paletteOpen}
-          sources={EMPTY_PALETTE_SOURCES}
+          sources={paletteSources}
           onclose={() => (paletteOpen = CLOSED)}
-          onpick={noop}
+          onpick={onPalettePick}
         />
 
         <hr />
