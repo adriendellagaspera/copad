@@ -56,7 +56,6 @@
   } from './collaboration/roomLock.js';
   import { keyFingerprint } from './collaboration/roomCrypto.js';
   import RoomLock from './ui/RoomLock.svelte';
-  import CollabUnavailableIntro from './ui/CollabUnavailableIntro.svelte';
   import StorageIntro from './ui/StorageIntro.svelte';
   import FirstVisitIntro from './ui/FirstVisitIntro.svelte';
   import About from './ui/About.svelte';
@@ -85,7 +84,7 @@
     type PaletteRoom,
     paletteItemName,
   } from './ui/commandPalette.js';
-  import { KEY_COLLAB_UNAVAILABLE_SEEN, KEY_STORAGE_INTRO_SEEN } from './collaboration/constants.js';
+  import { KEY_STORAGE_INTRO_SEEN } from './collaboration/constants.js';
   import { localStore } from './persistence/local.js';
   import { getTurnPrefs, setTurnPrefs, type TurnPrefs } from './collaboration/turn.js';
   import type { DisplayName, CursorColor, RoomId, CollabConnect, IceServer, WebsocketUrl, ClientId } from './collaboration/types.js';
@@ -555,31 +554,6 @@
       !durabilityHolds &&
       sessionState.presence.kind !== PresenceKind.Accompanied) as WriteGateArmable,
   );
-
-  // Informational only: a local-only deployment never blocks writing.
-  const collabUnavailableSeenStore = localStore<boolean>(
-    KEY_COLLAB_UNAVAILABLE_SEEN,
-    (raw) => raw === 'true',
-    String,
-  );
-  let collabUnavailableSeen = $state(collabUnavailableSeenStore.read());
-  function markCollabUnavailableSeen(): void {
-    if (collabUnavailableSeen) return;
-    collabUnavailableSeen = true;
-    collabUnavailableSeenStore.write(true);
-  }
-  const showCollabUnavailableIntro = $derived(
-    (collabUnavailable &&
-      !collabUnavailableSeen &&
-      !shareOpen &&
-      !settingsOpen &&
-      !exportOpen) as DialogOpen,
-  );
-
-  function connectStorageFromCollabIntro(): void {
-    markCollabUnavailableSeen();
-    openSettings();
-  }
 
   // `lockChecked` holds the Editor back so a locked room never caches plaintext without the key.
   const encryptedTransport = usesIce;
@@ -1078,13 +1052,6 @@
       {paletteActions}
       {paletteRooms}
       {onPaletteCommand}
-    />
-    <CollabUnavailableIntro
-      open={showCollabUnavailableIntro}
-      saved={savedHere}
-      storageLabel={savedHere && storage ? storage.storage.label : null}
-      onConnectStorage={connectStorageFromCollabIntro}
-      onDismiss={markCollabUnavailableSeen}
     />
   {/if}
 </div>
