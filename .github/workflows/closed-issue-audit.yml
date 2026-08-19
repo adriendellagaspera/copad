@@ -1,0 +1,34 @@
+name: Closed issue audit
+
+# Audits the *existing* state of the issue tracker, not the diff of any one commit — a closed
+# issue's unticked box goes stale when the **issue** closes, which is nobody's push. Failing a
+# commit for that would punish the wrong person at the wrong time; failing a weekly run produces
+# work, which is what this is. `workflow_dispatch` re-runs it on demand, e.g. right after closing
+# a batch of issues. Same reasoning as deploy-drift.yml, one level up: that one audits deploy state
+# against main, this one audits the tracker against AGENTS.md "Filing issues".
+on:
+  schedule:
+    # Off the hour, same offset as deploy-drift.yml: :00 is the busiest slot on shared runners.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  issues: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Closed issues must not leave acceptance boxes unticked
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run check:closed-issue-boxes

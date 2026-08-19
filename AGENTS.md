@@ -17,6 +17,8 @@ in `docs/architecture.md`.
   `docs/architecture.md`/`docs/contract.md` exceed their own separate caps.
 - `npm run check:audit` / `check:licenses` — dependency advisories (high/critical fail the build) and a license
   allowlist; gated in CI, not part of the local lint/check/test loop.
+- `npm run check:closed-issue-boxes` — scheduled audit, not part of the local loop: a closed issue must carry no
+  unticked acceptance box (`BOXES_SINCE` in the script exempts issues closed before the rule existed).
 - `npm run check:doc-structure` — every doc link/anchor resolves, and every `contract §N.M` citation (docs and
   `src/` comments alike) names a real section.
 - `npm run format:md:check` — Prettier (printWidth 112, proseWrap always) on the five docs above; `format:md`
