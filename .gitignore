@@ -9,6 +9,8 @@ dist
 !.claude/settings.json
 !.claude/hooks/
 !.claude/hooks/*.sh
+!.claude/rules/
+!.claude/rules/*.md
 /e2e/test-results/
 /test-results/
 /playwright-report/

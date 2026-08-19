@@ -28,6 +28,7 @@ in-code comment (see Comments) or in `docs/architecture.md`.
 - **Every fact lives in exactly one place; everywhere else links to it.** A
   restatement is a second copy that drifts, and the drifted copy is read as
   true. Governs code comments, docs, issues and PRs alike.
+- One subject per issue — prefer `type:tracking` + linked sub-issues over bundling separable work (not mechanically gated; a scheduled audit flags a closed issue with unticked boxes, which is what bundling produces when it fails).
 - [`docs/contract.md`](docs/contract.md) is **binding, not indicative**. Read it
   before changing anything about presence, the write gate, storage durability,
   room identifiers, or what the editor allows when alone.
