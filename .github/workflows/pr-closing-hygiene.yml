@@ -1,0 +1,38 @@
+name: PR closing hygiene
+
+# Its own workflow, not a ci.yml job: this reads the PR *description*, and a description changes
+# without a push. ci.yml's triggers don't carry `edited` — adding it there would re-run lint/check/
+# test/build on every description typo fix. Same reasoning as reconcile-rs's
+# pr-issue-references.yml, which this mirrors.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+# Its own group, so a description edit cancels only a previous run of this check, never a build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  issues: read
+
+jobs:
+  pr-closes-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: State the intent for every issue named, and settle every issue closed
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # An env var, not `${{ github.event.pull_request.body }}` interpolated straight into
+          # `run:` — the latter is a script-injection vector (a PR body is attacker-controlled
+          # text). The script only ever reads $PR_BODY, never evaluates it.
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: npm run check:pr-closes-issues

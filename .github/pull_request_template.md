@@ -3,11 +3,14 @@ AGENTS.md: table over narrative, the delta not the process.
 lint/check/test/doc-budget are hook-gated (pre-commit/pre-push, AGENTS.md
 "Commands") — this push already proved them, so don't re-list or re-run them
 here. List only what the hooks don't cover.
+check-pr-closes-issues.mjs reads this body: state intent for every issue named,
+not just a bare #NNN — "Closes #NNN", or "relates to #NNN" if this PR doesn't
+close it.
 -->
 
 | | |
 |---|---|
-| Issue | #NNN |
+| Issue | Closes #NNN |
 | Change | |
 | Why | |
 

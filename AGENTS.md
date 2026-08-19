@@ -21,6 +21,8 @@ in `docs/architecture.md`.
   unticked acceptance box (`BOXES_SINCE` in the script exempts issues closed before the rule existed).
 - `npm run check:doc-structure` — every doc link/anchor resolves, and every `contract §N.M` citation (docs and
   `src/` comments alike) names a real section.
+- `npm run check:pr-closes-issues` — PR-body only, not the local loop: every open issue mentioned bare must
+  state intent (`Closes`/`relates to`), and one this PR closes must have no unticked box.
 - `npm run format:md:check` — Prettier (printWidth 112, proseWrap always) on the five docs above; `format:md`
   fixes it. Comment line length in code is a separate ESLint rule (see Comments).
 - `npm run dev` — Vite dev server; needs `npm run signaling` (WebRTC, default) or `npm run collab` (WebSocket
