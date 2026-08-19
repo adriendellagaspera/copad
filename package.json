@@ -19,6 +19,7 @@
     "check:doc-budget": "bash .github/scripts/check-doc-budget.sh",
     "check:audit": "npm audit --audit-level=high",
     "check:licenses": "node .github/scripts/check-license-allowlist.mjs",
+    "check:doc-structure": "node .github/scripts/check-doc-structure.mjs",
     "e2e": "playwright test"
   },
   "dependencies": {

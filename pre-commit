@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Tier 1 of the two-tier gate (AGENTS.md "Commands"): the one check that never
-# touches the TypeScript compiler or ESLint, so committing stays instant.
-# Measured on this tree: ~0.2s. Everything else runs at push time (./pre-push)
+# Tier 1 of the two-tier gate (AGENTS.md "Commands"): the checks that never
+# touch the TypeScript compiler or ESLint, so committing stays instant.
+# Measured on this tree: ~0.4s. Everything else runs at push time (./pre-push)
 # or in CI (.github/workflows/ci.yml).
 #
 # Runs against the working tree, not a materialized index copy: unlike a
@@ -15,3 +15,6 @@ set -Eeuo pipefail
 
 echo "Running doc-budget check"
 npm run --silent check:doc-budget
+
+echo "Running doc-structure check"
+npm run --silent check:doc-structure

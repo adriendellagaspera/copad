@@ -16,13 +16,12 @@ in-code comment (see Comments) or in `docs/architecture.md`.
 - `npm run docs` — regenerates the API reference into `docs/api/` (git-ignored).
 - `npm run check:doc-budget` — fails if `AGENTS.md`+`CLAUDE.md` exceed 200 combined, or `docs/architecture.md`/`docs/contract.md` exceed their own separate caps.
 - `npm run check:audit` / `check:licenses` — dependency advisories (high/critical fail the build) and a license allowlist; gated in CI, not part of the local lint/check/test loop.
+- `npm run check:doc-structure` — every doc link/anchor resolves, and every `contract §N.M` citation (docs and `src/` comments alike) names a real section.
 - `npm run dev` — Vite dev server; needs `npm run signaling` (WebRTC, default)
   or `npm run collab` (WebSocket transport) running alongside it for
   collaboration to work locally.
 
-Run lint + check + test before calling anything done, and `test:scripts` when
-you touch `.github/scripts/`; CI runs all of the above plus the build and
-Playwright e2e suite (`npm run e2e`).
+`check:doc-budget`/`lint`/`check`/`test` are gated automatically ([`./pre-commit`](./pre-commit), [`./pre-push`](./pre-push)) — never run them by hand first, that only re-plays a check a hook already owns. `test:scripts` isn't hooked: run it yourself when you touch `.github/scripts/`. `ci.yml` (triggered by the push itself) is the superset — everything above plus `check:audit`/`check:licenses`, `build`, and the Playwright `e2e` suite.
 
 ## The contract comes first
 
