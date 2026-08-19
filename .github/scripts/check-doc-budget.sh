@@ -12,7 +12,7 @@
 # deliberate, visible decision rather than silent drift.
 set -Eeuo pipefail
 
-AGENTS_MAX_LINES=202
+AGENTS_MAX_LINES=200
 ARCHITECTURE_MAX_LINES=400
 CONTRACT_MAX_LINES=420
 

@@ -20,9 +20,7 @@ in-code comment (see Comments) or in `docs/architecture.md`.
   or `npm run collab` (WebSocket transport) running alongside it for
   collaboration to work locally.
 
-Run lint + check + test before calling anything done, and `test:scripts` when
-you touch `.github/scripts/`; CI runs all of the above plus the build and
-Playwright e2e suite (`npm run e2e`).
+Run lint + check + test before calling anything done, and `test:scripts` when you touch `.github/scripts/`; CI runs all of the above plus the build and Playwright e2e suite (`npm run e2e`).
 
 ## The contract comes first
 
