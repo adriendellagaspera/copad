@@ -11,8 +11,16 @@ import tseslint from 'typescript-eslint';
 import svelte from 'eslint-plugin-svelte';
 import globals from 'globals';
 
+// `storage/` or a same-directory `./` sibling, never a bare `(^|/)`: a sibling import from
+// *inside* src/storage/ itself (`./pcloud.js`) carries no `storage/` path segment, only a caller
+// from outside it does (`../storage/pcloud.js`) — but a bare `(^|/)name.js$` also matches
+// `../persistence/local.js`, an unrelated file that happens to share the adapter name `local`
+// (src/storage/local.ts, the File System Access adapter) with src/persistence/local.ts (the
+// localStorage helper). `^\./` anchors the sibling form to "this exact directory", which
+// `../persistence/...` (leading `..`) never satisfies.
 const ADAPTER_IMPORT_REGEX =
-  'storage/(dropbox|pcloud|webdav|github|gitlab|s3|sharepoint|gdrive|onedrive|local)\\.js$';
+  '(storage/|^\\./)(dropbox|pcloud|webdav|github|gitlab|s3|sharepoint|gdrive|onedrive|local)\\.js$';
+const COLLAB_ADAPTER_IMPORT_REGEX = '^y-web(rtc|socket)$';
 
 export default tseslint.config(
   { ignores: ['dist/**', 'node_modules/**', 'deploy/**', 'e2e/**'] },
@@ -71,12 +79,33 @@ export default tseslint.config(
   },
 
   {
-    // AGENTS.md "Hexagonal architecture rules": the domain never imports a concrete adapter.
-    files: ['src/Editor.svelte', 'src/format/**/*.ts'],
+    // AGENTS.md "Hexagonal architecture rules": the domain never imports a concrete adapter — a
+    // storage backend, or the y-webrtc/y-websocket transport underneath a Collab adapter. Covers
+    // src/collaboration/ and src/storage/ themselves too, not just their callers: a cross-adapter
+    // import (or a "support" file in either directory reaching around its own port) is the same
+    // violation. src/storage/index.ts and the two Collab adapter files are the composition points
+    // that legitimately construct every concrete backend, so they're the exemption, not the
+    // domain. src/storage/parse.ts imports every backend's response-shape types (`import type`
+    // only, zero runtime coupling) to parse IO-boundary JSON per AGENTS.md's own IO-boundary
+    // rules — the one deliberate, narrow carve-out, mirroring reconcile-rs's std::net value-type
+    // exception in check-domain-purity.sh.
+    files: ['src/Editor.svelte', 'src/format/**/*.ts', 'src/collaboration/**/*.ts', 'src/storage/**/*.ts'],
+    ignores: [
+      'src/storage/index.ts',
+      'src/storage/parse.ts',
+      'src/collaboration/webrtc.ts',
+      'src/collaboration/websocket.ts',
+      'src/**/*.test.ts',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',
-        { patterns: [{ regex: ADAPTER_IMPORT_REGEX, message: 'AGENTS.md: import only the Storage port, never a concrete adapter.' }] },
+        {
+          patterns: [
+            { regex: ADAPTER_IMPORT_REGEX, message: 'AGENTS.md: import only the Storage port, never a concrete adapter.' },
+            { regex: COLLAB_ADAPTER_IMPORT_REGEX, message: 'AGENTS.md: import only the Collab port, never y-webrtc/y-websocket directly.' },
+          ],
+        },
       ],
     },
   },
