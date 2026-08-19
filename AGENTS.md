@@ -20,7 +20,7 @@ in-code comment (see Comments) or in `docs/architecture.md`.
   or `npm run collab` (WebSocket transport) running alongside it for
   collaboration to work locally.
 
-Run lint + check + test before calling anything done, and `test:scripts` when you touch `.github/scripts/`; CI runs all of the above plus the build and Playwright e2e suite (`npm run e2e`).
+`check:doc-budget`/`lint`/`check`/`test` are gated automatically ([`./pre-commit`](./pre-commit), [`./pre-push`](./pre-push)) — never run them by hand first, that only re-plays a check a hook already owns. `test:scripts` isn't hooked: run it yourself when you touch `.github/scripts/`. `ci.yml` (triggered by the push itself) is the superset — everything above plus `check:audit`/`check:licenses`, `build`, and the Playwright `e2e` suite.
 
 ## The contract comes first
 
