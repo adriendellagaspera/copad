@@ -809,7 +809,7 @@
   <!-- Not an <h1>: DocTitle in Editor.svelte owns the page's only level-1 title. -->
   <header class="capsule">
     <button class="cap-mark" onclick={openAbout} title="What Copad is" aria-label="What Copad is">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 19.5V6a2 2 0 0 1 2-2h8l6 6v9.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" /><path d="M14 4v6h6" />
       </svg>
     </button>
@@ -921,7 +921,7 @@
   <!-- Mobile counterpart of the header above: the same header.capsule base About.svelte's about-capsule uses, shown only where app.css hides the desktop one. -->
   <header class="capsule mobile-capsule">
     <button class="cap-mark" onclick={openAbout} title="What Copad is" aria-label="What Copad is">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 19.5V6a2 2 0 0 1 2-2h8l6 6v9.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" /><path d="M14 4v6h6" />
       </svg>
     </button>

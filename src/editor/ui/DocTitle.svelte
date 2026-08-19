@@ -55,7 +55,8 @@
     display: flex;
     align-items: baseline;
     gap: 0.3rem;
-    padding: var(--sp-2) 0 var(--sp-4);
+    /* Same value as About's own .doc-title (About.svelte) — kept identical on purpose. */
+    margin: 0 0 var(--sp-3);
   }
   .sigil {
     font-family: var(--font-read);
