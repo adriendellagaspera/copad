@@ -43,6 +43,10 @@ header.capsule {
 .cap-mark {
   width: 28px;
   height: 28px;
+  /* Pins the circle against the app-wide button{min-height:40px} touch-target floor
+     below, which would otherwise stretch this into a pill under pointer:coarse —
+     .about-capsule's <a> is exempt (not a <button>), so only this one needs it. */
+  min-height: 28px;
   flex: none;
   margin-right: 10px;
   padding: 0;
@@ -80,6 +84,10 @@ header.capsule {
 .cap-btn {
   width: 36px;
   height: 36px;
+  /* Same reason as .cap-mark above: without this, button{min-height:40px} (below)
+     stretches these into pills wherever this class renders under pointer:coarse —
+     which .mobile-capsule now does, unlike the desktop-only capsule this was written for. */
+  min-height: 36px;
   flex: none;
   padding: 0;
   border: none;
@@ -104,6 +112,8 @@ header.capsule {
   align-items: center;
   gap: 6px;
   height: 38px;
+  /* Same reason as .cap-mark above. */
+  min-height: 38px;
   flex: none;
   margin: 0 8px;
   padding: 0 14px;
