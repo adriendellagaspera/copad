@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { Transport } from '../collaboration/types.js';
+import type { PagePath } from '../collaboration/roomHistory.js';
 import {
   TransportClaim,
   claimsEncryption,
   transportCopyFor,
-  CONTRACT_URL,
-  PRIVACY_URL,
+  contractUrl,
+  privacyUrl,
   LICENSE_URL,
   DEPLOY_URL,
   REPO_URL,
@@ -13,6 +14,8 @@ import {
   type AboutLine,
   type TransportCopy,
 } from './aboutCopy.js';
+
+const PAGE = '/' as PagePath;
 
 function everyLine(copy: TransportCopy): readonly (AboutLine | AboutHeading)[] {
   return [
@@ -87,13 +90,21 @@ describe('transportCopyFor', () => {
 });
 
 describe('About page links', () => {
-  it('point at the repository over https', () => {
-    for (const href of [REPO_URL, CONTRACT_URL, PRIVACY_URL, LICENSE_URL, DEPLOY_URL]) {
+  it('point the repo, license and deploy links at GitHub over https', () => {
+    for (const href of [REPO_URL, LICENSE_URL, DEPLOY_URL]) {
       expect(href.startsWith('https://github.com/')).toBe(true);
     }
   });
 
-  it('treat the contract as the privacy document', () => {
-    expect(PRIVACY_URL.startsWith(CONTRACT_URL)).toBe(true);
+  it("points the contract link at Copad's own docs page, not GitHub", () => {
+    expect(contractUrl(PAGE)).toBe('/docs/contract.html');
+  });
+
+  it('resolves the contract link under whatever page path the app is served from', () => {
+    expect(contractUrl('/pad/' as PagePath)).toBe('/pad/docs/contract.html');
+  });
+
+  it('treats the contract as the privacy document', () => {
+    expect(privacyUrl(PAGE).startsWith(contractUrl(PAGE))).toBe(true);
   });
 });

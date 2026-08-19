@@ -30,13 +30,13 @@
   import type { PagePath } from '../collaboration/roomHistory.js';
   import { backends } from '../storage/index.js';
   import {
-    CONTRACT_URL,
     DEPLOY_URL,
     LICENSE_URL,
-    PRIVACY_URL,
     REPO_URL,
     SPECIMEN_PEERS,
     claimsEncryption,
+    contractUrl,
+    privacyUrl,
     transportCopyFor,
   } from './aboutCopy.js';
 
@@ -52,6 +52,8 @@
 
   const copy = $derived(transportCopyFor(transport));
   const encrypted = $derived(claimsEncryption(copy));
+  const contractHref = $derived(contractUrl(page));
+  const privacyHref = $derived(privacyUrl(page));
   const SPECIMEN_UNSAVED = false as StorageAttached;
   const SPECIMEN_SAVED = true as StorageAttached;
   const SPECIMEN_STORAGE = 'Dropbox' as StorageLabel;
@@ -350,8 +352,8 @@
         {/if}
         GitHub
       </a>
-      <a href={CONTRACT_URL}>The contract</a>
-      <a href={PRIVACY_URL}>Privacy</a>
+      <a href={contractHref}>The contract</a>
+      <a href={privacyHref}>Privacy</a>
       <span class="spacer"></span>
       <a href={DEPLOY_URL}>Deploy your own</a>
     </div>
