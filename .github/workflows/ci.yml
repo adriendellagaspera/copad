@@ -6,7 +6,67 @@ on:
     branches: [main]
 
 jobs:
-  check:
+  # Which expensive jobs a change can possibly affect. The filter never lives in `on.*.paths`: a
+  # job skipped by `if:` reports **success** to branch protection, whereas a workflow filtered out
+  # by `on.*.paths` leaves its check pending forever and blocks the merge — that distinction is why
+  # `ci-success` below can be the single required check. Mirrors reconcile-rs's main.yml `changes`
+  # job.
+  #
+  # `app` is everything the four `app`-gated jobs below (typecheck-lint, audit, test, build) can
+  # react to: src/**, the root config files tsc/svelte-check/lint/vite read, package.json/lock,
+  # .github/scripts/** (test:scripts, check:doc-budget), the four docs check:doc-budget caps, and
+  # this workflow file itself — a change to the CI definition should always re-validate. `e2e`
+  # adds e2e/** and playwright.config.ts on top of `app`, since Playwright exercises the real
+  # built app. `turn` is independent of both: deploy/turn/** plus this workflow file.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+      turn: ${{ steps.filter.outputs.turn }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'src/**'
+              - 'index.html'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.json'
+              - 'vite.config.ts'
+              - 'eslint.config.js'
+              - 'typedoc.json'
+              - '.github/scripts/**'
+              - '.github/workflows/ci.yml'
+              - 'AGENTS.md'
+              - 'CLAUDE.md'
+              - 'docs/architecture.md'
+              - 'docs/contract.md'
+            e2e:
+              - 'src/**'
+              - 'index.html'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'vite.config.ts'
+              - 'playwright.config.ts'
+              - 'e2e/**'
+              - '.github/workflows/ci.yml'
+            turn:
+              - 'deploy/turn/**'
+              - '.github/workflows/ci.yml'
+
+  # `check` used to be one job running all nine steps serially. None of them depend on each
+  # other's *output* beyond `npm ci` (audit/licenses need the resolved tree, not built app;
+  # doc-budget needs neither) — split by what they actually check, so independent runners absorb
+  # the wall-clock instead of one runner paying the full sum. `ci-success` below lists every one
+  # of these by name; adding a fifth split job means adding it there too, same as adding any new
+  # top-level job.
+  typecheck-lint:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +81,21 @@ jobs:
       - run: npm run check
       - run: npm run lint
       - run: npm run check:doc-budget
+      - run: npm run check:doc-structure
       - run: npm run format:md:check
+
+  audit:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
 
       # High/critical only (--audit-level=high) — low/moderate are reported by
       # `npm audit` but don't fail the build. One standing low-severity
@@ -33,14 +107,10 @@ jobs:
       # Revisit when a fixed vite-plugin-node-polyfills release exists.
       - run: npm run check:audit
       - run: npm run check:licenses
-      - run: npm run check:doc-structure
-      - run: npm test
-      - run: npm run test:scripts
 
-      # No secrets configured here; the WebDAV adapter is always available.
-      - run: npm run build
-
-  e2e:
+  test:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +121,60 @@ jobs:
 
       - run: npm ci
 
-      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - run: npm run test:scripts
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # No secrets configured here; the WebDAV adapter is always available.
+      - run: npm run build
+
+  e2e:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # The browser binary is the slow, occasionally-flaky part (a ~100+MB download); the OS
+      # packages `--with-deps` also installs via apt are never cached (the runner VM is fresh
+      # every job regardless), so those still install every run either way. Cache key on the
+      # resolved @playwright/test version, not package.json's semver range, so a version bump
+      # invalidates the cache instead of silently running a stale browser build against a newer
+      # test runner.
+      - name: Resolve installed Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+      - name: Install Playwright browser + OS deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Playwright OS deps only (browser cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
       - run: npm run build
 
       # playwright.config.ts starts the preview and signaling servers itself.
@@ -62,6 +185,8 @@ jobs:
   # Structural guards on deploy/turn/, not a live relay test; deploy/turn/TESTING.md
   # covers the manual tiers that exercise NAT traversal and TLS on a real VPS.
   turn:
+    needs: changes
+    if: needs.changes.outputs.turn == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -129,3 +254,35 @@ jobs:
             echo "::error::coturn reported a config parse error"; exit 1
           fi
           echo "coturn started and stayed up — config accepted"
+
+  # **The single required status check.** Branch protection pins required checks by job name, so a
+  # list of several names has to be re-edited in repository settings every time a job is added,
+  # renamed or split — and nothing fails loudly when someone forgets, because a check that is not
+  # in the list simply is not enforced. Requiring one aggregate instead makes that class of mistake
+  # impossible. Mirrors reconcile-rs's main.yml ci-success job.
+  #
+  # `if: always()` is load-bearing. Without it this job inherits the default `needs` behaviour and
+  # is *skipped* whenever any dependency is skipped — which, with the path filters above, is most
+  # pull requests. A skipped required check passes, so the gate would silently stop gating.
+  #
+  # The condition treats `skipped` as acceptable (that is the filter working) and `failure` or
+  # `cancelled` as fatal. `success` is not tested for, because a job that neither succeeded, failed,
+  # nor was cancelled cannot exist.
+  ci-success:
+    name: ci-success
+    if: always()
+    needs:
+      - changes
+      - typecheck-lint
+      - audit
+      - test
+      - build
+      - e2e
+      - turn
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "::error::one or more CI jobs failed or were cancelled"
+          exit 1
