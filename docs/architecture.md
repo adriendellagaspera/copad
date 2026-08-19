@@ -26,7 +26,7 @@ flowchart TB
     Storage --> A1["dropbox · pcloud · webdav\ngithub · gitlab · s3\nsharepoint · gdrive · onedrive · local"]
     StorageAuth --> A1
     Collab --> A2["webrtcCollab · websocketCollab"]
-    RoomAccess --> A3["publicAccess · sitePassword\nroomPassword · secretLink"]
+    RoomAccess --> A3["publicAccess · sitePassword\nroomPassword · secretLink · plaintext"]
     Codec --> A4["yjs · text · markdown · html · json"]
 ```
 

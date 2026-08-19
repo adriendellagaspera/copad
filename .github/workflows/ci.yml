@@ -82,6 +82,7 @@ jobs:
       - run: npm run lint
       - run: npm run check:doc-budget
       - run: npm run check:doc-structure
+      - run: npm run check:architecture-diagram
       - run: npm run format:md:check
 
   audit:

@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 # Tier 1 of the two-tier gate (AGENTS.md "Commands"): the checks that never
 # touch the TypeScript compiler or ESLint, so committing stays instant.
-# Measured on this tree: ~0.4s. Everything else runs at push time (./pre-push)
+# Measured on this tree: ~0.5s. Everything else runs at push time (./pre-push)
 # or in CI (.github/workflows/ci.yml).
 #
 # Runs against the working tree, not a materialized index copy: unlike a
@@ -18,3 +18,6 @@ npm run --silent check:doc-budget
 
 echo "Running doc-structure check"
 npm run --silent check:doc-structure
+
+echo "Running architecture-diagram check"
+npm run --silent check:architecture-diagram

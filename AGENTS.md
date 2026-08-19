@@ -96,12 +96,13 @@ a check a hook already owns. `test:scripts` isn't hooked: run it yourself when y
 ## Hexagonal architecture rules
 
 - Ports live in `types.ts` / `auth.ts` files; adapters implement them elsewhere.
-- The domain (Editor, format codecs, collab core) never imports from an adapter directly. `Editor.svelte`
-  receives only the `Storage` port, never a concrete adapter or `StorageAuth`. **Gated**:
-  `no-restricted-imports` in `eslint.config.js` bans importing any concrete storage adapter from `Editor.svelte`
-  or `src/format/**`.
-- `CollabConnect` is typed `(room: RoomId) => Collab`. Callers cannot reach through it into y-webrtc or
-  y-websocket internals.
+- The domain (Editor, format codecs, collab core) never imports a concrete adapter directly — a storage backend,
+  or y-webrtc/y-websocket. **Gated**: `no-restricted-imports` in `eslint.config.js` (composition roots that
+  construct adapters — `storage/index.ts`, `storage/parse.ts`, the two Collab adapters — are excepted).
+- `CollabConnect` is typed `(room: RoomId) => Collab`; callers cannot reach through it into y-webrtc/y-websocket
+  internals.
+- `docs/architecture.md`'s ports/adapters diagram must name the real adapter set. **Gated**:
+  `npm run check:architecture-diagram`.
 - Add new storage or collab support by implementing the port interface and wiring it in `App.svelte`. Never add
   adapter-specific code inside `Editor.svelte`.
 
