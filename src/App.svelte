@@ -918,19 +918,24 @@
     <div class="cap-theme"><ThemeToggle {theme} /></div>
   </header>
 
-  <!-- Hidden once the document has focus: editor.css's .fixed-toolbar takes this slot. -->
-  <div
-    class="mobile-dock"
-    class:dock-hidden={sessionState.editing}
-    style="--kb-inset: {keyboardInset.px}px"
-  >
-    <IdentityMenu
-      {name}
-      {color}
-      colors={COLORS}
-      onName={(v) => { name = rememberName(v); }}
-      onColor={(c) => { color = c; }}
-    />
+  <!-- Mobile counterpart of the header above: the same header.capsule base About.svelte's about-capsule uses, shown only where app.css hides the desktop one. -->
+  <header class="capsule mobile-capsule">
+    <button class="cap-mark" onclick={openAbout} title="What Copad is" aria-label="What Copad is">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 19.5V6a2 2 0 0 1 2-2h8l6 6v9.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" /><path d="M14 4v6h6" />
+      </svg>
+    </button>
+
+    <div class="cap-identity">
+      <IdentityMenu
+        {name}
+        {color}
+        colors={COLORS}
+        size={32}
+        onName={(v) => { name = rememberName(v); }}
+        onColor={(c) => { color = c; }}
+      />
+    </div>
     <StatusPill
       conn={sessionState.conn}
       saveStatus={sessionState.saveStatus}
@@ -941,51 +946,55 @@
       encrypted={roomEncrypted}
       onclick={() => (diagOpen = OPENED)}
     />
-    <div class="dock-fill"></div>
-    <button class="dock-btn" onclick={newRoom} title="New document (opens in a new tab)" aria-label="New document (opens in a new tab)">
+
+    <div class="cap-divider"></div>
+    <span class="cap-fill"></span>
+
+    <button class="cap-btn" onclick={newRoom} title="New document (opens in a new tab)" aria-label="New document (opens in a new tab)">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 5v14M5 12h14" />
       </svg>
     </button>
-    <button class="dock-btn" onclick={() => (libraryOpen = OPENED)} title="Your documents" aria-label="Your documents">
+    <button class="cap-btn" onclick={() => (libraryOpen = OPENED)} title="Your documents" aria-label="Your documents">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H9a2 2 0 0 1 2 2v13a1.5 1.5 0 0 0-1.5-1.5H4Z" /><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H15a2 2 0 0 0-2 2v13a1.5 1.5 0 0 1 1.5-1.5H20Z" />
       </svg>
     </button>
-    <button class="dock-btn" onclick={importLocalFile} disabled={!canImportHere} title="Import a file into this document" aria-label="Import a file into this document">
+    <button class="cap-btn" onclick={importLocalFile} disabled={!canImportHere} title="Import a file into this document" aria-label="Import a file into this document">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 3v12m0 0l-4-4m4 4l4-4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
     </button>
-    <button class="dock-btn" onclick={() => (joinOpen = OPENED)} title="Join a meeting link" aria-label="Join a meeting link">
+    <button class="cap-btn" onclick={() => (joinOpen = OPENED)} title="Join a meeting link" aria-label="Join a meeting link">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
       </svg>
     </button>
-    <button class="dock-btn" onclick={() => (paletteOpen = OPENED)} title="Search and commands" aria-label="Search and commands" aria-haspopup="dialog">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-        <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
-      </svg>
-    </button>
-    <button class="dock-btn" onclick={() => (exportOpen = OPENED)} title="Export a copy of this document" aria-label="Export a copy of this document">
+    <button class="cap-btn" onclick={() => (exportOpen = OPENED)} title="Export a copy of this document" aria-label="Export a copy of this document">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 15V3m0 0l-4 4m4-4l4 4" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
       </svg>
     </button>
-    <button class="dock-share" onclick={() => (shareOpen = OPENED)} title="Share / invite collaborators" aria-label="Share / invite collaborators">
-      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <button class="cap-btn" onclick={() => (paletteOpen = OPENED)} title="Search and commands" aria-label="Search and commands" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
+      </svg>
+    </button>
+
+    <button class="cap-share share-btn" onclick={() => (shareOpen = OPENED)} title="Share / invite collaborators">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
         <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
       </svg>
-      <span class="dock-share-label">Share</span>
+      <span class="cap-share-label">Share</span>
     </button>
-    <button class="dock-btn" onclick={() => openSettings()} title="Settings" aria-label="Settings">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <button class="cap-btn" onclick={() => openSettings()} title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="3" />
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
       </svg>
     </button>
-  </div>
+  </header>
 
   <!-- One strip, escalation ladder: gated → collab-unavailable → solo reminder. -->
   {#if !(compactChrome && sessionState.editing)}

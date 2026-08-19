@@ -137,7 +137,7 @@ header.capsule {
   flex: none;
 }
 
-/* Header hides on mobile: room name lives in DocTitle, every action moved to the bottom dock. Gated on pointer:coarse OR max-width:900px: touch always gets this layout, and the width fallback covers a narrow mouse-driven window where the open capsule's flex:none content has nowhere left to shrink. */
+/* Header hides on mobile: room name lives in DocTitle, .mobile-capsule below (higher specificity, same technique as About's own about-capsule) takes over every action. Gated on pointer:coarse OR max-width:900px: touch always gets this layout, and the width fallback covers a narrow mouse-driven window where the open capsule's flex:none content has nowhere left to shrink. */
 @media (pointer: coarse), (max-width: 900px) {
   header.capsule {
     display: none;
@@ -617,105 +617,30 @@ button.status-link {
   }
 }
 
-/* Mirrors editor.css's .fixed-toolbar "format mode" in the same fixed slot: mutually exclusive via sessionState.editing, hidden until the header capsule collapses (kept in sync with that rule). */
-.mobile-dock {
+/* The mobile counterpart of header.capsule (App.svelte): same base class as About's about-capsule, so height/shape/spacing-to-doc/view-transition-name come for free and can't drift from the desktop capsule's own values. Hidden by default (desktop keeps the capsule above); shown, and given its own overflow fallback, only where the desktop one collapses. */
+header.capsule.mobile-capsule {
   display: none;
 }
 @media (pointer: coarse), (max-width: 900px) {
-  .mobile-dock {
+  header.capsule.mobile-capsule {
     display: flex;
-    align-items: center;
-    gap: 2px;
-    height: 50px;
-    position: fixed;
-    left: var(--sp-2);
-    right: var(--sp-2);
-    /* --kb-inset rises the dock above an open keyboard; some mobile browsers delay the resize event until the keyboard's close animation ends, so this transition turns that late jump into a slide. */
-    bottom: calc(max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px));
-    z-index: var(--z-menu);
-    padding: 0 6px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--r-full);
-    box-shadow: var(--shadow-md);
-    transition: bottom 0.22s ease-out;
-    /* Last resort so no action is unreachable: the status pill grows with the room's state, so the widest dock can still exceed a 390px phone even after the compaction below. */
+    /* Last resort so no action is unreachable: the status pill grows with the room's state, so the row can still exceed a 390px phone even at the capsule's standard (non-shrunk) button size. */
     overflow-x: auto;
     scrollbar-width: none;
   }
-  .mobile-dock::-webkit-scrollbar {
+  header.capsule.mobile-capsule::-webkit-scrollbar {
     display: none;
-  }
-  .mobile-dock.dock-hidden {
-    display: none;
-  }
-  /* Dropped in the dock to save width, kept in the capsule; not enough on its own — the row still overflows at 320px (e2e/touchTargets.test.ts). */
-  .mobile-dock .identity-hint {
-    display: none;
-  }
-  .mobile-dock .dock-fill {
-    flex: 1;
-    min-width: 0;
-  }
-  .mobile-dock .dock-btn {
-    width: 38px;
-    height: 38px;
-    min-height: 38px;
-    flex: none;
-    padding: 0;
-    border: none;
-    border-radius: var(--r-full);
-    background: transparent;
-    color: var(--text-muted);
-    display: grid;
-    place-items: center;
-    cursor: pointer;
-  }
-  .mobile-dock .dock-btn:hover:not(:disabled) {
-    background: var(--surface-3);
-    color: var(--text);
-  }
-  .mobile-dock .dock-btn svg {
-    display: block;
-  }
-  .mobile-dock .dock-share {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    height: 38px;
-    min-height: 38px;
-    flex: none;
-    margin: 0 4px;
-    padding: 0 12px;
-    border: none;
-    border-radius: var(--r-full);
-    background: var(--accent);
-    color: var(--accent-contrast);
-    font: inherit;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .mobile-dock .dock-share:hover:not(:disabled) {
-    background: var(--accent-hover);
-  }
-  .mobile-dock .dock-share svg {
-    display: block;
   }
 }
 
-/* Below ~430px the dock's icons, the Share chip and the status pill stop fitting together and Settings is pushed off the edge; the chip keeps its accessible name from `aria-label`. */
+/* Below ~430px the Share chip's label stops fitting alongside the rest of the row; the button keeps its accessible name from the `title` attribute. Buttons themselves stay at the capsule's standard 36px — unlike the old dock, nothing here shrinks touch targets to buy width. */
 @media (max-width: 430px) {
-  .mobile-dock .dock-share-label {
+  .mobile-capsule .cap-share-label {
     display: none;
   }
-  .mobile-dock .dock-share {
+  .mobile-capsule .cap-share {
     margin: 0 2px;
     padding: 0 11px;
-  }
-  /* Width only: the dock stays 50px tall, so the hit area gives up nothing vertically. */
-  .mobile-dock .dock-btn {
-    width: 34px;
   }
 }
 

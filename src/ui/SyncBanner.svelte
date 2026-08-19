@@ -367,7 +367,9 @@
   @media (pointer: coarse), (max-width: 900px) {
     .sync-banner.sheet {
       max-width: calc(100vw - 2 * var(--sp-4));
-      bottom: calc(50px + max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px) + var(--sp-2));
+      /* No dock to clear any more (the mobile capsule lives at the top now) — only .fixed-toolbar
+         still claims this edge, and only while editing, which is exactly when this Sheet is hidden. */
+      bottom: calc(max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px) + var(--sp-2));
       padding: var(--sp-3) var(--sp-4);
     }
   }
