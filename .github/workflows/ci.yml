@@ -6,7 +6,61 @@ on:
     branches: [main]
 
 jobs:
+  # Which expensive jobs a change can possibly affect. The filter never lives in `on.*.paths`: a
+  # job skipped by `if:` reports **success** to branch protection, whereas a workflow filtered out
+  # by `on.*.paths` leaves its check pending forever and blocks the merge — that distinction is why
+  # `ci-success` below can be the single required check. Mirrors reconcile-rs's main.yml `changes`
+  # job.
+  #
+  # `app` is everything `check`'s own steps can react to: src/**, the root config files tsc/
+  # svelte-check/lint/vite read, package.json/lock, .github/scripts/** (test:scripts,
+  # check:doc-budget), the four docs check:doc-budget caps, and this workflow file itself — a
+  # change to the CI definition should always re-validate. `e2e` adds e2e/** and
+  # playwright.config.ts on top of `app`, since Playwright exercises the real built app. `turn` is
+  # independent of both: deploy/turn/** plus this workflow file.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+      turn: ${{ steps.filter.outputs.turn }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'src/**'
+              - 'index.html'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.json'
+              - 'vite.config.ts'
+              - 'eslint.config.js'
+              - 'typedoc.json'
+              - '.github/scripts/**'
+              - '.github/workflows/ci.yml'
+              - 'AGENTS.md'
+              - 'CLAUDE.md'
+              - 'docs/architecture.md'
+              - 'docs/contract.md'
+            e2e:
+              - 'src/**'
+              - 'index.html'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'vite.config.ts'
+              - 'playwright.config.ts'
+              - 'e2e/**'
+              - '.github/workflows/ci.yml'
+            turn:
+              - 'deploy/turn/**'
+              - '.github/workflows/ci.yml'
+
   check:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +93,8 @@ jobs:
       - run: npm run build
 
   e2e:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -60,6 +116,8 @@ jobs:
   # Structural guards on deploy/turn/, not a live relay test; deploy/turn/TESTING.md
   # covers the manual tiers that exercise NAT traversal and TLS on a real VPS.
   turn:
+    needs: changes
+    if: needs.changes.outputs.turn == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -127,3 +185,32 @@ jobs:
             echo "::error::coturn reported a config parse error"; exit 1
           fi
           echo "coturn started and stayed up — config accepted"
+
+  # **The single required status check.** Branch protection pins required checks by job name, so a
+  # list of several names has to be re-edited in repository settings every time a job is added,
+  # renamed or split — and nothing fails loudly when someone forgets, because a check that is not
+  # in the list simply is not enforced. Requiring one aggregate instead makes that class of mistake
+  # impossible. Mirrors reconcile-rs's main.yml ci-success job.
+  #
+  # `if: always()` is load-bearing. Without it this job inherits the default `needs` behaviour and
+  # is *skipped* whenever any dependency is skipped — which, with the path filters above, is most
+  # pull requests. A skipped required check passes, so the gate would silently stop gating.
+  #
+  # The condition treats `skipped` as acceptable (that is the filter working) and `failure` or
+  # `cancelled` as fatal. `success` is not tested for, because a job that neither succeeded, failed,
+  # nor was cancelled cannot exist.
+  ci-success:
+    name: ci-success
+    if: always()
+    needs:
+      - changes
+      - check
+      - e2e
+      - turn
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "::error::one or more CI jobs failed or were cancelled"
+          exit 1
