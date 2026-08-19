@@ -19,6 +19,9 @@ export default defineConfig(({ mode }: ConfigEnv) => {
   };
 
   return {
+    // `npm run build -- --base=…` only reaches the last command in the `build`
+    // script's `&&` chain, not `vite build` — an env var is immune to that.
+    base: process.env.BUILD_BASE || '/',
     plugins: [
       svelte(),
       injectNamespace,
