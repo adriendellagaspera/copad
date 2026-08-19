@@ -91,7 +91,8 @@ describe('gdriveStorage save', () => {
   it('creates the file (search empty → POST metadata → PATCH media)', async () => {
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ files: [] }) } as unknown as Response) // search
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: 'new-id' }) } as unknown as Response) // create
+      // create
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: 'new-id' }) } as unknown as Response)
       .mockResolvedValueOnce({ ok: true, status: 200 } as Response); // media PATCH
     await storage.save({ format: 'binary', bytes: new Uint8Array([9]) });
     expect(mockFetch.mock.calls[1][1].method).toBe('POST');
@@ -115,7 +116,8 @@ describe('gdriveStorage save', () => {
       () => new Promise((resolve) => { resolveSearch = () => resolve({ ok: true, json: () => Promise.resolve({ files: [] }) }); }),
     );
     mockFetch
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: 'new-id' }) } as unknown as Response) // create
+      // create
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: 'new-id' }) } as unknown as Response)
       .mockResolvedValueOnce({ ok: true, status: 200 } as Response); // media PATCH
 
     const first = storage.save({ format: 'binary', bytes: new Uint8Array([9]) });

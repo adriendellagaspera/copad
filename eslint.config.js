@@ -105,4 +105,37 @@ export default tseslint.config(
       ],
     },
   },
+
+  {
+    // AGENTS.md "Comments": ultra-concise, one line wherever possible. Checks
+    // physical comment lines only, not code — this codebase's dense markup
+    // and SVG data routinely exceed 120 chars on purpose, comments should not.
+    files: ['src/**/*.{ts,svelte}'],
+    plugins: {
+      local: {
+        rules: {
+          'comment-max-len': {
+            create(context) {
+              const sourceCode = context.sourceCode ?? context.getSourceCode();
+              return {
+                Program() {
+                  for (const comment of sourceCode.getAllComments()) {
+                    for (let line = comment.loc.start.line; line <= comment.loc.end.line; line += 1) {
+                      if ((sourceCode.lines[line - 1] ?? '').length > 120) {
+                        context.report({
+                          loc: { line, column: 0 },
+                          message: 'AGENTS.md: comment line over 120 chars — shorten it, don\'t wrap it.',
+                        });
+                      }
+                    }
+                  }
+                },
+              };
+            },
+          },
+        },
+      },
+    },
+    rules: { 'local/comment-max-len': 'error' },
+  },
 );

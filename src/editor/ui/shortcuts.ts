@@ -13,7 +13,7 @@ export interface Shortcut {
   readonly label: ShortcutLabel;
 }
 
-// Both Alt-Shift-\ and Shift-F10 open the panel (SelectionToolbar.svelte); only the advertised hint differs — Shift-F10 on Apple, since `\` isn't a labelled key on a Mac keyboard (AZERTY needs a compose sequence).
+// Both Alt-Shift-\ and Shift-F10 open the panel; Apple shows Shift-F10 since `\` isn't a labelled Mac key.
 function toolbarEntryKeys(os: OS): KeyCap[] {
   return os === OS.Apple
     ? [keyCap('Shift'), keyCap('F10')]
@@ -35,7 +35,8 @@ export function editorShortcuts(os: OS = parseOS()): Shortcut[] {
   ];
 }
 
-// Swapped in for editorShortcuts, not appended: the footer strip has no room for both sets at once. `Alt-Enter`/`Alt-Shift-T` were tried before `\` and each collided with a real OS/browser binding (see SelectionToolbar.svelte).
+// Swapped in for editorShortcuts, not appended: the footer strip has no room for both. Alt-Enter/Alt-Shift-T were
+// tried before `\` and each collided with a real OS/browser binding.
 export function tableShortcuts(os: OS = parseOS()): Shortcut[] {
   const mod = modKey(os);
   const alt = altKey(os);

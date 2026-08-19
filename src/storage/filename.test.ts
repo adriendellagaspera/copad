@@ -40,7 +40,7 @@ describe('filenameStore — per-room targets', () => {
     other.set('report.md');
     expect(other.get()).toBe('report.md');
     expect(filenameStore(STORAGE_ID.dropbox, HOME).get()).toBe('copad-demo.yjs'); // unaffected
-    expect(filenameStore(STORAGE_ID.dropbox, OTHER).get()).toBe('report.md'); // a fresh store for the same room reads it back
+    expect(filenameStore(STORAGE_ID.dropbox, OTHER).get()).toBe('report.md'); // a fresh store, same room, reads it back
   });
 
   it('sanitises unsafe characters in a room id when deriving a filename', () => {

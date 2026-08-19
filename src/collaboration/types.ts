@@ -10,7 +10,7 @@ export type RoomId = string & { readonly _brand: 'RoomId' };
 export type RoomName = string & { readonly _brand: 'RoomName' };
 export type SignalingUrl = string & { readonly _brand: 'SignalingUrl' };
 
-// Never carries signaling traffic — only keep-alive GETs that stop a spin-down-on-idle host (e.g. Render free tier) from sleeping.
+// Never carries signaling traffic — only keep-alive GETs that stop a spin-down-on-idle host from sleeping.
 export type SignalingPingUrl = string & { readonly _brand: 'SignalingPingUrl' };
 
 export type WebsocketUrl = string & { readonly _brand: 'WebsocketUrl' };
@@ -44,10 +44,12 @@ export interface PeerUser {
   readonly color: CursorColor;
 }
 
-// A hash of (browser install id + backend id + filename), built by persistTargetKey() in leader.ts, so the actual file location never travels in awareness.
+// A hash of (browser install id + backend id + filename) from persistTargetKey() (leader.ts) — the file
+// location itself never travels in awareness.
 export type PersistTarget = string & { readonly _brand: 'PersistTarget' };
 
-// selfProbeMarker is present only on the tab a MeetingJoinDialog join just opened, so presenceProbe.ts can recognize and discard its own self-join instead of reading it as a peer.
+// selfProbeMarker is set only on the tab a MeetingJoinDialog join just opened, so presenceProbe.ts can discard
+// its own self-join instead of reading it as a peer.
 export interface PeerAwarenessState {
   readonly user: PeerUser;
   readonly role: SessionRole;
@@ -66,7 +68,8 @@ export const ConnStatus = {
 } as const;
 export type ConnStatus = (typeof ConnStatus)[keyof typeof ConnStatus];
 
-// Whether contract branch (a), "someone is here", currently holds — beside ConnStatus, never replacing it. `reaching` is a discovered-but-unconnected peer: proven present, never locks.
+// Whether contract branch (a), "someone is here", currently holds — beside ConnStatus, not replacing it.
+// `reaching` is a discovered-but-unconnected peer: proven present, never locks.
 export const PresenceKind = {
   Unknown: 'unknown',
   Reaching: 'reaching',

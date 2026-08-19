@@ -2,7 +2,8 @@
   import Avatar from './Avatar.svelte';
   import type { DisplayName, CursorColor } from '../collaboration/types.js';
 
-  // Two presentations behind one component, switched on the same condition app.css's .mobile-capsule uses: popover (fine pointer) vs. bottom sheet (coarse/narrow). Peer avatars deliberately don't use this component — nesting a second bottom sheet inside ConnectionDialog's own produced a real double-scrim bug (PR #180).
+  // Popover (fine pointer) vs. bottom sheet (coarse/narrow), matching app.css's .mobile-capsule condition.
+  // Peer avatars skip this: nesting a bottom sheet inside ConnectionDialog's caused a double-scrim bug (PR #180).
   type Props = {
     name: DisplayName;
     color: CursorColor;
@@ -89,7 +90,7 @@
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeAndReturnFocus();
     };
-    // Capture phase so Escape is seen before a page listener or extension (e.g. a password manager) on the autofocused input can swallow it.
+    // Capture phase: Escape must be seen before a page listener or extension (e.g. password manager) swallows it.
     window.addEventListener('mousedown', onDown);
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('resize', positionPopover);

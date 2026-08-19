@@ -53,7 +53,7 @@ export interface RoomSecuritySources {
   readonly envPassword: RoomCredential | null;
 }
 
-/** Precedence must stay identical to `App.svelte`'s `roomCipher`; the hub arm encrypts nothing (docs/contract.md §2). */
+/** Precedence must match `App.svelte`'s `roomCipher`; the hub arm encrypts nothing (docs/contract.md §2). */
 export function roomSecurity(sources: RoomSecuritySources): RoomSecurity {
   if (sources.transport !== Transport.P2P) return { kind: RoomSecurityKind.Relayed };
   if (sources.linkKey) return { kind: RoomSecurityKind.SecretLink, key: sources.linkKey };

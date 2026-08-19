@@ -107,7 +107,7 @@
   const reducedMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Fades over the first 60%, not `slide`'s last 5%: the strip must be invisible before it is short enough for the border-radius to look wrong.
+  // Fades over the first 60%, not `slide`'s last 5%, so it's invisible before border-radius would look wrong.
   function bannerOut(node: Element, { duration = EXIT_MS }: { duration?: Milliseconds } = {}) {
     const style = getComputedStyle(node);
     const opacity = +style.opacity;

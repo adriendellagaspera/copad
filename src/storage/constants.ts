@@ -48,7 +48,7 @@ const envBool = (raw: string | undefined, fallback: boolean): boolean => {
 
 // ── Backend enable/disable ──────────────────────────────────────────────────────
 
-// A backend not yet connected to a real account outside production defaults to disabled; flip to true in its own dedicated PR once it has been.
+// Defaults to disabled outside production until connected to a real account; flip to true in its own PR then.
 export const BACKEND_ENABLED: Record<StorageId, boolean> = {
   [STORAGE_ID.dropbox]: envBool(import.meta.env.VITE_ENABLE_DROPBOX, false),
   [STORAGE_ID.pcloud]: envBool(import.meta.env.VITE_ENABLE_PCLOUD, false),
@@ -103,7 +103,7 @@ export const GDRIVE_SCOPE = envStr(import.meta.env.VITE_GDRIVE_SCOPE, 'https://w
 export const GDRIVE_TOKEN_KEY: StorageKey = backendKey(STORAGE_ID.gdrive, 'token');
 
 // ── OneDrive (personal — Microsoft identity platform "consumers" tenant) ────
-// `consumers` accepts only personal accounts, rejecting work/school ones — the split from sharepointStorage()'s OneDrive-for-Business, no usage overlap.
+// `consumers` accepts only personal accounts; sharepointStorage() handles OneDrive-for-Business, no overlap.
 
 export const ONEDRIVE_AUTH_URL = envStr(import.meta.env.VITE_ONEDRIVE_AUTH_URL, 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize');
 export const ONEDRIVE_TOKEN_URL = envStr(import.meta.env.VITE_ONEDRIVE_TOKEN_URL, 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token');

@@ -728,7 +728,7 @@ function threeByThreeTable() {
   return types.table.create(null, [headerRow, row2, row3]);
 }
 
-/** Real caret-reachable start of `label`'s cell — `cellContentRange`'s `start`, not the cell's structural edge, which no caret can rest at. */
+/** Caret-reachable start of `label`'s cell: `cellContentRange`'s `start`, not its unreachable structural edge. */
 function cellContentPos(doc: ReturnType<typeof schema.node>, label: string): number {
   let pos = -1;
   doc.descendants((node, nodePos) => {

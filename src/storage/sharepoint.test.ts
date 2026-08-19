@@ -63,8 +63,10 @@ describe('sharepointStorage auth', () => {
 
   it('login resolves a SharePoint site id when a siteUrl is given', async () => {
     mockFetch
-      .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ id: 'me' }) } as unknown as Response) // /me
-      .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ id: 'site-42' }) } as unknown as Response); // /sites
+      // /me
+      .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ id: 'me' }) } as unknown as Response)
+      // /sites
+      .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ id: 'site-42' }) } as unknown as Response);
     const { auth } = sharepointStorage(TEST_ROOM);
     await auth.login(creds({ token: 'good', siteUrl: 'https://contoso.sharepoint.com/sites/x' }));
     expect(JSON.parse(store['storage.sharepoint.conf']).siteId).toBe('site-42');
@@ -134,7 +136,8 @@ describe('sharepointStorage access/contentFormat', () => {
     const { storage } = sharepointStorage(TEST_ROOM);
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: 'me' }) } as unknown as Response) // /me
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ createdBy: { user: { id: 'me' } } }) } as unknown as Response); // item
+      // item
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ createdBy: { user: { id: 'me' } } }) } as unknown as Response);
     expect(await storage.access!()).toBe('owner');
   });
 });

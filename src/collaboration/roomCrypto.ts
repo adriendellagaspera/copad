@@ -9,7 +9,8 @@ export interface EncryptedRecord {
   readonly ct: ArrayBuffer;
 }
 
-// Domain-separation labels so the fingerprint and AES key derive from distinct inputs despite sharing the same secret. Versioned to tell a future scheme change apart from old material.
+// Domain-separation labels: fingerprint and AES key derive from distinct inputs despite sharing the same secret.
+// Versioned to tell a future scheme change apart from old material.
 const FINGERPRINT_LABEL = 'copad-room-fingerprint-v1|';
 const PBKDF2_SALT = new TextEncoder().encode('copad-room-cache-v1');
 const PBKDF2_ITERATIONS = 100_000;
@@ -29,7 +30,8 @@ export async function keyFingerprint(cred: RoomCredential): Promise<KeyFingerpri
   return toHex(digest) as KeyFingerprint;
 }
 
-// Static salt: the credential is usually high-entropy already (a secret-link UUID); PBKDF2 is belt-and-braces for weaker room passwords. Non-extractable — can only encrypt/decrypt, never be read back.
+// Static salt: credential is usually high-entropy (a secret-link UUID); PBKDF2 is belt-and-braces for weak passwords.
+// Non-extractable — can only encrypt/decrypt, never be read back.
 export async function deriveCacheKey(cred: RoomCredential): Promise<CryptoKey> {
   const material = await subtle().importKey(
     'raw',
@@ -47,7 +49,7 @@ export async function deriveCacheKey(cred: RoomCredential): Promise<CryptoKey> {
   );
 }
 
-// Cast to BufferSource at this WebCrypto boundary: lib.dom types Uint8Array over ArrayBufferLike, which WebCrypto's stricter signature rejects, but the runtime accepts.
+// lib.dom types Uint8Array over ArrayBufferLike; WebCrypto's stricter signature rejects it, so cast to BufferSource.
 export async function encryptUpdate(key: CryptoKey, data: Uint8Array): Promise<EncryptedRecord> {
   const iv = globalThis.crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const ct = await subtle().encrypt({ name: 'AES-GCM', iv }, key, data as BufferSource);

@@ -49,7 +49,7 @@ function parseIceUrl(raw: string): StunUrl | TurnUrl | null {
   return /^stun:/i.test(raw.trim()) ? parseStunUrl(raw.trim()) : parseTurnUrl(raw.trim());
 }
 
-// Matches the shape Cloudflare's TURN credentials API and most managed relays return: { iceServers: [{ urls, username?, credential? }] }.
+// Matches Cloudflare's TURN credentials API shape: { iceServers: [{ urls, username?, credential? }] }.
 export function parseIceServersResponse(raw: unknown): IceServer[] {
   if (typeof raw !== 'object' || raw === null) return [];
   const entries = (raw as Record<string, unknown>)['iceServers'];

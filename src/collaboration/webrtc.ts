@@ -39,7 +39,7 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
     const readIceStats = opts.iceStatsReader ?? defaultIceStatsReader;
     const password = opts.cipher?.password(room) ?? undefined;
 
-    // y-webrtc's constructor opens signaling synchronously; start the keepalive first so a cold server sees it before the first connect attempt.
+    // Start keepalive before the constructor: it opens signaling synchronously, and a cold server needs the wake first.
     const stopKeepalive = startSignalingKeepalive(opts.signaling);
 
     const webrtc = new WebrtcProvider(room as string, doc, {
@@ -80,14 +80,15 @@ export function webrtcCollab(opts: WebrtcCollabOptions): CollabConnect {
       doc,
       room,
       cache: opts.cache,
-      // Same secret encrypts the transport and the local cache at rest, so a cached doc can't be read back without the room key.
+      // Same secret encrypts transport and local cache, so a cached doc needs the room key to be read back.
       cacheKey: password,
       isAttached,
       peerCount,
       reachingCount,
     });
 
-    // y-webrtc emits no status/peers event for a signaling socket coming up while alone; bridge it in directly. Conns are shared singletons re-created by connect(), so re-bind after every reconnect().
+    // y-webrtc emits no status/peers event when a signaling socket connects while alone; bridge it in directly.
+    // Conns are shared singletons re-created by connect(), so rewire after every reconnect().
     const onSignalingFlap = (): void => core.emitStatus();
     let wiredConns: SignalingConnLike[] = [];
     const rewireSignaling = (): void => {

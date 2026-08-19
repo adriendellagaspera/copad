@@ -1,4 +1,4 @@
-// Pure decision function for the contract's lock (docs/contract.md §3.4). No timers/DOM/Date.now() inside; time-dependent inputs arrive pre-computed, same split as roomLock.ts / leader.ts.
+// Pure decision function (docs/contract.md §3.4): no timers/DOM/Date.now(), time-dependent inputs arrive pre-computed.
 
 import type { RoomPresence } from './types.js';
 import { PresenceKind, SessionRole, Transport } from './types.js';
@@ -6,7 +6,8 @@ import type { Milliseconds } from '../time.js';
 
 export type SoloOptIn = boolean & { readonly _brand: 'SoloOptIn' };
 
-// docs/contract.md §2.1: the hub's registry is authoritative, so a settled hub absence is trustworthy almost immediately; P2P discovery is one-directional and never retried, so a slow announce must not read as locked-out — it waits much longer before concluding alone.
+// docs/contract.md §2.1: hub's registry is authoritative, so a settled hub absence is trustworthy almost immediately.
+// P2P discovery is one-directional and never retried, so a slow announce must wait longer before reading as alone.
 export const GATE_SETTLE_HUB_MS = 1_500 as Milliseconds;
 export const GATE_SETTLE_P2P_MS = 6_000 as Milliseconds;
 
@@ -20,7 +21,8 @@ export function gateSettleMs(transport: Transport): Milliseconds {
   return SETTLE_MS[transport];
 }
 
-// Hub linger must cover y-protocols' ~30s outdatedTimeout sweep (a correction, not a courtesy) or the gate would lock before the server's own list catches up; P2P's peer-close event is immediate, so its linger is just a short mid-sentence grace window.
+// Hub linger covers y-protocols' ~30s outdatedTimeout sweep, or the gate locks before the server's list catches up.
+// P2P's peer-close event is immediate, so its linger is just a short grace window.
 export const GATE_LINGER_HUB_MS = 30_000 as Milliseconds;
 export const GATE_LINGER_P2P_MS = 3_000 as Milliseconds;
 

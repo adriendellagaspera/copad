@@ -31,7 +31,7 @@ import type { Command, EditorState, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
 import { taskItemCheckboxPlugin } from './taskList.js';
 
-// Never mutates the code block itself (it may be deliberately blank) — matches Tiptap's exitCode, which only deletes/converts via Backspace or Mod-Alt-c.
+// Never mutates the code block (may be deliberately blank) — mirrors Tiptap's exitCode, Backspace/Mod-Alt-c only.
 function exitCodeBlock(tr: Transaction, $pos: ResolvedPos): void {
   const container = $pos.node(-1);
   const indexAfter = $pos.indexAfter(-1);
@@ -55,7 +55,7 @@ function inCodeBlock(state: EditorState): ResolvedPos | null {
   return $head;
 }
 
-// Always returns true: Firefox blurs contenteditable on Escape by default, so it must be swallowed even with no code block to exit.
+// Always true — Firefox blurs contenteditable on Escape by default; must swallow it even outside a code block.
 export const escapeCodeBlock: Command = (state, dispatch) => {
   const $pos = inCodeBlock(state);
   if (!$pos) return true;
@@ -67,7 +67,7 @@ export const escapeCodeBlock: Command = (state, dispatch) => {
   return true;
 };
 
-// Fires only where native ArrowDown has nowhere left to move the caret (end of a code block's content); returns false everywhere else.
+// Fires only at a code block's last line, where native ArrowDown can't move the caret further; false otherwise.
 export const exitCodeBlockDown: Command = (state, dispatch) => {
   const $pos = inCodeBlock(state);
   if (!$pos || $pos.parentOffset !== $pos.parent.content.size) return false;
@@ -79,7 +79,7 @@ export const exitCodeBlockDown: Command = (state, dispatch) => {
   return true;
 };
 
-// Only a third Enter after two trailing blank lines exits (matches Tiptap's exitOnTripleEnter) — a single blank line is common in real code and must not trigger it.
+// Exits only after two trailing blank lines (Tiptap's exitOnTripleEnter) — one blank line is common in real code.
 export const exitCodeBlockOnBlankLine: Command = (state, dispatch) => {
   const $pos = inCodeBlock(state);
   if (!$pos) return false;
@@ -94,7 +94,7 @@ export const exitCodeBlockOnBlankLine: Command = (state, dispatch) => {
   return true;
 };
 
-// Matches Tiptap's CodeBlock Backspace handler, but narrower: doesn't also fire on a non-empty block at doc start, unlike Tiptap's.
+// Like Tiptap's CodeBlock Backspace handler but narrower: doesn't fire on a non-empty block at doc start.
 export const clearEmptyCodeBlockBackward: Command = (state, dispatch) => {
   const $pos = inCodeBlock(state);
   if (!$pos || $pos.parent.content.size !== 0 || $pos.parentOffset !== 0) return false;
@@ -150,7 +150,7 @@ type RuleHandler = (
   end: number
 ) => Transaction | null;
 
-// Paired regexp must anchor at `$` with two groups: 1 the whole delimited run, 2 the inner text; delimiters assumed symmetric.
+// Regexp must anchor at `$` with two groups: 1 the whole delimited run, 2 the inner text; delimiters are symmetric.
 export function markRuleHandler(markType: MarkType): RuleHandler {
   return (state, match, start) => {
     const delimited = match[1];
@@ -201,11 +201,11 @@ export const ITALIC_UNDERSCORE_RULE = /(?:^|\s)(_(?!\s)([^_]+)_)$/;
 export const STRIKE_RULE = /(?:^|\s)(~~(?!\s)([^~]+)~~)$/;
 export const CODE_RULE = /(?:^|\s)(`(?!\s)([^`]+)`)$/;
 export const LINK_RULE = /(?:^|\s)(\[([^\]]+)\]\(([^)\s]+)\))$/;
-// Deliberately not `- [ ] ` (GFM syntax, handled on markdown import): the bullet-list rule already fires on `- ` alone and would pre-empt a dash-prefixed trigger.
+// Not `- [ ] ` (GFM, handled on markdown import) — the bullet-list rule fires on `- ` alone and would pre-empt it.
 export const CHECKLIST_RULE = /^\s*\[([ xX]?)\]\s$/;
 export const HORIZONTAL_RULE_RULE = /^(?:---|___|\*\*\*)$/;
 
-// `findWrapping` has no notion of "already inside a task_item", so a bare wrappingInputRule no-ops past the first checklist row; this flips `checked` instead of re-wrapping when already inside one.
+// `findWrapping` doesn't know "already in a task_item", so a bare rule no-ops past row one; flips `checked` instead.
 export function checklistRuleHandler(s: Schema): RuleHandler {
   return (state, match, start, end) => {
     const checked = /x/i.test(match[1] ?? '');
@@ -231,7 +231,8 @@ export function checklistRuleHandler(s: Schema): RuleHandler {
   };
 }
 
-// Confirmed live: an hr landing as a cell's last child leaves its NodeSelection at the cell's outer edge, and further typing jumps to the next cell instead of inserting locally. Appending an empty paragraph gives back a normal in-cell typing position.
+// Confirmed live: an hr as a cell's last child leaves the NodeSelection at the cell's outer edge, jumping typing
+// to the next cell. Appending an empty paragraph restores a normal in-cell typing position.
 export function keepCellTypableAfterHr(tr: Transaction, s: Schema, mappedPos: number): void {
   const $pos = tr.doc.resolve(mappedPos);
   const $cell = cellAround($pos);
@@ -253,7 +254,7 @@ export function horizontalRuleHandler(s: Schema): RuleHandler {
   };
 }
 
-// Returns false in a code block, where Shift-Enter falls through to native newline-in-<pre>, same as plain Enter via newlineInCode.
+// Returns false in a code block — Shift-Enter falls through to native newline-in-<pre>, like plain Enter.
 export const insertHardBreak: Command = (state, dispatch) => {
   const br = state.schema.nodes.hard_break;
   if (!br || state.selection.$from.parent.type.spec.code) return false;
@@ -261,7 +262,7 @@ export const insertHardBreak: Command = (state, dispatch) => {
   return true;
 };
 
-// Final fallback in the Tab keymap chain: without it, Tab falls through to the browser's tab-out-of-the-editor default, a keyboard trap out of the document.
+// Final Tab keymap fallback — without it, Tab falls through to the browser's tab-out-of-editor default.
 export const insertTabCharacter: Command = (state, dispatch) => {
   if (dispatch) dispatch(state.tr.insertText('\t').scrollIntoView());
   return true;
@@ -276,7 +277,7 @@ export const removeTabCharacterBefore: Command = (state, dispatch) => {
   return true;
 };
 
-// A table's `isolating` boundary blocks baseKeymap's joinBackward at the top-left cell, so Backspace there otherwise does nothing: delete an empty preceding block outright, else park the caret at its end.
+// `isolating` blocks joinBackward at the top-left cell: delete an empty preceding block, else park caret at its end.
 export function backspaceAtTableStart(): Command {
   return (state, dispatch) => {
     const { $from, empty } = state.selection;
@@ -306,7 +307,7 @@ export function backspaceAtTableStart(): Command {
   };
 }
 
-// Mirror of backspaceAtTableStart for the bottom-right cell: joinForward is blocked by the table's isolating boundary the same way joinBackward is.
+// Mirror of backspaceAtTableStart for the bottom-right cell — joinForward is blocked the same way joinBackward is.
 export function deleteAtTableEnd(): Command {
   return (state, dispatch) => {
     const { $from, empty } = state.selection;
@@ -337,7 +338,8 @@ export function deleteAtTableEnd(): Command {
   };
 }
 
-// Schema content rules can only ban a table as a cell's *direct* child, not nested deeper inside one, so a pasted slice can still carry it through — strip it here instead. Slice-local, never touches a synced transaction.
+// Schema rules only ban a table as a cell's *direct* child, not nested deeper — a pasted slice can still carry one.
+// Stripped here instead; slice-local, never touches a synced transaction.
 export function stripNestedTables(slice: Slice, s: Schema): Slice {
   function strip(fragment: Fragment, insideCell: boolean): Fragment {
     let changed = false;
@@ -362,7 +364,8 @@ export function stripNestedTables(slice: Slice, s: Schema): Slice {
   return content === slice.content ? slice : new Slice(content, slice.openStart, slice.openEnd);
 }
 
-// "Goal column" for a table escape/re-entry: an empty escape paragraph's caret has no x-position to read a target column back out of, so it's remembered here instead. Cleared on any selection change not coming through tableArrowVertical/tableArrowFromOutside.
+// Goal column for table escape/re-entry: an escape paragraph's caret has no x-position to read a column back from,
+// so it's remembered here — cleared on any selection change other than the two table-arrow commands.
 export const tableGoalColumnKey = new PluginKey<number | null>('tableGoalColumn');
 
 export function tableGoalColumnPlugin(): Plugin {
@@ -380,7 +383,7 @@ export function tableGoalColumnPlugin(): Plugin {
   });
 }
 
-// Shared column math for entering an adjacent table: Selection.near has no notion of "same column" and would otherwise always land in the first cell, dropping the goal column.
+// Shared column math for an adjacent table — Selection.near has no "same column" notion, would land in the first cell.
 function adjacentTableCellPos(table: PMNode, boundary: number, dir: 1 | -1, col: number): number {
   const map = TableMap.get(table);
   const tableStart = (dir === -1 ? boundary - table.nodeSize : boundary) + 1;
@@ -389,7 +392,8 @@ function adjacentTableCellPos(table: PMNode, boundary: number, dir: 1 | -1, col:
   return tableStart + map.positionAt(targetRow, clampedCol, table);
 }
 
-// The raw arithmetic cell boundary is one depth level too shallow for an empty child textblock (a fresh table's cells) — a caret can never rest there, so the naive comparison silently never matched (confirmed live: trapped the caret). Snapping each boundary through TextSelection.near fixes it.
+// Raw arithmetic boundary is one depth too shallow for an empty child textblock (a fresh table's cells) — the naive
+// comparison never matched (confirmed live: trapped caret). Snapping through TextSelection.near fixes it.
 function cellContentRange($cell: ResolvedPos): { start: number; end: number } {
   const node = $cell.nodeAfter;
   const rawStart = $cell.pos + 1;
@@ -400,7 +404,8 @@ function cellContentRange($cell: ResolvedPos): { start: number; end: number } {
   return { start, end };
 }
 
-// Escapes only at the cell's true content edge (cellContentRange), not just a wrapped-paragraph edge — deliberately structural rather than chasing the visual last line the way prosemirror-tables' own unexported atEndOfCell does via view.endOfTextblock (a minor imprecision on a wrapped paragraph's bottom line, not a correctness bug). Never creates a block to escape into.
+// Escapes at the cell's true content edge (cellContentRange), not a wrapped-paragraph edge — deliberately
+// structural rather than chasing the visual last line like prosemirror-tables' atEndOfCell. Never creates a block.
 export function tableArrowVertical(dir: 1 | -1): Command {
   return (state, dispatch) => {
     const { selection } = state;
@@ -429,11 +434,11 @@ export function tableArrowVertical(dir: 1 | -1): Command {
     const boundary = dir === -1 ? $cell.before(-1) : $cell.after(-1);
     const $boundary = state.doc.resolve(boundary);
     const hasNeighbour = dir === -1 ? $boundary.nodeBefore : $boundary.nodeAfter;
-    // Swallow rather than fall through: prosemirror-tables' own vertical-arrow handler (tableEditing()) would otherwise mimic horizontal movement here.
+    // Swallow rather than fall through — prosemirror-tables' vertical-arrow handler would mimic horizontal movement.
     if (!hasNeighbour) return true;
     if (dispatch) {
       const tr = state.tr;
-      // Same column-aware entry as tableArrowFromOutside — a bare Selection.near always lands in the first cell, dropping the goal column.
+      // Same column-aware entry as tableArrowFromOutside — bare Selection.near always lands in the first cell.
       const pos = hasNeighbour.type === table.type.schema.nodes.table
         ? adjacentTableCellPos(hasNeighbour, boundary, dir, colIndex) + 1
         : boundary + dir;
@@ -446,7 +451,8 @@ export function tableArrowVertical(dir: 1 | -1): Command {
   };
 }
 
-// Only the true outer corners of the whole cell are broken: with no further native caret position, the browser has been observed (confirmed live) to either wrap to the first cell or escape the ProseMirror view onto page chrome, swallowing the next keystroke.
+// Only the whole cell's true outer corners are broken: past them (confirmed live) the browser either wraps to
+// the first cell or escapes the view onto page chrome, swallowing the next keystroke.
 export function tableArrowHorizontal(dir: 1 | -1): Command {
   return (state, dispatch) => {
     const { selection } = state;
@@ -474,7 +480,8 @@ export function tableArrowHorizontal(dir: 1 | -1): Command {
   };
 }
 
-// Counterpart to tableArrowVertical's escape branch: without it, entry is left to the browser's native fallback, which consistently lands in the table's last cell regardless of caret position.
+// Counterpart to tableArrowVertical's escape branch — without it, entry falls to the browser's native fallback,
+// which lands in the table's last cell regardless of caret position.
 export function tableArrowFromOutside(dir: 1 | -1): Command {
   return (state, dispatch, view) => {
     if (!view) return false;
@@ -498,7 +505,9 @@ export function tableArrowFromOutside(dir: 1 | -1): Command {
   };
 }
 
-// prosemirror-tables' own shiftArrow is gated behind the same atEndOfCell check broken for our flatter cells (see tableArrowVertical), so it never fires; nextCell via TableMap sidesteps it. A bare caret gates on cellContentRange's edge, same as the plain Arrow commands, so mid-cell Shift-Arrow still extends a native text selection.
+// prosemirror-tables' shiftArrow is gated on the same atEndOfCell check broken for our flatter cells (see
+// tableArrowVertical); nextCell via TableMap sidesteps it. A bare caret gates on cellContentRange's edge too, so
+// mid-cell Shift-Arrow still extends a native text selection.
 export function tableShiftArrow(axis: 'horiz' | 'vert', dir: 1 | -1): Command {
   return (state, dispatch) => {
     const sel = state.selection;
@@ -523,7 +532,8 @@ export function tableShiftArrow(axis: 'horiz' | 'vert', dir: 1 | -1): Command {
   };
 }
 
-// Yjs's UndoManager (yUndoPlugin, Editor.svelte) coalesces consecutive changes within ~500ms, right for typing but wrong for a discrete structural edit; stopCapturing() resets that window first so mashing "add row" five times undoes one row at a time.
+// Yjs's UndoManager (yUndoPlugin, Editor.svelte) coalesces changes within ~500ms — right for typing, wrong for a
+// discrete edit; stopCapturing() resets that window so mashing "add row" undoes one row at a time.
 function freshUndoStep(cmd: Command): Command {
   return (state, dispatch, view) => {
     if (dispatch) yUndoPluginKey.getState(state)?.undoManager.stopCapturing();
@@ -538,7 +548,9 @@ export const deleteColumn = freshUndoStep(deleteColumnRaw);
 export const toggleHeaderRow = freshUndoStep(toggleHeaderRowRaw);
 export const deleteTable = freshUndoStep(deleteTableRaw);
 
-// Matches Google Docs: Tab at the last cell grows the table instead of no-op. Only fires when the current last row isn't entirely empty, to avoid piling up empty rows on a stray repeated Tab (a known Docs/Word irritant) — deliberate deviation from strict Docs parity. Still swallows the key when declining, since falling through would tab focus out of the editor.
+// Matches Google Docs: Tab at the last cell grows the table. Only fires when the last row isn't empty, to avoid
+// piling up rows on a stray repeated Tab (deliberate deviation from strict Docs parity). Still swallows the key
+// when declining — falling through would tab focus out of the editor.
 export function tabAddsRowAtEnd(): Command {
   return (state, dispatch) => {
     const { $from, empty } = state.selection;
@@ -572,7 +584,7 @@ export function buildPlugins(s: Schema): Plugin[] {
     keymap({
       'Mod-b': toggleMark(s.marks.strong),
       'Mod-i': toggleMark(s.marks.em),
-      // Mod-` is macOS-reserved for cycling app windows; no browser sees the keystroke, so it's bound on Mod-Shift-c instead.
+      // Mod-` is macOS-reserved for cycling windows; no browser sees the keystroke, so it's bound on Mod-Shift-c.
       'Mod-Shift-c': toggleMark(s.marks.code),
       'Mod-Shift-x': toggleMark(s.marks.strike),
       // Mod-U alone is Chrome/Firefox's reserved View Source shortcut and can't be preventDefault-ed.
@@ -594,10 +606,11 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Mod-Shift-9': toggleWrap(s.nodes.blockquote),
       'Mod-z': undo,
       'Mod-y': redo,
-      // Known accepted gap: on an AZERTY Mac, prosemirror-keymap's keyCode fallback resolves physical US-W to 'w' not 'z', so this doesn't fire there; Mod-y still reaches redo on every layout.
+      // Known gap: on an AZERTY Mac, prosemirror-keymap's keyCode fallback resolves physical US-W to 'w' not 'z', so
+      // this doesn't fire there; Mod-y still reaches redo on every layout.
       'Mod-Shift-z': redo,
       'Escape': escapeCodeBlock,
-      // Bound explicitly so the selection lands synchronously in `state`: a fast Home/End then Arrow would otherwise read a stale selection via the async selectionchange event.
+      // Bound explicitly for synchronous selection — fast Home/End then Arrow would otherwise read a stale one.
       'Home': selectTextblockStart,
       'End': selectTextblockEnd,
       'ArrowUp': chainCommands(tableArrowVertical(-1), tableArrowFromOutside(-1)),
@@ -608,14 +621,15 @@ export function buildPlugins(s: Schema): Plugin[] {
       'Shift-ArrowDown': tableShiftArrow('vert', 1),
       'Shift-ArrowLeft': tableShiftArrow('horiz', -1),
       'Shift-ArrowRight': tableShiftArrow('horiz', 1),
-      // Explicit `checked: false` for the new item: splitListItem otherwise copies the original item's attrs onto both halves, pre-ticking the new row.
+      // Explicit `checked: false`: splitListItem copies the item's attrs onto both halves, pre-ticking the new row.
       'Enter': chainCommands(
         exitCodeBlockOnBlankLine,
         splitListItem(s.nodes.list_item),
         splitListItem(s.nodes.task_item, { checked: false })
       ),
       'Shift-Enter': insertHardBreak,
-      // A CellSelection here falls through to baseKeymap's deleteSelection, which clears content but keeps table structure (Word/Docs/Notion convention) — deleting rows/columns is the separate Alt-Shift-Backspace family below.
+      // A CellSelection falls through to deleteSelection, clearing content but keeping structure (Word/Docs/Notion
+      // convention) — deleting rows/columns is the separate Alt-Shift-Backspace family below.
       'Backspace': chainCommands(backspaceAtTableStart(), clearEmptyCodeBlockBackward),
       'Delete': deleteAtTableEnd(),
       'Tab': chainCommands(
@@ -631,7 +645,10 @@ export function buildPlugins(s: Schema): Plugin[] {
         liftListItem(s.nodes.task_item),
         removeTabCharacterBefore
       ),
-      // Written as `Alt-Shift-<lowercase>`, not `Alt-<UPPERCASE>` — NOT interchangeable: on macOS, Option+Shift+letter can compose into an accented/special character in event.key (confirmed live), which `Alt-R` has nothing left to match; prosemirror-keymap's own keyCode fallback for this only ever reconstructs the `Shift-Alt-<lowercase>` shape (verified against its keydownHandler). No shortcut for deleting the whole table — that stays behind the toolbar panel's trash button.
+      // `Alt-Shift-<lowercase>`, not `Alt-<UPPERCASE>` — NOT interchangeable: on macOS, Option+Shift+letter can compose
+      // into an accented character in event.key (confirmed live), which `Alt-R` can't match; prosemirror-keymap's
+      // keyCode fallback only reconstructs `Shift-Alt-<lowercase>`. No shortcut deletes the whole table — that's
+      // behind the toolbar's trash button.
       'Alt-Shift-r': addRowAfter,
       'Alt-Shift-c': addColumnAfter,
       'Alt-Shift-Backspace': deleteRow,

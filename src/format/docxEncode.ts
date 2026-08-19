@@ -31,7 +31,7 @@ const MAX_LIST_LEVEL = 5; // docx numbering levels are 0-indexed; we define 6 (0
 const ORDERED_REF = 'copad-ordered';
 const LIST_INDENT_IN = 0.25;
 
-// The docx package leaves body text at OOXML's bare-spec fallback (10pt, no named font) when docDefaults is empty — illegibly small next to the editor's own reading font.
+// docx leaves body text at OOXML's bare-spec fallback (10pt, no font) when docDefaults is empty — too small.
 const BODY_FONT = 'Georgia';
 const BODY_SIZE_HALF_PT = 24; // 12pt
 
@@ -88,7 +88,7 @@ function runsOf(inline: PMNode, forceStyle: IRunStylePropertiesOptions = {}): Pa
 }
 
 type Block = Paragraph | Table;
-// Shared across one whole encode() call, never re-created per recursive blocksOf call — otherwise two unrelated root lists could collide on the same instance number and render as one continuing list.
+// Shared across one encode() call, not per blocksOf call — else two root lists could collide on one instance.
 type OrderedCounter = { next: number };
 
 function blocksOf(container: PMNode, counter: OrderedCounter, depth = -1, orderedInstance = 0): Block[] {
@@ -97,7 +97,8 @@ function blocksOf(container: PMNode, counter: OrderedCounter, depth = -1, ordere
   return out;
 }
 
-// depth is current list nesting (-1 outside any list); orderedInstance lets a root ordered list restart at 1 while a nested one shares its ancestor's numbering instance.
+// depth is current list nesting (-1 outside any list).
+// orderedInstance: a root list restarts at 1; a nested one shares its ancestor's numbering instance.
 function blockOf(node: PMNode, counter: OrderedCounter, depth: number, orderedInstance: number): Block[] {
   switch (nodeNameOf(node)) {
     case 'paragraph':
@@ -171,14 +172,14 @@ function blockOf(node: PMNode, counter: OrderedCounter, depth: number, orderedIn
     }
 
     case 'table': {
-      // Word/docx fall back to ~0-width columns when no width is given; every cell gets an explicit equal share of 100% instead.
+      // Word/docx falls back to ~0-width columns without an explicit width; give every cell an equal share of 100%.
       const colCount = node.firstChild?.childCount ?? 1;
       const colWidth: ITableWidthProperties = { size: `${100 / colCount}%`, type: WidthType.PERCENTAGE };
       const rows: TableRow[] = [];
       node.forEach((row) => {
         const cells: TableCell[] = [];
         row.forEach((cell) => {
-          // A cell holds block+ content, not bare inline runs; anything richer than one paragraph falls through to the general block renderer so nothing is silently dropped.
+          // A cell holds block+ content, not inline runs; richer than one paragraph goes to the block renderer.
           const isHeader = nodeNameOf(cell) === 'table_header';
           const onlyParagraph = cell.childCount === 1 && nodeNameOf(cell.firstChild!) === 'paragraph';
           const children: Block[] = onlyParagraph
@@ -214,7 +215,8 @@ function listItemOf(
   return out;
 }
 
-// Plain function, not an ExportCodec object (#181): docx.ts wraps this behind a dynamic import() so the ~100kB docx package only loads into a page that actually triggers a Word export. Only import this file lazily.
+// Plain function, not an ExportCodec (#181): docx.ts dynamic-imports this so the docx package loads only on export.
+// Import this file lazily elsewhere too.
 export async function encodeDocx(doc: Y.Doc): Promise<Uint8Array> {
   const root = readPmDoc(doc);
   const document = new Document({

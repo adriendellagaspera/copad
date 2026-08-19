@@ -19,7 +19,7 @@ export type PaletteItemKeywords = string & { readonly _brand: 'PaletteItemKeywor
 /** A group's heading in the result list. */
 export type PaletteGroupLabel = string & { readonly _brand: 'PaletteGroupLabel' };
 
-/** A code-facing name for an action or insert row — distinct from its {@link PaletteItemLabel}, which is user-facing. */
+/** A code-facing name for a row, distinct from the user-facing {@link PaletteItemLabel}. */
 export type PaletteItemName = string & { readonly _brand: 'PaletteItemName' };
 
 /** The one cast site for {@link PaletteItemName} — names are defined in source

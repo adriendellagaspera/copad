@@ -6,7 +6,7 @@ interface BrandIcon {
   readonly hex: string;
 }
 
-// Simple Icons (CC0, https://simpleicons.org), 24x24 viewBox; a backend that is not one unambiguous brand gets no entry and falls back to a monogram.
+// Simple Icons (CC0, simpleicons.org), 24x24 viewBox; a backend without one unambiguous brand falls back to a monogram.
 export const BRAND_ICONS: Partial<Record<StorageId, BrandIcon>> = {
   [STORAGE_ID.dropbox]: {
     hex: '0061FF',
