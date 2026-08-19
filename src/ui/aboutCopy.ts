@@ -2,6 +2,7 @@
 
 import { Transport } from '../collaboration/types.js';
 import type { CursorColor, DisplayName } from '../collaboration/types.js';
+import type { PagePath } from '../collaboration/roomHistory.js';
 import type { RoomEncrypted } from './types.js';
 
 export const TransportClaim = { EndToEnd: 'end-to-end', Relayed: 'relayed' } as const;
@@ -81,8 +82,16 @@ export const SPECIMEN_PEERS: readonly SpecimenPeer[] = [
 ];
 
 export const REPO_URL = 'https://github.com/adriendellagaspera/copad' as AboutUrl;
-export const CONTRACT_URL = `${REPO_URL}/blob/main/docs/contract.md` as AboutUrl;
-export const PRIVACY_URL =
-  `${CONTRACT_URL}#2-the-two-transports-promise-different-things` as AboutUrl;
 export const LICENSE_URL = `${REPO_URL}/blob/main/LICENSE` as AboutUrl;
 export const DEPLOY_URL = `${REPO_URL}#deployment` as AboutUrl;
+
+// Copad's own rendered docs/contract.md (scripts/build-docs.mjs), not GitHub's
+// blob view — every build ships dist/docs/contract.html alongside the app, so
+// this resolves under whatever base path the deployment is served from.
+export function contractUrl(page: PagePath): AboutUrl {
+  return `${page}docs/contract.html` as AboutUrl;
+}
+
+export function privacyUrl(page: PagePath): AboutUrl {
+  return `${contractUrl(page)}#2-the-two-transports-promise-different-things` as AboutUrl;
+}

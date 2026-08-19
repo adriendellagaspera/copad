@@ -619,6 +619,14 @@ preview, and `--remove`-ing a preview when its PR closes — so all three inheri
 than the cleanup open-coding a bare push that loses the race. `ensure-pages-source.cjs` re-asserts the setting
 the whole scheme depends on (Source = `gh-pages`, `/`) on every deploy.
 
+`npm run build` (`package.json`) also runs `scripts/build-docs.mjs`, which renders `docs/contract.md` into
+`dist/docs/contract.html` — Copad's own styled page rather than GitHub's blob view — so it ships with every
+build, self-hosted or Pages alike. `docs/contract.md` stays the only source of that text (AGENTS.md: "every fact
+lives in exactly one place"); the script only changes how it's presented, keeping GitHub's own heading-anchor
+slugs so existing `#section-name` links keep resolving. `aboutCopy.ts`'s `contractUrl()`/`privacyUrl()` build
+the link from the `page` path `App.svelte` already tracks (`location.pathname`), so About's "The contract" link
+resolves under whatever base path the deployment is served from.
+
 Two properties of the publish are load-bearing, both learned from an outage that left the live site 65 commits
 behind `main` for three days:
 

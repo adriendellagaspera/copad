@@ -3,7 +3,7 @@ import { render } from 'svelte/server';
 import About from './About.svelte';
 import { Transport } from '../collaboration/types.js';
 import type { PagePath } from '../collaboration/roomHistory.js';
-import { CONTRACT_URL, PRIVACY_URL } from './aboutCopy.js';
+import { contractUrl, privacyUrl } from './aboutCopy.js';
 
 const PAGE = '/' as PagePath;
 
@@ -63,8 +63,8 @@ describe('About', () => {
 
   it('links the contract as its privacy document', () => {
     const page = html(Transport.P2P);
-    expect(page).toContain(`href="${CONTRACT_URL}"`);
-    expect(page).toContain(`href="${PRIVACY_URL}"`);
+    expect(page).toContain(`href="${contractUrl(PAGE)}"`);
+    expect(page).toContain(`href="${privacyUrl(PAGE)}"`);
   });
 
   it('derives its in-app link and its example URL from the page path it was given', () => {
