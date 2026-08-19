@@ -12,12 +12,12 @@ jobs:
   # `ci-success` below can be the single required check. Mirrors reconcile-rs's main.yml `changes`
   # job.
   #
-  # `app` is everything `check`'s own steps can react to: src/**, the root config files tsc/
-  # svelte-check/lint/vite read, package.json/lock, .github/scripts/** (test:scripts,
-  # check:doc-budget), the four docs check:doc-budget caps, and this workflow file itself — a
-  # change to the CI definition should always re-validate. `e2e` adds e2e/** and
-  # playwright.config.ts on top of `app`, since Playwright exercises the real built app. `turn` is
-  # independent of both: deploy/turn/** plus this workflow file.
+  # `app` is everything the four `app`-gated jobs below (typecheck-lint, audit, test, build) can
+  # react to: src/**, the root config files tsc/svelte-check/lint/vite read, package.json/lock,
+  # .github/scripts/** (test:scripts, check:doc-budget), the four docs check:doc-budget caps, and
+  # this workflow file itself — a change to the CI definition should always re-validate. `e2e`
+  # adds e2e/** and playwright.config.ts on top of `app`, since Playwright exercises the real
+  # built app. `turn` is independent of both: deploy/turn/** plus this workflow file.
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -58,7 +58,13 @@ jobs:
               - 'deploy/turn/**'
               - '.github/workflows/ci.yml'
 
-  check:
+  # `check` used to be one job running all nine steps serially. None of them depend on each
+  # other's *output* beyond `npm ci` (audit/licenses need the resolved tree, not built app;
+  # doc-budget needs neither) — split by what they actually check, so independent runners absorb
+  # the wall-clock instead of one runner paying the full sum. `ci-success` below lists every one
+  # of these by name; adding a fifth split job means adding it there too, same as adding any new
+  # top-level job.
+  typecheck-lint:
     needs: changes
     if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
@@ -75,7 +81,21 @@ jobs:
       - run: npm run check
       - run: npm run lint
       - run: npm run check:doc-budget
+      - run: npm run check:doc-structure
       - run: npm run format:md:check
+
+  audit:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
 
       # High/critical only (--audit-level=high) — low/moderate are reported by
       # `npm audit` but don't fail the build. One standing low-severity
@@ -87,9 +107,35 @@ jobs:
       # Revisit when a fixed vite-plugin-node-polyfills release exists.
       - run: npm run check:audit
       - run: npm run check:licenses
-      - run: npm run check:doc-structure
+
+  test:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
       - run: npm test
       - run: npm run test:scripts
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
 
       # No secrets configured here; the WebDAV adapter is always available.
       - run: npm run build
@@ -107,7 +153,28 @@ jobs:
 
       - run: npm ci
 
-      - run: npx playwright install --with-deps chromium
+      # The browser binary is the slow, occasionally-flaky part (a ~100+MB download); the OS
+      # packages `--with-deps` also installs via apt are never cached (the runner VM is fresh
+      # every job regardless), so those still install every run either way. Cache key on the
+      # resolved @playwright/test version, not package.json's semver range, so a version bump
+      # invalidates the cache instead of silently running a stale browser build against a newer
+      # test runner.
+      - name: Resolve installed Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+      - name: Install Playwright browser + OS deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Playwright OS deps only (browser cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
       - run: npm run build
 
       # playwright.config.ts starts the preview and signaling servers itself.
@@ -206,7 +273,10 @@ jobs:
     if: always()
     needs:
       - changes
-      - check
+      - typecheck-lint
+      - audit
+      - test
+      - build
       - e2e
       - turn
     runs-on: ubuntu-latest
