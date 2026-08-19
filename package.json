@@ -20,6 +20,8 @@
     "check:audit": "npm audit --audit-level=high",
     "check:licenses": "node .github/scripts/check-license-allowlist.mjs",
     "check:doc-structure": "node .github/scripts/check-doc-structure.mjs",
+    "format:md": "prettier --write AGENTS.md CLAUDE.md README.md docs/architecture.md docs/contract.md",
+    "format:md:check": "prettier --check AGENTS.md CLAUDE.md README.md docs/architecture.md docs/contract.md",
     "e2e": "playwright test"
   },
   "dependencies": {
@@ -55,6 +57,7 @@
     "happy-dom": "^20.10.6",
     "jszip": "^3.10.1",
     "license-checker-rseidelsohn": "^4.4.2",
+    "prettier": "^3.9.6",
     "svelte-check": "^4.7.0",
     "svelte-eslint-parser": "^1.8.0",
     "typedoc": "^0.28.20",

@@ -91,14 +91,14 @@
     color: CursorColor;
     room: RoomId;
     role?: SessionRole;
-    // Set only on a tab MeetingJoinDialog just opened, so its presence probe can recognize and discard this tab's own self-join.
+    // Set when MeetingJoinDialog opens, so the presence probe can discard this tab's own self-join.
     selfProbeMarker?: SelfProbeMarker | null;
     connect: CollabConnect;
     toasts: Toasts;
     lang?: ResolvedLanguage;
     spellcheck?: SpellcheckEnabled;
     writeLocked?: boolean;
-    // Stamped only on an explicit "Write alone anyway" click, never by writeLocked going false on its own — a natural unlock must never steal focus (contract §4.1).
+    // Stamped only by an explicit "Write alone anyway" click; a natural unlock must never steal focus (contract §4.1).
     writeSoloAt?: EpochMs | null;
     importRequest?: { bytes: Uint8Array; filename: Filename } | null;
     onImportHandled?: () => void;
@@ -136,7 +136,7 @@
   const REMOTE_CURSOR_FADE_TICK = 15_000 as Milliseconds;
   let fadeTimer: ReturnType<typeof setInterval> | undefined;
 
-  // Dedicated Y.Map, not the prosemirror fragment, so it never leaks into text/markdown/html/json exports (codecs only read the fragment).
+  // Separate Y.Map, not the prosemirror fragment, so codecs (which only read the fragment) never export it.
   const roomMeta = collab.doc.getMap('roomMeta');
   const readRoomName = (): RoomName | null =>
     parseRoomName(typeof roomMeta.get('name') === 'string' ? (roomMeta.get('name') as string) : null);

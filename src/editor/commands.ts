@@ -39,7 +39,7 @@ const insertTable: Command = (state, dispatch) => {
   const types = tableNodeTypes(state.schema);
   if (!types.table || !types.row || !types.cell || !types.header_cell) return false;
   if (dispatch) {
-    // createAndFill, not create: a cell's content is block+ (schema.ts), so create() would skip content validation and produce a structurally invalid, childless cell.
+    // createAndFill, not create: cell content is block+ (schema.ts); create() would yield a childless cell.
     const headerCells = Array.from({ length: TABLE_COLS }, () => types.header_cell.createAndFill()!);
     const bodyCells = Array.from({ length: TABLE_COLS }, () => types.cell.createAndFill()!);
     const rows = [types.row.create(null, headerCells)];
@@ -48,7 +48,7 @@ const insertTable: Command = (state, dispatch) => {
     const { tr } = state;
     const from = tr.selection.from;
     tr.replaceSelectionWith(table);
-    // replaceSelectionWith's own post-insert selection can land in the last cell rather than the first; re-anchor to the first header cell explicitly.
+    // replaceSelectionWith can leave the selection in the last cell; re-anchor to the first header cell explicitly.
     let tablePos = -1;
     tr.doc.nodesBetween(Math.max(0, from - 1), tr.doc.content.size, (node, pos) => {
       if (tablePos === -1 && node.type === types.table) tablePos = pos;
@@ -57,7 +57,7 @@ const insertTable: Command = (state, dispatch) => {
       const paragraphType = state.schema.nodes.paragraph;
       if (paragraphType) {
         const tableSize = tr.doc.nodeAt(tablePos)!.nodeSize;
-        // A table as the doc's first/last node leaves no neighbour for tableArrowVertical to escape into (traps the caret) — guarantee one on whichever side is missing.
+        // A table at the doc's first/last position traps the caret (no neighbour to escape into) — add one.
         if (tablePos === 0) {
           tr.insert(0, paragraphType.create());
           tablePos += paragraphType.create().nodeSize;
@@ -93,7 +93,7 @@ export function activeInputMarks(state: EditorState): MarkType[] {
 
 export type BlockContext = { label: string; pos: number };
 
-// Walks ancestors innermost-first (a heading inside a list item reports the heading), but pos always anchors to the current line, not the matched ancestor.
+// Walks ancestors innermost-first (heading in a list item reports the heading); pos anchors to the current line.
 export function activeBlockContext(state: EditorState): BlockContext | null {
   const { $from } = state.selection;
   const pos = $from.start($from.depth);
@@ -117,7 +117,7 @@ export function isNodeActive(
 ): boolean {
   const { $from, to } = state.selection;
   if (to > $from.end($from.depth)) return false;
-  // Walk ancestors: a list/blockquote is a wrapping node, so $from.parent (the inner paragraph) never matches it directly.
+  // Walk ancestors: a list/blockquote wraps content, so $from.parent (the inner paragraph) never matches it directly.
   for (let d = $from.depth; d >= 0; d--) {
     if ($from.node(d).hasMarkup(type, attrs)) return true;
   }

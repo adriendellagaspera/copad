@@ -213,7 +213,7 @@
   let creds = $state<Record<StorageId, SessionCredentials>>({});
   let fnames = $state<Record<StorageId, string>>({});
 
-  // Backend config/session writes hit plain localStorage, not Svelte state: bump this to force `ready`/`authed` to re-derive.
+  // Backend config/session writes hit localStorage, not Svelte state; bump this to force `ready`/`authed` to re-derive.
   let stateVersion = $state(0);
   function withVersion<T>(value: T): T {
     void stateVersion;

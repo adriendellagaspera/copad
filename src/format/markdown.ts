@@ -18,7 +18,8 @@ import { extensionOf } from './types.js';
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
-// GFM strikethrough/tables are disabled by the CommonMark preset; `html: true` turns on raw HTML *block* recognition (not html_inline), needed for richTableToHtml's fallback below.
+// CommonMark preset disables GFM strikethrough/tables (enabled below).
+// `html: true` enables raw HTML *block* recognition (not html_inline), needed for richTableToHtml's fallback.
 const MarkdownItClass = defaultMarkdownParser.tokenizer.constructor as new (
   preset: string,
   options: Record<string, unknown>,
@@ -26,7 +27,7 @@ const MarkdownItClass = defaultMarkdownParser.tokenizer.constructor as new (
 const tokenizer = new MarkdownItClass('commonmark', { html: true });
 tokenizer.enable(['strikethrough', 'table']);
 
-// A GFM table cell serializes hard_break as literal `<br>` (a real newline can't appear in a pipe-table row); parse it back the same way.
+// Table cells serialize hard_break as `<br>` (no real newlines in a pipe-table row); parsed back here.
 tokenizer.inline.ruler.before('html_inline', 'gfmHardBreak', (state, silent) => {
   const match = /^<br\s*\/?>/i.exec(state.src.slice(state.pos));
   if (!match) return false;
@@ -47,7 +48,8 @@ const parser = new MarkdownParser(schema, tokenizer, {
   td: { block: 'table_cell' satisfies NodeName },
 });
 
-// MarkdownParser's declarative {block}/{node}/{mark}/{ignore} tokens config can't open a nested paragraph inside a cell or splice a prebuilt node; `tokenHandlers` is public but untyped, so this patches it post-construction instead.
+// Declarative tokens config can't open a nested paragraph in a cell or splice a prebuilt node.
+// `tokenHandlers` is public but untyped, so it's patched here post-construction instead.
 type ParserInternals = {
   tokenHandlers: Record<string, (state: MarkdownParseState, tok: { content: string }) => void>;
 };
@@ -76,12 +78,13 @@ parserInternals.tokenHandlers['th_close'] = (state) => {
   state.closeNode();
 };
 
-// `html: true` also enables html_inline for any text merely looking like a tag; MarkdownParser throws on an unmapped token, so treat it as literal text (same as html: false did). The <br> rule above still runs first, so a real <br> still becomes a hard_break.
+// `html: true` also enables html_inline for tag-like text; unmapped tokens throw, so treat as literal text.
+// The <br> rule above still runs first, so a real <br> still becomes a hard_break.
 parserInternals.tokenHandlers['html_inline'] = (state, tok) => {
   state.addText(tok.content);
 };
 
-// html_block is how richTableToHtml's fallback round-trips a <table>; requires a DOM, else degrades to a plain-text paragraph (honest degrade, not silent loss — the raw markup stays visible).
+// html_block round-trips richTableToHtml's <table> fallback; no DOM degrades it to a plain-text paragraph.
 parserInternals.tokenHandlers['html_block'] = (state, tok) => {
   if (hasDom()) {
     const table = parseHtmlTable(tok.content);
@@ -95,7 +98,7 @@ parserInternals.tokenHandlers['html_block'] = (state, tok) => {
   state.closeNode();
 };
 
-// `underline` is dropped silently: Markdown/CommonMark has no native underline syntax, so the mark doesn't survive a round-trip through this format.
+// `underline` has no CommonMark syntax, so it's dropped silently and doesn't survive a round-trip.
 const serializer = new MarkdownSerializer(
   {
     ...defaultMarkdownSerializer.nodes,
@@ -106,7 +109,7 @@ const serializer = new MarkdownSerializer(
       state.renderContent(node);
     },
     table(state, node) {
-      // A cell with a list, heading, or more than one paragraph has no GFM pipe-table equivalent; fall back to an embedded raw HTML block (see richTableToHtml).
+      // A cell with a list, heading, or multiple paragraphs has no pipe-table form; falls back to raw HTML.
       const render = classifyTable(node);
       const lines = render.kind === 'simple'
         ? render.lines
@@ -127,13 +130,13 @@ const serializer = new MarkdownSerializer(
   },
 );
 
-// No-DOM degrade for a rich table cell: flattens block structure to plain text rather than throwing, since unlike htmlCodec this codec isn't documented as browser-only.
+// No-DOM fallback for rich cells: flattens to plain text (unlike htmlCodec, this codec isn't browser-only).
 function richTableToPlainTextLines(table: PMNode): string[] {
   return tableToPipeTableLines(table, (cell) =>
     cell.textContent.replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim());
 }
 
-// markdown-it has no dedicated checklist token; this is the standard way editors bolt GFM task lists onto a plain parser.
+// markdown-it has no checklist token; this is the standard way editors bolt GFM task lists onto it.
 const CHECKBOX_PREFIX = /^\[([ xX])\]\s/;
 
 function stripCheckboxPrefix(paragraph: PMNode): { checked: boolean; rest: PMNode } | null {
@@ -151,7 +154,7 @@ function stripCheckboxPrefix(paragraph: PMNode): { checked: boolean; rest: PMNod
   return { checked, rest: schema.nodes.paragraph.create(paragraph.attrs, rest) };
 }
 
-// Converts only when *every* item has a checkbox prefix: a partial match has no schema equivalent (task_list's content is task_item+ only) and is left as a plain bullet list.
+// Converts only if *every* item has a checkbox prefix; a partial match stays a plain bullet list.
 function taskifyBulletList(list: PMNode): PMNode | null {
   const items: PMNode[] = [];
   let allMatch = true;

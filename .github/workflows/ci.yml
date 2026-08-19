@@ -21,6 +21,7 @@ jobs:
       - run: npm run check
       - run: npm run lint
       - run: npm run check:doc-budget
+      - run: npm run format:md:check
 
       # High/critical only (--audit-level=high) — low/moderate are reported by
       # `npm audit` but don't fail the build. One standing low-severity

@@ -23,7 +23,7 @@ export interface CollabCore {
   emitStatus(): void;
   setSynced(value: boolean): void;
   resetConnectTimeout(): void;
-  // Call before the provider/doc are destroyed: closes the IndexedDB connection first, or a subsequent "clear local copies" would be blocked.
+  // Call before the provider/doc are destroyed: closes IndexedDB, or a later "clear local copies" would be blocked.
   destroy(): void;
 }
 
@@ -38,7 +38,8 @@ export function createCollabCore(opts: CollabCoreOptions): CollabCore {
     ? attachLocalCache(opts.room, opts.doc, opts.cacheKey)
     : undefined;
 
-  // `connecting` alone can't tell "still trying" apart from a dead/misconfigured server — both look identical, spinner forever. `timedOut` closes that gap: past CONNECT_TIMEOUT_MS with no attach, computeStatus reports Unreachable instead.
+  // `connecting` can't tell "still trying" from a dead server (both spin forever); `timedOut` closes that gap
+  // past CONNECT_TIMEOUT_MS with no attach.
   let timedOut = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -80,7 +81,7 @@ export function createCollabCore(opts: CollabCoreOptions): CollabCore {
     return PresenceKind.Alone;
   };
 
-  // Memoised: same kind => same object, so a downstream grace timer keyed on identity doesn't restart on every awareness sweep.
+  // Memoised: same kind => same object, so a grace timer keyed on identity doesn't restart on every awareness sweep.
   let presence: RoomPresence = { kind: computePresenceKind() };
   const emitPresence = (): void => {
     const kind = computePresenceKind();
@@ -96,7 +97,8 @@ export function createCollabCore(opts: CollabCoreOptions): CollabCore {
     emitPresence();
   };
 
-  // onStatus computes its first value directly, not through emitStatus, so without this a core created already-not-attached would never start its clock.
+  // onStatus computes its first value directly, not via emitStatus — a not-yet-attached core needs this to
+  // start its clock.
   syncTimer();
 
   const onNetwork = (): void => emitStatus();

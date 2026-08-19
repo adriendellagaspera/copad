@@ -1,19 +1,17 @@
 # Copad architecture reference
 
-Deep reference for how the codebase is structured: ports/adapters, wiring, file
-formats, config, deployment. Contribution **rules** live in
-[`AGENTS.md`](../AGENTS.md): this file is descriptive, not normative, and
-nothing here needs to be read before writing code; look things up as they
-become relevant. For the product-facing overview (quick start, deployment
-steps, known limitations) see [`README.md`](../README.md).
+Deep reference for how the codebase is structured: ports/adapters, wiring, file formats, config, deployment.
+Contribution **rules** live in [`AGENTS.md`](../AGENTS.md): this file is descriptive, not normative, and nothing
+here needs to be read before writing code; look things up as they become relevant. For the product-facing
+overview (quick start, deployment steps, known limitations) see [`README.md`](../README.md).
 
 ## Architecture
 
 Copad follows **hexagonal architecture** (ports & adapters, see
-[Alistair Cockburn's original writeup](https://alistair.cockburn.us/hexagonal-architecture/))
-with a **functional style**: factory functions returning plain objects, never classes.
-See [`README.md`](../README.md#how-it-works) for the runtime data-flow diagram; this section
-is the reference for what implements what.
+[Alistair Cockburn's original writeup](https://alistair.cockburn.us/hexagonal-architecture/)) with a
+**functional style**: factory functions returning plain objects, never classes. See
+[`README.md`](../README.md#how-it-works) for the runtime data-flow diagram; this section is the reference for
+what implements what.
 
 ```mermaid
 flowchart TB
@@ -34,262 +32,612 @@ flowchart TB
 
 ### Ports (interfaces)
 
-| Port | File | Description |
-|------|------|-------------|
-| `Storage` | `src/storage/types.ts` | Persist and restore document bytes for a backend's target file (bytes-only, no auth). Optional `list()`/`loadFrom()` let a backend also browse and read an arbitrary *other* file within its already-connected scope (e.g. another file in the same GitHub repo or OneDrive AppFolder), implemented only where listing needs no new API surface or broader auth scope (GitHub, OneDrive personal); a backend without them simply has no "Browse…" entry. |
-| `StorageAuth` | `src/storage/auth.ts` | Authenticate to a cloud storage backend; owns login/logout/config |
-| `Collab` | `src/collaboration/types.ts` | Provide a shared Y.Doc and awareness channel |
-| `CollabConnect` | `src/collaboration/types.ts` | Factory type: `(room: string) => Collab` |
-| `RoomAccess` | `src/collaboration/roomAccess.ts` | Who may join a room (`mode` + `credential(room)`) |
-| `RoomCipher` | `src/collaboration/roomCipher.ts` | How a room is encrypted (`password(room): string \| null`) |
-| `Codec` | `src/format/types.ts` | Convert file bytes ⟷ the shared Y.Doc, selected by filename extension |
+| Port            | File                              | Description                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Storage`       | `src/storage/types.ts`            | Persist and restore document bytes for a backend's target file (bytes-only, no auth). Optional `list()`/`loadFrom()` let a backend also browse and read an arbitrary _other_ file within its already-connected scope (e.g. another file in the same GitHub repo or OneDrive AppFolder), implemented only where listing needs no new API surface or broader auth scope (GitHub, OneDrive personal); a backend without them simply has no "Browse…" entry. |
+| `StorageAuth`   | `src/storage/auth.ts`             | Authenticate to a cloud storage backend; owns login/logout/config                                                                                                                                                                                                                                                                                                                                                                                        |
+| `Collab`        | `src/collaboration/types.ts`      | Provide a shared Y.Doc and awareness channel                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `CollabConnect` | `src/collaboration/types.ts`      | Factory type: `(room: string) => Collab`                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `RoomAccess`    | `src/collaboration/roomAccess.ts` | Who may join a room (`mode` + `credential(room)`)                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `RoomCipher`    | `src/collaboration/roomCipher.ts` | How a room is encrypted (`password(room): string \| null`)                                                                                                                                                                                                                                                                                                                                                                                               |
+| `Codec`         | `src/format/types.ts`             | Convert file bytes ⟷ the shared Y.Doc, selected by filename extension                                                                                                                                                                                                                                                                                                                                                                                    |
 
 ### Adapters (implementations)
 
-Storage adapters return `{ auth: StorageAuth; storage: Storage }`: auth and bytes live in a shared closure but are exposed through separate ports. The `StorageBackend` type alias (in `src/storage/index.ts`) names the pair.
+Storage adapters return `{ auth: StorageAuth; storage: Storage }`: auth and bytes live in a shared closure but
+are exposed through separate ports. The `StorageBackend` type alias (in `src/storage/index.ts`) names the pair.
 
-| Adapter | File | Notes |
-|---------|------|-------|
-| `dropboxStorage()` | `src/storage/dropbox.ts` | OAuth2 PKCE, no proxy needed |
-| `pcloudStorage()` | `src/storage/pcloud.ts` | OAuth popup |
-| `webdavStorage()` | `src/storage/webdav.ts` | Requires `VITE_PROXY_URL` (CORS) |
-| `githubStorage()` | `src/storage/github.ts` | Commits to a GitHub repo via PAT; `contentFormat` is `'text'` for human-readable files, `'binary'` for `.yjs`. |
-| `gitlabStorage()` | `src/storage/gitlab.ts` | Commits to a GitLab project (gitlab.com or self-hosted) via PAT; mirrors `githubStorage()` (configFields + validated flag + POST/PUT create-or-update). |
-| `s3Storage()` | `src/storage/s3.ts` | Any S3-compatible bucket (AWS, R2, MinIO, B2, GCS…). AWS SigV4 signed with `crypto.subtle` (no SDK); binary `.yjs`; bucket must allow CORS. |
-| `sharepointStorage()` | `src/storage/sharepoint.ts` | SharePoint or a *work/school* account's OneDrive **for Business** via Microsoft Graph, delegated bearer token (credentialFields, like WebDAV); Graph has native CORS (no proxy). |
-| `gdriveStorage()` | `src/storage/gdrive.ts` | OAuth2 PKCE (like Dropbox); `drive.file` scope, file resolved by per-room filename; extension-driven `contentFormat`. |
-| `onedriveStorage()` | `src/storage/onedrive.ts` | *Personal* Microsoft account OneDrive via Microsoft Graph, OAuth2 PKCE against the `consumers` tenant (rejects work/school accounts, no overlap with `sharepointStorage()`); `Files.ReadWrite.AppFolder` scope confines access to a dedicated `Apps/<AppName>` special folder, mirroring `drive.file`'s least-privilege shape. |
-| `localFsStorage()` | `src/storage/local.ts` | File System Access API, Chrome/Edge only |
-| `webrtcCollab()` | `src/collaboration/webrtc.ts` | y-webrtc peer-to-peer transport (**default**). Needs STUN, plus TURN on mobile/symmetric NAT. |
-| `websocketCollab()` | `src/collaboration/websocket.ts` | y-websocket hub transport (opt-in via `VITE_COLLAB_TRANSPORT=websocket`). Central relay, **no WebRTC → no STUN/TURN**; server is in the data path (no E2E). |
+| Adapter               | File                             | Notes                                                                                                                                                                                                                                                                                                                          |
+| --------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dropboxStorage()`    | `src/storage/dropbox.ts`         | OAuth2 PKCE, no proxy needed                                                                                                                                                                                                                                                                                                   |
+| `pcloudStorage()`     | `src/storage/pcloud.ts`          | OAuth popup                                                                                                                                                                                                                                                                                                                    |
+| `webdavStorage()`     | `src/storage/webdav.ts`          | Requires `VITE_PROXY_URL` (CORS)                                                                                                                                                                                                                                                                                               |
+| `githubStorage()`     | `src/storage/github.ts`          | Commits to a GitHub repo via PAT; `contentFormat` is `'text'` for human-readable files, `'binary'` for `.yjs`.                                                                                                                                                                                                                 |
+| `gitlabStorage()`     | `src/storage/gitlab.ts`          | Commits to a GitLab project (gitlab.com or self-hosted) via PAT; mirrors `githubStorage()` (configFields + validated flag + POST/PUT create-or-update).                                                                                                                                                                        |
+| `s3Storage()`         | `src/storage/s3.ts`              | Any S3-compatible bucket (AWS, R2, MinIO, B2, GCS…). AWS SigV4 signed with `crypto.subtle` (no SDK); binary `.yjs`; bucket must allow CORS.                                                                                                                                                                                    |
+| `sharepointStorage()` | `src/storage/sharepoint.ts`      | SharePoint or a _work/school_ account's OneDrive **for Business** via Microsoft Graph, delegated bearer token (credentialFields, like WebDAV); Graph has native CORS (no proxy).                                                                                                                                               |
+| `gdriveStorage()`     | `src/storage/gdrive.ts`          | OAuth2 PKCE (like Dropbox); `drive.file` scope, file resolved by per-room filename; extension-driven `contentFormat`.                                                                                                                                                                                                          |
+| `onedriveStorage()`   | `src/storage/onedrive.ts`        | _Personal_ Microsoft account OneDrive via Microsoft Graph, OAuth2 PKCE against the `consumers` tenant (rejects work/school accounts, no overlap with `sharepointStorage()`); `Files.ReadWrite.AppFolder` scope confines access to a dedicated `Apps/<AppName>` special folder, mirroring `drive.file`'s least-privilege shape. |
+| `localFsStorage()`    | `src/storage/local.ts`           | File System Access API, Chrome/Edge only                                                                                                                                                                                                                                                                                       |
+| `webrtcCollab()`      | `src/collaboration/webrtc.ts`    | y-webrtc peer-to-peer transport (**default**). Needs STUN, plus TURN on mobile/symmetric NAT.                                                                                                                                                                                                                                  |
+| `websocketCollab()`   | `src/collaboration/websocket.ts` | y-websocket hub transport (opt-in via `VITE_COLLAB_TRANSPORT=websocket`). Central relay, **no WebRTC → no STUN/TURN**; server is in the data path (no E2E).                                                                                                                                                                    |
 
-Both collab adapters are `CollabConnect` factories behind the same `Collab` port, so they're interchangeable. `planCollab()` in `App.svelte` picks one via `resolveTransport(VITE_COLLAB_TRANSPORT)`: WebRTC by default, WebSocket only when explicitly set to `websocket`.
+Both collab adapters are `CollabConnect` factories behind the same `Collab` port, so they're interchangeable.
+`planCollab()` in `App.svelte` picks one via `resolveTransport(VITE_COLLAB_TRANSPORT)`: WebRTC by default,
+WebSocket only when explicitly set to `websocket`.
 
-**`webrtcCollab()`'s y-webrtc internals typing.** y-webrtc exposes no public types for its room/signaling internals, so `webrtc.ts` declares narrow local interfaces (`WebrtcRoomConn`, `WebrtcRoom`, `SignalingConnLike`) at the single cast boundary with the library, and casts through `unknown` there because the library's actual shapes differ structurally (its `Room.bcConns` is a `Set`, not the `Map` used here). Two fields carry non-obvious meaning:
-- `WebrtcRoomConn.connected`: y-webrtc creates a `WebrtcConn` optimistically on `announce` (peer discovery), before its data channel opens. Sync and awareness only flow once the channel is open, so this flag — not the conn's mere presence — is the honest "can we exchange data with this peer?" signal. Counting conns that are present but not yet `connected` previously made the status pill claim "connected" while a peer was unreachable (e.g. failed NAT traversal with no working TURN).
-- `SignalingConnLike.connected` / its `connect`/`disconnect` events: the live signaling-socket state, unlike `provider.connected`, which is just `shouldConnect && room !== null` and so is already true at construction, before any handshake succeeds. y-webrtc emits `status`/`peers` on room/peer changes but not when a signaling socket connects while alone, so the adapter bridges each socket's own connect/disconnect into the status machine directly.
+**`webrtcCollab()`'s y-webrtc internals typing.** y-webrtc exposes no public types for its room/signaling
+internals, so `webrtc.ts` declares narrow local interfaces (`WebrtcRoomConn`, `WebrtcRoom`, `SignalingConnLike`)
+at the single cast boundary with the library, and casts through `unknown` there because the library's actual
+shapes differ structurally (its `Room.bcConns` is a `Set`, not the `Map` used here). Two fields carry
+non-obvious meaning:
+
+- `WebrtcRoomConn.connected`: y-webrtc creates a `WebrtcConn` optimistically on `announce` (peer discovery),
+  before its data channel opens. Sync and awareness only flow once the channel is open, so this flag — not the
+  conn's mere presence — is the honest "can we exchange data with this peer?" signal. Counting conns that are
+  present but not yet `connected` previously made the status pill claim "connected" while a peer was unreachable
+  (e.g. failed NAT traversal with no working TURN).
+- `SignalingConnLike.connected` / its `connect`/`disconnect` events: the live signaling-socket state, unlike
+  `provider.connected`, which is just `shouldConnect && room !== null` and so is already true at construction,
+  before any handshake succeeds. y-webrtc emits `status`/`peers` on room/peer changes but not when a signaling
+  socket connects while alone, so the adapter bridges each socket's own connect/disconnect into the status
+  machine directly.
 
 Room access adapters (all in `src/collaboration/roomAccess.ts` / `roomCipher.ts` / `secretLink.ts`):
 
-| Adapter | Port(s) | Notes |
-|---------|---------|-------|
-| `publicAccess()` | `RoomAccess` | No credential; anyone may join (default) |
-| `sitePassword(pw)` | `RoomAccess` | Single shared password from env (`VITE_ROOM_PASSWORD`) |
-| `roomPassword()` | `RoomAccess` | Per-room password stored in `localStorage` |
-| `secretLink()` | `RoomAccess` + `RoomCipher` | URL-fragment key (`#k=…`); dual-port: the key is simultaneously the access gate and the AES encryption key |
-| `plaintext()` | `RoomCipher` | No encryption (`password()` returns `null`) |
+| Adapter            | Port(s)                     | Notes                                                                                                      |
+| ------------------ | --------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `publicAccess()`   | `RoomAccess`                | No credential; anyone may join (default)                                                                   |
+| `sitePassword(pw)` | `RoomAccess`                | Single shared password from env (`VITE_ROOM_PASSWORD`)                                                     |
+| `roomPassword()`   | `RoomAccess`                | Per-room password stored in `localStorage`                                                                 |
+| `secretLink()`     | `RoomAccess` + `RoomCipher` | URL-fragment key (`#k=…`); dual-port: the key is simultaneously the access gate and the AES encryption key |
+| `plaintext()`      | `RoomCipher`                | No encryption (`password()` returns `null`)                                                                |
 
-`resolveRoomStrategy(VITE_ROOM_AUTH)` parses the env var once and returns a `RoomStrategy`: the `{ access, cipher }` pair built **together** so each strategy keeps its concrete type end-to-end. In particular the `secret-link` dual-port object is assigned directly to both fields (no widen-to-`RoomAccess`-then-cast-back-to-`RoomCipher`). Lives in `src/collaboration/config.ts`.
+`resolveRoomStrategy(VITE_ROOM_AUTH)` parses the env var once and returns a `RoomStrategy`: the
+`{ access, cipher }` pair built **together** so each strategy keeps its concrete type end-to-end. In particular
+the `secret-link` dual-port object is assigned directly to both fields (no
+widen-to-`RoomAccess`-then-cast-back-to-`RoomCipher`). Lives in `src/collaboration/config.ts`.
 
-Both adapters share `createCollabCore()` (`src/collaboration/core.ts`, the transport-agnostic half of a `Collab`): status/synced subscriber fan-out, the `connecting → waiting → connected` machine (falling to `unreachable` if not attached after `CONNECT_TIMEOUT_MS`, so the UI stops spinning on a dead/misconfigured server; cleared by a successful attach or a manual `reconnect()`), online/offline reactivity, the local-cache lifecycle, and teardown. Each adapter supplies only provider wiring + two hooks (`isAttached()`, `peerCount()`); the duplicated boilerplate lives in one place.
+Both adapters share `createCollabCore()` (`src/collaboration/core.ts`, the transport-agnostic half of a
+`Collab`): status/synced subscriber fan-out, the `connecting → waiting → connected` machine (falling to
+`unreachable` if not attached after `CONNECT_TIMEOUT_MS`, so the UI stops spinning on a dead/misconfigured
+server; cleared by a successful attach or a manual `reconnect()`), online/offline reactivity, the local-cache
+lifecycle, and teardown. Each adapter supplies only provider wiring + two hooks (`isAttached()`, `peerCount()`);
+the duplicated boilerplate lives in one place.
 
 ### Wiring
 
 `App.svelte` owns all construction and configuration:
+
 - calls `backends()` to get the available `StorageBackend` pairs (`{ auth, storage }`)
 - resolves `{ access: roomAccess, cipher: roomCipher } = resolveRoomStrategy(VITE_ROOM_AUTH)` at startup
-- calls `planCollab()`, which returns a `build(cache)` that produces `webrtcCollab({ signaling, cipher, iceServers, cache })` by default, or `websocketCollab({ url, cache })` when `VITE_COLLAB_TRANSPORT=websocket`, plus any config warning to surface
-- passes both down to `Editor.svelte` as props; Editor receives only the bytes-only `Storage` half (never `StorageAuth`)
-- renders the storage **pills** + connect *action zone*, and the `Settings.svelte` drawer
+- calls `planCollab()`, which returns a `build(cache)` that produces
+  `webrtcCollab({ signaling, cipher, iceServers, cache })` by default, or `websocketCollab({ url, cache })` when
+  `VITE_COLLAB_TRANSPORT=websocket`, plus any config warning to surface
+- passes both down to `Editor.svelte` as props; Editor receives only the bytes-only `Storage` half (never
+  `StorageAuth`)
+- renders the storage **pills** + connect _action zone_, and the `Settings.svelte` drawer
 
-`Editor.svelte` knows only the ports: it never imports y-webrtc, y-websocket, or any storage backend directly. `Settings.svelte` receives `StorageBackend[]` and accesses auth via `b.auth.*`, metadata via `b.storage.*`.
+`Editor.svelte` knows only the ports: it never imports y-webrtc, y-websocket, or any storage backend directly.
+`Settings.svelte` receives `StorageBackend[]` and accesses auth via `b.auth.*`, metadata via `b.storage.*`.
 
 ### File formats (the `Codec` port)
 
-A backend moves *bytes*; a **codec** (`src/format/`) turns those bytes into the shared `Y.Doc` and back. The codec is chosen from the target **filename's extension** (`codecForFilename()`), so format support is entirely backend-agnostic.
+A backend moves _bytes_; a **codec** (`src/format/`) turns those bytes into the shared `Y.Doc` and back. The
+codec is chosen from the target **filename's extension** (`codecForFilename()`), so format support is entirely
+backend-agnostic.
 
-| Codec | Extensions | Notes |
-|-------|-----------|-------|
-| `yjsCodec` | `.yjs` | **Native default.** Full CRDT state (history + content): the only format that round-trips collaborative merge. Fallback for unknown extensions. |
-| `textCodec` | `.txt`, `.log`, `.csv` and ~90 source-code extensions (the list lives in `src/format/text.ts`) | Plain text and source files; one paragraph per line. Formatting flattened. |
-| `markdownCodec` | `.md`, `.markdown` | CommonMark + GFM strikethrough (`~~`), checklists (`- [ ]`/`- [x]`), and tables. No native underline syntax: that mark is flattened to plain text on export. Table cells hold real block content (paragraphs, lists, headings, quotes, code blocks; see `schema.ts`'s `cellContent`), which GFM's pipe-table syntax can't express; such a table round-trips as an embedded raw HTML block (`format/tableMarkdown.ts`) instead, with a plain-text degrade when no DOM is available to build it. A table with only single-paragraph cells still stays plain GFM pipe syntax. |
-| `htmlCodec` | `.html`, `.htm` | ProseMirror DOM parser/serializer; **needs a DOM** (browser only). |
-| `jsonCodec` | `.json` | ProseMirror document JSON; lossless for our schema. |
+| Codec           | Extensions                                                                                     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `yjsCodec`      | `.yjs`                                                                                         | **Native default.** Full CRDT state (history + content): the only format that round-trips collaborative merge. Fallback for unknown extensions.                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `textCodec`     | `.txt`, `.log`, `.csv` and ~90 source-code extensions (the list lives in `src/format/text.ts`) | Plain text and source files; one paragraph per line. Formatting flattened.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `markdownCodec` | `.md`, `.markdown`                                                                             | CommonMark + GFM strikethrough (`~~`), checklists (`- [ ]`/`- [x]`), and tables. No native underline syntax: that mark is flattened to plain text on export. Table cells hold real block content (paragraphs, lists, headings, quotes, code blocks; see `schema.ts`'s `cellContent`), which GFM's pipe-table syntax can't express; such a table round-trips as an embedded raw HTML block (`format/tableMarkdown.ts`) instead, with a plain-text degrade when no DOM is available to build it. A table with only single-paragraph cells still stays plain GFM pipe syntax. |
+| `htmlCodec`     | `.html`, `.htm`                                                                                | ProseMirror DOM parser/serializer; **needs a DOM** (browser only).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `jsonCodec`     | `.json`                                                                                        | ProseMirror document JSON; lossless for our schema.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
-- Content codecs reconcile into the shared doc via y-prosemirror's `prosemirrorToYXmlFragment` (the same diff reconciler as `ySyncPlugin`), so importing replaces content cleanly: no duplicated leading paragraph. Shared PM↔Y helpers live in `src/format/pm.ts`.
-- Each backend reports its target filename via `Storage.filename()`. **Local** takes it from the picked file; **cloud** backends expose `setFilename()` (a "File name" input in Settings, persisted by `filenameStore()` in `src/storage/filename.ts`). The extension picks the format; it takes effect on connect.
-- **The target file is scoped per room.** `filenameStore(backendId, room)` takes the room as a parameter and persists the name per backend *and room* under `storage.<id>.filename.<room>`. **Every room** a backend saves derives its own file from the room id, keeping the backend default's extension (so `copad-demo` → `copad-demo.yjs`, and no two rooms on one backend collide on one path). This, together with saved rooms above, is what gives each room its own document. (**Local** is the exception: it holds a single picked file in module state and has no `setFilename`, so it effectively serves one room's document at a time; switching rooms no longer carries content, but re-importing in another room repoints its one file.)
-- Adding a format = add one codec file + register it in `src/format/index.ts`. The Local file picker (`knownExtensions()`) and Settings copy update automatically.
-- **`Export a copy`** (contract §4.3): a one-off download of the current document, independent of any connected storage backend and working while the write-gate holds the editor read-only. `exportCodecs` (`src/format/index.ts`) offers the four portable `Codec` formats (text/markdown/html/json) plus one-way `ExportCodec` formats (below), excluding the native `.yjs` snapshot. `src/editor/exportBridge.svelte.ts` mirrors the `roomName` bridge's shape: a module-level holder the Editor binds on mount (unconditionally, since export is a read) so UI outside the Editor subtree can encode the shared `Y.Doc` without it being threaded through as a prop. `src/ui/ExportFormats.svelte` is the shared format-picker list; `src/ui/ExportDialog.svelte` wraps it in the standard `Dialog.svelte` shell for two of its three triggers: the read-only band (`SyncBanner`'s waiting tier, next to Copy invite link / Connect storage) and an Export button in `App.svelte`'s header capsule — the same desktop element and its `.mobile-capsule` sibling below 900px — right beside Share and Settings (`App.svelte`'s `exportOpen` state, no prop threading through Editor at all, since export never touches `collab.doc`), while Settings renders `ExportFormats` inline in its own section instead. Three reachable entry points, one download path (`downloadBytes()` in `src/format/download.ts`, File System Access API save picker with a Blob+anchor fallback).
-- **`ExportCodec`** (`src/format/types.ts`) is a one-way sibling of `Codec` (`{ id, label, extensions, encode(doc) }`, no `decode`), for formats that are never a save target. It's never added to `codecs`/`knownExtensions()`: there's nothing to decode if a `.docx` is picked in the Local import flow. Every `Codec` structurally satisfies `ExportCodec` too, so `exportCodecs` combines both kinds in one list.
-- **PDF**: no client-side rendering library: `ExportFormats.svelte`'s "PDF (print)" entry calls `window.print()`, and `src/styles/print.css` hides all app chrome under `@media print`, leaving only `.editor > .content` to flow across pages. Real, selectable text at native quality; the trade-off is the extra step of choosing "Save as PDF" in the browser's own print dialog.
-- **`docxCodec`** (`src/format/docx.ts`): Word export via the `docx` package. Covers headings, emphasis/strike/underline/code marks, links, nested bullet/ordered/task lists, blockquotes, code blocks, horizontal rules and tables. `docx.ts` itself is a thin descriptor; the actual encoding logic (and the `docx` package, ~100kB gzipped) lives in `src/format/docxEncode.ts`, reached only via a dynamic `import()` inside `encode()`, so that cost lands only on a page that actually triggers a Word export, not on the main bundle for every visitor.
-- **`Import…`**: a document-level action, not a formatting command, so its button lives in `App.svelte`'s header capsule beside Export, not the formatting toolbar. `App.svelte`'s `importLocalFile()` picks a file (`src/format/filePicker.ts`'s `pickFile()`, shared with `src/storage/local.ts`'s own picker) and hands the bytes down through the same `importRequest`/`onImportHandled` bridge Settings' Browse-a-connected-backend dialog uses. App owns every import entry point, but only `Editor.svelte` holds `collab.doc`, so decoding always happens there. Unlike export, this is a write: `decode()` writes straight into `collab.doc`, bypassing ProseMirror's own `editable` check entirely, so the write-gate is re-derived independently at both ends: `App.svelte`'s header button disables itself (`role === SessionRole.Writer && !writeLocked`), and `Editor.svelte`'s `importRequest` effect re-checks the identical condition before ever calling `decode()`, so the gate holds even if a request arrived some other way. Replacing a non-empty document asks for confirmation first (`window.confirm`), since it overwrites content for every live collaborator.
-- **`Your documents`**: the local library's entry point, a button in `App.svelte`'s header capsule beside Import/Export, opening `src/ui/LibraryDialog.svelte` (a `Dialog.svelte` shell listing the rooms this browser has opened, each with a per-row remove, plus a "New document" action). Since `room` is fixed for the tab's lifetime (below), an entry can't be switched to in place: each row is a real `<a href>` built by `roomVisitUrl()`, opened `target="_blank" rel="noopener"` so the tab you are in keeps its document, exactly as `newRoom()` does. A link rather than a `window.open` button so the row also honours middle/⌘-click, copy-link, and the browser's own open-in-new-window. See **The local library (room history)** under Implementation notes for what is stored and why the URL is derived rather than persisted.
+- Content codecs reconcile into the shared doc via y-prosemirror's `prosemirrorToYXmlFragment` (the same diff
+  reconciler as `ySyncPlugin`), so importing replaces content cleanly: no duplicated leading paragraph. Shared
+  PM↔Y helpers live in `src/format/pm.ts`.
+- Each backend reports its target filename via `Storage.filename()`. **Local** takes it from the picked file;
+  **cloud** backends expose `setFilename()` (a "File name" input in Settings, persisted by `filenameStore()` in
+  `src/storage/filename.ts`). The extension picks the format; it takes effect on connect.
+- **The target file is scoped per room.** `filenameStore(backendId, room)` takes the room as a parameter and
+  persists the name per backend _and room_ under `storage.<id>.filename.<room>`. **Every room** a backend saves
+  derives its own file from the room id, keeping the backend default's extension (so `copad-demo` →
+  `copad-demo.yjs`, and no two rooms on one backend collide on one path). This, together with saved rooms above,
+  is what gives each room its own document. (**Local** is the exception: it holds a single picked file in module
+  state and has no `setFilename`, so it effectively serves one room's document at a time; switching rooms no
+  longer carries content, but re-importing in another room repoints its one file.)
+- Adding a format = add one codec file + register it in `src/format/index.ts`. The Local file picker
+  (`knownExtensions()`) and Settings copy update automatically.
+- **`Export a copy`** (contract §4.3): a one-off download of the current document, independent of any connected
+  storage backend and working while the write-gate holds the editor read-only. `exportCodecs`
+  (`src/format/index.ts`) offers the four portable `Codec` formats (text/markdown/html/json) plus one-way
+  `ExportCodec` formats (below), excluding the native `.yjs` snapshot. `src/editor/exportBridge.svelte.ts`
+  mirrors the `roomName` bridge's shape: a module-level holder the Editor binds on mount (unconditionally, since
+  export is a read) so UI outside the Editor subtree can encode the shared `Y.Doc` without it being threaded
+  through as a prop. `src/ui/ExportFormats.svelte` is the shared format-picker list;
+  `src/ui/ExportDialog.svelte` wraps it in the standard `Dialog.svelte` shell for two of its three triggers: the
+  read-only band (`SyncBanner`'s waiting tier, next to Copy invite link / Connect storage) and an Export button
+  in `App.svelte`'s header capsule — the same desktop element and its `.mobile-capsule` sibling below 900px —
+  right beside Share and Settings (`App.svelte`'s `exportOpen` state, no prop threading through Editor at all,
+  since export never touches `collab.doc`), while Settings renders `ExportFormats` inline in its own section
+  instead. Three reachable entry points, one download path (`downloadBytes()` in `src/format/download.ts`, File
+  System Access API save picker with a Blob+anchor fallback).
+- **`ExportCodec`** (`src/format/types.ts`) is a one-way sibling of `Codec`
+  (`{ id, label, extensions, encode(doc) }`, no `decode`), for formats that are never a save target. It's never
+  added to `codecs`/`knownExtensions()`: there's nothing to decode if a `.docx` is picked in the Local import
+  flow. Every `Codec` structurally satisfies `ExportCodec` too, so `exportCodecs` combines both kinds in one
+  list.
+- **PDF**: no client-side rendering library: `ExportFormats.svelte`'s "PDF (print)" entry calls
+  `window.print()`, and `src/styles/print.css` hides all app chrome under `@media print`, leaving only
+  `.editor > .content` to flow across pages. Real, selectable text at native quality; the trade-off is the extra
+  step of choosing "Save as PDF" in the browser's own print dialog.
+- **`docxCodec`** (`src/format/docx.ts`): Word export via the `docx` package. Covers headings,
+  emphasis/strike/underline/code marks, links, nested bullet/ordered/task lists, blockquotes, code blocks,
+  horizontal rules and tables. `docx.ts` itself is a thin descriptor; the actual encoding logic (and the `docx`
+  package, ~100kB gzipped) lives in `src/format/docxEncode.ts`, reached only via a dynamic `import()` inside
+  `encode()`, so that cost lands only on a page that actually triggers a Word export, not on the main bundle for
+  every visitor.
+- **`Import…`**: a document-level action, not a formatting command, so its button lives in `App.svelte`'s header
+  capsule beside Export, not the formatting toolbar. `App.svelte`'s `importLocalFile()` picks a file
+  (`src/format/filePicker.ts`'s `pickFile()`, shared with `src/storage/local.ts`'s own picker) and hands the
+  bytes down through the same `importRequest`/`onImportHandled` bridge Settings' Browse-a-connected-backend
+  dialog uses. App owns every import entry point, but only `Editor.svelte` holds `collab.doc`, so decoding
+  always happens there. Unlike export, this is a write: `decode()` writes straight into `collab.doc`, bypassing
+  ProseMirror's own `editable` check entirely, so the write-gate is re-derived independently at both ends:
+  `App.svelte`'s header button disables itself (`role === SessionRole.Writer && !writeLocked`), and
+  `Editor.svelte`'s `importRequest` effect re-checks the identical condition before ever calling `decode()`, so
+  the gate holds even if a request arrived some other way. Replacing a non-empty document asks for confirmation
+  first (`window.confirm`), since it overwrites content for every live collaborator.
+- **`Your documents`**: the local library's entry point, a button in `App.svelte`'s header capsule beside
+  Import/Export, opening `src/ui/LibraryDialog.svelte` (a `Dialog.svelte` shell listing the rooms this browser
+  has opened, each with a per-row remove, plus a "New document" action). Since `room` is fixed for the tab's
+  lifetime (below), an entry can't be switched to in place: each row is a real `<a href>` built by
+  `roomVisitUrl()`, opened `target="_blank" rel="noopener"` so the tab you are in keeps its document, exactly as
+  `newRoom()` does. A link rather than a `window.open` button so the row also honours middle/⌘-click, copy-link,
+  and the browser's own open-in-new-window. See **The local library (room history)** under Implementation notes
+  for what is stored and why the URL is derived rather than persisted.
 
-- **PWA / share sheet**: `public/manifest.webmanifest` (linked from `index.html`) makes Copad installable; `public/sw.js` is a minimal pass-through service worker (`fetch` → `fetch(event.request)`, no caching) registered by `src/main.ts`, present only because some platforms still gate install-ability on a registered service worker. It does not cache the app shell or touch the Y.Doc/storage/collab layers, so it has no bearing on the P2P/local-cache/no-account model. **Caching nothing is a requirement, not an omission**: a navigation fallback would swallow `/redirect.html` and kill every OAuth sign-in, a query-ignoring cache key would collapse `?room=…` and `?text=…` onto one entry, and `index.html` carries a build-time-injected `VITE_APP_NAMESPACE` so a stale copy reads the previous deployment's `localStorage` keys. `sw.js` itself carries only a one-line pointer back to this entry, to keep the rationale in one place.
-  - **Base path.** `public/` is copied verbatim, so nothing in the manifest is rewritten for a subpath build (`--base=/copad/`, used by the Pages deploy and the PR previews). Every manifest URL — `id`, `start_url`, `scope`, `share_target.action`, each icon `src` — is therefore **relative to the manifest**, which resolves correctly at both `/` and `/copad/`. `main.ts` registers the service worker via `asset('sw.js')`, the same `src/ui/imageIcons.ts` helper the icon URLs use, for the same reason. Vite *does* rewrite `link[href]`/`script[src]` inside `index.html`, so those stay root-absolute.
-  - Launching the installed app hits `start_url` with no `?room=`, so `resolveLandingRoom()` lands you in `VITE_DEFAULT_ROOM` or a freshly minted room — installing from a room page does **not** pin the icon to that room (a static manifest cannot capture it). The local library (`LibraryDialog`) is the way back. `scope` covers the whole app directory, so a future in-app view stays inside the installed window.
-  - `ShareDialog.svelte` adds a `📤 Share` button that calls `navigator.share()` when `'share' in navigator`, falling back to a small set of deep-link options (WhatsApp, SMS, email) otherwise, purely additive, alongside the existing copy-to-clipboard flow. The manifest's `share_target` (GET, `title`/`text`/`url` params) lets an installed Copad be a share target from other apps; `src/shareTarget.ts`'s `parseSharedNavigation()`/`applySharedNavigation()` run in `main.ts` before `App.svelte` mounts, rewriting the shared params to Copad's own `?room=…#k=…` shape when the shared text/url contains a Copad link. Otherwise it deletes **only** the three share params, preserving any other query param and the `#k=` fragment, so a URL carrying both a room link and a stray `text=` keeps its room and its key, and `App.svelte`'s existing `roomFromUrl()` sees what it should.
-  - **Known gap, deliberately not fixed:** sharing text that contains no Copad link drops that text silently. The user lands in the default (or a fresh) room with their paragraph nowhere and no explanation. Inserting it would mean writing into the shared `Y.Doc` — someone else's live document, subject to the write gate, reachable only from `Editor.svelte`; the honest fix is a prompt ("start a new document with this text?"), which is UI work in `App.svelte`, not a share-target concern. Deriving a room from a WhatsApp link/identifier itself is likewise out of scope.
+- **PWA / share sheet**: `public/manifest.webmanifest` (linked from `index.html`) makes Copad installable;
+  `public/sw.js` is a minimal pass-through service worker (`fetch` → `fetch(event.request)`, no caching)
+  registered by `src/main.ts`, present only because some platforms still gate install-ability on a registered
+  service worker. It does not cache the app shell or touch the Y.Doc/storage/collab layers, so it has no bearing
+  on the P2P/local-cache/no-account model. **Caching nothing is a requirement, not an omission**: a navigation
+  fallback would swallow `/redirect.html` and kill every OAuth sign-in, a query-ignoring cache key would
+  collapse `?room=…` and `?text=…` onto one entry, and `index.html` carries a build-time-injected
+  `VITE_APP_NAMESPACE` so a stale copy reads the previous deployment's `localStorage` keys. `sw.js` itself
+  carries only a one-line pointer back to this entry, to keep the rationale in one place.
+  - **Base path.** `public/` is copied verbatim, so nothing in the manifest is rewritten for a subpath build
+    (`--base=/copad/`, used by the Pages deploy and the PR previews). Every manifest URL — `id`, `start_url`,
+    `scope`, `share_target.action`, each icon `src` — is therefore **relative to the manifest**, which resolves
+    correctly at both `/` and `/copad/`. `main.ts` registers the service worker via `asset('sw.js')`, the same
+    `src/ui/imageIcons.ts` helper the icon URLs use, for the same reason. Vite _does_ rewrite
+    `link[href]`/`script[src]` inside `index.html`, so those stay root-absolute.
+  - Launching the installed app hits `start_url` with no `?room=`, so `resolveLandingRoom()` lands you in
+    `VITE_DEFAULT_ROOM` or a freshly minted room — installing from a room page does **not** pin the icon to that
+    room (a static manifest cannot capture it). The local library (`LibraryDialog`) is the way back. `scope`
+    covers the whole app directory, so a future in-app view stays inside the installed window.
+  - `ShareDialog.svelte` adds a `📤 Share` button that calls `navigator.share()` when `'share' in navigator`,
+    falling back to a small set of deep-link options (WhatsApp, SMS, email) otherwise, purely additive,
+    alongside the existing copy-to-clipboard flow. The manifest's `share_target` (GET, `title`/`text`/`url`
+    params) lets an installed Copad be a share target from other apps; `src/shareTarget.ts`'s
+    `parseSharedNavigation()`/`applySharedNavigation()` run in `main.ts` before `App.svelte` mounts, rewriting
+    the shared params to Copad's own `?room=…#k=…` shape when the shared text/url contains a Copad link.
+    Otherwise it deletes **only** the three share params, preserving any other query param and the `#k=`
+    fragment, so a URL carrying both a room link and a stray `text=` keeps its room and its key, and
+    `App.svelte`'s existing `roomFromUrl()` sees what it should.
+  - **Known gap, deliberately not fixed:** sharing text that contains no Copad link drops that text silently.
+    The user lands in the default (or a fresh) room with their paragraph nowhere and no explanation. Inserting
+    it would mean writing into the shared `Y.Doc` — someone else's live document, subject to the write gate,
+    reachable only from `Editor.svelte`; the honest fix is a prompt ("start a new document with this text?"),
+    which is UI work in `App.svelte`, not a share-target concern. Deriving a room from a WhatsApp
+    link/identifier itself is likewise out of scope.
 
-- **Link previews (Open Graph / Twitter card)**: `index.html` carries `og:type`/`og:site_name`/`og:title`/`og:description`/`og:image` (+ dimensions and alt) and `twitter:card`, with `public/og-card.png` (1200×630, drawn from `src/styles/tokens.css`'s palette and the app's own bundled fonts) as the share image. Copad is pasted into a chat far more often than it is browsed to, so this card is the pre-click pitch, and its copy is held to the contract: real-time, browser-to-browser, no account, durability only via *your* storage backend — nothing that would be equally true of a hosted document service. Two deliberate omissions: **no `og:url`**, and a **document-relative `og:image`**. Copad is self-hosted at origins and base paths a static build cannot know, and Vite does not rewrite `meta[content]`, so an absolute URL baked in here would point every third-party deployment at the upstream author's host. Crawlers resolve a relative `og:image` against the page they fetched, and fall back to that same URL when `og:url` is absent — which is the only canonical URL that exists for a self-hosted app. (Cost: a deployment served at a path with *no* trailing slash resolves the image one level up. Trailing-slash hosting, which Pages enforces, is the assumed shape.) Because the card is static and crawlers do not execute JS, unfurling a `?room=…` invite in Slack reveals nothing about the room.
+- **Link previews (Open Graph / Twitter card)**: `index.html` carries
+  `og:type`/`og:site_name`/`og:title`/`og:description`/`og:image` (+ dimensions and alt) and `twitter:card`,
+  with `public/og-card.png` (1200×630, drawn from `src/styles/tokens.css`'s palette and the app's own bundled
+  fonts) as the share image. Copad is pasted into a chat far more often than it is browsed to, so this card is
+  the pre-click pitch, and its copy is held to the contract: real-time, browser-to-browser, no account,
+  durability only via _your_ storage backend — nothing that would be equally true of a hosted document service.
+  Two deliberate omissions: **no `og:url`**, and a **document-relative `og:image`**. Copad is self-hosted at
+  origins and base paths a static build cannot know, and Vite does not rewrite `meta[content]`, so an absolute
+  URL baked in here would point every third-party deployment at the upstream author's host. Crawlers resolve a
+  relative `og:image` against the page they fetched, and fall back to that same URL when `og:url` is absent —
+  which is the only canonical URL that exists for a self-hosted app. (Cost: a deployment served at a path with
+  _no_ trailing slash resolves the image one level up. Trailing-slash hosting, which Pages enforces, is the
+  assumed shape.) Because the card is static and crawlers do not execute JS, unfurling a `?room=…` invite in
+  Slack reveals nothing about the room.
 
 ### Config vs. credentials
 
 The `StorageAuth` port separates two concerns:
-- **`configFields`**: one-time, app-level setup (OAuth app keys / client ids). Edited in the `Settings.svelte` (⚙) drawer, persisted in `localStorage` via the `configStore()` helper (`src/storage/config.ts`). Resolution per field is env var → saved value; an env var (`VITE_*`) *locks* the field as deployment-managed. `configured()` reports whether a backend has everything it needs to attempt a connect.
-- **`credentialFields`**: per-session login collected on the front-page connect form (e.g. WebDAV username/password). Not stored as config.
 
-Backends that need neither (Local) omit both. Each backend's front-page **pill** reflects `statusOf()`: `unavailable` → `setup` (missing config) → `ready` → `connected`.
+- **`configFields`**: one-time, app-level setup (OAuth app keys / client ids). Edited in the `Settings.svelte`
+  (⚙) drawer, persisted in `localStorage` via the `configStore()` helper (`src/storage/config.ts`). Resolution
+  per field is env var → saved value; an env var (`VITE_*`) _locks_ the field as deployment-managed.
+  `configured()` reports whether a backend has everything it needs to attempt a connect.
+- **`credentialFields`**: per-session login collected on the front-page connect form (e.g. WebDAV
+  username/password). Not stored as config.
+
+Backends that need neither (Local) omit both. Each backend's front-page **pill** reflects `statusOf()`:
+`unavailable` → `setup` (missing config) → `ready` → `connected`.
 
 ### Constants & deployment config
 
-No magic literal lives buried in business logic. Deployment-relevant constants (endpoints, defaults, timeouts, folder paths, and the localStorage keys each vertical owns) are centralized in a **config/constants module per vertical**, and read a `VITE_*` env override where deployments legitimately vary:
-- `src/config.ts`, app-global: the storage **namespace** (`APP_NAMESPACE` / `nsKey()`, default `copad`). Overridable via `VITE_APP_NAMESPACE` so two deployments on one origin can isolate their `copad:`-namespaced state. The no-flash script in `index.html` can't read env at runtime, so it's kept in sync at *build* time by the `inject-app-namespace` plugin in `vite.config.ts` (same default).
-- `src/collaboration/constants.ts`: signaling/STUN/room defaults, the signaling keep-alive interval (`VITE_SIGNALING_KEEPALIVE_MS`), local-dev hostnames, cache DB prefixes (plaintext + `enc:`), room-password + room-encrypted keys.
-- `src/storage/constants.ts`: backend endpoint URLs/hosts/paths, the shared cloud folder, GitHub API base, OAuth popup tuning + redirect, base64 chunk size, default filenames, and backend identity. `STORAGE_ID` (built by the `storageIds()` brander) is the single source of truth for backend ids: adapters and keys derive from it, so each `as StorageId` cast lives in exactly one place. A backend's user-facing name is a branded `StorageLabel` (`src/storage/types.ts`), so the label the StatusPill and SyncBanner render is the port's own value rather than a bare string re-typed at the UI boundary. Every persisted key is built by `backendKey(id, purpose: KeyPurpose)` as a uniform `storage.<id>.<purpose>`. `KeyPurpose` is a union of the fixed singleton slots (`token`, `session`, `conf`, `validated`, `rooms`, typo-checked at call sites) plus a branded `ConfigFieldName` open arm for adapter-defined config fields, branded once at the configStore boundary. (Per-room filenames use their own `storage.<id>.filename.<room>` key built directly, not a `KeyPurpose`.) Each endpoint/host/path/tunable reads a `VITE_*` override (via the `envStr` / `envInt` helpers) so a deployment can react to a provider rotating a domain or a regional split (pCloud US/EU) without a rebuild. `BACKEND_ENABLED` (via the `envBool` helper) lets each backend be hidden entirely (pill and Settings section both gone) via `VITE_ENABLE_<ID>`; `backends()` in `src/storage/index.ts` filters on it. A newly added backend defaults to disabled until it's been connected to a real account outside production; flipping the default to enabled is its own dedicated PR.
+No magic literal lives buried in business logic. Deployment-relevant constants (endpoints, defaults, timeouts,
+folder paths, and the localStorage keys each vertical owns) are centralized in a **config/constants module per
+vertical**, and read a `VITE_*` env override where deployments legitimately vary:
 
-The only constants with **no** env override are the per-backend localStorage **key strings** (`storage.<id>.*`, `collab.room-password.*`, `collab.room-encrypted.*`, `collab.room-open.*`; pure identity, changing them just orphans saved state with no deployment benefit) and the GitHub default branch (already deployment-settable via the `branch` config field's `VITE_GITHUB_BRANCH` lock). Changing `VITE_APP_NAMESPACE` on a *live* deployment likewise orphans `copad:`-namespaced state: it's a set-once-at-deploy knob.
+- `src/config.ts`, app-global: the storage **namespace** (`APP_NAMESPACE` / `nsKey()`, default `copad`).
+  Overridable via `VITE_APP_NAMESPACE` so two deployments on one origin can isolate their `copad:`-namespaced
+  state. The no-flash script in `index.html` can't read env at runtime, so it's kept in sync at _build_ time by
+  the `inject-app-namespace` plugin in `vite.config.ts` (same default).
+- `src/collaboration/constants.ts`: signaling/STUN/room defaults, the signaling keep-alive interval
+  (`VITE_SIGNALING_KEEPALIVE_MS`), local-dev hostnames, cache DB prefixes (plaintext + `enc:`), room-password +
+  room-encrypted keys.
+- `src/storage/constants.ts`: backend endpoint URLs/hosts/paths, the shared cloud folder, GitHub API base, OAuth
+  popup tuning + redirect, base64 chunk size, default filenames, and backend identity. `STORAGE_ID` (built by
+  the `storageIds()` brander) is the single source of truth for backend ids: adapters and keys derive from it,
+  so each `as StorageId` cast lives in exactly one place. A backend's user-facing name is a branded
+  `StorageLabel` (`src/storage/types.ts`), so the label the StatusPill and SyncBanner render is the port's own
+  value rather than a bare string re-typed at the UI boundary. Every persisted key is built by
+  `backendKey(id, purpose: KeyPurpose)` as a uniform `storage.<id>.<purpose>`. `KeyPurpose` is a union of the
+  fixed singleton slots (`token`, `session`, `conf`, `validated`, `rooms`, typo-checked at call sites) plus a
+  branded `ConfigFieldName` open arm for adapter-defined config fields, branded once at the configStore
+  boundary. (Per-room filenames use their own `storage.<id>.filename.<room>` key built directly, not a
+  `KeyPurpose`.) Each endpoint/host/path/tunable reads a `VITE_*` override (via the `envStr` / `envInt` helpers)
+  so a deployment can react to a provider rotating a domain or a regional split (pCloud US/EU) without a
+  rebuild. `BACKEND_ENABLED` (via the `envBool` helper) lets each backend be hidden entirely (pill and Settings
+  section both gone) via `VITE_ENABLE_<ID>`; `backends()` in `src/storage/index.ts` filters on it. A newly added
+  backend defaults to disabled until it's been connected to a real account outside production; flipping the
+  default to enabled is its own dedicated PR.
+
+The only constants with **no** env override are the per-backend localStorage **key strings** (`storage.<id>.*`,
+`collab.room-password.*`, `collab.room-encrypted.*`, `collab.room-open.*`; pure identity, changing them just
+orphans saved state with no deployment benefit) and the GitHub default branch (already deployment-settable via
+the `branch` config field's `VITE_GITHUB_BRANCH` lock). Changing `VITE_APP_NAMESPACE` on a _live_ deployment
+likewise orphans `copad:`-namespaced state: it's a set-once-at-deploy knob.
 
 ## Finding things
 
-`npm run docs` (TypeDoc, markdown output) generates a browsable API index into
-`docs/api/`, git-ignored, regenerate whenever you need it. It covers every
-exported type/function/interface with its doc comment and exact source
-location, straight from the code, so it can't drift the way this file's old
-"where things live" section did. Locate things with it (or plain grep;
-`AGENTS.md`'s naming rules keep names grep-unambiguous); it can't answer *why*
-something is shaped the way it is: that's what the rest of this file, and
-in-code comments (`AGENTS.md`'s Comments rule), are for.
+`npm run docs` (TypeDoc, markdown output) generates a browsable API index into `docs/api/`, git-ignored,
+regenerate whenever you need it. It covers every exported type/function/interface with its doc comment and exact
+source location, straight from the code, so it can't drift the way this file's old "where things live" section
+did. Locate things with it (or plain grep; `AGENTS.md`'s naming rules keep names grep-unambiguous); it can't
+answer _why_ something is shaped the way it is: that's what the rest of this file, and in-code comments
+(`AGENTS.md`'s Comments rule), are for.
 
 ## Implementation notes
 
-- **Landing room**: `resolveLandingRoom(roomParam, VITE_DEFAULT_ROOM, mint)` (`src/collaboration/config.ts`) decides where a visit lands: the `?room=` link, else the deployment's configured room, else a freshly minted one. In that last case `App.svelte`'s `startFreshRoom()` rewrites the URL in place (`history.replaceState`, `?room=…#k=…`, encrypted like any new room) *before* `room` is read and before any backend is constructed, so it is not a room switch and the one-room-per-tab invariant below is untouched, while a reload returns to the same document instead of minting another. The room the tab was *opened* with (`linkedRoomParam`) is captured first, so the returning-user saved-room default still distinguishes "arrived bare" from "followed someone's link".
-- **Storage-model explainer**: `src/ui/StorageIntro.svelte`, rendered by `App.svelte` in the flow above the editor (never a modal, contract §7), shown while `copad:storageIntroSeen` is unset, no backend of yours saves this room, the deployment *can* sync (a deployment that can't is instead said permanently by `SyncBanner`'s `Unavailable` tier, contract §7), and the write gate isn't held. Dismissing it (or using its "Connect storage") sets the flag; being superseded by the band does not, so an unacknowledged explainer returns rather than being spent on a moment the user didn't read. It shares that one slot and that one flag with `src/ui/FirstVisitIntro.svelte`: `introSlotFor()` (`src/ui/introSlot.ts`, unit-tested) picks the fuller first-visit card while the document is still a blank page (`sessionState.docEmpty`, published by the Editor from the same predicate the ghost placeholder uses) and nothing has been written in this session (`PersistRegime.Cold`), and the durability line once it is not.
-- **`SyncBanner` placement** (`src/ui/SyncBanner.svelte`'s `BannerPlacement`): the band renders as a `Sheet` on every viewport — `position: fixed`, so it never reserves flow space or shifts `.editor` when it appears, disappears or changes message. It's a sibling of `header.capsule` and `.editor` in `App.svelte`'s markup (wrapped in a `display: contents` anchor so the wrapper itself adds no box), never a descendant of either. That placement is load-bearing, not cosmetic: `header.capsule` and `.editor` both carry a `view-transition-name` (added for the room ↔ About morph), which the CSS spec forces into its own stacking context — an earlier version anchored the band as a `Popover` *inside* `header.capsule` and it looked right, but `header.capsule`'s stacking context trapped the popover's `z-index`, so `.editor` (a later sibling, painted after) won hit-testing and silently swallowed clicks meant for the popover, and — wherever it overlapped — for the document underneath (breaking contract §4's "never a scrim over the text" the moment a click landed on covered document text). Reparenting it to a sibling of both sidesteps the trap entirely: its `z-index: var(--z-menu)` is now compared directly against `.editor`'s `z-index: auto` in the same (root) stacking context, which is exactly the ordering that makes it win. `header.capsule` still carries the `position: relative; z-index: var(--z-menu)` (`app.css`) gained during that investigation — it fixes the same latent trap for `IdentityMenu`'s header popover, which does stay nested inside `header.capsule`. On a fine-pointer/wide viewport the sheet centers at the bottom of the viewport (`left: 50%; transform: translateX(-50%)`), wide enough that the gated tier's row of buttons lays out on one line instead of wrapping into a squat block; on a compact/touch viewport it hides while `sessionState.editing` holds, since `.fixed-toolbar` claims that screen edge then — the room's own mobile chrome moved off the bottom entirely (`.mobile-capsule`, `app.css`), so there is no dock left to clear when the Sheet does show.
-- **Command palette** (`⌘K` / `Ctrl-K`): one filtered door onto three lists that each existed unfiltered behind their own — the document's headings, the local library's rooms, and the header's own actions. `src/ui/commandPalette.ts` is the whole decision: `parsePaletteInput()` turns a leading `#`/`>`/`/` into a `PaletteScope`, `paletteGroups()` filters and groups, dropping empty groups so an empty result reads as *no matches* rather than headings over nothing, and resting on recent rooms plus first headings so the panel is never blank. Rows carry ids, never callbacks, so the layer is serialisable and unit-tested without a view; `parsePaletteItemId()` is the other half of the round trip. Ownership is split because the sources are: **`App.svelte`** holds the open flag, the actions and the remembered rooms, and resolves `action:`/`room:` picks; **`Editor.svelte`** renders `src/ui/CommandPalette.svelte` and owns the two sources that need the live view — headings (from the one memoised `headingsOf` walk it already does for `Outline`) and insertable blocks (from `menuItems()`, so a block that cannot apply here is never offered). Inserting is a write, so it re-checks the gate exactly as import does; gated, the rows are withheld (contract §4.3). The trigger is a **button**, never an `<input>`: `header.capsule` is `width: fit-content` with an animated width transition (`app.css`), so a child that grew on focus would slide every sibling under the pointer. `⌘K` is bound app-wide and unconditionally, which is why Link moved to `⌘⇧K` (`plugins.ts` keymap, `shortcuts.ts` hint) — focus-sensitive binding was tried on paper and rejected: the editor holds focus almost always, so the palette's own `⌘K` hint would have been false almost always.
-- **About page**: `src/ui/About.svelte`, a pure props-driven page — `{ onNewDocument, transport, page }` — that resolves no room, opens no socket and reads no URL; the orchestrator supplies all three. It demonstrates the product by mounting the real `Avatar`, `StatusPill` and `SyncBanner` with fixed props instead of screenshots, so the page cannot drift from the components it describes. Its encryption claim is derived from `Transport` by `transportCopyFor()` (`src/ui/aboutCopy.ts`, unit-tested): a hub deployment relays plaintext (contract §2), so the page swaps to "unlisted, and relayed" copy and makes no end-to-end claim. It owns its own scroll container (`body` is `overflow:hidden`, `base.css`), mirroring how `.content` scrolls inside the editor. `header.capsule` needs no mobile counterpart here the way the room's does (`.mobile-capsule`, `App.svelte`/`app.css`) — About's own capsule already fits every breakpoint, so it simply stays visible below 900px rather than swapping to a second element. **Routing**: `src/ui/route.ts` (unit-tested) turns `location.search` into a `Route` discriminated union and builds the URLs that reach each arm; `App.svelte` mounts the page for `RouteKind.About` and supplies the three props. The flag is `?about`, not a path — the app ships as a static bundle to hosts that serve no SPA fallback, where `/about` would 404 — and it is read *before* the fresh-room mint, so reading the page never creates a document.
-- **The local library (room history)**: `src/collaboration/roomHistory.ts`: a room has no server-side existence, so without its URL there is no way back to it. `rememberRoomVisit()` records `{ room, name, key, role, openedAt }` per room under `copad:roomHistory`, most recent first, capped at `ROOM_HISTORY_LIMIT` (50) by evicting the least recently opened; `App.svelte` calls it from an effect that re-runs as the collaborative `RoomName` syncs in, and holds off while `RoomLock` is closed (the key in hand is then missing or wrong, and storing it would overwrite a working one). A visit never removes what a previous one knew: a keyless visit keeps the remembered `#k=` key, an unsynced visit keeps the last name, since either loss would silently break or anonymize the entry. The link back is *derived* (`roomVisitUrl(visit, page)`) from the current page path rather than stored, so a hand-edited store can't put an arbitrary URL behind a link, a deployment that moves path keeps working, and the stored `role` is replayed (a `?role=reader` entry reopens view-only rather than silently promoting its holder to a writer). Which visits earn a row is `libraryWorthy(engagement)`, a pure function over the `RoomEngagement` `App.svelte` derives (asked for / writing / accompanied / named / saved here): a room reached by link, by `VITE_DEFAULT_ROOM` or by "New document" was asked for and is filed at once, while a room minted under a bare visit waits for a sign of use, so a passer-by who only reads collects no "Untitled" row. `src/ui/LibraryDialog.svelte` renders it (header capsule, desktop and mobile), telling same-named rows apart with `roomDiscriminator()`; `clearRoomHistory()` is the hook for Settings' "Clear local copies".
-- **`room` is fixed for the tab's lifetime; two-phase remount handles reconnects**: `App.svelte` reads `room` once (`resolveLandingRoom()`); "New document" opens a fresh tab instead of switching rooms in place, so there is no in-app room-change remount to handle. A same-room reconnect (TURN/cache/security change) goes through `rebuildCollab()`, which toggles `editorMounted` off → `await tick()` + a macrotask → on: the old provider must fully deregister its room before the new one mounts, because y-webrtc's `openRoom()` throws "already exists" for the same name and would leave the new provider silently unsubscribed. A direct Svelte `{#key}` swap can't guarantee that ordering, hence the explicit two-phase toggle.
-- **Leader election**: `src/collaboration/leader.ts`: the peer that writes to storage is the lowest `clientID` **among peers persisting to the same file** (`isPersistLeader`), preventing concurrent-write races on one file. Election is scoped by a `PersistTarget` (a hash of `(browserId + backend id + filename)` broadcast in awareness, `persistTargetKey`), so two peers writing *distinct* files (different backends, or different accounts of one backend, distinguished by the per-browser `browserId` in `src/collaboration/browserId.ts`) each persist their own copy instead of starving one another, while multiple writers of one shared file (or the same user in two tabs) still elect a single writer. The `PersistTarget` is a hash, so the actual account/path/filename never travels in awareness. `browserId` is deliberately **not** per-room: it identifies the browser, and the room dimension already lives in the target's per-room `filename`.
-- **File-collision warning**: because a room's target file is user-settable, two rooms on one backend can be pointed at the *same* file (they'd silently overwrite each other). `firstFileCollision()` (`src/storage/filename.ts`) compares the current room's file against every other room the backend saves (`savedRoomsStore(id).all()` × `filenameForRoom()`, resolved with the backend's `defaultFilename()`); `App.svelte` surfaces any clash as a **Conflict** state on `StatusPill.svelte`'s durability segment (→ click to Settings to rename). This is a **same-browser** check only: a same-account clash from *another machine* can't be detected without a coordination point the serverless model omits (documented in the README).
-- **Saved rooms (per-user persistence)**: `src/storage/savedRooms.ts`: `savedRoomsStore(id)` records the **set** of rooms a backend saves for the local user, persisted per backend under `storage.<id>.rooms` (JSON array); its API is deliberately screaming: `saves(room)` / `add(room)` / `remove(room)` / `all()`, no "owner". `afterConnect()` in `App.svelte` **adds** the room you're in; disconnect keeps the set so re-login restores your saved rooms instead of orphaning them. `App.svelte`'s `savedHere` derived (`connected && savedRoomsStore(id).saves(room)`) gates the Editor's `storage` prop: in a room your backend doesn't save, the Editor gets `storage = null`, and that room keeps its own document; it is never loaded from or saved to your backend. This is what stops an imported document from following you across rooms (the App-global `storage` used to re-`load()` its single file into every room's fresh Y.Doc). It's a **per-user persistence fact, not a room-level role**: with per-target autosave (see Leader election), several people can each keep their own saved copy of one room, nobody "owns" it. `StatusPill.svelte`'s durability segment reflects it as **Saved** / **Not saved** (click to open Settings and connect a backend). A one-time returning-user default in `App.svelte` adds the room you *land in* only when there's no `?room=` link (a shared link means you're a visitor), so an already-authed backend keeps saving your home room without ever claiming someone else's. Because the target file is **per room** (see below), one backend can save several rooms, each with its own distinct document.
-- **Local cache**: `src/collaboration/cache.ts` owns local caching end to end (prefs + DB naming + clear + `attachLocalCache(room, doc, cred?): LocalCache`). Both adapters call `attachLocalCache` when their `cache` opt is true, passing the room credential as `cred`. **No credential → plaintext** y-indexeddb mirror (DB `copad:<room>`); **credential present → AES-GCM encrypted at rest** (DB `copad:enc:<room>`, key derived from the credential, in `encryptedCache.ts`: the single place importing `y-indexeddb` is still `cache.ts`, but `encryptedCache.ts` owns the encrypted append-log over raw IndexedDB). So a reload survives without a backend, and an encrypted room's cache can't be read back without the key. On by default; the Settings toggle flips a localStorage pref that `App.svelte` reads, rebuilds `connect`, and remounts the Editor via `rebuildCollab()` (the two-phase same-room remount). `clearLocalCache()` deletes both DB variants via a remembered-rooms index (not `indexedDB.databases()`, which Firefox lacks). A room's key is fixed for its lifetime (see below — the Share dialog only reports it, never changes it), so there is no cache-migration path to keep in sync with it.
-- **Per-room encryption**: `webrtcCollab`'s `cipher` (`RoomCipher`) supplies the y-webrtc AES `password` per room. Effective cipher precedence, resolved fresh per connect in `App.svelte`'s `roomCipher`: URL hash `#k=` (a "secure link"; the hash is never sent to the signaling server) → per-room password remembered in localStorage → the `VITE_ROOM_AUTH` strategy's cipher. A room's key is minted once at creation (`startFreshRoom()`/`newRoom()`, contract §5) and never changed afterward — the `ShareDialog` only reports it, it mints and removes nothing (see below); the per-room password is set only by `RoomLock`, under a `room-password` deployment. Changing the key bumps `collabEpoch` so the Editor remounts and reconnects with the new key. The same credential also keys the encrypted local cache. WebRTC only: `websocket.ts` never reads the cipher and passes no `cacheKey`, so on the hub transport a key encrypts neither the wire nor the cache. `roomSecurity()` (`src/ui/shareLinks.ts`) therefore takes `transport` and returns a `Relayed` arm before it looks at any credential, so the Share dialog cannot claim encryption a hub deployment does not provide — the check is in the union, not at a render site that a later edit could forget.
-- **Share dialog**: `src/ui/ShareDialog.svelte` is two views inside one `Dialog`, never both at once. **Invite** (the default): a single link field whose contents follow a segmented *Editing / View-only* choice (`InviteRole`), the key badge when the link carries `#k=`, the copy/native-share row, the saved/not-saved durability note, and a one-line security **status** with a `Document security` button. **Document security** (reached from that button, with a back affordance): a status readout of `RoomSecurity` and the fragment explainer, with no action anywhere in it — encryption is the only nominal case (contract §5: every room is minted with a key), so the dialog never offers to add, remove or switch it; the non-`SecretLink` arms (`Relayed`, `Password`, `Deployment`, `None`) only explain why *this* room deviates from that default.
+- **Landing room**: `resolveLandingRoom(roomParam, VITE_DEFAULT_ROOM, mint)` (`src/collaboration/config.ts`)
+  decides where a visit lands: the `?room=` link, else the deployment's configured room, else a freshly minted
+  one. In that last case `App.svelte`'s `startFreshRoom()` rewrites the URL in place (`history.replaceState`,
+  `?room=…#k=…`, encrypted like any new room) _before_ `room` is read and before any backend is constructed, so
+  it is not a room switch and the one-room-per-tab invariant below is untouched, while a reload returns to the
+  same document instead of minting another. The room the tab was _opened_ with (`linkedRoomParam`) is captured
+  first, so the returning-user saved-room default still distinguishes "arrived bare" from "followed someone's
+  link".
+- **Storage-model explainer**: `src/ui/StorageIntro.svelte`, rendered by `App.svelte` in the flow above the
+  editor (never a modal, contract §7), shown while `copad:storageIntroSeen` is unset, no backend of yours saves
+  this room, the deployment _can_ sync (a deployment that can't is instead said permanently by `SyncBanner`'s
+  `Unavailable` tier, contract §7), and the write gate isn't held. Dismissing it (or using its "Connect
+  storage") sets the flag; being superseded by the band does not, so an unacknowledged explainer returns rather
+  than being spent on a moment the user didn't read. It shares that one slot and that one flag with
+  `src/ui/FirstVisitIntro.svelte`: `introSlotFor()` (`src/ui/introSlot.ts`, unit-tested) picks the fuller
+  first-visit card while the document is still a blank page (`sessionState.docEmpty`, published by the Editor
+  from the same predicate the ghost placeholder uses) and nothing has been written in this session
+  (`PersistRegime.Cold`), and the durability line once it is not.
+- **`SyncBanner` placement** (`src/ui/SyncBanner.svelte`'s `BannerPlacement`): the band renders as a `Sheet` on
+  every viewport — `position: fixed`, so it never reserves flow space or shifts `.editor` when it appears,
+  disappears or changes message. It's a sibling of `header.capsule` and `.editor` in `App.svelte`'s markup
+  (wrapped in a `display: contents` anchor so the wrapper itself adds no box), never a descendant of either.
+  That placement is load-bearing, not cosmetic: `header.capsule` and `.editor` both carry a
+  `view-transition-name` (added for the room ↔ About morph), which the CSS spec forces into its own stacking
+  context — an earlier version anchored the band as a `Popover` _inside_ `header.capsule` and it looked right,
+  but `header.capsule`'s stacking context trapped the popover's `z-index`, so `.editor` (a later sibling,
+  painted after) won hit-testing and silently swallowed clicks meant for the popover, and — wherever it
+  overlapped — for the document underneath (breaking contract §4's "never a scrim over the text" the moment a
+  click landed on covered document text). Reparenting it to a sibling of both sidesteps the trap entirely: its
+  `z-index: var(--z-menu)` is now compared directly against `.editor`'s `z-index: auto` in the same (root)
+  stacking context, which is exactly the ordering that makes it win. `header.capsule` still carries the
+  `position: relative; z-index: var(--z-menu)` (`app.css`) gained during that investigation — it fixes the same
+  latent trap for `IdentityMenu`'s header popover, which does stay nested inside `header.capsule`. On a
+  fine-pointer/wide viewport the sheet centers at the bottom of the viewport
+  (`left: 50%; transform: translateX(-50%)`), wide enough that the gated tier's row of buttons lays out on one
+  line instead of wrapping into a squat block; on a compact/touch viewport it hides while `sessionState.editing`
+  holds, since `.fixed-toolbar` claims that screen edge then — the room's own mobile chrome moved off the bottom
+  entirely (`.mobile-capsule`, `app.css`), so there is no dock left to clear when the Sheet does show.
+- **Command palette** (`⌘K` / `Ctrl-K`): one filtered door onto three lists that each existed unfiltered behind
+  their own — the document's headings, the local library's rooms, and the header's own actions.
+  `src/ui/commandPalette.ts` is the whole decision: `parsePaletteInput()` turns a leading `#`/`>`/`/` into a
+  `PaletteScope`, `paletteGroups()` filters and groups, dropping empty groups so an empty result reads as _no
+  matches_ rather than headings over nothing, and resting on recent rooms plus first headings so the panel is
+  never blank. Rows carry ids, never callbacks, so the layer is serialisable and unit-tested without a view;
+  `parsePaletteItemId()` is the other half of the round trip. Ownership is split because the sources are:
+  **`App.svelte`** holds the open flag, the actions and the remembered rooms, and resolves `action:`/`room:`
+  picks; **`Editor.svelte`** renders `src/ui/CommandPalette.svelte` and owns the two sources that need the live
+  view — headings (from the one memoised `headingsOf` walk it already does for `Outline`) and insertable blocks
+  (from `menuItems()`, so a block that cannot apply here is never offered). Inserting is a write, so it
+  re-checks the gate exactly as import does; gated, the rows are withheld (contract §4.3). The trigger is a
+  **button**, never an `<input>`: `header.capsule` is `width: fit-content` with an animated width transition
+  (`app.css`), so a child that grew on focus would slide every sibling under the pointer. `⌘K` is bound app-wide
+  and unconditionally, which is why Link moved to `⌘⇧K` (`plugins.ts` keymap, `shortcuts.ts` hint) —
+  focus-sensitive binding was tried on paper and rejected: the editor holds focus almost always, so the
+  palette's own `⌘K` hint would have been false almost always.
+- **About page**: `src/ui/About.svelte`, a pure props-driven page — `{ onNewDocument, transport, page }` — that
+  resolves no room, opens no socket and reads no URL; the orchestrator supplies all three. It demonstrates the
+  product by mounting the real `Avatar`, `StatusPill` and `SyncBanner` with fixed props instead of screenshots,
+  so the page cannot drift from the components it describes. Its encryption claim is derived from `Transport` by
+  `transportCopyFor()` (`src/ui/aboutCopy.ts`, unit-tested): a hub deployment relays plaintext (contract §2), so
+  the page swaps to "unlisted, and relayed" copy and makes no end-to-end claim. It owns its own scroll container
+  (`body` is `overflow:hidden`, `base.css`), mirroring how `.content` scrolls inside the editor.
+  `header.capsule` needs no mobile counterpart here the way the room's does (`.mobile-capsule`,
+  `App.svelte`/`app.css`) — About's own capsule already fits every breakpoint, so it simply stays visible below
+  900px rather than swapping to a second element. **Routing**: `src/ui/route.ts` (unit-tested) turns
+  `location.search` into a `Route` discriminated union and builds the URLs that reach each arm; `App.svelte`
+  mounts the page for `RouteKind.About` and supplies the three props. The flag is `?about`, not a path — the app
+  ships as a static bundle to hosts that serve no SPA fallback, where `/about` would 404 — and it is read
+  _before_ the fresh-room mint, so reading the page never creates a document.
+- **The local library (room history)**: `src/collaboration/roomHistory.ts`: a room has no server-side existence,
+  so without its URL there is no way back to it. `rememberRoomVisit()` records
+  `{ room, name, key, role, openedAt }` per room under `copad:roomHistory`, most recent first, capped at
+  `ROOM_HISTORY_LIMIT` (50) by evicting the least recently opened; `App.svelte` calls it from an effect that
+  re-runs as the collaborative `RoomName` syncs in, and holds off while `RoomLock` is closed (the key in hand is
+  then missing or wrong, and storing it would overwrite a working one). A visit never removes what a previous
+  one knew: a keyless visit keeps the remembered `#k=` key, an unsynced visit keeps the last name, since either
+  loss would silently break or anonymize the entry. The link back is _derived_ (`roomVisitUrl(visit, page)`)
+  from the current page path rather than stored, so a hand-edited store can't put an arbitrary URL behind a
+  link, a deployment that moves path keeps working, and the stored `role` is replayed (a `?role=reader` entry
+  reopens view-only rather than silently promoting its holder to a writer). Which visits earn a row is
+  `libraryWorthy(engagement)`, a pure function over the `RoomEngagement` `App.svelte` derives (asked for /
+  writing / accompanied / named / saved here): a room reached by link, by `VITE_DEFAULT_ROOM` or by "New
+  document" was asked for and is filed at once, while a room minted under a bare visit waits for a sign of use,
+  so a passer-by who only reads collects no "Untitled" row. `src/ui/LibraryDialog.svelte` renders it (header
+  capsule, desktop and mobile), telling same-named rows apart with `roomDiscriminator()`; `clearRoomHistory()`
+  is the hook for Settings' "Clear local copies".
+- **`room` is fixed for the tab's lifetime; two-phase remount handles reconnects**: `App.svelte` reads `room`
+  once (`resolveLandingRoom()`); "New document" opens a fresh tab instead of switching rooms in place, so there
+  is no in-app room-change remount to handle. A same-room reconnect (TURN/cache/security change) goes through
+  `rebuildCollab()`, which toggles `editorMounted` off → `await tick()` + a macrotask → on: the old provider
+  must fully deregister its room before the new one mounts, because y-webrtc's `openRoom()` throws "already
+  exists" for the same name and would leave the new provider silently unsubscribed. A direct Svelte `{#key}`
+  swap can't guarantee that ordering, hence the explicit two-phase toggle.
+- **Leader election**: `src/collaboration/leader.ts`: the peer that writes to storage is the lowest `clientID`
+  **among peers persisting to the same file** (`isPersistLeader`), preventing concurrent-write races on one
+  file. Election is scoped by a `PersistTarget` (a hash of `(browserId + backend id + filename)` broadcast in
+  awareness, `persistTargetKey`), so two peers writing _distinct_ files (different backends, or different
+  accounts of one backend, distinguished by the per-browser `browserId` in `src/collaboration/browserId.ts`)
+  each persist their own copy instead of starving one another, while multiple writers of one shared file (or the
+  same user in two tabs) still elect a single writer. The `PersistTarget` is a hash, so the actual
+  account/path/filename never travels in awareness. `browserId` is deliberately **not** per-room: it identifies
+  the browser, and the room dimension already lives in the target's per-room `filename`.
+- **File-collision warning**: because a room's target file is user-settable, two rooms on one backend can be
+  pointed at the _same_ file (they'd silently overwrite each other). `firstFileCollision()`
+  (`src/storage/filename.ts`) compares the current room's file against every other room the backend saves
+  (`savedRoomsStore(id).all()` × `filenameForRoom()`, resolved with the backend's `defaultFilename()`);
+  `App.svelte` surfaces any clash as a **Conflict** state on `StatusPill.svelte`'s durability segment (→ click
+  to Settings to rename). This is a **same-browser** check only: a same-account clash from _another machine_
+  can't be detected without a coordination point the serverless model omits (documented in the README).
+- **Saved rooms (per-user persistence)**: `src/storage/savedRooms.ts`: `savedRoomsStore(id)` records the **set**
+  of rooms a backend saves for the local user, persisted per backend under `storage.<id>.rooms` (JSON array);
+  its API is deliberately screaming: `saves(room)` / `add(room)` / `remove(room)` / `all()`, no "owner".
+  `afterConnect()` in `App.svelte` **adds** the room you're in; disconnect keeps the set so re-login restores
+  your saved rooms instead of orphaning them. `App.svelte`'s `savedHere` derived
+  (`connected && savedRoomsStore(id).saves(room)`) gates the Editor's `storage` prop: in a room your backend
+  doesn't save, the Editor gets `storage = null`, and that room keeps its own document; it is never loaded from
+  or saved to your backend. This is what stops an imported document from following you across rooms (the
+  App-global `storage` used to re-`load()` its single file into every room's fresh Y.Doc). It's a **per-user
+  persistence fact, not a room-level role**: with per-target autosave (see Leader election), several people can
+  each keep their own saved copy of one room, nobody "owns" it. `StatusPill.svelte`'s durability segment
+  reflects it as **Saved** / **Not saved** (click to open Settings and connect a backend). A one-time
+  returning-user default in `App.svelte` adds the room you _land in_ only when there's no `?room=` link (a
+  shared link means you're a visitor), so an already-authed backend keeps saving your home room without ever
+  claiming someone else's. Because the target file is **per room** (see below), one backend can save several
+  rooms, each with its own distinct document.
+- **Local cache**: `src/collaboration/cache.ts` owns local caching end to end (prefs + DB naming + clear +
+  `attachLocalCache(room, doc, cred?): LocalCache`). Both adapters call `attachLocalCache` when their `cache`
+  opt is true, passing the room credential as `cred`. **No credential → plaintext** y-indexeddb mirror (DB
+  `copad:<room>`); **credential present → AES-GCM encrypted at rest** (DB `copad:enc:<room>`, key derived from
+  the credential, in `encryptedCache.ts`: the single place importing `y-indexeddb` is still `cache.ts`, but
+  `encryptedCache.ts` owns the encrypted append-log over raw IndexedDB). So a reload survives without a backend,
+  and an encrypted room's cache can't be read back without the key. On by default; the Settings toggle flips a
+  localStorage pref that `App.svelte` reads, rebuilds `connect`, and remounts the Editor via `rebuildCollab()`
+  (the two-phase same-room remount). `clearLocalCache()` deletes both DB variants via a remembered-rooms index
+  (not `indexedDB.databases()`, which Firefox lacks). A room's key is fixed for its lifetime (see below — the
+  Share dialog only reports it, never changes it), so there is no cache-migration path to keep in sync with it.
+- **Per-room encryption**: `webrtcCollab`'s `cipher` (`RoomCipher`) supplies the y-webrtc AES `password` per
+  room. Effective cipher precedence, resolved fresh per connect in `App.svelte`'s `roomCipher`: URL hash `#k=`
+  (a "secure link"; the hash is never sent to the signaling server) → per-room password remembered in
+  localStorage → the `VITE_ROOM_AUTH` strategy's cipher. A room's key is minted once at creation
+  (`startFreshRoom()`/`newRoom()`, contract §5) and never changed afterward — the `ShareDialog` only reports it,
+  it mints and removes nothing (see below); the per-room password is set only by `RoomLock`, under a
+  `room-password` deployment. Changing the key bumps `collabEpoch` so the Editor remounts and reconnects with
+  the new key. The same credential also keys the encrypted local cache. WebRTC only: `websocket.ts` never reads
+  the cipher and passes no `cacheKey`, so on the hub transport a key encrypts neither the wire nor the cache.
+  `roomSecurity()` (`src/ui/shareLinks.ts`) therefore takes `transport` and returns a `Relayed` arm before it
+  looks at any credential, so the Share dialog cannot claim encryption a hub deployment does not provide — the
+  check is in the union, not at a render site that a later edit could forget.
+- **Share dialog**: `src/ui/ShareDialog.svelte` is two views inside one `Dialog`, never both at once. **Invite**
+  (the default): a single link field whose contents follow a segmented _Editing / View-only_ choice
+  (`InviteRole`), the key badge when the link carries `#k=`, the copy/native-share row, the saved/not-saved
+  durability note, and a one-line security **status** with a `Document security` button. **Document security**
+  (reached from that button, with a back affordance): a status readout of `RoomSecurity` and the fragment
+  explainer, with no action anywhere in it — encryption is the only nominal case (contract §5: every room is
+  minted with a key), so the dialog never offers to add, remove or switch it; the non-`SecretLink` arms
+  (`Relayed`, `Password`, `Deployment`, `None`) only explain why _this_ room deviates from that default.
 
-  There is deliberately **no password field here**. A document password could only be set on a room with no `#k=`, and both creation paths (`newRoom()`, `startFreshRoom()`) always mint one, while `roomCipher` gives the link key absolute precedence — so the control was near-unreachable, and where it did appear it papered over a *lost* key. It also could not be made safe: y-webrtc derives its AES key with PBKDF2-SHA256 at a hardcoded 100 000 iterations salted with the room id, which the signaling server receives in cleartext, so a typed password is exposed to an offline dictionary attack by anyone who can subscribe to the topic. Its failure mode was the worst part: a wrong password is indistinguishable from an empty document for exactly the person who needs to know, since the fingerprint registry can only gate a device that once held the right key. The `password` arm of `RoomSecurity` remains — a `room-password` deployment still produces it — but the dialog only *reports* it. The pure parts live in `src/ui/shareLinks.ts`: `roomSecurity()` restates the cipher precedence above as a discriminated union (`none` / `secret-link` / `password` / `deployment`) so each state renders its own copy, `shareUrl()` composes room + role + `#k=`, and `shareMessage()` + `whatsappShareUrl()` / `smsShareUrl()` / `emailShareUrl()` compose the non-`navigator.share` channels. There is no "link went stale" state to track: a room's key never changes after creation, so a link copied once stays valid for as long as the room does. The dialog's transient states are unions from the same module, never parallel booleans: `ShareView`, `CopyFeedback` (idle / copied / manual-select fallback). View-only is labelled *not enforced* wherever it can be selected: `?role=reader` is cooperative (contract §4), and a control that read as a permission would promise access control the architecture cannot deliver.
-- **Encrypted-room access gate**: encryption is *cooperative* (a wrong/missing key just fails to sync), so on its own an encrypted room opened without the key was indistinguishable from a public one, and the plaintext cache even showed its content on reload. `src/collaboration/roomLock.ts` closes this: on a successful visit *with* a key, a one-way SHA-256 fingerprint of the key (never the key itself) is remembered per room (`collab.room-encrypted.<room>`, via `roomCrypto.keyFingerprint`). On a later visit `roomLockState(room, cred)` compares the current credential's fingerprint to the stored one to tell **correct key / wrong key / no key** apart. When locked, `App.svelte` renders `ui/RoomLock.svelte` instead of the Editor (so a keyless room never mounts the Editor or writes a plaintext cache); entering the key persists it as the room password and reconnects. WebRTC transport only (encryption is WebRTC-only). All crypto lives in `src/collaboration/roomCrypto.ts`: fingerprint + PBKDF2→AES-GCM cache key + encrypt/decrypt, the single `crypto.subtle` site.
-  - The fingerprint registry can only gate a device that *once held the key* (there's no server to authoritatively declare a room encrypted to a stranger; a first-time keyless visitor to a room others encrypted just sees an empty room, since the y-webrtc password also encrypts the signaling `announce` messages, so peer discovery itself fails: `peerCount` stays 0). The one exception where a *first* visit can be gated deterministically is **`VITE_ROOM_AUTH=room-password`**: the deployment mandates a per-room password for every room, so when none is stored `App.svelte` shows `RoomLock` immediately (`passwordRequiredMode`, no fingerprint needed). The entered password isn't verifiable on a first visit (cooperative encryption, no peer yet), so any non-empty value is accepted; a wrong one just fails to sync. That first-visit gate also offers a "continue without a password" escape (`RoomLock`'s `allowSkip`), which records `collab.room-open.<room>` so the room opens unencrypted and isn't re-gated; the escape is offered only for this deterministic first visit, never for a room known-encrypted by fingerprint. `public` isn't gated, `site-password` supplies the key from env, and `secret-link` mints a fresh key when the URL has none.
-- **TURN / connectivity**: `config.ts:DEFAULT_TURN` (public OpenRelay) is the out-of-the-box fallback so desktop↔mobile connects without setup; `resolveIceServers(env, { defaultTurn })` precedence runtime (`turn.ts`, edited in Settings) → env → default. `App.svelte` resolves ICE *inside* `build()` so a TURN change (bump `collabEpoch`) reconnects with fresh servers. The `Collab` port has optional `reconnect()` + `getDiagnostics()`; the webrtc adapter reads selected ICE candidate type via `peer._pc.getStats()` (best-effort, guarded) to report Direct vs Relayed in `ConnectionDialog.svelte` (opened from the status bar). In Settings' General view, the "Connection (WebRTC)" section sits inside a collapsed "Advanced" disclosure; its relay-status badge (`turnStatus`: Custom relay / Public relay active / No relay configured) stays visible on the closed `<summary>`, and the disclosure auto-opens if a custom relay is already saved (`Settings.svelte`'s `focusAdvanced` prop lets a caller force it open too, e.g. from a connection-failure recovery path).
+  There is deliberately **no password field here**. A document password could only be set on a room with no
+  `#k=`, and both creation paths (`newRoom()`, `startFreshRoom()`) always mint one, while `roomCipher` gives the
+  link key absolute precedence — so the control was near-unreachable, and where it did appear it papered over a
+  _lost_ key. It also could not be made safe: y-webrtc derives its AES key with PBKDF2-SHA256 at a hardcoded 100
+  000 iterations salted with the room id, which the signaling server receives in cleartext, so a typed password
+  is exposed to an offline dictionary attack by anyone who can subscribe to the topic. Its failure mode was the
+  worst part: a wrong password is indistinguishable from an empty document for exactly the person who needs to
+  know, since the fingerprint registry can only gate a device that once held the right key. The `password` arm
+  of `RoomSecurity` remains — a `room-password` deployment still produces it — but the dialog only _reports_ it.
+  The pure parts live in `src/ui/shareLinks.ts`: `roomSecurity()` restates the cipher precedence above as a
+  discriminated union (`none` / `secret-link` / `password` / `deployment`) so each state renders its own copy,
+  `shareUrl()` composes room + role + `#k=`, and `shareMessage()` + `whatsappShareUrl()` / `smsShareUrl()` /
+  `emailShareUrl()` compose the non-`navigator.share` channels. There is no "link went stale" state to track: a
+  room's key never changes after creation, so a link copied once stays valid for as long as the room does. The
+  dialog's transient states are unions from the same module, never parallel booleans: `ShareView`,
+  `CopyFeedback` (idle / copied / manual-select fallback). View-only is labelled _not enforced_ wherever it can
+  be selected: `?role=reader` is cooperative (contract §4), and a control that read as a permission would
+  promise access control the architecture cannot deliver.
+
+- **Encrypted-room access gate**: encryption is _cooperative_ (a wrong/missing key just fails to sync), so on
+  its own an encrypted room opened without the key was indistinguishable from a public one, and the plaintext
+  cache even showed its content on reload. `src/collaboration/roomLock.ts` closes this: on a successful visit
+  _with_ a key, a one-way SHA-256 fingerprint of the key (never the key itself) is remembered per room
+  (`collab.room-encrypted.<room>`, via `roomCrypto.keyFingerprint`). On a later visit
+  `roomLockState(room, cred)` compares the current credential's fingerprint to the stored one to tell **correct
+  key / wrong key / no key** apart. When locked, `App.svelte` renders `ui/RoomLock.svelte` instead of the Editor
+  (so a keyless room never mounts the Editor or writes a plaintext cache); entering the key persists it as the
+  room password and reconnects. WebRTC transport only (encryption is WebRTC-only). All crypto lives in
+  `src/collaboration/roomCrypto.ts`: fingerprint + PBKDF2→AES-GCM cache key + encrypt/decrypt, the single
+  `crypto.subtle` site.
+  - The fingerprint registry can only gate a device that _once held the key_ (there's no server to
+    authoritatively declare a room encrypted to a stranger; a first-time keyless visitor to a room others
+    encrypted just sees an empty room, since the y-webrtc password also encrypts the signaling `announce`
+    messages, so peer discovery itself fails: `peerCount` stays 0). The one exception where a _first_ visit can
+    be gated deterministically is **`VITE_ROOM_AUTH=room-password`**: the deployment mandates a per-room
+    password for every room, so when none is stored `App.svelte` shows `RoomLock` immediately
+    (`passwordRequiredMode`, no fingerprint needed). The entered password isn't verifiable on a first visit
+    (cooperative encryption, no peer yet), so any non-empty value is accepted; a wrong one just fails to sync.
+    That first-visit gate also offers a "continue without a password" escape (`RoomLock`'s `allowSkip`), which
+    records `collab.room-open.<room>` so the room opens unencrypted and isn't re-gated; the escape is offered
+    only for this deterministic first visit, never for a room known-encrypted by fingerprint. `public` isn't
+    gated, `site-password` supplies the key from env, and `secret-link` mints a fresh key when the URL has none.
+- **TURN / connectivity**: `config.ts:DEFAULT_TURN` (public OpenRelay) is the out-of-the-box fallback so
+  desktop↔mobile connects without setup; `resolveIceServers(env, { defaultTurn })` precedence runtime
+  (`turn.ts`, edited in Settings) → env → default. `App.svelte` resolves ICE _inside_ `build()` so a TURN change
+  (bump `collabEpoch`) reconnects with fresh servers. The `Collab` port has optional `reconnect()` +
+  `getDiagnostics()`; the webrtc adapter reads selected ICE candidate type via `peer._pc.getStats()`
+  (best-effort, guarded) to report Direct vs Relayed in `ConnectionDialog.svelte` (opened from the status bar).
+  In Settings' General view, the "Connection (WebRTC)" section sits inside a collapsed "Advanced" disclosure;
+  its relay-status badge (`turnStatus`: Custom relay / Public relay active / No relay configured) stays visible
+  on the closed `<summary>`, and the disclosure auto-opens if a custom relay is already saved
+  (`Settings.svelte`'s `focusAdvanced` prop lets a caller force it open too, e.g. from a connection-failure
+  recovery path).
 - **WebDAV**: hidden from the UI unless `VITE_PROXY_URL` is set; most WebDAV servers don't send CORS headers.
 
 ## Environment variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VITE_APP_NAMESPACE` | no | Prefix for the app's `copad:`-namespaced browser state: theme + local cache (default: `copad`). Set once per deploy to isolate two deployments on one origin; the no-flash `index.html` script is synced at build time by the `inject-app-namespace` Vite plugin. |
-| `VITE_COLLAB_TRANSPORT` | no | Collaboration transport: `webrtc` (default) or `websocket`. **Chosen explicitly** (not inferred from any URL) via `resolveTransport()` in `src/collaboration/config.ts`. |
-| `VITE_SIGNALING_URL` | no | WebRTC signaling server(s), comma-separated. `ws://localhost:4444` default applies **only on a local host**; on a deployed origin it's empty (warning banner shown) and must be `wss://` (browsers block `ws://` from https as mixed content). Resolved by `resolveSignaling()` in `src/collaboration/config.ts`. Used only on the WebRTC transport. |
-| `VITE_SIGNALING_KEEPALIVE_MS` | no | How often (ms) the WebRTC client pings each signaling server over HTTP to keep a spin-down-on-idle host (e.g. Render free tier) warm, so peer discovery doesn't fail on a cold start (default: `240000` = 4 min). In `src/collaboration/constants.ts`. WebRTC transport only. |
-| `VITE_CONNECT_TIMEOUT_MS` | no | How long (ms) a transport may sit not-attached before the status pill reports "Can't connect" (`ConnStatus.Unreachable`) instead of spinning on "Connecting…" forever (default: `8000`). Resets on a successful attach or a manual reconnect. In `src/collaboration/constants.ts`. Applies to both transports. |
-| `VITE_WEBSOCKET_URL` | no | y-websocket hub URL, used when `VITE_COLLAB_TRANSPORT=websocket` (central relay, no STUN/TURN, works on mobile NAT; server sees plaintext, so no E2E). Setting it alone does NOT switch transports. Must be `wss://` on a deployed origin. Resolved by `resolveWebsocket()` in `src/collaboration/config.ts`. |
-| `VITE_ROOM_AUTH` | no | Room access + encryption strategy: `public` (default, no password), `site-password`, `room-password`, or `secret-link`. Parsed by `resolveRoomStrategy()` in `src/collaboration/config.ts`. The in-app Share dialog can also encrypt a room on the fly, with a secure link `#k=` only; a per-room password is set by `RoomLock` under this strategy, never by the Share dialog. Effective cipher precedence in `App.svelte` is secure-link → per-room password → this strategy. |
-| `VITE_ROOM_PASSWORD` | no | Site-wide password used when `VITE_ROOM_AUTH=site-password`. Feeds y-webrtc AES encryption (WebRTC transport only; WebSocket hub is plaintext by design). |
-| `VITE_DEFAULT_ROOM` | no | Landing room when the URL has no `?room=` — an explicit operator choice that every bare visitor shares. **No default**: with none set, a bare visit mints a fresh encrypted room of its own (`resolveLandingRoom()` in `src/collaboration/config.ts`) instead of pooling strangers into one. |
-| `VITE_FALLBACK_NAME` | no | Display name shown for peers whose awareness state has no name (default: `Anonymous`). Parsed in `src/collaboration/peerDefaults.ts`. |
-| `VITE_FALLBACK_COLOR` | no | Cursor colour for peers with no colour set; must be a 6-digit hex (`#rrggbb`); invalid values fall back to `#888888`. Parsed in `src/collaboration/peerDefaults.ts`. |
-| `VITE_DROPBOX_APP_KEY` | no | Locks the Dropbox app key; otherwise set it at runtime in Settings |
-| `VITE_PCLOUD_CLIENT_ID` | no | Locks the pCloud client id; otherwise set it at runtime in Settings |
-| `VITE_GITHUB_REPO` | no | Locks the GitHub repository (`owner/repo`); otherwise set at runtime in Settings |
-| `VITE_GITHUB_BRANCH` | no | Locks the GitHub branch (default: `main`); otherwise set at runtime in Settings |
-| `VITE_GITHUB_TOKEN` | no | Locks the GitHub PAT; bypasses the Connect validation step (deployment-managed) |
-| `VITE_GITHUB_API_URL` | no | GitHub REST API base (default: `https://api.github.com`); set for a GitHub Enterprise host. In `src/storage/constants.ts`. |
-| `VITE_GITLAB_PROJECT` | no | Locks the GitLab project (`namespace/project`); otherwise set at runtime in Settings. |
-| `VITE_GITLAB_HOST` | no | Locks the GitLab instance host (default: `https://gitlab.com`); set for self-hosted GitLab. |
-| `VITE_GITLAB_BRANCH` | no | Locks the GitLab branch (default: `main`); otherwise set at runtime in Settings. |
-| `VITE_GITLAB_TOKEN` | no | Locks the GitLab PAT; bypasses the Connect validation step (deployment-managed). |
-| `VITE_GITLAB_API_PATH` | no | GitLab REST API path appended to the host (default: `/api/v4`). In `src/storage/constants.ts`. |
-| `VITE_GITLAB_DEFAULT_FILENAME` | no | Initial GitLab target file (default: `notes.md`). |
-| `VITE_S3_PREFIX` | no | Object-key prefix (folder) the S3 backend reads/writes within (default: `copad`). |
-| `VITE_GRAPH_API_URL` | no | Microsoft Graph API base (default: `https://graph.microsoft.com/v1.0`); set for a national cloud. |
-| `VITE_SHAREPOINT_FOLDER` | no | Drive folder SharePoint/OneDrive reads/writes within (default: `Documents`). |
-| `VITE_GDRIVE_CLIENT_ID` | no | Locks the Google Cloud OAuth Client ID; otherwise set at runtime in Settings. |
-| `VITE_GDRIVE_AUTH_URL` / `VITE_GDRIVE_TOKEN_URL` / `VITE_GDRIVE_FILES_URL` / `VITE_GDRIVE_UPLOAD_URL` / `VITE_GDRIVE_SCOPE` | no | Google Drive OAuth/Drive endpoint + scope overrides (defaults are the public Google endpoints; scope defaults to `drive.file`). |
-| `VITE_ONEDRIVE_CLIENT_ID` | no | Locks the personal-OneDrive Microsoft Entra Client ID; otherwise set at runtime in Settings. |
-| `VITE_ONEDRIVE_AUTH_URL` / `VITE_ONEDRIVE_TOKEN_URL` / `VITE_ONEDRIVE_SCOPE` | no | Personal OneDrive OAuth endpoint + scope overrides (defaults are the public Microsoft identity platform `consumers` tenant endpoints; scope defaults to `Files.ReadWrite.AppFolder offline_access`). |
-| `VITE_CLOUD_FOLDER` | no | Folder the cloud backends (Dropbox, pCloud) read/write within (default: `/copad`). In `src/storage/constants.ts`. |
-| `VITE_DEFAULT_FILENAME` | no | Initial target filename for cloud backends (default: `document.yjs`); the extension selects the codec. |
-| `VITE_GITHUB_DEFAULT_FILENAME` | no | Initial GitHub target file (default: `notes.md`). |
-| `VITE_REDIRECT_URI` | no | OAuth redirect URI (default: `<origin>/redirect.html`). In `src/storage/constants.ts`. |
-| `VITE_DROPBOX_AUTH_URL` / `VITE_DROPBOX_TOKEN_URL` / `VITE_DROPBOX_UPLOAD_URL` / `VITE_DROPBOX_DOWNLOAD_URL` | no | Dropbox OAuth/content endpoint overrides (defaults are the public dropbox.com / dropboxapi.com URLs). For when Dropbox rotates a domain. |
-| `VITE_PCLOUD_API_HOST` / `VITE_PCLOUD_EU_API_HOST` | no | pCloud API hosts (defaults: `api.pcloud.com` / `eapi.pcloud.com`). Override for a region change. |
-| `VITE_PCLOUD_GETFILELINK_PATH` / `VITE_PCLOUD_UPLOAD_PATH` | no | pCloud API paths (defaults: `/getfilelink` / `/uploadfile`). |
-| `VITE_OAUTH_TIMEOUT_MS` | no | How long to wait for the OAuth popup before giving up (default: `300000`). |
-| `VITE_OAUTH_POPUP_FEATURES` | no | OAuth popup window features (default: `width=520,height=640`). |
-| `VITE_BASE64_CHUNK` | no | Chunk size for base64-encoding large GitHub/GitLab uploads (default: `32768`). |
-| `VITE_PROXY_URL` | for WebDAV | CORS proxy URL |
-| `VITE_WEBDAV_URL` | no | Pre-fill the WebDAV URL input |
-| `VITE_STORAGE_BACKEND` | no | Default storage backend id |
-| `VITE_ENABLE_DROPBOX` / `VITE_ENABLE_PCLOUD` / `VITE_ENABLE_WEBDAV` / `VITE_ENABLE_GITHUB` / `VITE_ENABLE_GITLAB` / `VITE_ENABLE_S3` / `VITE_ENABLE_SHAREPOINT` / `VITE_ENABLE_GDRIVE` / `VITE_ENABLE_ONEDRIVE` / `VITE_ENABLE_LOCAL` | no | Hide a backend entirely: no pill, no Settings section. Only WebDAV and Local default to `true`; every other backend stays `false` until it has been connected to a real account outside production, which is its own dedicated PR. In `src/storage/constants.ts`'s `BACKEND_ENABLED`. |
-| `VITE_STUN_URL` | no | STUN server(s), comma-separated (default: `stun:stun.l.google.com:19302`; set empty to disable). Via `resolveIceServers()`. |
-| `VITE_TURN_URL` | no | TURN relay url(s), comma-separated. Needed for restrictive/mobile NATs (CGNAT / symmetric NAT). When unset, a public default relay (`DEFAULT_TURN` in `config.ts`) is used unless disabled. Runtime Settings TURN (`turn.ts`) overrides this. |
-| `VITE_TURN_USERNAME` | no | TURN username. |
-| `VITE_TURN_PASSWORD` | no | TURN password. |
-| `VITE_ICE_SERVERS_URL` | no | HTTP(S) endpoint returning `{ iceServers: [...] }` (e.g. the Cloudflare TURN Worker in `deploy/ice-worker/`). When set, the frontend fetches ICE at startup instead of using static `VITE_TURN_*`, for providers that mint short-lived credentials from a secret API token. Resolved by `resolveIceServersUrl()`; fetched via `fetchIceServers()`. Runtime Settings TURN still overrides it. WebRTC transport only. |
-| `VITE_ICE_FETCH_TIMEOUT_MS` | no | How long (ms) to wait for `VITE_ICE_SERVERS_URL` before falling back to env/default ICE (default: `10000`). In `src/collaboration/constants.ts`. |
+| Variable                                                                                                                                                                                                                              | Required   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_APP_NAMESPACE`                                                                                                                                                                                                                  | no         | Prefix for the app's `copad:`-namespaced browser state: theme + local cache (default: `copad`). Set once per deploy to isolate two deployments on one origin; the no-flash `index.html` script is synced at build time by the `inject-app-namespace` Vite plugin.                                                                                                                                                                                                               |
+| `VITE_COLLAB_TRANSPORT`                                                                                                                                                                                                               | no         | Collaboration transport: `webrtc` (default) or `websocket`. **Chosen explicitly** (not inferred from any URL) via `resolveTransport()` in `src/collaboration/config.ts`.                                                                                                                                                                                                                                                                                                        |
+| `VITE_SIGNALING_URL`                                                                                                                                                                                                                  | no         | WebRTC signaling server(s), comma-separated. `ws://localhost:4444` default applies **only on a local host**; on a deployed origin it's empty (warning banner shown) and must be `wss://` (browsers block `ws://` from https as mixed content). Resolved by `resolveSignaling()` in `src/collaboration/config.ts`. Used only on the WebRTC transport.                                                                                                                            |
+| `VITE_SIGNALING_KEEPALIVE_MS`                                                                                                                                                                                                         | no         | How often (ms) the WebRTC client pings each signaling server over HTTP to keep a spin-down-on-idle host (e.g. Render free tier) warm, so peer discovery doesn't fail on a cold start (default: `240000` = 4 min). In `src/collaboration/constants.ts`. WebRTC transport only.                                                                                                                                                                                                   |
+| `VITE_CONNECT_TIMEOUT_MS`                                                                                                                                                                                                             | no         | How long (ms) a transport may sit not-attached before the status pill reports "Can't connect" (`ConnStatus.Unreachable`) instead of spinning on "Connecting…" forever (default: `8000`). Resets on a successful attach or a manual reconnect. In `src/collaboration/constants.ts`. Applies to both transports.                                                                                                                                                                  |
+| `VITE_WEBSOCKET_URL`                                                                                                                                                                                                                  | no         | y-websocket hub URL, used when `VITE_COLLAB_TRANSPORT=websocket` (central relay, no STUN/TURN, works on mobile NAT; server sees plaintext, so no E2E). Setting it alone does NOT switch transports. Must be `wss://` on a deployed origin. Resolved by `resolveWebsocket()` in `src/collaboration/config.ts`.                                                                                                                                                                   |
+| `VITE_ROOM_AUTH`                                                                                                                                                                                                                      | no         | Room access + encryption strategy: `public` (default, no password), `site-password`, `room-password`, or `secret-link`. Parsed by `resolveRoomStrategy()` in `src/collaboration/config.ts`. The in-app Share dialog can also encrypt a room on the fly, with a secure link `#k=` only; a per-room password is set by `RoomLock` under this strategy, never by the Share dialog. Effective cipher precedence in `App.svelte` is secure-link → per-room password → this strategy. |
+| `VITE_ROOM_PASSWORD`                                                                                                                                                                                                                  | no         | Site-wide password used when `VITE_ROOM_AUTH=site-password`. Feeds y-webrtc AES encryption (WebRTC transport only; WebSocket hub is plaintext by design).                                                                                                                                                                                                                                                                                                                       |
+| `VITE_DEFAULT_ROOM`                                                                                                                                                                                                                   | no         | Landing room when the URL has no `?room=` — an explicit operator choice that every bare visitor shares. **No default**: with none set, a bare visit mints a fresh encrypted room of its own (`resolveLandingRoom()` in `src/collaboration/config.ts`) instead of pooling strangers into one.                                                                                                                                                                                    |
+| `VITE_FALLBACK_NAME`                                                                                                                                                                                                                  | no         | Display name shown for peers whose awareness state has no name (default: `Anonymous`). Parsed in `src/collaboration/peerDefaults.ts`.                                                                                                                                                                                                                                                                                                                                           |
+| `VITE_FALLBACK_COLOR`                                                                                                                                                                                                                 | no         | Cursor colour for peers with no colour set; must be a 6-digit hex (`#rrggbb`); invalid values fall back to `#888888`. Parsed in `src/collaboration/peerDefaults.ts`.                                                                                                                                                                                                                                                                                                            |
+| `VITE_DROPBOX_APP_KEY`                                                                                                                                                                                                                | no         | Locks the Dropbox app key; otherwise set it at runtime in Settings                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `VITE_PCLOUD_CLIENT_ID`                                                                                                                                                                                                               | no         | Locks the pCloud client id; otherwise set it at runtime in Settings                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `VITE_GITHUB_REPO`                                                                                                                                                                                                                    | no         | Locks the GitHub repository (`owner/repo`); otherwise set at runtime in Settings                                                                                                                                                                                                                                                                                                                                                                                                |
+| `VITE_GITHUB_BRANCH`                                                                                                                                                                                                                  | no         | Locks the GitHub branch (default: `main`); otherwise set at runtime in Settings                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `VITE_GITHUB_TOKEN`                                                                                                                                                                                                                   | no         | Locks the GitHub PAT; bypasses the Connect validation step (deployment-managed)                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `VITE_GITHUB_API_URL`                                                                                                                                                                                                                 | no         | GitHub REST API base (default: `https://api.github.com`); set for a GitHub Enterprise host. In `src/storage/constants.ts`.                                                                                                                                                                                                                                                                                                                                                      |
+| `VITE_GITLAB_PROJECT`                                                                                                                                                                                                                 | no         | Locks the GitLab project (`namespace/project`); otherwise set at runtime in Settings.                                                                                                                                                                                                                                                                                                                                                                                           |
+| `VITE_GITLAB_HOST`                                                                                                                                                                                                                    | no         | Locks the GitLab instance host (default: `https://gitlab.com`); set for self-hosted GitLab.                                                                                                                                                                                                                                                                                                                                                                                     |
+| `VITE_GITLAB_BRANCH`                                                                                                                                                                                                                  | no         | Locks the GitLab branch (default: `main`); otherwise set at runtime in Settings.                                                                                                                                                                                                                                                                                                                                                                                                |
+| `VITE_GITLAB_TOKEN`                                                                                                                                                                                                                   | no         | Locks the GitLab PAT; bypasses the Connect validation step (deployment-managed).                                                                                                                                                                                                                                                                                                                                                                                                |
+| `VITE_GITLAB_API_PATH`                                                                                                                                                                                                                | no         | GitLab REST API path appended to the host (default: `/api/v4`). In `src/storage/constants.ts`.                                                                                                                                                                                                                                                                                                                                                                                  |
+| `VITE_GITLAB_DEFAULT_FILENAME`                                                                                                                                                                                                        | no         | Initial GitLab target file (default: `notes.md`).                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `VITE_S3_PREFIX`                                                                                                                                                                                                                      | no         | Object-key prefix (folder) the S3 backend reads/writes within (default: `copad`).                                                                                                                                                                                                                                                                                                                                                                                               |
+| `VITE_GRAPH_API_URL`                                                                                                                                                                                                                  | no         | Microsoft Graph API base (default: `https://graph.microsoft.com/v1.0`); set for a national cloud.                                                                                                                                                                                                                                                                                                                                                                               |
+| `VITE_SHAREPOINT_FOLDER`                                                                                                                                                                                                              | no         | Drive folder SharePoint/OneDrive reads/writes within (default: `Documents`).                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `VITE_GDRIVE_CLIENT_ID`                                                                                                                                                                                                               | no         | Locks the Google Cloud OAuth Client ID; otherwise set at runtime in Settings.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `VITE_GDRIVE_AUTH_URL` / `VITE_GDRIVE_TOKEN_URL` / `VITE_GDRIVE_FILES_URL` / `VITE_GDRIVE_UPLOAD_URL` / `VITE_GDRIVE_SCOPE`                                                                                                           | no         | Google Drive OAuth/Drive endpoint + scope overrides (defaults are the public Google endpoints; scope defaults to `drive.file`).                                                                                                                                                                                                                                                                                                                                                 |
+| `VITE_ONEDRIVE_CLIENT_ID`                                                                                                                                                                                                             | no         | Locks the personal-OneDrive Microsoft Entra Client ID; otherwise set at runtime in Settings.                                                                                                                                                                                                                                                                                                                                                                                    |
+| `VITE_ONEDRIVE_AUTH_URL` / `VITE_ONEDRIVE_TOKEN_URL` / `VITE_ONEDRIVE_SCOPE`                                                                                                                                                          | no         | Personal OneDrive OAuth endpoint + scope overrides (defaults are the public Microsoft identity platform `consumers` tenant endpoints; scope defaults to `Files.ReadWrite.AppFolder offline_access`).                                                                                                                                                                                                                                                                            |
+| `VITE_CLOUD_FOLDER`                                                                                                                                                                                                                   | no         | Folder the cloud backends (Dropbox, pCloud) read/write within (default: `/copad`). In `src/storage/constants.ts`.                                                                                                                                                                                                                                                                                                                                                               |
+| `VITE_DEFAULT_FILENAME`                                                                                                                                                                                                               | no         | Initial target filename for cloud backends (default: `document.yjs`); the extension selects the codec.                                                                                                                                                                                                                                                                                                                                                                          |
+| `VITE_GITHUB_DEFAULT_FILENAME`                                                                                                                                                                                                        | no         | Initial GitHub target file (default: `notes.md`).                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `VITE_REDIRECT_URI`                                                                                                                                                                                                                   | no         | OAuth redirect URI (default: `<origin>/redirect.html`). In `src/storage/constants.ts`.                                                                                                                                                                                                                                                                                                                                                                                          |
+| `VITE_DROPBOX_AUTH_URL` / `VITE_DROPBOX_TOKEN_URL` / `VITE_DROPBOX_UPLOAD_URL` / `VITE_DROPBOX_DOWNLOAD_URL`                                                                                                                          | no         | Dropbox OAuth/content endpoint overrides (defaults are the public dropbox.com / dropboxapi.com URLs). For when Dropbox rotates a domain.                                                                                                                                                                                                                                                                                                                                        |
+| `VITE_PCLOUD_API_HOST` / `VITE_PCLOUD_EU_API_HOST`                                                                                                                                                                                    | no         | pCloud API hosts (defaults: `api.pcloud.com` / `eapi.pcloud.com`). Override for a region change.                                                                                                                                                                                                                                                                                                                                                                                |
+| `VITE_PCLOUD_GETFILELINK_PATH` / `VITE_PCLOUD_UPLOAD_PATH`                                                                                                                                                                            | no         | pCloud API paths (defaults: `/getfilelink` / `/uploadfile`).                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `VITE_OAUTH_TIMEOUT_MS`                                                                                                                                                                                                               | no         | How long to wait for the OAuth popup before giving up (default: `300000`).                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `VITE_OAUTH_POPUP_FEATURES`                                                                                                                                                                                                           | no         | OAuth popup window features (default: `width=520,height=640`).                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `VITE_BASE64_CHUNK`                                                                                                                                                                                                                   | no         | Chunk size for base64-encoding large GitHub/GitLab uploads (default: `32768`).                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `VITE_PROXY_URL`                                                                                                                                                                                                                      | for WebDAV | CORS proxy URL                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `VITE_WEBDAV_URL`                                                                                                                                                                                                                     | no         | Pre-fill the WebDAV URL input                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `VITE_STORAGE_BACKEND`                                                                                                                                                                                                                | no         | Default storage backend id                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `VITE_ENABLE_DROPBOX` / `VITE_ENABLE_PCLOUD` / `VITE_ENABLE_WEBDAV` / `VITE_ENABLE_GITHUB` / `VITE_ENABLE_GITLAB` / `VITE_ENABLE_S3` / `VITE_ENABLE_SHAREPOINT` / `VITE_ENABLE_GDRIVE` / `VITE_ENABLE_ONEDRIVE` / `VITE_ENABLE_LOCAL` | no         | Hide a backend entirely: no pill, no Settings section. Only WebDAV and Local default to `true`; every other backend stays `false` until it has been connected to a real account outside production, which is its own dedicated PR. In `src/storage/constants.ts`'s `BACKEND_ENABLED`.                                                                                                                                                                                           |
+| `VITE_STUN_URL`                                                                                                                                                                                                                       | no         | STUN server(s), comma-separated (default: `stun:stun.l.google.com:19302`; set empty to disable). Via `resolveIceServers()`.                                                                                                                                                                                                                                                                                                                                                     |
+| `VITE_TURN_URL`                                                                                                                                                                                                                       | no         | TURN relay url(s), comma-separated. Needed for restrictive/mobile NATs (CGNAT / symmetric NAT). When unset, a public default relay (`DEFAULT_TURN` in `config.ts`) is used unless disabled. Runtime Settings TURN (`turn.ts`) overrides this.                                                                                                                                                                                                                                   |
+| `VITE_TURN_USERNAME`                                                                                                                                                                                                                  | no         | TURN username.                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `VITE_TURN_PASSWORD`                                                                                                                                                                                                                  | no         | TURN password.                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `VITE_ICE_SERVERS_URL`                                                                                                                                                                                                                | no         | HTTP(S) endpoint returning `{ iceServers: [...] }` (e.g. the Cloudflare TURN Worker in `deploy/ice-worker/`). When set, the frontend fetches ICE at startup instead of using static `VITE_TURN_*`, for providers that mint short-lived credentials from a secret API token. Resolved by `resolveIceServersUrl()`; fetched via `fetchIceServers()`. Runtime Settings TURN still overrides it. WebRTC transport only.                                                             |
+| `VITE_ICE_FETCH_TIMEOUT_MS`                                                                                                                                                                                                           | no         | How long (ms) to wait for `VITE_ICE_SERVERS_URL` before falling back to env/default ICE (default: `10000`). In `src/collaboration/constants.ts`.                                                                                                                                                                                                                                                                                                                                |
 
 ## Collaboration servers
 
-Real-time collab needs a server, but **none lives in this repo**: both transports run an
-upstream package's bundled server (don't reinvent the wheel):
+Real-time collab needs a server, but **none lives in this repo**: both transports run an upstream package's
+bundled server (don't reinvent the wheel):
 
-- **WebRTC** → a y-webrtc signaling server: the `y-webrtc-signaling` bin (from the `y-webrtc`
-  dep; reads `PORT`, default 4444). `npm run signaling` runs it locally.
-- **WebSocket** → a y-websocket hub: the `y-websocket-server` bin (from the `@y/websocket-server`
-  devDep; reads `HOST`/`PORT`, serves `okay`). `npm run collab` runs it locally.
+- **WebRTC** → a y-webrtc signaling server: the `y-webrtc-signaling` bin (from the `y-webrtc` dep; reads `PORT`,
+  default 4444). `npm run signaling` runs it locally.
+- **WebSocket** → a y-websocket hub: the `y-websocket-server` bin (from the `@y/websocket-server` devDep; reads
+  `HOST`/`PORT`, serves `okay`). `npm run collab` runs it locally.
 
-To deploy either, point a host (Render/Fly/any VPS) at a 3-line `package.json` that depends on
-the upstream package with `"start"` calling its bin; `npm install` puts it in `node_modules`
-on the host. See README "Deployment" for the operator-facing steps.
+To deploy either, point a host (Render/Fly/any VPS) at a 3-line `package.json` that depends on the upstream
+package with `"start"` calling its bin; `npm install` puts it in `node_modules` on the host. See README
+"Deployment" for the operator-facing steps.
 
-Deployment-side artifacts (ops templates and self-hosted endpoints, **not** app source) live under **`deploy/`** (kept out of `src/` so the app/infra boundary is obvious):
+Deployment-side artifacts (ops templates and self-hosted endpoints, **not** app source) live under **`deploy/`**
+(kept out of `src/` so the app/infra boundary is obvious):
 
 **`deploy/turn/`** is the one server-ish thing we ship: a self-hosted [coturn](https://github.com/coturn/coturn)
-TURN relay (`turnserver.conf.example` + `docker-compose.yml` + guide) for WebRTC NAT traversal, because
-coturn has no equivalent drop-in. TURN needs a UDP port range, so it wants a VPS, not a PaaS. The shipped
-config is a template: the live `turnserver.conf` is git-ignored (it holds the shared secret + public IP),
-the credential is treated as public (it's inlined into the client bundle), and the config caps abuse with
-TURN quotas + SSRF deny ranges. Optional: a free public default relay (`DEFAULT_TURN`) works out of the box.
+TURN relay (`turnserver.conf.example` + `docker-compose.yml` + guide) for WebRTC NAT traversal, because coturn
+has no equivalent drop-in. TURN needs a UDP port range, so it wants a VPS, not a PaaS. The shipped config is a
+template: the live `turnserver.conf` is git-ignored (it holds the shared secret + public IP), the credential is
+treated as public (it's inlined into the client bundle), and the config caps abuse with TURN quotas + SSRF deny
+ranges. Optional: a free public default relay (`DEFAULT_TURN`) works out of the box.
 
-**`deploy/ice-worker/`** (see also "Publishing" below): for providers that mint *short-lived* TURN credentials from a **secret** API
-token (Cloudflare TURN), a static `VITE_TURN_*` won't do: the token can't ship in the client bundle. This
-Worker holds the token server-side and returns fresh `{ iceServers: [...] }` JSON. Set `VITE_ICE_SERVERS_URL`
-to its URL and the frontend fetches ICE at startup (`fetchIceServers()` in `src/collaboration/iceServers.ts`,
-parsed by `parseIceServersResponse()`), reconnecting once creds arrive via the existing `collabEpoch` path.
-Precedence in `App.svelte`'s `buildIce()`: runtime TURN (Settings) → fetched ICE → static env / `DEFAULT_TURN`.
+**`deploy/ice-worker/`** (see also "Publishing" below): for providers that mint _short-lived_ TURN credentials
+from a **secret** API token (Cloudflare TURN), a static `VITE_TURN_*` won't do: the token can't ship in the
+client bundle. This Worker holds the token server-side and returns fresh `{ iceServers: [...] }` JSON. Set
+`VITE_ICE_SERVERS_URL` to its URL and the frontend fetches ICE at startup (`fetchIceServers()` in
+`src/collaboration/iceServers.ts`, parsed by `parseIceServersResponse()`), reconnecting once creds arrive via
+the existing `collabEpoch` path. Precedence in `App.svelte`'s `buildIce()`: runtime TURN (Settings) → fetched
+ICE → static env / `DEFAULT_TURN`.
 
 ## Publishing (GitHub Pages)
 
 `.github/workflows/deploy.yml` builds `main` with `--base=/copad/` and hands `dist/` to
-`.github/scripts/deploy-gh-pages.sh`, which publishes it onto the **`gh-pages` branch** — branch-based
-Pages, not the artifact API, so production (branch root) and the `pr-<N>/` previews written by
-`pr-preview.yml` coexist on one branch. Every write to that branch goes through the one script —
-publishing the root, publishing a preview, and `--remove`-ing a preview when its PR closes — so all
-three inherit the same push-race retry rather than the cleanup open-coding a bare push that loses
-the race. `ensure-pages-source.cjs` re-asserts the setting the whole
-scheme depends on (Source = `gh-pages`, `/`) on every deploy.
+`.github/scripts/deploy-gh-pages.sh`, which publishes it onto the **`gh-pages` branch** — branch-based Pages,
+not the artifact API, so production (branch root) and the `pr-<N>/` previews written by `pr-preview.yml` coexist
+on one branch. Every write to that branch goes through the one script — publishing the root, publishing a
+preview, and `--remove`-ing a preview when its PR closes — so all three inherit the same push-race retry rather
+than the cleanup open-coding a bare push that loses the race. `ensure-pages-source.cjs` re-asserts the setting
+the whole scheme depends on (Source = `gh-pages`, `/`) on every deploy.
 
-Two properties of the publish are load-bearing, both learned from an outage that left the live site
-65 commits behind `main` for three days:
+Two properties of the publish are load-bearing, both learned from an outage that left the live site 65 commits
+behind `main` for three days:
 
-- **The root publish clears in place; it never `rm -rf`s the worktree.** `publish_path` *is* the
-  worktree for a production deploy, and removing it takes its `.git` link with it — git then resolves
-  to the parent repo, so the deploy commits the site onto the checked-out branch while
-  `push origin gh-pages` reports "Everything up-to-date" and exits 0 having published nothing. The
-  root sweep skips `pr-*` for the same reason the previews exist at all.
-- **The deploy supersedes rather than queues** (`concurrency.cancel-in-progress: true`). Each run
-  publishes a complete build, so the newest push is the only one worth finishing. Queuing let one run
-  stuck in `queued` hold the group indefinitely: GitHub cancels the *previously pending* run whenever a
-  new one arrives, so every subsequent push was cancelled before its first step.
-- **The job claims no `environment`.** Under branch-based Pages the auto-managed `github-pages`
-  environment carries a deployment branch policy scoped to `gh-pages`, so a job on `main` declaring it
-  is never allowed to start — the state the run that first held the group above was stuck in. It was
-  decoration: the publish is a plain push under `contents: write`.
+- **The root publish clears in place; it never `rm -rf`s the worktree.** `publish_path` _is_ the worktree for a
+  production deploy, and removing it takes its `.git` link with it — git then resolves to the parent repo, so
+  the deploy commits the site onto the checked-out branch while `push origin gh-pages` reports "Everything
+  up-to-date" and exits 0 having published nothing. The root sweep skips `pr-*` for the same reason the previews
+  exist at all.
+- **The deploy supersedes rather than queues** (`concurrency.cancel-in-progress: true`). Each run publishes a
+  complete build, so the newest push is the only one worth finishing. Queuing let one run stuck in `queued` hold
+  the group indefinitely: GitHub cancels the _previously pending_ run whenever a new one arrives, so every
+  subsequent push was cancelled before its first step.
+- **The job claims no `environment`.** Under branch-based Pages the auto-managed `github-pages` environment
+  carries a deployment branch policy scoped to `gh-pages`, so a job on `main` declaring it is never allowed to
+  start — the state the run that first held the group above was stuck in. It was decoration: the publish is a
+  plain push under `contents: write`.
 
-Neither condition turns a run red — `cancelled` is not `failure`, and the second failed only after
-reporting a successful push. So the deploy records what it published: `deploy-gh-pages.sh` stamps
-`version.json` (`{ commit, ref }`) into whatever it writes, and `deploy-drift.yml` compares the live
-commit against `main` hourly, failing when production falls behind. A deploy that never ran cannot
-report itself; only a check outside the run can.
+Neither condition turns a run red — `cancelled` is not `failure`, and the second failed only after reporting a
+successful push. So the deploy records what it published: `deploy-gh-pages.sh` stamps `version.json`
+(`{ commit, ref }`) into whatever it writes, and `deploy-drift.yml` compares the live commit against `main`
+hourly, failing when production falls behind. A deploy that never ran cannot report itself; only a check outside
+the run can.

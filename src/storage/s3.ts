@@ -17,7 +17,7 @@ import type { RoomId } from '../collaboration/types.js';
 import { landed, writeFailure, classifyHttpStatus, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import { STORAGE_ID, DEFAULT_FILENAME, S3_PREFIX, S3_KEY } from './constants.js';
 
-// Path-style addressing ({endpoint}/{bucket}/{key}), requests signed with AWS Signature V4 via Web Crypto. No SDK, no proxy.
+// Path-style addressing ({endpoint}/{bucket}/{key}); requests signed with AWS SigV4 via Web Crypto, no SDK/proxy.
 
 export type S3Endpoint = string & { readonly _brand: 'S3Endpoint' };
 

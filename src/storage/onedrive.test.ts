@@ -171,7 +171,8 @@ describe('onedriveStorage access', () => {
     const { storage } = onedriveStorage(TEST_ROOM);
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: 'me' }) } as unknown as Response) // /me
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ createdBy: { user: { id: 'me' } } }) } as unknown as Response); // item
+      // item
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ createdBy: { user: { id: 'me' } } }) } as unknown as Response);
     expect(await storage.access!()).toBe('owner');
   });
 

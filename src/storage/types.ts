@@ -7,7 +7,7 @@ export type Filename = string & { readonly _brand: 'Filename' };
 export const DocFormat = { Binary: 'binary', Text: 'text' } as const;
 export type DocFormat = (typeof DocFormat)[keyof typeof DocFormat];
 
-// Binary backends (Dropbox, pCloud, WebDAV, local) use the Yjs state snapshot; text backends (GitHub, SharePoint…) use the file's raw text so it stays human-readable and committable.
+// Binary backends (Dropbox, pCloud, WebDAV, local) use Yjs snapshots; text backends (GitHub, SharePoint…) use raw text.
 export type DocContent =
   | { readonly format: typeof DocFormat.Binary; readonly bytes: Uint8Array }
   | { readonly format: typeof DocFormat.Text;   readonly text: string };
@@ -56,7 +56,7 @@ export interface ConfigField {
   help?: string;
 }
 
-// Authentication, configuration, and credentials live on StorageAuth (src/storage/auth.ts); a non-null Storage passed to the Editor already implies the user is authenticated.
+// Auth/config/credentials live on StorageAuth (src/storage/auth.ts); a non-null Storage implies authenticated.
 export interface Storage {
   readonly id: StorageId;
   readonly label: StorageLabel;
@@ -74,9 +74,9 @@ export interface Storage {
 
   access?(): Promise<StorageAccess>;
 
-  // Absent where listing can't honor the backend's OAuth scope, e.g. Google Drive's drive.file only sees files Copad itself created/opened.
+  // Absent where listing can't honor the OAuth scope, e.g. Google Drive's drive.file only sees files Copad created.
   list?(): Promise<Filename[]>;
 
-  // Distinct from load(), which always reads the room's fixed target file; never changes the room's persisted target filename.
+  // Distinct from load(): reads any file without changing the room's persisted target filename.
   loadFrom?(filename: Filename): Promise<DocContent | null>;
 }

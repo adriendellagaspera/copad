@@ -1,4 +1,4 @@
-// Replaces :focus-visible, which browsers force true for a mouse-clicked text field and for a .focus() inside a keydown handler.
+// Replaces :focus-visible: browsers force it true for a mouse-clicked text field and a keydown-triggered .focus().
 // Tab alone flips to 'keyboard': Escape/Enter/Space would ring a pointer-opened popover's trigger on dismissal.
 export function initInputModality(): () => void {
   const root = document.documentElement;

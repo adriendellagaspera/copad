@@ -16,7 +16,7 @@ import type { RoomId } from '../collaboration/types.js';
 import { landed, writeFailure, classifyHttpStatus, WriteFailureKind, type WriteReceipt } from './writeOutcome.js';
 import { STORAGE_ID, DEFAULT_FILENAME, GRAPH_API_URL, SHAREPOINT_FOLDER, SHAREPOINT_KEY } from './constants.js';
 
-// Microsoft Graph auth: a delegated Files.ReadWrite.All/Sites.ReadWrite.All token pasted by the user, short-lived like a WebDAV app password.
+// Graph auth: a delegated Files.ReadWrite.All/Sites.ReadWrite.All token pasted by the user, short-lived like WebDAV.
 
 export type GraphUserId = string & { readonly _brand: 'GraphUserId' };
 export type GraphSiteId = string & { readonly _brand: 'GraphSiteId' };

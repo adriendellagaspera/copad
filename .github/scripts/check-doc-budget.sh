@@ -13,8 +13,11 @@
 set -Eeuo pipefail
 
 AGENTS_MAX_LINES=200
-ARCHITECTURE_MAX_LINES=400
-CONTRACT_MAX_LINES=420
+# Raised alongside the switch to Prettier-wrapped prose (printWidth 112, proseWrap
+# always): the same content now takes more, narrower lines. Caps hold ~10% headroom
+# over the reflowed size, not the pre-wrap one.
+ARCHITECTURE_MAX_LINES=700
+CONTRACT_MAX_LINES=550
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "$SCRIPT_DIR/../.."

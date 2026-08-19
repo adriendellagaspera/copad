@@ -82,7 +82,8 @@ export interface WebsocketResolution {
 
 export type CollabTransport = 'webrtc' | 'websocket';
 
-// Anything but an exact 'websocket' match — unset, 'webrtc', a typo — stays on the default WebRTC, so a bad env value never silently breaks collaboration.
+// Anything but an exact 'websocket' match (unset, 'webrtc', a typo) stays on default WebRTC — a bad env
+// value never breaks collaboration.
 export function resolveTransport(raw: string | undefined): CollabTransport {
   return (raw ?? '').trim().toLowerCase() === 'websocket' ? 'websocket' : 'webrtc';
 }
@@ -107,7 +108,8 @@ export function resolveWebsocket(
   return { url };
 }
 
-// The free OpenRelay project (metered.ca): best-effort and rate-limited, fine for a demo — configure your own for anything serious. Disable via `{ fallback: 'none' }` in resolveIceServers.
+// Free OpenRelay (metered.ca): best-effort, rate-limited, fine for a demo — bring your own for real use.
+// Disable via `{ fallback: 'none' }` in resolveIceServers.
 export const DEFAULT_TURN: IceServer = {
   urls: [
     parseTurnUrl('turn:openrelay.metered.ca:80')!,
@@ -154,7 +156,7 @@ export interface LandingRoom {
   readonly minted: RoomMinted;
 }
 
-// Minting rather than adopting a default keeps a visitor's first act out of a stranger's document (docs/contract.md §5).
+// Minting rather than adopting a default keeps a visitor's first act out of a stranger's document (contract §5).
 export function resolveLandingRoom(
   roomParam: string | null,
   envDefaultRoom: string | undefined,
@@ -168,7 +170,8 @@ export function resolveLandingRoom(
   return { room: mint(), minted: true as RoomMinted };
 }
 
-// When set, App.svelte fetches ICE servers from it (short-lived TURN credentials minted server-side) instead of the static VITE_TURN_* config.
+// When set, App.svelte fetches ICE servers from it (short-lived TURN creds minted server-side) instead of
+// static VITE_TURN_* config.
 export function resolveIceServersUrl(raw: string | undefined): IceServersUrl | undefined {
   return parseIceServersUrl((raw ?? '').trim()) ?? undefined;
 }

@@ -15,7 +15,7 @@
   let inputEl = $state<HTMLInputElement | undefined>();
   let invalid = $derived(href.trim() !== '' && !isValidHref(href));
 
-  // Captured up front so apply()/unlink() act on the originally selected text, not the live selection (deliberately collapsed to a caret below).
+  // Captured up front so apply()/unlink() act on the original selection, not the live one (collapsed to a caret below).
   let linkFrom = $state(0);
   let linkTo = $state(0);
   // ProseMirror nodes are immutable, so identity alone tells us if the doc changed underneath the popover.
@@ -37,7 +37,8 @@
     } catch {
       pos = null;
     }
-    // Collapsing before the focus microtask below avoids racing prosemirror-view's selectionchange-driven DOM sync, which reproduced as "Position N out of range" crashes when focus moved away mid-selection.
+    // Collapsing before the focus microtask avoids racing prosemirror-view's selectionchange-driven DOM sync.
+    // That race reproduced as "Position N out of range" crashes when focus moved away mid-selection.
     if (!empty) {
       view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, to)));
     }
@@ -56,7 +57,7 @@
     view?.focus();
   }
 
-  // Collapses the selection on dismiss: leaving it active would pop SelectionToolbar right back up, looking like a second dismissal is needed.
+  // Collapses the selection on dismiss; otherwise SelectionToolbar pops right back up, looking like dismissal failed.
   function dismiss(): void {
     if (view) {
       const { to } = view.state.selection;
@@ -65,7 +66,7 @@
     close();
   }
 
-  // Defense in depth: clamps in case the range outlived the doc-identity effect above that normally closes the popover on a change.
+  // Defense in depth: clamps in case the range outlives the doc-identity effect that closes the popover on change.
   function currentLinkRange(): { from: number; to: number } {
     if (!view) return { from: linkFrom, to: linkTo };
     const size = view.state.doc.content.size;
@@ -78,7 +79,7 @@
     if (!view) return;
     const h = href.trim();
     if (!h) {
-      // Acts on the captured range, not the live collapsed caret — otherwise removeLink only clears stored marks and leaves the link on the surrounding text.
+      // Acts on the captured range, not the live caret — else removeLink only clears marks, link stays on the text.
       const { from, to } = currentLinkRange();
       if (from !== to) {
         view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
@@ -122,7 +123,7 @@
     return () => dom.removeEventListener('copad:link', handler as EventListener);
   });
 
-  // Window-level, capture phase: guarantees Escape dismisses regardless of where focus landed, and fires before a page listener or extension (e.g. a password manager) can swallow it.
+  // Window-level, capture phase: Escape dismisses regardless of focus, before a page listener can swallow it.
   $effect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent): void => {
