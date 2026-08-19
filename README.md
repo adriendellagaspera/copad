@@ -94,6 +94,8 @@ ln -sf ../../pre-push .git/hooks/pre-push
 
 Claude Code web sessions link both automatically at session start (`.claude/hooks/session-start.sh`). Skip
 either check with `git commit`/`push --no-verify` — CI is not skippable that way and remains the authority.
+CI itself only runs the jobs a change can affect (`.github/workflows/ci.yml`'s `changes` job) — a docs-only
+PR skips the Playwright suite and the TURN config checks.
 
 ## Deployment
 
