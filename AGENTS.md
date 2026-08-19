@@ -21,6 +21,8 @@ in `docs/architecture.md`.
   unticked acceptance box (`BOXES_SINCE` in the script exempts issues closed before the rule existed).
 - `npm run check:doc-structure` — every doc link/anchor resolves, and every `contract §N.M` citation (docs and
   `src/` comments alike) names a real section.
+- `npm run check:mutation-gate` — Stryker on PR-diff `.ts` lines only (`stryker.config.mjs`); a surviving mutant
+  means the tests ran the changed code but didn't check it. CI-only, not in the local loop.
 - `npm run check:pr-closes-issues` — PR-body only, not the local loop: every open issue mentioned bare must
   state intent (`Closes`/`relates to`), and one this PR closes must have no unticked box.
 - `npm run format:md:check` — Prettier (printWidth 112, proseWrap always) on the five docs above; `format:md`
