@@ -138,7 +138,7 @@
 <div class="app">
   <header class="capsule about-capsule">
     <a class="cap-mark" href={page} title="Copad" aria-label="Copad">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 19.5V6a2 2 0 0 1 2-2h8l6 6v9.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" /><path d="M14 4v6h6" />
       </svg>
     </a>
@@ -388,7 +388,8 @@
     display: flex;
     align-items: baseline;
     gap: 0.3rem;
-    margin: 0 0 var(--sp-2);
+    /* Same value as the room's own .doc-title (DocTitle.svelte) — kept identical on purpose. */
+    margin: 0 0 var(--sp-3);
   }
   .doc-title .sigil {
     font-family: var(--font-read);

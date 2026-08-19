@@ -133,8 +133,10 @@
 }
 
 /* Same combined pointer:coarse/max-width:900px trigger as header.capsule's
-   collapse in app.css: keep the two in sync. This is the dock the capsule
-   collapses into. */
+   collapse in app.css: keep the two in sync. Navigation/status moved to
+   .mobile-capsule at the top (app.css) when the desktop capsule collapses;
+   this is formatting, not navigation, so it keeps its own fixed slot at the
+   bottom edge, shown only while editing. */
 @media (pointer: coarse), (max-width: 900px) {
   .fixed-toolbar {
     display: none;
@@ -409,7 +411,9 @@
   }
 }
 
-/* Same combined trigger as .fixed-toolbar/.mobile-dock (app.css) so this padding tracks the dock exactly. */
+/* Same combined trigger as .fixed-toolbar, so this padding clears it exactly while editing.
+   Applied unconditionally rather than gated on .editing too, so the toolbar's appearance never
+   causes a scroll-position jump at the moment a tap enters the editor. */
 @media (pointer: coarse), (max-width: 900px) {
   .content {
     padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));

@@ -53,7 +53,7 @@ interface Measurement {
   readonly right: Px;
 }
 
-interface DockRow {
+interface CapsuleRow {
   readonly row: ElementName;
   readonly viewport: ViewportLabel;
   readonly scrollWidth: Px;
@@ -63,7 +63,7 @@ interface DockRow {
 }
 
 const measurements: Measurement[] = [];
-const dockRows: DockRow[] = [];
+const capsuleRows: CapsuleRow[] = [];
 
 function px(n: number): Px {
   return (Math.round(n * 100) / 100) as Px;
@@ -106,21 +106,21 @@ async function measureEach(
   }
 }
 
-/** Waits for the app shell; the dock only renders once the editor mounted. */
+/** Waits for the app shell; the mobile capsule only renders once the editor mounted. */
 async function openRoom(page: Page, url: string): Promise<void> {
   await page.goto(url);
   await page.locator('.ProseMirror').waitFor({ timeout: 30_000 });
 }
 
 /** `overflow-x: auto` hides a row that does not fit; scrollWidth vs clientWidth is the only tell. */
-async function measureRow(row: Locator, name: ElementName, viewport: ViewportLabel): Promise<DockRow> {
+async function measureRow(row: Locator, name: ElementName, viewport: ViewportLabel): Promise<CapsuleRow> {
   const raw = await row.evaluate((el) => {
     const style = getComputedStyle(el);
     const gap = parseFloat(style.columnGap === 'normal' ? '0' : style.columnGap);
     const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
     const kids = Array.from(el.children) as HTMLElement[];
     const controls = kids
-      .filter((k) => !k.classList.contains('dock-fill'))
+      .filter((k) => !k.classList.contains('cap-fill'))
       .reduce((sum, k) => sum + k.getBoundingClientRect().width, 0);
     return {
       scrollWidth: el.scrollWidth,
@@ -128,7 +128,7 @@ async function measureRow(row: Locator, name: ElementName, viewport: ViewportLab
       controlsWidth: controls + gap * Math.max(kids.length - 1, 0) + padding,
     };
   });
-  const measured: DockRow = {
+  const measured: CapsuleRow = {
     row: name,
     viewport,
     scrollWidth: px(raw.scrollWidth),
@@ -137,28 +137,28 @@ async function measureRow(row: Locator, name: ElementName, viewport: ViewportLab
     // 1px slack: sub-pixel layout rounds scrollWidth up on a row that in fact fits.
     overflows: (raw.scrollWidth > raw.clientWidth + 1) as Overflows,
   };
-  dockRows.push(measured);
+  capsuleRows.push(measured);
   return measured;
 }
 
-function dockRow(page: Page, viewport: ViewportLabel): Promise<DockRow> {
-  return measureRow(page.locator('.mobile-dock'), '.mobile-dock' as ElementName, viewport);
+function capsuleRow(page: Page, viewport: ViewportLabel): Promise<CapsuleRow> {
+  return measureRow(page.locator('.mobile-capsule'), '.mobile-capsule' as ElementName, viewport);
 }
 
-async function measureDock(page: Page, viewport: ViewportLabel): Promise<void> {
-  const dock = page.locator('.mobile-dock');
-  await expect(dock).toBeVisible();
+async function measureMobileCapsule(page: Page, viewport: ViewportLabel): Promise<void> {
+  const capsule = page.locator('.mobile-capsule');
+  await expect(capsule).toBeVisible();
 
-  await measure('dock: identity avatar' as ElementName, viewport, dock.locator('.identity-btn'));
-  await measure('dock: status pill (plain)' as ElementName, viewport, dock.locator('.chip'));
-  await measureEach(dock.locator('.dock-btn'), viewport, 'dock' as ElementName);
-  await measure('dock: Share chip' as ElementName, viewport, dock.locator('.dock-share'));
+  await measure('mobile capsule: identity avatar' as ElementName, viewport, capsule.locator('.identity-btn'));
+  await measure('mobile capsule: status pill (plain)' as ElementName, viewport, capsule.locator('.chip'));
+  await measureEach(capsule.locator('.cap-btn'), viewport, 'mobile capsule' as ElementName);
+  await measure('mobile capsule: Share chip' as ElementName, viewport, capsule.locator('.cap-share'));
 
-  await dockRow(page, viewport);
+  await capsuleRow(page, viewport);
 }
 
-function dockPill(page: Page): Locator {
-  return page.locator('.mobile-dock .chip');
+function mobileCapsulePill(page: Page): Locator {
+  return page.locator('.mobile-capsule .chip');
 }
 
 /**
@@ -172,7 +172,7 @@ async function measurePillState(
   how: HowReached,
   provenance: Provenance = 'observed',
 ): Promise<void> {
-  const pill = dockPill(page);
+  const pill = mobileCapsulePill(page);
   const labels = expected.join(' + ') as StateLabels;
   await expect
     .poll(async () => (await pill.locator('.seg-label').allTextContents()).map((t) => t.trim()), {
@@ -238,10 +238,10 @@ async function connectWebdav(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Connect WebDAV / Nextcloud' }).click();
   await expect(page.getByRole('button', { name: 'Disconnect' })).toBeVisible({ timeout: 30_000 });
   await page.keyboard.press('Escape');
-  await expect(dockPill(page)).toBeVisible();
+  await expect(mobileCapsulePill(page)).toBeVisible();
 }
 
-/** Typing hides the dock (`.dock-hidden`); blurring brings it back with the save status kept. */
+/** Blurring after typing lets any pending save settle before the next pill read. */
 async function typeThenLeaveEditor(page: Page): Promise<void> {
   // Attached storage satisfies the write gate on its own, so the escape hatch may not be there.
   const writeSolo = page.getByRole('button', { name: 'Write alone anyway' });
@@ -254,7 +254,7 @@ async function typeThenLeaveEditor(page: Page): Promise<void> {
 }
 
 function report(): void {
-  if (measurements.length === 0 && dockRows.length === 0) return;
+  if (measurements.length === 0 && capsuleRows.length === 0) return;
   const lines = [
     '',
     '=== MEASURED (Playwright boundingBox) ===',
@@ -266,7 +266,7 @@ function report(): void {
   }
   lines.push('--- scrolling rows ---');
   lines.push('row | viewport | controls width | scrollWidth | clientWidth | overflows?');
-  for (const d of dockRows) {
+  for (const d of capsuleRows) {
     lines.push(
       `${d.row} | ${d.viewport} | ${d.controlsWidth} | ${d.scrollWidth} | ${d.clientWidth} | ${d.overflows ? 'YES' : 'no'}`,
     );
@@ -289,23 +289,23 @@ test.afterAll(() => {
 for (const width of [320, 390] as const) {
   const viewport = `${width}px` as ViewportLabel;
 
-  test.describe(`mobile dock at ${width}px`, () => {
+  test.describe(`mobile capsule at ${width}px`, () => {
     test.use({ viewport: { width, height: 664 }, isMobile: true, hasTouch: true });
 
-    test('measures every dock control, plain status pill', async ({ page }) => {
-      await openRoom(page, `/?room=measure-dock-plain-${width}`);
-      await expect(page.locator('.mobile-dock .chip .seg.secure')).toHaveCount(0);
-      await measureDock(page, viewport);
+    test('measures every mobile capsule control, plain status pill', async ({ page }) => {
+      await openRoom(page, `/?room=measure-capsule-plain-${width}`);
+      await expect(page.locator('.mobile-capsule .chip .seg.secure')).toHaveCount(0);
+      await measureMobileCapsule(page, viewport);
     });
 
     test('measures the status pill in its encrypted state', async ({ page }) => {
       // `#k=` is the room key a real "New document" link carries; it is what turns the
       // extra "Encrypted" segment on (App.svelte roomEncrypted -> StatusPill `encrypted`).
-      await openRoom(page, `/?room=measure-dock-enc-${width}#k=measure-key-${width}`);
-      const pill = page.locator('.mobile-dock .chip');
+      await openRoom(page, `/?room=measure-capsule-enc-${width}#k=measure-key-${width}`);
+      const pill = page.locator('.mobile-capsule .chip');
       await expect(pill.locator('.seg.secure')).toHaveCount(1);
-      await measure('dock: status pill (encrypted)' as ElementName, viewport, pill);
-      await dockRow(page, `${width}px encrypted` as ViewportLabel);
+      await measure('mobile capsule: status pill (encrypted)' as ElementName, viewport, pill);
+      await capsuleRow(page, `${width}px encrypted` as ViewportLabel);
     });
 
     for (const v of VARIANTS) {
@@ -435,7 +435,7 @@ for (const width of [320, 390] as const) {
 
     test('measures the formatting toolbar buttons', async ({ page }) => {
       await openRoom(page, `/?room=measure-toolbar-${width}`);
-      // The toolbar replaces the dock only once the editor has focus, and the write gate
+      // The toolbar only appears once the editor has focus, and the write gate
       // keeps a solo room non-editable until the escape hatch is taken.
       const writeSolo = page.getByRole('button', { name: 'Write alone anyway' });
       await expect(writeSolo).toBeVisible({ timeout: 30_000 });
@@ -458,7 +458,9 @@ test.describe('header capsule on a fine-pointer viewport', () => {
   test('measures the capsule and its controls', async ({ page }) => {
     const viewport = '1280px (desktop)' as ViewportLabel;
     await openRoom(page, '/?room=measure-capsule');
-    const capsule = page.locator('header.capsule');
+    // The room now mounts a hidden .mobile-capsule sibling at every viewport (App.svelte) —
+    // :visible picks out whichever of the two the current breakpoint actually shows.
+    const capsule = page.locator('header.capsule:visible');
     await expect(capsule).toBeVisible();
 
     await measure('capsule: total' as ElementName, viewport, capsule);
@@ -479,15 +481,15 @@ test.describe.fixme('touch-target floor of 44px (#291) — enable with #287', ()
     test.describe(`at ${width}px`, () => {
       test.use({ viewport: { width, height: 664 }, isMobile: true, hasTouch: true });
 
-      test('every dock control clears 44x44 and the row does not overflow', async ({ page }) => {
-        await openRoom(page, `/?room=gate-dock-${width}`);
-        const dock = page.locator('.mobile-dock');
-        const controls = dock.locator('.identity-btn, .chip, .dock-btn, .dock-share');
+      test('every mobile capsule control clears 44x44 and the row does not overflow', async ({ page }) => {
+        await openRoom(page, `/?room=gate-capsule-${width}`);
+        const capsule = page.locator('.mobile-capsule');
+        const controls = capsule.locator('.identity-btn, .chip, .cap-btn, .cap-share');
         const count = await controls.count();
         expect(count).toBeGreaterThan(0);
         for (let i = 0; i < count; i += 1) {
           const item = controls.nth(i);
-          const name = await nameOf(item, `dock control #${i}` as ElementName);
+          const name = await nameOf(item, `capsule control #${i}` as ElementName);
           const box = await item.boundingBox();
           expect(box, `${name} has no bounding box`).not.toBeNull();
           expect(box!.width, `${name} width`).toBeGreaterThanOrEqual(TOUCH_FLOOR);
@@ -495,8 +497,8 @@ test.describe.fixme('touch-target floor of 44px (#291) — enable with #287', ()
           expect(box!.x + box!.width, `${name} right edge`).toBeLessThanOrEqual(page.viewportSize()!.width);
         }
 
-        const row = await dockRow(page, `${width}px gate` as ViewportLabel);
-        expect(row.overflows, 'the dock row overflows its container').toBe(false);
+        const row = await capsuleRow(page, `${width}px gate` as ViewportLabel);
+        expect(row.overflows, 'the mobile capsule row overflows its container').toBe(false);
       });
     });
   }

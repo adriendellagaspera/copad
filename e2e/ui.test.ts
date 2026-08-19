@@ -22,7 +22,8 @@ test('share dialog copies the invite link', async ({ page, context }) => {
   await page.goto('/?room=pw-share');
   await page.locator('.ProseMirror').waitFor();
 
-  await page.locator('.share-btn').click();
+  // :visible: the room mounts a hidden .mobile-capsule sibling at every viewport (App.svelte).
+  await page.locator('.share-btn:visible').click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: 'Copy link' }).click();
 
@@ -60,7 +61,7 @@ test('export a copy (Settings) exports the document as markdown', async ({ page 
   await ed.click();
   await page.keyboard.type('# Export me');
 
-  await page.locator('.cap-btn[title="Settings"]').click();
+  await page.locator('.cap-btn[title="Settings"]:visible').click();
   await expect(page.getByRole('dialog')).toBeVisible();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -130,7 +131,7 @@ test('export a copy (Settings) exports the document as a Word (.docx) file', asy
   await ed.click();
   await page.keyboard.type('# Export me');
 
-  await page.locator('.cap-btn[title="Settings"]').click();
+  await page.locator('.cap-btn[title="Settings"]:visible').click();
   await expect(page.getByRole('dialog')).toBeVisible();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -153,7 +154,7 @@ test('PDF (print) export opens the browser print flow', async ({ page }) => {
   const printCalled = page.evaluate(
     () => new Promise<void>((resolve) => { window.print = () => resolve(); }),
   );
-  await page.locator('.cap-btn[title="Settings"]').click();
+  await page.locator('.cap-btn[title="Settings"]:visible').click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: 'PDF (print)' }).click();
   await printCalled;

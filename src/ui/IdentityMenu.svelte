@@ -2,7 +2,7 @@
   import Avatar from './Avatar.svelte';
   import type { DisplayName, CursorColor } from '../collaboration/types.js';
 
-  // Two presentations behind one component, switched on the same condition app.css's .mobile-dock uses: popover (fine pointer) vs. bottom sheet (coarse/narrow). Peer avatars deliberately don't use this component — nesting a second bottom sheet inside ConnectionDialog's own produced a real double-scrim bug (PR #180).
+  // Two presentations behind one component, switched on the same condition app.css's .mobile-capsule uses: popover (fine pointer) vs. bottom sheet (coarse/narrow). Peer avatars deliberately don't use this component — nesting a second bottom sheet inside ConnectionDialog's own produced a real double-scrim bug (PR #180).
   type Props = {
     name: DisplayName;
     color: CursorColor;
