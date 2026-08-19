@@ -209,11 +209,11 @@ backend-agnostic.
   `VITE_APP_NAMESPACE` so a stale copy reads the previous deployment's `localStorage` keys. `sw.js` itself
   carries only a one-line pointer back to this entry, to keep the rationale in one place.
   - **Base path.** `public/` is copied verbatim, so nothing in the manifest is rewritten for a subpath build
-    (`--base=/copad/`, used by the Pages deploy and the PR previews). Every manifest URL — `id`, `start_url`,
-    `scope`, `share_target.action`, each icon `src` — is therefore **relative to the manifest**, which resolves
-    correctly at both `/` and `/copad/`. `main.ts` registers the service worker via `asset('sw.js')`, the same
-    `src/ui/imageIcons.ts` helper the icon URLs use, for the same reason. Vite _does_ rewrite
-    `link[href]`/`script[src]` inside `index.html`, so those stay root-absolute.
+    (`BUILD_BASE=/copad/`, read by `vite.config.ts` and set by the Pages deploy and the PR previews). Every
+    manifest URL — `id`, `start_url`, `scope`, `share_target.action`, each icon `src` — is therefore **relative
+    to the manifest**, which resolves correctly at both `/` and `/copad/`. `main.ts` registers the service
+    worker via `asset('sw.js')`, the same `src/ui/imageIcons.ts` helper the icon URLs use, for the same reason.
+    Vite _does_ rewrite `link[href]`/`script[src]` inside `index.html`, so those stay root-absolute.
   - Launching the installed app hits `start_url` with no `?room=`, so `resolveLandingRoom()` lands you in
     `VITE_DEFAULT_ROOM` or a freshly minted room — installing from a room page does **not** pin the icon to that
     room (a static manifest cannot capture it). The local library (`LibraryDialog`) is the way back. `scope`
@@ -611,7 +611,7 @@ ICE → static env / `DEFAULT_TURN`.
 
 ## Publishing (GitHub Pages)
 
-`.github/workflows/deploy.yml` builds `main` with `--base=/copad/` and hands `dist/` to
+`.github/workflows/deploy.yml` builds `main` with `BUILD_BASE=/copad/` and hands `dist/` to
 `.github/scripts/deploy-gh-pages.sh`, which publishes it onto the **`gh-pages` branch** — branch-based Pages,
 not the artifact API, so production (branch root) and the `pr-<N>/` previews written by `pr-preview.yml` coexist
 on one branch. Every write to that branch goes through the one script — publishing the root, publishing a

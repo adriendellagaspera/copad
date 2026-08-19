@@ -24,8 +24,15 @@ jobs:
       app: ${{ steps.filter.outputs.app }}
       e2e: ${{ steps.filter.outputs.e2e }}
       turn: ${{ steps.filter.outputs.turn }}
+      playwright-version: ${{ steps.playwright-version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+      # Resolved here (from the lockfile, no npm ci needed) so `e2e`'s container image tag can
+      # track it — `container.image` only sees context available at job start, not a step output
+      # from within that same job.
+      - name: Resolve installed Playwright version
+        id: playwright-version
+        run: echo "version=$(node -e "console.log(require('./package-lock.json').packages['node_modules/@playwright/test'].version)")" >> "$GITHUB_OUTPUT"
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -145,6 +152,17 @@ jobs:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
+    # Ships Chromium and every OS package it needs already installed, so there's no apt-get
+    # update/install to pay on every fresh runner VM (that step isn't cacheable: actions/cache only
+    # covers file paths, not apt/dpkg state, and the VM is discarded after the job either way).
+    # mcr.microsoft.com sits on the same Azure infra as GitHub-hosted runners, so the pull itself is
+    # fast. Tag tracks the lockfile-resolved version (`changes` job) rather than package.json's
+    # semver range, so a version bump can't silently run a stale browser build against a newer test
+    # runner. --ipc=host: Playwright's own Docker guidance, avoids Chromium running out of shared
+    # memory in the container's default IPC namespace.
+    container:
+      image: mcr.microsoft.com/playwright:v${{ needs.changes.outputs.playwright-version }}-noble
+      options: --ipc=host
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -153,29 +171,6 @@ jobs:
           cache: npm
 
       - run: npm ci
-
-      # The browser binary is the slow, occasionally-flaky part (a ~100+MB download); the OS
-      # packages `--with-deps` also installs via apt are never cached (the runner VM is fresh
-      # every job regardless), so those still install every run either way. Cache key on the
-      # resolved @playwright/test version, not package.json's semver range, so a version bump
-      # invalidates the cache instead of silently running a stale browser build against a newer
-      # test runner.
-      - name: Resolve installed Playwright version
-        id: playwright-version
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-browsers-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
-      - name: Install Playwright browser + OS deps
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-      - name: Install Playwright OS deps only (browser cached)
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
-
       - run: npm run build
 
       # playwright.config.ts starts the preview and signaling servers itself.

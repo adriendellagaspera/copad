@@ -25,8 +25,9 @@ jobs:
       - run: npm ci
 
       - name: Build preview
-        run: npm run build -- --base=/copad/pr-${{ github.event.pull_request.number }}/
+        run: npm run build
         env:
+          BUILD_BASE: /copad/pr-${{ github.event.pull_request.number }}/
           VITE_DROPBOX_APP_KEY:   ${{ vars.VITE_DROPBOX_APP_KEY }}
           VITE_PCLOUD_CLIENT_ID:  ${{ vars.VITE_PCLOUD_CLIENT_ID }}
           VITE_PROXY_URL:         ${{ vars.VITE_PROXY_URL }}

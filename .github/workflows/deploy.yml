@@ -37,10 +37,11 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run build -- --base=/copad/
+      - run: npm run build
         # Vite inlines every VITE_* into the public bundle, so none is secret:
         # they are repo Variables, not Secrets. Reference: docs/architecture.md.
         env:
+          BUILD_BASE: /copad/
           VITE_DROPBOX_APP_KEY:   ${{ vars.VITE_DROPBOX_APP_KEY }}
           VITE_PCLOUD_CLIENT_ID:  ${{ vars.VITE_PCLOUD_CLIENT_ID }}
           VITE_PROXY_URL:         ${{ vars.VITE_PROXY_URL }}
