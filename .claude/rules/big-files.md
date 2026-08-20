@@ -1,4 +1,4 @@
-`src/App.svelte` (1193 lines), `src/Settings.svelte` (674 lines) and `src/Editor.svelte`
+`src/App.svelte` (1202 lines), `src/Settings.svelte` (674 lines) and `src/Editor.svelte`
 (585 lines) are the three largest files in the tree — App.svelte alone is room
 resolution/wiring, leader election, TURN/ICE, share-dialog data, the local library,
 palette actions, and more, per `docs/architecture.md`'s own "Wiring" section.
