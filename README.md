@@ -3,39 +3,49 @@
 [![CI](https://github.com/adriendellagaspera/copad/actions/workflows/ci.yml/badge.svg)](https://github.com/adriendellagaspera/copad/actions/workflows/ci.yml)
 [![Deploy](https://github.com/adriendellagaspera/copad/actions/workflows/deploy.yml/badge.svg)](https://github.com/adriendellagaspera/copad/actions/workflows/deploy.yml)
 
-Collaborate on a document stored as a file in your chosen backend.
+Copad is a browser-based editor for collaborating on a document and saving it as a file in a
+storage backend you choose. Share a room link to edit together; connect storage when the document
+must remain available after everyone leaves.
 
-Copad keeps the editor read-only when you are alone in a peer-to-peer room without durable storage. You can
-explicitly choose **Write alone anyway**; edits then stay on this device until a peer joins. Read the
-[durability and collaboration contract](docs/contract.md) before relying on Copad for work you cannot afford to
-lose.
+A room has no server-side document history. When you are alone without durable storage, the editor
+is read-only by default. You can choose **Write alone anyway**, but those edits remain on this
+device until a peer joins. See the [durability and collaboration contract](docs/contract.md) for
+the full behavior before relying on Copad for important work.
 
-The editor uses ProseMirror and Yjs. Live collaboration runs through WebRTC by default or an optional WebSocket
-hub; file storage uses separate adapters. The [architecture](docs/architecture.md) defines their behavior,
-supported backends and environment variables.
+## Try it locally
 
-## Run locally
+Install dependencies and copy the example configuration:
 
 ```sh
-npm install
+npm ci
 cp .env.example .env
+```
+
+Run signaling and the app in separate terminals:
+
+```sh
 npm run signaling
+```
+
+```sh
 npm run dev
 ```
 
-Open two tabs at `http://localhost:5173`, then connect a storage backend to save and restore files. For local
-OAuth, register `http://localhost:5173/redirect.html` with the provider.
+Open `http://localhost:5173` in one browser tab and use **Share** to open the same room link in
+a second tab. With both peers present, edits appear in the shared document. Close one tab to see
+the solo write gate. To save a document beyond the room, connect a supported storage backend in
+the app; some backends require OAuth configuration in `.env` and a registered local redirect URI.
 
-## Deploy
+The default collaboration transport is peer-to-peer WebRTC with a signaling server. A WebSocket
+hub is available as an alternative. Storage is a separate concern; the
+[architecture reference](docs/architecture.md) lists backends and configuration.
 
-Build the static frontend with `npm run build` and serve `dist/`. Collaboration also requires a signaling server
-(`y-webrtc`) or WebSocket server (`@y/websocket-server`), configured with the relevant `VITE_*` URL. See the
-[deployment and environment reference](docs/architecture.md#environment-variables) and the
+## Deploy or contribute
+
+Build the static frontend with `npm run build` and serve `dist/`. Collaboration needs a
+signaling server or WebSocket hub configured for the deployed origin. See the
+[deployment settings](docs/architecture.md#environment-variables) and
 [TURN notes](deploy/turn/README.md).
 
-## Develop
-
-Install the repository hooks with `ln -s ../../pre-commit .git/hooks/pre-commit` and
-`ln -s ../../pre-push .git/hooks/pre-push`. [AGENTS.md](AGENTS.md) lists the checks and repository rules.
-
-MIT licensed.
+For development, install the repository hooks described in [AGENTS.md](AGENTS.md); it also
+lists the checks and repository rules. MIT licensed.
