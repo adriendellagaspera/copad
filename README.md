@@ -47,5 +47,7 @@ signaling server or WebSocket hub configured for the deployed origin. See the
 [deployment settings](docs/architecture.md#environment-variables) and
 [TURN notes](deploy/turn/README.md).
 
-For development, install the repository hooks described in [AGENTS.md](AGENTS.md); it also
-lists the checks and repository rules. MIT licensed.
+For development, install the repository hooks with
+`ln -s ../../pre-commit .git/hooks/pre-commit` and
+`ln -s ../../pre-push .git/hooks/pre-push`. [AGENTS.md](AGENTS.md) lists the checks and
+repository rules. MIT licensed.
