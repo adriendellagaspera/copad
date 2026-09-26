@@ -9,8 +9,8 @@ overview (quick start, deployment steps, known limitations) see [`README.md`](..
 
 Copad follows **hexagonal architecture** (ports & adapters, see
 [Alistair Cockburn's original writeup](https://alistair.cockburn.us/hexagonal-architecture/)) with a
-**functional style**: factory functions returning plain objects, never classes. See
-This section maps the runtime components to their implementations.
+**functional style**: factory functions returning plain objects, never classes. This section maps the runtime
+components to their implementations.
 
 ```mermaid
 flowchart TB
