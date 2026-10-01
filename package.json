@@ -26,7 +26,7 @@
     "check:mutation-gate": "node .github/scripts/check-mutation-gate.mjs",
     "check:pr-closes-issues": "node .github/scripts/check-pr-closes-issues.mjs",
     "format:md": "prettier --write AGENTS.md CLAUDE.md README.md docs/architecture.md docs/contract.md",
-    "format:md:check": "prettier --check AGENTS.md CLAUDE.md README.md docs/architecture.md docs/contract.md",
+    "format:md:check": "prettier --write AGENTS.md CLAUDE.md README.md docs/architecture.md docs/contract.md && git diff --no-ext-diff --color=never -- docs/architecture.md docs/contract.md && exit 1",
     "e2e": "playwright test"
   },
   "dependencies": {
