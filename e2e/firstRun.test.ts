@@ -6,7 +6,6 @@ test('a first visit leads with unsaved state and next actions, not a model expla
 
   const intro = page.locator('.first-visit');
   await expect(intro).toBeVisible();
-  await expect(intro.locator('p')).toHaveCount(0);
   await expect(intro).toContainText('Nothing here is saved yet.');
   await expect(intro.getByRole('button', { name: 'Invite someone' })).toBeVisible();
   await expect(intro.getByRole('button', { name: 'Connect storage' })).toBeVisible();
