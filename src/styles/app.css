@@ -673,9 +673,6 @@ header.capsule.mobile-capsule {
     color: var(--text);
     box-shadow: inset 0 0 0 1px var(--mobile-action-border);
   }
-  header.capsule.mobile-capsule .mobile-action-palette {
-    width: 80px;
-  }
   header.capsule.mobile-capsule .mobile-action-palette .mobile-cap-glyph {
     width: 76px;
     display: inline-flex;
@@ -700,6 +697,9 @@ header.capsule.mobile-capsule {
     width: 44px;
     height: 44px;
     min-height: 44px;
+  }
+  header.capsule.mobile-capsule .cap-btn.mobile-action-palette {
+    width: 80px;
   }
   header.capsule.mobile-capsule .cap-mark,
   header.capsule.mobile-capsule .cap-identity,
