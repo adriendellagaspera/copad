@@ -120,7 +120,7 @@ export function bannerTierFor(input: BannerInput): BannerTier {
       variant: aloneVariant(input),
       storageLabel: input.storageLabel,
     };
-  if (input.firstVisit) return FIRST_VISIT;
+  if (input.firstVisit && input.presenceKind === PresenceKind.Alone) return FIRST_VISIT;
   return HIDDEN;
 }
 
