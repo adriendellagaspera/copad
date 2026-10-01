@@ -953,9 +953,10 @@
 
     <button class="cap-btn mobile-action-palette" onclick={() => (paletteOpen = OPENED)} title="Search and commands" aria-label="Search and commands" aria-haspopup="dialog">
       <span class="mobile-cap-glyph">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
         </svg>
+        <span class="mobile-action-label">Search</span>
       </span>
     </button>
 
