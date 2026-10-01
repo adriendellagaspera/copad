@@ -12,6 +12,7 @@ export type WriteGateHeld = boolean & { readonly _brand: 'WriteGateHeld' };
 export type WriteGateArmable = boolean & { readonly _brand: 'WriteGateArmable' };
 export type CollabUnavailable = boolean & { readonly _brand: 'CollabUnavailable' };
 export type DepartureLingering = boolean & { readonly _brand: 'DepartureLingering' };
+export type FirstVisitActive = boolean & { readonly _brand: 'FirstVisitActive' };
 
 export const AloneVariant = {
   Relayed: 'relayed',
@@ -22,6 +23,7 @@ export type AloneVariant = (typeof AloneVariant)[keyof typeof AloneVariant];
 
 export const BannerTierKind = {
   Hidden: 'hidden',
+  FirstVisit: 'first-visit',
   Gated: 'gated',
   Reaching: 'reaching',
   Departing: 'departing',
@@ -34,6 +36,7 @@ export type BannerTierKind = (typeof BannerTierKind)[keyof typeof BannerTierKind
 
 export type BannerTier =
   | { readonly kind: typeof BannerTierKind.Hidden }
+  | { readonly kind: typeof BannerTierKind.FirstVisit }
   | {
       readonly kind: typeof BannerTierKind.Gated;
       readonly transport: Transport;
@@ -64,9 +67,11 @@ export interface BannerInput {
   readonly waitingSince: WaitingSinceLabel | null;
   readonly departedPeerName: DisplayName | null;
   readonly withinDepartureLinger: DepartureLingering;
+  readonly firstVisit: FirstVisitActive;
 }
 
 const HIDDEN: BannerTier = { kind: BannerTierKind.Hidden };
+const FIRST_VISIT: BannerTier = { kind: BannerTierKind.FirstVisit };
 const REACHING: BannerTier = { kind: BannerTierKind.Reaching };
 const UNREACHABLE: BannerTier = { kind: BannerTierKind.Unreachable };
 const OFFLINE: BannerTier = { kind: BannerTierKind.Offline };
@@ -115,6 +120,7 @@ export function bannerTierFor(input: BannerInput): BannerTier {
       variant: aloneVariant(input),
       storageLabel: input.storageLabel,
     };
+  if (input.firstVisit) return FIRST_VISIT;
   return HIDDEN;
 }
 
