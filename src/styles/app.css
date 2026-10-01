@@ -720,6 +720,10 @@ header.capsule.mobile-capsule {
     background: var(--mobile-action-bg);
   }
 
+  header.capsule.mobile-capsule .chip .seg.accent {
+    color: var(--text-muted);
+  }
+
   /* The palette is the compact More control on mobile. Its contents are still
      searchable; the trigger follows the familiar overflow-menu convention. */
   header.capsule.mobile-capsule .mobile-action-palette .mobile-cap-glyph {
