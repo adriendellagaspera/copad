@@ -148,8 +148,10 @@
 {#snippet content()}
     <span class="msg-row">
     <span class="ic" aria-hidden="true">
-      {#if tier.kind === BannerTierKind.Gated || tier.kind === BannerTierKind.FirstVisit}
+      {#if tier.kind === BannerTierKind.Gated}
         <!-- Calm dot, never a spinner: a spinner promises imminence it cannot keep (contract §4.2). -->
+        <span class="status-dot waiting-dot"></span>
+      {:else if tier.kind === BannerTierKind.FirstVisit}
         <span class="status-dot"></span>
       {:else}
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
