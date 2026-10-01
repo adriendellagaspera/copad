@@ -1,22 +1,16 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
-  import type { Transport } from '../collaboration/types.js';
-  import { IntroReach, introReachFor } from './firstVisitIntroReach.js';
   import type { Milliseconds } from '../time.js';
 
   let {
-    transport,
     onShare,
     onConnectStorage,
     onAbout,
   }: {
-    transport: Transport;
     onShare: () => void;
     onConnectStorage: () => void;
     onAbout?: () => void;
   } = $props();
-
-  const reach = $derived(introReachFor(transport));
 
   const EXIT_DURATION = 200 as Milliseconds;
   const NO_DURATION = 0 as Milliseconds;
@@ -28,17 +22,7 @@
 </script>
 
 <aside class="first-visit" out:slide={{ duration: exitDuration }}>
-  <p class="fv-body">
-    <strong>Copad is a room, not a document server.</strong>
-    {#if reach === IntroReach.Encrypted}
-      Your words go browser to browser, end-to-end encrypted.
-    {:else}
-      Your words pass through this deployment's sync server, which can read them.
-    {/if}
-    Nothing here is saved yet, and a link shares the room, never your file. Writing alone
-    is talking to an empty room, so it stays read-only until someone joins or you connect
-    storage.
-  </p>
+  <strong class="fv-state">Nothing here is saved yet.</strong>
   <div class="fv-actions">
     <button class="fv-cta" onclick={onShare}>Invite someone</button>
     <button class="fv-alt" onclick={onConnectStorage}>Connect storage</button>
@@ -63,13 +47,10 @@
     font-size: var(--fs-300);
     line-height: 1.4;
   }
-  .fv-body {
-    margin: 0;
-    flex: 1 1 22rem;
-    line-height: 1.5;
-  }
-  .fv-body strong {
+  .fv-state {
+    flex: 1 1 14rem;
     color: var(--text);
+    font-weight: 600;
   }
   .fv-actions {
     display: flex;
