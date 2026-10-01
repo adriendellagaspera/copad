@@ -898,7 +898,7 @@
         {name}
         {color}
         colors={COLORS}
-        size={32}
+        size={40}
         onName={(v) => { name = rememberName(v); }}
         onColor={(c) => { color = c; }}
       />
@@ -951,23 +951,22 @@
       onclick={() => (diagOpen = OPENED)}
     />
 
-    <button class="cap-btn mobile-action-palette" onclick={() => (paletteOpen = OPENED)} title="Search and commands" aria-label="Search and commands" aria-haspopup="dialog">
+    <button class="cap-btn mobile-action-palette" onclick={() => (paletteOpen = OPENED)} title="More actions and search" aria-label="Search and commands" aria-haspopup="dialog">
       <span class="mobile-cap-glyph">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
         </svg>
-        <span class="mobile-action-label">Search</span>
       </span>
     </button>
 
-    <button class="cap-share share-btn" onclick={() => (shareOpen = OPENED)} title="Share / invite collaborators" aria-label="Share / invite collaborators">
+    <button class="cap-share share-btn mobile-action-share" onclick={() => (shareOpen = OPENED)} title="Share / invite collaborators" aria-label="Share / invite collaborators">
       <span class="mobile-cap-glyph">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
           <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
         </svg>
+        <span class="cap-share-label">Share</span>
       </span>
-      <span class="cap-share-label">Share</span>
     </button>
     <button class="cap-btn mobile-action-settings" onclick={() => openSettings()} title="Settings" aria-label="Settings">
       <span class="mobile-cap-glyph">
