@@ -637,7 +637,8 @@ header.capsule.mobile-capsule {
 @media (pointer: coarse), (max-width: 900px) {
   header.capsule.mobile-capsule {
     display: flex;
-    /* Last resort so no action is unreachable: the status pill grows with the room's state, so the row can still exceed a 390px phone even at the capsule's standard (non-shrunk) button size. */
+    padding-inline: 0;
+    /* Last resort only: the tested mobile layouts fit without horizontal panning. */
     overflow-x: auto;
     scrollbar-width: none;
   }
@@ -646,14 +647,45 @@ header.capsule.mobile-capsule {
   }
 }
 
-/* Below ~430px the Share chip's label stops fitting alongside the rest of the row; the button keeps its accessible name from the `title` attribute. Buttons themselves stay at the capsule's standard 36px — unlike the old dock, nothing here shrinks touch targets to buy width. */
+/* Below ~430px the Share chip's label stops fitting alongside the rest of the row; the button keeps its accessible name from the `title` attribute. */
 @media (max-width: 430px) {
   .mobile-capsule .cap-share-label {
     display: none;
   }
-  .mobile-capsule .cap-share {
-    margin: 0 2px;
-    padding: 0 11px;
+}
+
+@media (pointer: coarse) {
+  header.capsule.mobile-capsule .cap-mark,
+  header.capsule.mobile-capsule .cap-btn {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+  header.capsule.mobile-capsule .cap-mark,
+  header.capsule.mobile-capsule .cap-identity,
+  header.capsule.mobile-capsule .cap-share {
+    margin: 0;
+  }
+  header.capsule.mobile-capsule .identity-btn,
+  header.capsule.mobile-capsule .chip,
+  header.capsule.mobile-capsule .cap-share {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  header.capsule.mobile-capsule .identity-btn {
+    padding: 6px;
+  }
+  header.capsule.mobile-capsule .identity-hint {
+    display: none;
+  }
+  header.capsule.mobile-capsule .chip {
+    height: 44px;
+    padding: 0 4px;
+    gap: 2px;
+  }
+  header.capsule.mobile-capsule .cap-share {
+    height: 44px;
+    padding: 0;
   }
 }
 
