@@ -74,4 +74,55 @@ test.describe('command palette', () => {
     await expect(page.locator(palette)).toBeHidden();
     await expect(page.getByPlaceholder('Paste or type a link')).toBeVisible();
   });
+
+  test.describe('mobile capsule', () => {
+    test.use({ viewport: { width: 320, height: 664 }, isMobile: true, hasTouch: true });
+
+    test('keeps moved document actions reachable through the palette', async ({ page }) => {
+      await page.goto('/');
+      const openPalette = async (): Promise<void> => {
+        await page.getByRole('button', { name: 'Search and commands', exact: true }).click();
+      };
+
+      await openPalette();
+      await page.getByRole('combobox').fill('>Your documents');
+      await page.keyboard.press('Enter');
+      await expect(page.getByRole('dialog', { name: 'Your documents' })).toBeVisible();
+      await page.keyboard.press('Escape');
+
+      await openPalette();
+      await page.getByRole('combobox').fill('>Join a meeting link');
+      await page.keyboard.press('Enter');
+      await expect(page.getByRole('dialog', { name: 'Join a meeting' })).toBeVisible();
+      await page.keyboard.press('Escape');
+
+      await openPalette();
+      await page.getByRole('combobox').fill('>Export a copy');
+      await page.keyboard.press('Enter');
+      await expect(page.getByRole('dialog', { name: 'Export a copy' })).toBeVisible();
+      await page.keyboard.press('Escape');
+
+      const popupPromise = page.waitForEvent('popup');
+      await openPalette();
+      await page.getByRole('combobox').fill('>New document');
+      await page.keyboard.press('Enter');
+      const popup = await popupPromise;
+      await expect(popup.locator('.ProseMirror')).toBeVisible({ timeout: 30_000 });
+      await popup.close();
+    });
+
+    test('keeps Import reachable when the write gate allows it', async ({ page }) => {
+      await page.goto('/');
+      const writeSolo = page.getByRole('button', { name: 'Write alone anyway' });
+      await expect(writeSolo).toBeVisible({ timeout: 30_000 });
+      await writeSolo.click();
+
+      await page.getByRole('button', { name: 'Search and commands', exact: true }).click();
+      await page.getByRole('combobox').fill('>Import a file');
+      const chooserPromise = page.waitForEvent('filechooser');
+      await page.keyboard.press('Enter');
+      await chooserPromise;
+    });
+  });
+
 });
