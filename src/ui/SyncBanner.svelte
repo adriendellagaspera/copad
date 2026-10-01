@@ -196,10 +196,10 @@
 
     {#if tier.kind === BannerTierKind.FirstVisit}
       <span class="actions">
-        <button class="invite-cta" onclick={onShare}>Invite someone</button>
-        <button class="link" onclick={onFirstVisitConnectStorage ?? onConnectStorage}>Connect storage</button>
+        <button class="invite-cta first-visit-action" onclick={onShare}>Invite someone</button>
+        <button class="link first-visit-action" onclick={onFirstVisitConnectStorage ?? onConnectStorage}>Connect storage</button>
         {#if onAbout}
-          <button class="more" onclick={onAbout}>How Copad works</button>
+          <button class="more first-visit-action" onclick={onAbout}>How Copad works</button>
         {/if}
       </span>
     {:else if tier.kind === BannerTierKind.Gated}
@@ -483,7 +483,8 @@
   }
   /* WCAG 2.5.5 on touch only: everywhere would out-size the other action chips. */
   @media (pointer: coarse) {
-    .more {
+    .more,
+    .first-visit-action {
       min-height: 44px;
     }
   }
