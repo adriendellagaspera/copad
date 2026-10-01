@@ -740,6 +740,7 @@ header.capsule.mobile-capsule {
     height: 44px;
     padding: 0 4px;
     gap: 2px;
+    border: none;
   }
   header.capsule.mobile-capsule .chip.clickable:hover,
   header.capsule.mobile-capsule .identity-btn:hover:not(:disabled) {
