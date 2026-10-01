@@ -123,8 +123,7 @@ export function bannerTierFor(input: BannerInput): BannerTier {
   if (
     input.firstVisit &&
     input.conn === ConnStatus.Waiting &&
-    input.presenceKind === PresenceKind.Alone &&
-    input.gateEligible
+    input.presenceKind === PresenceKind.Alone
   )
     return FIRST_VISIT;
   return HIDDEN;
