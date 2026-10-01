@@ -491,8 +491,8 @@ platform-launcher tiers described above remain unbuilt.
 | **`Reaching` locking**                      | It does not lock. The premise is proven and the failure is ours.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 On a blank, cold first visit, that transient state is the lowest-priority `SyncBanner` tier: it shows the
-unsaved state and next actions during the settle window. If the write gate later closes, the same mounted
-band becomes the waiting state instead of swapping one first-contact surface for another.
+unsaved state and next actions during the settle window. If the write gate later closes, the same mounted band
+becomes the waiting state instead of swapping one first-contact surface for another.
 
 ## 8. Order of work
 
