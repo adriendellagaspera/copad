@@ -30,6 +30,7 @@ test('the explicit "Write alone anyway" click focuses the editor', async ({ page
   await page.goto('/?room=intro-solo-focus');
   const banner = page.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 20_000 });
+  await expect(banner).toContainText("You're the only one here", { timeout: 20_000 });
 
   await banner.getByRole('button', { name: 'Write alone anyway' }).click();
   await expect(page.locator('.ProseMirror')).toBeFocused();
@@ -39,6 +40,7 @@ test('a peer joining opens the gate without stealing focus (contract §4.1)', as
   await page.goto('/?room=intro-peer-join');
   const banner = page.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 20_000 });
+  await expect(banner).toContainText("You're the only one here", { timeout: 20_000 });
   await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
 
   const roomName = page.getByLabel('Room name');
@@ -74,6 +76,7 @@ test.describe('on a narrow viewport', () => {
     expect(inviteBox).not.toBeNull();
     expect(inviteBox!.height).toBeGreaterThanOrEqual(44);
 
+    await expect(banner).toContainText("You're the only one here", { timeout: 20_000 });
     const writeSolo = banner.getByRole('button', { name: 'Write alone anyway' });
     await expect(writeSolo).toBeVisible();
 
