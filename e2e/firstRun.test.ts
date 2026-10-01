@@ -1,5 +1,18 @@
 import { test, expect } from './fixtures';
 
+test('a first visit leads with unsaved state and next actions, not a model explainer', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('.ProseMirror').waitFor();
+
+  const intro = page.locator('.first-visit');
+  await expect(intro).toBeVisible();
+  await expect(intro).toContainText('Nothing here is saved yet.');
+  await expect(intro.getByRole('button', { name: 'Invite someone' })).toBeVisible();
+  await expect(intro.getByRole('button', { name: 'Connect storage' })).toBeVisible();
+  await expect(intro.getByRole('button', { name: 'How Copad works' })).toBeVisible();
+  await expect(intro).not.toContainText('Copad is a room');
+});
+
 test('a bare visit mints a private encrypted room and stays in it across a reload', async ({ page }) => {
   await page.goto('/');
   await page.locator('.ProseMirror').waitFor();
