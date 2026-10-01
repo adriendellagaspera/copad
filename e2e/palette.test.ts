@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { test, expect, typeIntoEditor } from './fixtures.js';
 
 const palette = '[role="dialog"][aria-label="Search and commands"]';
@@ -78,7 +79,7 @@ test.describe('command palette', () => {
   test.describe('mobile capsule', () => {
     test.use({ viewport: { width: 320, height: 664 }, isMobile: true, hasTouch: true });
 
-    const openMenu = async (page: import('@playwright/test').Page): Promise<void> => {
+    const openMenu = async (page: Page): Promise<void> => {
       await page.getByRole('button', { name: 'More actions', exact: true }).click();
       await expect(page.getByRole('dialog', { name: 'Document actions' })).toBeVisible();
     };
