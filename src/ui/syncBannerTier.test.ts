@@ -92,6 +92,15 @@ describe('bannerTierFor', () => {
         }),
       ).kind,
     ).toBe(BannerTierKind.Hidden);
+    expect(
+      bannerTierFor(
+        input({
+          conn: ConnStatus.Connected,
+          presenceKind: PresenceKind.Alone,
+          firstVisit: FIRST_VISIT,
+        }),
+      ).kind,
+    ).toBe(BannerTierKind.Hidden);
   });
 
   it('keeps live collaboration states above the first-visit fallback', () => {
