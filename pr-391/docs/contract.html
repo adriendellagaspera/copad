@@ -744,7 +744,7 @@ platform-launcher tiers described above remain unbuilt.</p>
 </tr>
 <tr>
 <td><strong>Explaining up front, when it <em>is</em> right</strong></td>
-<td>The line the deletion above draws is not &quot;never explain up front&quot;, it is <strong>transient state → the band, standing fact → at most one quiet explainer</strong>. A state the user is in <em>right now</em> and can resolve right now (alone, waiting, not saved) belongs in the band, just-in-time, with the action attached; a modal there is a wall of text before you have done anything. On a blank, cold first visit, <code>SyncBanner</code> therefore carries the unsaved state and next actions as its lowest-priority tier; if the settle window later closes the write gate, that same mounted band becomes the waiting state rather than swapping surfaces. A standing property of the product or the deployment has no such moment to arrive at and nothing else signals it. <code>StorageIntro</code> remains the one quiet, once-per-browser explainer for durability after the first-visit state no longer applies, and yields whenever a higher-priority band state does.</td>
+<td>The line the deletion above draws is not &quot;never explain up front&quot;, it is <strong>transient state → the band, standing fact → at most one quiet explainer</strong>. A state the user is in <em>right now</em> and can resolve right now (alone, waiting, not saved) belongs in the band, just-in-time, with the action attached; a modal there is a wall of text before you have done anything. A standing property of the product or the deployment has no such moment to arrive at and nothing else signals it — except when the band itself already does, which is now the case for &quot;this deployment can never sync&quot; (see the row above). One qualifies, shown once per browser and never blocking: <code>StorageIntro</code> (<code>src/ui/StorageIntro.svelte</code>: there is no server, durability is something you connect — a <strong>card in the flow, not a modal</strong>, shown while no backend of yours saves this room, and yielding to the write-gate band the moment that arms, since the band then teaches the same lesson better).</td>
 </tr>
 <tr>
 <td><strong>Finding a document again</strong></td>
@@ -764,6 +764,9 @@ platform-launcher tiers described above remain unbuilt.</p>
 </tr>
 </tbody>
 </table>
+<p>On a blank, cold first visit, that transient state is the lowest-priority <code>SyncBanner</code> tier: it shows the
+unsaved state and next actions during the settle window. If the write gate later closes, the same mounted
+band becomes the waiting state instead of swapping one first-contact surface for another.</p>
 <h2 id="8-order-of-work">8. Order of work</h2>
 <ol>
 <li><s><strong>Harden the room identifier</strong></s> (§5) — done, was a precondition for §6.1.</li>
