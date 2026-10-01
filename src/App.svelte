@@ -1026,7 +1026,6 @@
 
   {#if introSlot.kind === IntroSlotKind.FirstVisit}
     <FirstVisitIntro
-      transport={sessionState.diagnostics.transport}
       onShare={() => (shareOpen = OPENED)}
       onConnectStorage={connectStorageFromStorageIntro}
       onAbout={openAbout}
