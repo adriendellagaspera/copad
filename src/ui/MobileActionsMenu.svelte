@@ -23,15 +23,22 @@
     onSearch: () => void;
   } = $props();
 
+  let firstAction = $state<HTMLButtonElement | undefined>();
+  let picked = false;
+
   function run(action: () => void): void {
+    picked = true;
     onclose();
     action();
   }
 
   $effect(() => {
     if (!open) return;
+    picked = false;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    const frame = requestAnimationFrame(() => firstAction?.focus());
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
@@ -39,8 +46,10 @@
     };
     window.addEventListener('keydown', onKey, true);
     return () => {
+      cancelAnimationFrame(frame);
       document.body.style.overflow = previous;
       window.removeEventListener('keydown', onKey, true);
+      if (!picked) opener?.focus();
     };
   });
 </script>
@@ -56,7 +65,7 @@
   <div class="mobile-actions-sheet" role="dialog" aria-modal="true" aria-label="Document actions">
     <div class="mobile-actions-grab" aria-hidden="true"></div>
     <div class="mobile-actions-list">
-      <button type="button" class="mobile-actions-row" onclick={() => run(onNew)}>
+      <button bind:this={firstAction} type="button" class="mobile-actions-row" onclick={() => run(onNew)}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
         <span>New document</span>
       </button>
