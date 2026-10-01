@@ -317,15 +317,15 @@ answer _why_ something is shaped the way it is: that's what the rest of this fil
   same document instead of minting another. The room the tab was _opened_ with (`linkedRoomParam`) is captured
   first, so the returning-user saved-room default still distinguishes "arrived bare" from "followed someone's
   link".
-- **Storage-model explainer**: `src/ui/StorageIntro.svelte`, rendered by `App.svelte` in the flow above the
-  editor (never a modal, contract §7), shown while `copad:storageIntroSeen` is unset, no backend of yours saves
-  this room, the deployment _can_ sync (a deployment that can't is instead said permanently by `SyncBanner`'s
-  `Unavailable` tier, contract §7), and the write gate isn't held. Dismissing it (or using its "Connect
-  storage") sets the flag; being superseded by the band does not, so an unacknowledged explainer returns rather
-  than being spent on a moment the user didn't read. It shares that one slot and that one flag with
-  `src/ui/FirstVisitIntro.svelte`: `introSlotFor()` (`src/ui/introSlot.ts`, unit-tested) picks the first-visit
-  action card while the page is blank (`sessionState.docEmpty`) and the session is cold (`PersistRegime.Cold`);
-  otherwise the slot shows the shorter storage card.
+- **First visit and storage intro**: `introSlotFor()` (`src/ui/introSlot.ts`, unit-tested) selects the
+  first-visit state while the page is blank (`sessionState.docEmpty`) and the session is cold
+  (`PersistRegime.Cold`), then the shorter `src/ui/StorageIntro.svelte` card once that condition ends. The
+  first-visit branch is not a second surface: `App.svelte` feeds it into `SyncBanner` as that banner's
+  lowest-priority tier. When the settle window closes the write gate, `Gated` outranks it inside the
+  already-mounted banner, so the sheet evolves in place instead of replacing one component with another.
+  `StorageIntro` remains a flow card (never a modal, contract §7), shown while `copad:storageIntroSeen` is
+  unset, no backend of yours saves this room, the deployment can sync, and the write gate isn't held; dismissing
+  it or using its storage action sets the flag.
 - **`SyncBanner` placement** (`src/ui/SyncBanner.svelte`'s `BannerPlacement`): the band renders as a `Sheet` on
   every viewport — `position: fixed`, so it never reserves flow space or shifts `.editor` when it appears,
   disappears or changes message. It's a sibling of `header.capsule` and `.editor` in `App.svelte`'s markup

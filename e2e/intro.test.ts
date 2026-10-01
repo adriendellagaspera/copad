@@ -2,12 +2,17 @@ import { test, expect } from '@playwright/test';
 
 // The write gate: docs/contract.md §1–§4.
 
-test('a solo peer-to-peer room gates writing after the settle window, then opens via the explicit escape hatch', async ({ page }) => {
+test('a solo peer-to-peer room keeps one banner through settle, then opens via the explicit escape hatch', async ({ page }) => {
   await page.goto('/?room=intro-solo');
 
   const banner = page.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 20_000 });
-  await expect(banner).toContainText("You're the only one here");
+  await expect(banner).toContainText('Nothing here is saved yet.');
+  await expect(banner.getByRole('button', { name: 'Invite someone' })).toBeVisible();
+  await banner.evaluate((node) => node.setAttribute('data-handoff-sentinel', 'same-node'));
+
+  await expect(banner).toContainText("You're the only one here", { timeout: 20_000 });
+  await expect(banner).toHaveAttribute('data-handoff-sentinel', 'same-node');
   await expect(banner.getByRole('button', { name: 'Copy invite link', exact: true })).toBeVisible();
   await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
 
@@ -25,8 +30,11 @@ test('the explicit "Write alone anyway" click focuses the editor', async ({ page
   await page.goto('/?room=intro-solo-focus');
   const banner = page.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 20_000 });
+  await expect(banner).toContainText("You're the only one here", { timeout: 20_000 });
 
-  await banner.getByRole('button', { name: 'Write alone anyway' }).click();
+  const writeSolo = banner.getByRole('button', { name: 'Write alone anyway' });
+  await expect(writeSolo).toBeVisible({ timeout: 20_000 });
+  await writeSolo.click();
   await expect(page.locator('.ProseMirror')).toBeFocused();
 });
 
@@ -34,7 +42,8 @@ test('a peer joining opens the gate without stealing focus (contract §4.1)', as
   await page.goto('/?room=intro-peer-join');
   const banner = page.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
+  await expect(banner).toContainText("You're the only one here", { timeout: 20_000 });
+  await expect(page.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false', { timeout: 20_000 });
 
   const roomName = page.getByLabel('Room name');
   await roomName.click();
@@ -63,8 +72,15 @@ test.describe('on a narrow viewport', () => {
     await page.goto('/?room=intro-solo-mobile');
     const banner = page.locator('.sync-banner');
     await expect(banner).toBeVisible({ timeout: 20_000 });
+    const invite = banner.getByRole('button', { name: 'Invite someone' });
+    await expect(invite).toBeVisible();
+    const inviteBox = await invite.boundingBox();
+    expect(inviteBox).not.toBeNull();
+    expect(inviteBox!.height).toBeGreaterThanOrEqual(44);
+
+    await expect(banner).toContainText("You're the only one here", { timeout: 20_000 });
     const writeSolo = banner.getByRole('button', { name: 'Write alone anyway' });
-    await expect(writeSolo).toBeVisible();
+    await expect(writeSolo).toBeVisible({ timeout: 20_000 });
 
     const box = await writeSolo.boundingBox();
     expect(box).not.toBeNull();

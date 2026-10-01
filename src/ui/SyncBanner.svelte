@@ -24,6 +24,7 @@
     waitingSinceLabel,
     type CollabUnavailable,
     type DepartureLingering,
+    type FirstVisitActive,
     type WriteGateArmable,
     type WriteGateHeld,
   } from './syncBannerTier.js';
@@ -41,10 +42,13 @@
     waitingSince = null,
     departedPeerName = null,
     withinDepartureLinger = false as DepartureLingering,
+    firstVisit = false as FirstVisitActive,
     dismissible = true as Dismissible,
     placement = BannerPlacement.Flow as BannerPlacement,
     onShare,
     onConnectStorage,
+    onFirstVisitConnectStorage,
+    onAbout,
     onExport,
     onWriteSolo,
     onCopyInviteLink,
@@ -61,10 +65,13 @@
     waitingSince?: EpochMs | null;
     departedPeerName?: DisplayName | null;
     withinDepartureLinger?: DepartureLingering;
+    firstVisit?: FirstVisitActive;
     dismissible?: Dismissible;
     placement?: BannerPlacement;
     onShare: () => void;
     onConnectStorage: () => void;
+    onFirstVisitConnectStorage?: () => void;
+    onAbout?: () => void;
     onExport?: () => void;
     onWriteSolo?: () => void;
     onCopyInviteLink?: () => void;
@@ -89,6 +96,7 @@
       waitingSince: waitingSince === null ? null : waitingSinceLabel(waitingSince),
       departedPeerName,
       withinDepartureLinger,
+      firstVisit,
     }),
   );
   const tone = $derived(bannerToneFor(tier));
@@ -142,7 +150,9 @@
     <span class="ic" aria-hidden="true">
       {#if tier.kind === BannerTierKind.Gated}
         <!-- Calm dot, never a spinner: a spinner promises imminence it cannot keep (contract §4.2). -->
-        <span class="waiting-dot"></span>
+        <span class="status-dot waiting-dot"></span>
+      {:else if tier.kind === BannerTierKind.FirstVisit}
+        <span class="status-dot"></span>
       {:else}
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -154,7 +164,9 @@
 
     <!-- The live region is the sentence alone: opening the disclosure must not announce. -->
     <span class="msg" role="status" aria-live="polite">
-      {#if tier.kind === BannerTierKind.Gated}
+      {#if tier.kind === BannerTierKind.FirstVisit}
+        <strong>Nothing here is saved yet.</strong>
+      {:else if tier.kind === BannerTierKind.Gated}
         <strong>You're the only one here.</strong>
         The document opens when someone joins.
         {#if tier.waitingSince}Waiting since {tier.waitingSince}.{/if}
@@ -184,7 +196,15 @@
     </span>
     </span>
 
-    {#if tier.kind === BannerTierKind.Gated}
+    {#if tier.kind === BannerTierKind.FirstVisit}
+      <span class="actions">
+        <button class="invite-cta first-visit-action" onclick={onShare}>Invite someone</button>
+        <button class="link first-visit-action" onclick={onFirstVisitConnectStorage ?? onConnectStorage}>Connect storage</button>
+        {#if onAbout}
+          <button class="more first-visit-action" onclick={onAbout}>How Copad works</button>
+        {/if}
+      </span>
+    {:else if tier.kind === BannerTierKind.Gated}
       <span class="actions">
         {#if onCopyInviteLink}
           <button class="invite-cta" onclick={onCopyInviteLink}>Copy invite link</button>
@@ -235,7 +255,7 @@
       </span>
     {/if}
 
-    {#if dismissible}
+    {#if dismissible && tier.kind !== BannerTierKind.FirstVisit}
     <button
       class="dismiss ghost"
       onclick={() => (dismissed = true)}
@@ -385,7 +405,7 @@
   .sync-banner.soft .ic {
     color: var(--text-muted);
   }
-  .waiting-dot {
+  .status-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
@@ -465,7 +485,8 @@
   }
   /* WCAG 2.5.5 on touch only: everywhere would out-size the other action chips. */
   @media (pointer: coarse) {
-    .more {
+    .more,
+    .first-visit-action {
       min-height: 44px;
     }
   }

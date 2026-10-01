@@ -4,13 +4,13 @@ test('a first visit leads with unsaved state and next actions, not a model expla
   await page.goto('/');
   await page.locator('.ProseMirror').waitFor();
 
-  const intro = page.locator('.first-visit');
-  await expect(intro).toBeVisible();
-  await expect(intro).toContainText('Nothing here is saved yet.');
-  await expect(intro.getByRole('button', { name: 'Invite someone' })).toBeVisible();
-  await expect(intro.getByRole('button', { name: 'Connect storage' })).toBeVisible();
-  await expect(intro.getByRole('button', { name: 'How Copad works' })).toBeVisible();
-  await expect(intro).not.toContainText('Copad is a room');
+  const banner = page.locator('.sync-banner');
+  await expect(banner).toBeVisible();
+  await expect(banner).toContainText('Nothing here is saved yet.');
+  await expect(banner.getByRole('button', { name: 'Invite someone' })).toBeVisible();
+  await expect(banner.getByRole('button', { name: 'Connect storage' })).toBeVisible();
+  await expect(banner.getByRole('button', { name: 'How Copad works' })).toBeVisible();
+  await expect(banner).not.toContainText('Copad is a room');
 });
 
 test('a bare visit mints a private encrypted room and stays in it across a reload', async ({ page }) => {

@@ -57,7 +57,6 @@
   import { keyFingerprint } from './collaboration/roomCrypto.js';
   import RoomLock from './ui/RoomLock.svelte';
   import StorageIntro from './ui/StorageIntro.svelte';
-  import FirstVisitIntro from './ui/FirstVisitIntro.svelte';
   import About from './ui/About.svelte';
   import { modKey } from './ui/platform.js';
   import LibraryDialog from './ui/LibraryDialog.svelte';
@@ -106,6 +105,7 @@
   import type {
     CollabUnavailable,
     DepartureLingering,
+    FirstVisitActive,
     WriteGateArmable,
     WriteGateHeld,
   } from './ui/syncBannerTier.js';
@@ -1013,8 +1013,11 @@
         {waitingSince}
         {departedPeerName}
         {withinDepartureLinger}
+        firstVisit={(introSlot.kind === IntroSlotKind.FirstVisit) as FirstVisitActive}
         onShare={() => (shareOpen = OPENED)}
         onConnectStorage={() => openSettings()}
+        onFirstVisitConnectStorage={connectStorageFromStorageIntro}
+        onAbout={openAbout}
         onExport={() => (exportOpen = OPENED)}
         onWriteSolo={allowWriteSolo}
         onCopyInviteLink={copyInviteLink}
@@ -1024,13 +1027,7 @@
     </div>
   {/if}
 
-  {#if introSlot.kind === IntroSlotKind.FirstVisit}
-    <FirstVisitIntro
-      onShare={() => (shareOpen = OPENED)}
-      onConnectStorage={connectStorageFromStorageIntro}
-      onAbout={openAbout}
-    />
-  {:else if introSlot.kind === IntroSlotKind.Storage}
+  {#if introSlot.kind === IntroSlotKind.Storage}
     <StorageIntro
       onConnectStorage={connectStorageFromStorageIntro}
       onDismiss={markStorageIntroSeen}

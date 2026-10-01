@@ -11,6 +11,7 @@ import {
   type BannerInput,
   type CollabUnavailable,
   type DepartureLingering,
+  type FirstVisitActive,
   type WaitingSinceLabel,
   type WriteGateArmable,
   type WriteGateHeld,
@@ -25,6 +26,8 @@ const NO_COLLAB = true as CollabUnavailable;
 const COLLAB = false as CollabUnavailable;
 const LINGERING = true as DepartureLingering;
 const SETTLED = false as DepartureLingering;
+const FIRST_VISIT = true as FirstVisitActive;
+const NOT_FIRST_VISIT = false as FirstVisitActive;
 
 const base: BannerInput = {
   conn: ConnStatus.Connected,
@@ -37,6 +40,7 @@ const base: BannerInput = {
   waitingSince: null,
   departedPeerName: null,
   withinDepartureLinger: SETTLED,
+  firstVisit: NOT_FIRST_VISIT,
 };
 
 const input = (over: Partial<BannerInput>): BannerInput => ({ ...base, ...over });
@@ -53,6 +57,62 @@ describe('bannerTierFor', () => {
       input({ conn: ConnStatus.Waiting, presenceKind: PresenceKind.Alone, gateEligible: GATE_ARMABLE }),
     );
     expect(tier.kind).toBe(BannerTierKind.Hidden);
+  });
+
+  it('uses the same banner for the first visit during the pre-arm grace window', () => {
+    const tier = bannerTierFor(
+      input({
+        conn: ConnStatus.Waiting,
+        presenceKind: PresenceKind.Alone,
+        gateEligible: GATE_ARMABLE,
+        firstVisit: FIRST_VISIT,
+      }),
+    );
+    expect(tier.kind).toBe(BannerTierKind.FirstVisit);
+  });
+
+  it('keeps first visit out of connected and accompanied states', () => {
+    expect(
+      bannerTierFor(
+        input({
+          conn: ConnStatus.Connected,
+          presenceKind: PresenceKind.Alone,
+          gateEligible: GATE_ARMABLE,
+          firstVisit: FIRST_VISIT,
+        }),
+      ).kind,
+    ).toBe(BannerTierKind.Hidden);
+    expect(
+      bannerTierFor(
+        input({
+          conn: ConnStatus.Waiting,
+          presenceKind: PresenceKind.Accompanied,
+          gateEligible: GATE_ARMABLE,
+          firstVisit: FIRST_VISIT,
+        }),
+      ).kind,
+    ).toBe(BannerTierKind.Hidden);
+    expect(
+      bannerTierFor(
+        input({
+          conn: ConnStatus.Connected,
+          presenceKind: PresenceKind.Alone,
+          firstVisit: FIRST_VISIT,
+        }),
+      ).kind,
+    ).toBe(BannerTierKind.Hidden);
+  });
+
+  it('keeps live collaboration states above the first-visit fallback', () => {
+    const firstVisit = (over: Partial<BannerInput>) =>
+      bannerTierFor(input({ firstVisit: FIRST_VISIT, ...over })).kind;
+
+    expect(firstVisit({ gated: GATE_HELD })).toBe(BannerTierKind.Gated);
+    expect(firstVisit({ presenceKind: PresenceKind.Reaching })).toBe(BannerTierKind.Reaching);
+    expect(firstVisit({ conn: ConnStatus.Offline })).toBe(BannerTierKind.Offline);
+    expect(firstVisit({ collabUnavailable: NO_COLLAB })).toBe(BannerTierKind.Unavailable);
+    expect(firstVisit({ conn: ConnStatus.Unreachable })).toBe(BannerTierKind.Unreachable);
+    expect(firstVisit({ presenceKind: PresenceKind.Accompanied })).toBe(BannerTierKind.Hidden);
   });
 
   it('leads with the gate whenever it holds, whatever else is true', () => {
