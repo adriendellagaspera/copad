@@ -6,7 +6,7 @@ test('the waiting tier shows a calm dot, elapsed time, Waiting on the pill, and 
   await page.goto('/?room=pw-waiting');
   const banner = page.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 20_000 });
-  await expect(banner).toContainText("You're the only one here");
+  await expect(banner).toContainText("You're the only one here", { timeout: 20_000 });
   await expect(banner).toContainText('Waiting since');
 
   await expect(banner.locator('.waiting-dot')).toBeVisible();
@@ -24,7 +24,9 @@ test('Copy invite link in the waiting tier copies the room URL', async ({ page, 
   const banner = page.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 20_000 });
 
-  await banner.getByRole('button', { name: 'Copy invite link', exact: true }).click();
+  const copyInvite = banner.getByRole('button', { name: 'Copy invite link', exact: true });
+  await expect(copyInvite).toBeVisible({ timeout: 20_000 });
+  await copyInvite.click();
   const clip = await page.evaluate(() => navigator.clipboard.readText());
   expect(clip).toContain('room=pw-waiting-copy');
 });
@@ -66,6 +68,7 @@ test('a peer arriving plays the unlock moment: avatar enters, one self-dismissin
   await page1.goto('/?room=pw-unlock');
   const banner = page1.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 20_000 });
+  await expect(banner).toContainText("You're the only one here", { timeout: 20_000 });
   await expect(page1.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
 
   const activeBefore = await page1.evaluate(() => document.activeElement?.tagName);
