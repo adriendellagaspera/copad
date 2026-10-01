@@ -687,6 +687,35 @@ header.capsule.mobile-capsule {
     height: 44px;
     padding: 0;
   }
+  header.capsule.mobile-capsule .cap-mark,
+  header.capsule.mobile-capsule .cap-share,
+  header.capsule.mobile-capsule .cap-btn,
+  header.capsule.mobile-capsule .identity-btn {
+    background: transparent;
+  }
+  header.capsule.mobile-capsule .mobile-cap-glyph {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r-full);
+    background: var(--surface-3);
+    color: var(--text-muted);
+  }
+  header.capsule.mobile-capsule .mobile-action-palette .mobile-cap-glyph {
+    color: var(--accent);
+    border: 1px solid var(--border-strong);
+  }
+  header.capsule.mobile-capsule .mobile-cap-glyph-brand {
+    background: var(--accent);
+    color: var(--accent-contrast);
+  }
+  header.capsule.mobile-capsule .cap-mark:hover:not(:disabled),
+  header.capsule.mobile-capsule .cap-share:hover:not(:disabled),
+  header.capsule.mobile-capsule .cap-btn:hover:not(:disabled),
+  header.capsule.mobile-capsule .identity-btn:hover:not(:disabled) {
+    background: transparent;
+  }
 }
 
 /* Settings nav collapses to a horizontal strip below the drawer's full-width-sheet breakpoint: no room for a 220px side rail at 100vw. */
