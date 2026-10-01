@@ -323,10 +323,10 @@ answer _why_ something is shaped the way it is: that's what the rest of this fil
   `Unavailable` tier, contract §7), and the write gate isn't held. Dismissing it (or using its "Connect
   storage") sets the flag; being superseded by the band does not, so an unacknowledged explainer returns rather
   than being spent on a moment the user didn't read. It shares that one slot and that one flag with
-  `src/ui/FirstVisitIntro.svelte`: `introSlotFor()` (`src/ui/introSlot.ts`, unit-tested) picks the fuller
-  first-visit card while the document is still a blank page (`sessionState.docEmpty`, published by the Editor
-  from the same predicate the ghost placeholder uses) and nothing has been written in this session
-  (`PersistRegime.Cold`), and the durability line once it is not.
+  `src/ui/FirstVisitIntro.svelte`: `introSlotFor()` (`src/ui/introSlot.ts`, unit-tested) picks the
+  first-visit action card while the document is still a blank page (`sessionState.docEmpty`, published by the
+  Editor from the same predicate the ghost placeholder uses) and nothing has been written in this session
+  (`PersistRegime.Cold`), then the shorter storage card once it is not.
 - **`SyncBanner` placement** (`src/ui/SyncBanner.svelte`'s `BannerPlacement`): the band renders as a `Sheet` on
   every viewport — `position: fixed`, so it never reserves flow space or shifts `.editor` when it appears,
   disappears or changes message. It's a sibling of `header.capsule` and `.editor` in `App.svelte`'s markup
