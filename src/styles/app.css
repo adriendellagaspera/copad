@@ -654,6 +654,24 @@ header.capsule.mobile-capsule {
   }
 }
 
+@media (pointer: coarse), (max-width: 900px) {
+  header.capsule.mobile-capsule .mobile-cap-glyph {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r-full);
+    background: var(--surface-3);
+    color: var(--text-muted);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  header.capsule.mobile-capsule .mobile-action-palette .mobile-cap-glyph {
+    background: var(--accent);
+    color: var(--accent-contrast);
+    box-shadow: none;
+  }
+}
+
 @media (pointer: coarse) {
   header.capsule.mobile-capsule .cap-mark,
   header.capsule.mobile-capsule .cap-btn {
@@ -692,23 +710,6 @@ header.capsule.mobile-capsule {
   header.capsule.mobile-capsule .cap-btn,
   header.capsule.mobile-capsule .identity-btn {
     background: transparent;
-  }
-  header.capsule.mobile-capsule .mobile-cap-glyph {
-    width: 32px;
-    height: 32px;
-    display: grid;
-    place-items: center;
-    border-radius: var(--r-full);
-    background: var(--surface-3);
-    color: var(--text-muted);
-  }
-  header.capsule.mobile-capsule .mobile-action-palette .mobile-cap-glyph {
-    color: var(--accent);
-    border: 1px solid var(--border-strong);
-  }
-  header.capsule.mobile-capsule .mobile-cap-glyph-brand {
-    background: var(--accent);
-    color: var(--accent-contrast);
   }
   header.capsule.mobile-capsule .cap-mark:hover:not(:disabled),
   header.capsule.mobile-capsule .cap-share:hover:not(:disabled),
