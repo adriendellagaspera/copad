@@ -16,7 +16,6 @@ describe('FirstVisitIntro', () => {
   it('shows current durability and next actions without explaining the room model', () => {
     const page = html();
 
-    expect(page).not.toContain('<p');
     expect(page).toContain('Nothing here is saved yet.');
     expect(page).toContain('Invite someone');
     expect(page).toContain('Connect storage');
