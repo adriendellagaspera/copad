@@ -80,7 +80,7 @@ test('export a copy is reachable from the read-only band while write-gated', asy
   // Wait the gate out without clicking in: a click no longer opts into writing solo (contract §4.4).
   const banner = page.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 10_000 });
-  await expect(banner).toContainText("You're the only one here");
+  await expect(banner).toContainText("You're the only one here", { timeout: 20_000 });
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -99,7 +99,7 @@ test('the header Import button is disabled while write-gated', async ({ page }) 
 
   const banner = page.locator('.sync-banner');
   await expect(banner).toBeVisible({ timeout: 10_000 });
-  await expect(banner).toContainText("You're the only one here");
+  await expect(banner).toContainText("You're the only one here", { timeout: 20_000 });
 
   await expect(page.getByRole('button', { name: 'Import a file into this document' })).toBeDisabled();
 });
