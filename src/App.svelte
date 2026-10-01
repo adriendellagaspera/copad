@@ -29,6 +29,7 @@
   import { sessionState } from './collaboration/sessionState.svelte.js';
   import { keyboardInset } from './ui/keyboardInset.svelte.js';
   import IdentityMenu from './ui/IdentityMenu.svelte';
+  import MobileActionsMenu from './ui/MobileActionsMenu.svelte';
   import StatusPill from './ui/StatusPill.svelte';
   import PresenceBar from './ui/PresenceBar.svelte';
   import ConnectionDialog from './ui/ConnectionDialog.svelte';
@@ -142,6 +143,7 @@
   let exportOpen = $state(CLOSED);
   let libraryOpen = $state(CLOSED);
   let paletteOpen = $state(CLOSED);
+  let mobileActionsOpen = $state(CLOSED);
   const modLabel = modKey();
 
   const { access: envAccess, cipher: envCipher } = resolveRoomStrategy(import.meta.env.VITE_ROOM_AUTH);
@@ -951,7 +953,7 @@
       onclick={() => (diagOpen = OPENED)}
     />
 
-    <button class="cap-btn mobile-action-palette" onclick={() => (paletteOpen = OPENED)} title="More actions and search" aria-label="Search and commands" aria-haspopup="dialog">
+    <button class="cap-btn mobile-action-palette" onclick={() => (mobileActionsOpen = OPENED)} title="More actions" aria-label="More actions" aria-haspopup="dialog" aria-expanded={mobileActionsOpen}>
       <span class="mobile-cap-glyph">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
           <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
@@ -1065,6 +1067,18 @@
   {/if}
 </div>
 {/if}
+
+<MobileActionsMenu
+  open={mobileActionsOpen}
+  canImport={canImportHere}
+  onclose={() => (mobileActionsOpen = CLOSED)}
+  onNew={newRoom}
+  onLibrary={() => (libraryOpen = OPENED)}
+  onImport={importLocalFile}
+  onJoin={() => (joinOpen = OPENED)}
+  onExport={() => (exportOpen = OPENED)}
+  onSearch={() => (paletteOpen = OPENED)}
+/>
 
 <ConnectionDialog
   open={diagOpen}
