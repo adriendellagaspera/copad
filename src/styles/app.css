@@ -655,15 +655,23 @@ header.capsule.mobile-capsule {
 }
 
 @media (pointer: coarse), (max-width: 900px) {
+  header.capsule.mobile-capsule {
+    --mobile-action-bg: var(--surface-3);
+    --mobile-action-border: var(--border-strong);
+  }
+  [data-theme="dark"] header.capsule.mobile-capsule {
+    --mobile-action-bg: color-mix(in srgb, var(--surface-3) 82%, var(--text-muted) 18%);
+    --mobile-action-border: color-mix(in srgb, var(--border-strong) 68%, var(--text-muted) 32%);
+  }
   header.capsule.mobile-capsule .mobile-cap-glyph {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     display: grid;
     place-items: center;
     border-radius: var(--r-full);
-    background: var(--surface-3);
-    color: var(--text-muted);
-    box-shadow: inset 0 0 0 1px var(--border);
+    background: var(--mobile-action-bg);
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--mobile-action-border);
   }
   header.capsule.mobile-capsule .mobile-action-palette .mobile-cap-glyph {
     background: var(--accent);
@@ -672,7 +680,7 @@ header.capsule.mobile-capsule {
   }
 }
 
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 900px) {
   header.capsule.mobile-capsule .cap-mark,
   header.capsule.mobile-capsule .cap-btn {
     width: 44px;
