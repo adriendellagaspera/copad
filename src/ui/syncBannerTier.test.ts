@@ -80,6 +80,7 @@ describe('bannerTierFor', () => {
     expect(firstVisit({ conn: ConnStatus.Offline })).toBe(BannerTierKind.Offline);
     expect(firstVisit({ collabUnavailable: NO_COLLAB })).toBe(BannerTierKind.Unavailable);
     expect(firstVisit({ conn: ConnStatus.Unreachable })).toBe(BannerTierKind.Unreachable);
+    expect(firstVisit({ presenceKind: PresenceKind.Accompanied })).toBe(BannerTierKind.Hidden);
   });
 
   it('leads with the gate whenever it holds, whatever else is true', () => {
