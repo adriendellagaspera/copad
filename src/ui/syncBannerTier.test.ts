@@ -71,6 +71,20 @@ describe('bannerTierFor', () => {
     expect(tier.kind).toBe(BannerTierKind.FirstVisit);
   });
 
+  it('keeps the banner quiet once a first-visit room is accompanied', () => {
+    expect(bannerTierFor(input({ firstVisit: FIRST_VISIT })).kind).toBe(BannerTierKind.Hidden);
+    expect(
+      bannerTierFor(
+        input({
+          conn: ConnStatus.Waiting,
+          presenceKind: PresenceKind.Accompanied,
+          gateEligible: GATE_ARMABLE,
+          firstVisit: FIRST_VISIT,
+        }),
+      ).kind,
+    ).toBe(BannerTierKind.Hidden);
+  });
+
   it('keeps live collaboration states above the first-visit fallback', () => {
     const firstVisit = (over: Partial<BannerInput>) =>
       bannerTierFor(input({ firstVisit: FIRST_VISIT, ...over })).kind;
