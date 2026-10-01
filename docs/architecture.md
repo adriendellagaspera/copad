@@ -324,8 +324,8 @@ answer _why_ something is shaped the way it is: that's what the rest of this fil
   lowest-priority tier. When the settle window closes the write gate, `Gated` outranks it inside the
   already-mounted banner, so the sheet evolves in place instead of replacing one component with another.
   `StorageIntro` remains a flow card (never a modal, contract §7), shown while `copad:storageIntroSeen` is
-  unset, no backend of yours saves this room, the deployment can sync, and the write gate isn't held; dismissing
-  it or using its storage action sets the flag.
+  unset, no backend of yours saves this room, the deployment can sync, and the write gate isn't held;
+  dismissing it or using its storage action sets the flag.
 - **`SyncBanner` placement** (`src/ui/SyncBanner.svelte`'s `BannerPlacement`): the band renders as a `Sheet` on
   every viewport — `position: fixed`, so it never reserves flow space or shifts `.editor` when it appears,
   disappears or changes message. It's a sibling of `header.capsule` and `.editor` in `App.svelte`'s markup
