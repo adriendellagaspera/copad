@@ -647,22 +647,14 @@ header.capsule.mobile-capsule {
   }
 }
 
-/* Below ~430px the Share chip's label stops fitting alongside the rest of the row; the button keeps its accessible name from the `title` attribute. */
-@media (max-width: 430px) {
-  .mobile-capsule .cap-share-label {
-    display: none;
-  }
-}
-
 @media (pointer: coarse), (max-width: 900px) {
   header.capsule.mobile-capsule {
     --mobile-action-bg: var(--surface-3);
-    --mobile-action-border: var(--border-strong);
   }
   [data-theme="dark"] header.capsule.mobile-capsule {
-    --mobile-action-bg: color-mix(in srgb, var(--surface-3) 78%, var(--text-muted) 22%);
-    --mobile-action-border: color-mix(in srgb, var(--border-strong) 58%, var(--text-muted) 42%);
+    --mobile-action-bg: color-mix(in srgb, var(--surface-3) 82%, var(--text-muted) 18%);
   }
+
   header.capsule.mobile-capsule .mobile-cap-glyph {
     width: 40px;
     height: 40px;
@@ -671,54 +663,54 @@ header.capsule.mobile-capsule {
     border-radius: var(--r-full);
     background: var(--mobile-action-bg);
     color: var(--text);
-    box-shadow: inset 0 0 0 1px var(--mobile-action-border);
   }
-  header.capsule.mobile-capsule .mobile-action-palette .mobile-cap-glyph {
-    width: 76px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    background: var(--accent);
-    color: var(--accent-contrast);
-    box-shadow: none;
-    font-size: var(--fs-300);
-    font-weight: 600;
-  }
-  header.capsule.mobile-capsule .mobile-action-label {
-    line-height: 1;
-    white-space: nowrap;
-  }
-}
 
-@media (pointer: coarse), (max-width: 900px) {
   header.capsule.mobile-capsule .cap-mark,
   header.capsule.mobile-capsule .cap-btn {
     width: 44px;
     height: 44px;
     min-height: 44px;
   }
-  header.capsule.mobile-capsule .cap-btn.mobile-action-palette {
-    width: 80px;
-  }
+
   header.capsule.mobile-capsule .cap-mark,
   header.capsule.mobile-capsule .cap-identity,
   header.capsule.mobile-capsule .cap-share {
     margin: 0;
   }
+
   header.capsule.mobile-capsule .identity-btn,
   header.capsule.mobile-capsule .chip,
   header.capsule.mobile-capsule .cap-share {
     min-width: 44px;
     min-height: 44px;
   }
-  header.capsule.mobile-capsule .identity-btn,
+
+  /* The avatar is already a complete visual control. Keep the 44px hit target
+     around it without drawing a second circle behind it. */
+  header.capsule.mobile-capsule .identity-btn {
+    width: 44px;
+    height: 44px;
+    padding: 2px;
+    background: transparent;
+  }
+  header.capsule.mobile-capsule .identity-btn .avatar {
+    box-shadow: none;
+  }
+  header.capsule.mobile-capsule .identity-hint {
+    display: none;
+  }
+
+  /* Connection/storage is state, not a competing CTA: one quiet tonal pill,
+     with semantic colour carried by the icons/text inside. */
   header.capsule.mobile-capsule .chip {
     position: relative;
     isolation: isolate;
+    height: 44px;
+    padding: 0 4px;
+    gap: 2px;
+    border: none;
     background: transparent;
   }
-  header.capsule.mobile-capsule .identity-btn::before,
   header.capsule.mobile-capsule .chip::before {
     content: '';
     position: absolute;
@@ -726,30 +718,37 @@ header.capsule.mobile-capsule {
     z-index: -1;
     border-radius: var(--r-full);
     background: var(--mobile-action-bg);
-    box-shadow: inset 0 0 0 1px var(--mobile-action-border);
   }
-  header.capsule.mobile-capsule .identity-btn {
-    width: 44px;
-    height: 44px;
-    padding: 6px;
+
+  /* The palette is the compact More control on mobile. Its contents are still
+     searchable; the trigger follows the familiar overflow-menu convention. */
+  header.capsule.mobile-capsule .mobile-action-palette .mobile-cap-glyph {
+    color: var(--text-muted);
   }
-  header.capsule.mobile-capsule .identity-hint {
-    display: none;
-  }
-  header.capsule.mobile-capsule .chip {
-    height: 44px;
-    padding: 0 4px;
-    gap: 2px;
-    border: none;
-  }
-  header.capsule.mobile-capsule .chip.clickable:hover,
-  header.capsule.mobile-capsule .identity-btn:hover:not(:disabled) {
-    background: transparent;
-  }
-  header.capsule.mobile-capsule .cap-share {
+
+  /* Share is the document's primary mobile action, mirroring About's elongated
+     "Start a document" CTA instead of giving every toolbar item equal weight. */
+  header.capsule.mobile-capsule .cap-share.mobile-action-share {
+    width: 80px;
     height: 44px;
     padding: 0;
   }
+  header.capsule.mobile-capsule .mobile-action-share .mobile-cap-glyph {
+    width: 76px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    font-size: var(--fs-300);
+    font-weight: 600;
+  }
+  header.capsule.mobile-capsule .cap-share-label {
+    line-height: 1;
+    white-space: nowrap;
+  }
+
   header.capsule.mobile-capsule .cap-mark,
   header.capsule.mobile-capsule .cap-share,
   header.capsule.mobile-capsule .cap-btn {
@@ -757,7 +756,9 @@ header.capsule.mobile-capsule {
   }
   header.capsule.mobile-capsule .cap-mark:hover:not(:disabled),
   header.capsule.mobile-capsule .cap-share:hover:not(:disabled),
-  header.capsule.mobile-capsule .cap-btn:hover:not(:disabled) {
+  header.capsule.mobile-capsule .cap-btn:hover:not(:disabled),
+  header.capsule.mobile-capsule .identity-btn:hover:not(:disabled),
+  header.capsule.mobile-capsule .chip.clickable:hover {
     background: transparent;
   }
 }
