@@ -78,40 +78,47 @@ test.describe('command palette', () => {
   test.describe('mobile capsule', () => {
     test.use({ viewport: { width: 320, height: 664 }, isMobile: true, hasTouch: true });
 
-    test('keeps moved document actions reachable through the palette', async ({ page }) => {
-      await page.goto('/');
-      const openPalette = async (): Promise<void> => {
-        await page.getByRole('button', { name: 'Search and commands', exact: true }).click();
-      };
+    const openMenu = async (page: import('@playwright/test').Page): Promise<void> => {
+      await page.getByRole('button', { name: 'More actions', exact: true }).click();
+      await expect(page.getByRole('dialog', { name: 'Document actions' })).toBeVisible();
+    };
 
-      await openPalette();
-      await page.getByRole('combobox').fill('>Your documents');
-      await page.keyboard.press('Enter');
+    test('keeps moved document actions directly reachable through More', async ({ page }) => {
+      await page.goto('/');
+
+      await openMenu(page);
+      await page.getByRole('button', { name: 'Your documents', exact: true }).click();
       await expect(page.getByRole('dialog', { name: 'Your documents' })).toBeVisible();
       await page.keyboard.press('Escape');
 
-      await openPalette();
-      await page.getByRole('combobox').fill('>Join a meeting link');
-      await page.keyboard.press('Enter');
+      await openMenu(page);
+      await page.getByRole('button', { name: 'Join a meeting link', exact: true }).click();
       await expect(page.getByRole('dialog', { name: 'Join a meeting' })).toBeVisible();
       await page.keyboard.press('Escape');
 
-      await openPalette();
-      await page.getByRole('combobox').fill('>Export a copy');
-      await page.keyboard.press('Enter');
+      await openMenu(page);
+      await page.getByRole('button', { name: 'Export a copy', exact: true }).click();
       await expect(page.getByRole('dialog', { name: 'Export a copy' })).toBeVisible();
       await page.keyboard.press('Escape');
 
       const popupPromise = page.waitForEvent('popup');
-      await openPalette();
-      await page.getByRole('combobox').fill('>New document');
-      await page.keyboard.press('Enter');
+      await openMenu(page);
+      await page.getByRole('button', { name: 'New document', exact: true }).click();
       const popup = await popupPromise;
       await expect(popup.locator('.ProseMirror')).toBeVisible({ timeout: 30_000 });
       await popup.close();
     });
 
-    test('keeps Import reachable when the write gate allows it', async ({ page }) => {
+    test('opens the searchable command palette explicitly from More', async ({ page }) => {
+      await page.goto('/');
+      await openMenu(page);
+      await page.getByRole('button', { name: 'Search document & commands', exact: true }).click();
+
+      await expect(page.locator(palette)).toBeVisible();
+      await expect(page.getByRole('combobox')).toBeFocused();
+    });
+
+    test('keeps Import directly reachable when the write gate allows it', async ({ page }) => {
       await page.addInitScript(() => {
         Object.defineProperty(window, 'showOpenFilePicker', {
           configurable: true,
@@ -126,9 +133,8 @@ test.describe('command palette', () => {
       await expect(writeSolo).toBeVisible({ timeout: 30_000 });
       await writeSolo.click();
 
-      await page.getByRole('button', { name: 'Search and commands', exact: true }).click();
-      await page.getByRole('combobox').fill('>Import a file');
-      await page.keyboard.press('Enter');
+      await openMenu(page);
+      await page.getByRole('button', { name: 'Import a file', exact: true }).click();
 
       await expect.poll(() =>
         page.evaluate(() => sessionStorage.getItem('copad-test-file-picker-opened')),
