@@ -112,6 +112,15 @@ test.describe('command palette', () => {
     });
 
     test('keeps Import reachable when the write gate allows it', async ({ page }) => {
+      await page.addInitScript(() => {
+        Object.defineProperty(window, 'showOpenFilePicker', {
+          configurable: true,
+          value: async () => {
+            sessionStorage.setItem('copad-test-file-picker-opened', 'yes');
+            throw new DOMException('Cancelled by test', 'AbortError');
+          },
+        });
+      });
       await page.goto('/');
       const writeSolo = page.getByRole('button', { name: 'Write alone anyway' });
       await expect(writeSolo).toBeVisible({ timeout: 30_000 });
@@ -119,9 +128,11 @@ test.describe('command palette', () => {
 
       await page.getByRole('button', { name: 'Search and commands', exact: true }).click();
       await page.getByRole('combobox').fill('>Import a file');
-      const chooserPromise = page.waitForEvent('filechooser');
       await page.keyboard.press('Enter');
-      await chooserPromise;
+
+      await expect.poll(() =>
+        page.evaluate(() => sessionStorage.getItem('copad-test-file-picker-opened')),
+      ).toBe('yes');
     });
   });
 
