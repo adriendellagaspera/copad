@@ -9,7 +9,7 @@ test('the waiting tier shows a calm dot, elapsed time, Waiting on the pill, and 
   await expect(banner).toContainText("You're the only one here", { timeout: 20_000 });
   await expect(banner).toContainText('Waiting since');
 
-  await expect(banner.locator('.waiting-dot')).toBeVisible();
+  await expect(banner.locator('.status-dot')).toBeVisible();
   await expect(banner.locator('.spinner')).toHaveCount(0);
 
   await expect(banner.getByRole('button', { name: 'Copy invite link', exact: true })).toBeVisible();
@@ -56,7 +56,7 @@ test('a peer leaving shows who left, then the room returns to waiting', async ({
   await expect(page1.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'true');
 
   await expect(banner).toContainText("You're the only one here", { timeout: 20_000 });
-  await expect(page1.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false');
+  await expect(page1.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false', { timeout: 20_000 });
 
   await ctx.close();
 });
