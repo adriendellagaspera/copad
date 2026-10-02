@@ -387,7 +387,7 @@
       height: var(--tap-min);
       min-height: var(--tap-min);
       margin: 0;
-      padding: 0 10px;
+      padding: 0 var(--mobile-compact-inline-pad);
       font-size: var(--fs-350);
     }
     .about-capsule .cap-theme :global(button) {
