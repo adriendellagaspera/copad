@@ -80,16 +80,16 @@ describe('armed inline marks', () => {
     };
     const handler = keepArmedMarksPlugin.props.handleTextInput;
     if (!handler) throw new Error('keepArmedMarksPlugin must handle text input');
-    const handled = handler.call(
-      keepArmedMarksPlugin,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      view as any,
-      state.selection.from,
-      state.selection.to,
-      text,
-      () => state.tr.insertText(text, state.selection.from, state.selection.to),
-    );
-    return { handled: handled === true, state: next };
+    const handled =
+      Reflect.apply(handler, keepArmedMarksPlugin, [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        view as any,
+        state.selection.from,
+        state.selection.to,
+        text,
+        () => state.tr.insertText(text, state.selection.from, state.selection.to),
+      ]) === true;
+    return { handled, state: next };
   }
 
   it('does not intercept plain typing when no marks are armed', () => {
