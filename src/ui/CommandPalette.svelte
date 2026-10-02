@@ -241,4 +241,40 @@
     font-family: var(--font-mono);
     font-size: 0.95em;
   }
+
+  @media (pointer: coarse), (max-width: 900px) {
+    .palette-input {
+      min-height: var(--mobile-action-row);
+      padding: 0 var(--mobile-inline-pad);
+      font-size: var(--fs-400);
+    }
+    .palette-results {
+      padding: var(--sp-2);
+    }
+    .palette-group-label {
+      padding: var(--sp-3) var(--mobile-inline-pad) var(--sp-2);
+      font-size: var(--fs-300);
+    }
+    .palette-row {
+      align-items: center;
+      gap: var(--mobile-control-gap);
+      min-height: var(--mobile-action-row);
+      padding: 0 var(--mobile-inline-pad);
+    }
+    .palette-label {
+      font-size: var(--fs-400);
+    }
+    .palette-hint {
+      font-size: var(--fs-300);
+    }
+    .palette-empty {
+      padding: var(--mobile-inline-pad);
+      font-size: var(--fs-400);
+    }
+    .palette-foot {
+      flex-wrap: wrap;
+      padding: var(--sp-2) var(--mobile-inline-pad);
+      font-size: var(--fs-300);
+    }
+  }
 </style>

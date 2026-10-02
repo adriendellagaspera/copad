@@ -69,6 +69,14 @@
   --sp-6: 2rem;
   --sp-8: 3rem;
 
+  /* ── Mobile scale ── */
+  --tap-min: 44px;
+  --mobile-control: 48px;
+  --mobile-action-row: 52px;
+  --mobile-icon: 20px;
+  --mobile-inline-pad: 14px;
+  --mobile-control-gap: 12px;
+
   /* ── Radii ── */
   --r-sm: 6px;
   --r-md: 10px;

@@ -154,15 +154,31 @@
     display: block;
   }
   .fixed-toolbar .toolbar {
-    height: 50px;
+    height: calc(var(--tap-min) + var(--sp-3));
     padding: 0 6px;
-    gap: 2px;
+    gap: var(--sp-1);
     border: 1px solid var(--border);
     border-radius: var(--r-full);
     background: var(--surface);
     box-shadow: var(--shadow-md);
     flex-wrap: nowrap;
     overflow-x: auto;
+  }
+  .fixed-toolbar .toolbar button {
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    padding: 0 var(--sp-2);
+    font-size: var(--fs-400);
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .fixed-toolbar .toolbar button svg {
+    width: var(--mobile-icon);
+    height: var(--mobile-icon);
+  }
+  .fixed-toolbar .toolbar .sep {
+    height: 24px;
+    margin: 0 var(--sp-1);
   }
   .fixed-toolbar .toolbar .spacer {
     display: none;
@@ -414,9 +430,6 @@
   .content {
     padding: var(--sp-4);
   }
-  .ProseMirror {
-    font-size: calc(var(--fs-400) * var(--zoom, 1));
-  }
   .status {
     flex-wrap: wrap;
     gap: var(--sp-2);
@@ -434,7 +447,7 @@
 
   .editor-scroll-tail {
     display: block;
-    flex: 0 0 calc(60px + max(env(safe-area-inset-bottom), var(--kb-inset, 0px)));
+    flex: 0 0 calc(var(--tap-min) + var(--sp-3) + var(--sp-2) + max(env(safe-area-inset-bottom), var(--kb-inset, 0px)));
   }
 }
 
@@ -473,8 +486,8 @@
 
 @media (pointer: coarse) {
   .toolbar button {
-    min-height: 38px;
-    min-width: 2.4rem;
+    min-height: var(--tap-min);
+    min-width: var(--tap-min);
   }
 }
 
