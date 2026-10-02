@@ -95,6 +95,42 @@ for (const width of [320, 390] as const) {
   test.describe(`mobile caret visibility at ${width}px`, () => {
     test.use({ viewport: { width, height: 664 }, isMobile: true, hasTouch: true });
 
+
+
+    test('keeps a still-short document clear while the keyboard is already open', async ({
+      page,
+    }) => {
+      await installViewportHarness(page);
+      await page.goto(`/?room=caret-visibility-short-${width}`);
+      const editor = await enterSoloEditing(page);
+
+      const layoutHeight = await page.evaluate(() => document.documentElement.clientHeight);
+      const keyboardHeight = 300;
+      const visualHeight = layoutHeight - keyboardHeight;
+      const offsetTop = 96;
+      await setViewport(
+        page,
+        { innerHeight: visualHeight, height: visualHeight, offsetTop },
+        'resize',
+      );
+
+      const content = page.locator('.content');
+      for (let line = 1; line <= 24; line += 1) {
+        await page.keyboard.press('Enter');
+        const gap = await caretToolbarGap(page);
+        const scroll = await content.evaluate((element) => ({
+          top: element.scrollTop,
+          max: element.scrollHeight - element.clientHeight,
+        }));
+        expect(
+          gap,
+          `line ${line}: gap=${gap}, scrollTop=${scroll.top}, maxScroll=${scroll.max}`,
+        ).toBeGreaterThanOrEqual(6);
+      }
+
+      await expect(editor).toBeFocused();
+    });
+
     test('keeps new and wrapped lines clear of the formatting toolbar', async ({ page }) => {
       await installViewportHarness(page);
       await page.goto(`/?room=caret-visibility-${width}`);
