@@ -152,6 +152,7 @@
   bindExport((codec) => Promise.resolve(codec.encode(collab.doc)));
 
   let editorEl = $state<HTMLDivElement | undefined>();
+  let editorMountEl = $state<HTMLDivElement | undefined>();
   let toolbarEl = $state<HTMLDivElement | undefined>();
   let view = $state.raw<EditorView | null>(null);
   let editorState = $state.raw<EditorState | null>(null);
@@ -497,7 +498,7 @@
       ],
     });
 
-    view = new EditorView(editorEl!, {
+    view = new EditorView(editorMountEl!, {
       state,
       attributes: {
         lang: untrack(() => lang),
@@ -618,10 +619,13 @@
   >
     <Toolbar {view} {editorState} {toasts} />
   </div>
-  <!-- DocTitle must already be in the DOM before `new EditorView(editorEl!, …)`
-       runs in onMount: it only ever appendChild()s, never clears the node. -->
   <div class="content" bind:this={editorEl} style="--kb-inset: {keyboardInset.px}px">
-    <DocTitle {room} name={roomName.value} onRename={(raw) => renameRoom(parseRoomName(raw))} autofocus={autofocusTitle} />
+    <!-- Keep the title and ProseMirror in one viewport-sized flex body. EditorView appends its
+         DOM after DocTitle; the separate tail below creates real scroll range on short documents. -->
+    <div class="editor-body" bind:this={editorMountEl}>
+      <DocTitle {room} name={roomName.value} onRename={(raw) => renameRoom(parseRoomName(raw))} autofocus={autofocusTitle} />
+    </div>
+    <div class="editor-scroll-tail" aria-hidden="true"></div>
   </div>
   <div class="status">
     <ShortcutBar {editorState} />
