@@ -149,5 +149,23 @@ test.describe('mobile formatting toolbar keyboard anchoring', () => {
         ),
       )
       .toBeCloseTo(closedInset, 0);
+
+    await setViewport(
+      page,
+      { innerHeight: visualHeight, height: visualHeight, offsetTop: firstOffsetTop },
+      'resize',
+    );
+    await expect
+      .poll(() => toolbarGapFromVisualBottom(page, firstVisualBottom))
+      .toBeCloseTo(spacing, 0);
+
+    await editor.evaluate((element) => (element as HTMLElement).blur());
+    const toolbarHost = page.locator('.fixed-toolbar');
+    await expect(toolbarHost).toBeHidden();
+    await expect
+      .poll(() =>
+        toolbarHost.evaluate((element) => element.style.getPropertyValue('--kb-inset')),
+      )
+      .toBe('0px');
   });
 });
