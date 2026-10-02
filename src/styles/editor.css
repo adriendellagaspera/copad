@@ -286,6 +286,17 @@
   outline: none;
 }
 
+.editor-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-scroll-tail {
+  display: none;
+}
+
 .ProseMirror {
   /* flex:1, not min-height:100%: sizes against space actually left below
      DocTitle so a click in the empty area doesn't drag DocTitle off-screen.
@@ -412,12 +423,17 @@
   }
 }
 
-/* Keep enough scroll room below the document for the mobile toolbar at rest or above the keyboard. */
+/* The tail is outside the viewport-sized editor body, so it creates actual scroll range even
+   while a short ProseMirror flexes to fill the visible document area. Padding alone is absorbed
+   by that flex layout in WebKit and can leave maxScroll at zero. */
 @media (pointer: coarse), (max-width: 900px) {
-  .content {
-    padding-bottom: calc(
-      60px + max(env(safe-area-inset-bottom), var(--kb-inset, 0px)) + var(--sp-4)
-    );
+  .editor-body {
+    flex: 0 0 100%;
+  }
+
+  .editor-scroll-tail {
+    display: block;
+    flex: 0 0 calc(60px + max(env(safe-area-inset-bottom), var(--kb-inset, 0px)));
   }
 }
 
