@@ -171,7 +171,11 @@
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let retryAttempt = 0;
 
+  type ToolbarLowering = boolean & { readonly _brand: 'ToolbarLowering' };
+
   const CARET_CLEARANCE = 8 as ViewportPx;
+  let previousKeyboardInset = 0 as ViewportPx;
+  let toolbarLowering = $state(false as ToolbarLowering);
 
   function keepLocalCaretVisible(editorView: EditorView): void {
     const scrollEl = editorEl;
@@ -290,9 +294,11 @@
 
   $effect(() => {
     const editing = sessionState.editing;
-    const inset = keyboardInset.px;
+    const inset = keyboardInset.px as ViewportPx;
+    toolbarLowering = (inset < previousKeyboardInset) as ToolbarLowering;
+    previousKeyboardInset = inset;
     const editorView = view;
-    if (editing && editorView && inset >= 0) keepLocalCaretVisible(editorView);
+    if (editing && editorView) keepLocalCaretVisible(editorView);
   });
 
   // Mobile-only: swaps the bottom dock between nav actions and the formatting toolbar.
@@ -596,6 +602,7 @@
   <div
     class="fixed-toolbar"
     class:editing={sessionState.editing}
+    class:lowering={toolbarLowering}
     style="--kb-inset: {keyboardInset.px}px"
     bind:this={toolbarEl}
   >
