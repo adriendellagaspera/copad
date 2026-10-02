@@ -711,12 +711,12 @@ header.capsule.mobile-capsule {
     height: var(--tap-min);
     min-height: var(--tap-min);
     padding: 0 6px;
-    gap: var(--sp-2);
+    gap: 6px;
     border: none;
     background: transparent;
   }
   header.capsule.mobile-capsule .chip .seg {
-    gap: var(--sp-2);
+    gap: 6px;
   }
   header.capsule.mobile-capsule .chip .seg.accent {
     color: var(--text-muted);
@@ -729,19 +729,19 @@ header.capsule.mobile-capsule {
 
   /* Share is the one contained CTA; its target stays compact enough for 320px. */
   header.capsule.mobile-capsule .cap-share.mobile-action-share {
-    width: 80px;
+    width: 76px;
     height: var(--tap-min);
-    min-width: 80px;
+    min-width: 76px;
     min-height: var(--tap-min);
     padding: 0 2px;
   }
   header.capsule.mobile-capsule .mobile-action-share .mobile-cap-glyph {
-    width: 76px;
+    width: 72px;
     height: calc(var(--mobile-control) - var(--sp-2));
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: var(--sp-2);
+    gap: 6px;
     background: var(--accent);
     color: var(--accent-contrast);
     font-size: var(--fs-400);
