@@ -87,7 +87,7 @@ describe('armed inline marks', () => {
       state.selection.from,
       state.selection.to,
       text,
-      () => state.selection.$from,
+      () => state.tr.insertText(text, state.selection.from, state.selection.to),
     );
     return { handled: handled === true, state: next };
   }
