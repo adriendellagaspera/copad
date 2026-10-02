@@ -40,6 +40,7 @@ import {
   HORIZONTAL_RULE_RULE,
   buildPlugins,
   stripNestedTables,
+  keepArmedMarksPlugin,
 } from './plugins.js';
 
 /** Smallest table that can trap a caret at its first and last cell at once. */
@@ -67,6 +68,59 @@ function run(
   const tr = handler(state, match, matchStart, pos);
   return tr ? state.apply(tr) : null;
 }
+
+describe('armed inline marks', () => {
+  function typeText(state: EditorState, text: string): { handled: boolean; state: EditorState } {
+    let next = state;
+    const view = {
+      state,
+      dispatch: (tr: Transaction) => {
+        next = state.apply(tr);
+      },
+    };
+    const handler = keepArmedMarksPlugin.props.handleTextInput;
+    if (!handler) throw new Error('keepArmedMarksPlugin must handle text input');
+    const handled = handler(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      view as any,
+      state.selection.from,
+      state.selection.to,
+      text,
+      () => state.selection.$from,
+    );
+    return { handled, state: next };
+  }
+
+  it('does not intercept plain typing when no marks are armed', () => {
+    const state = EditorState.create({ schema });
+    const typed = typeText(state, 'a');
+    expect(typed.handled).toBe(false);
+    expect(typed.state).toBe(state);
+  });
+
+  it('keeps multiple armed marks across typing and preserves the remaining mark when one is removed', () => {
+    let state = EditorState.create({ schema });
+    const em = schema.marks.em.create();
+    const strong = schema.marks.strong.create();
+    state = state.apply(state.tr.setStoredMarks([em, strong]));
+
+    const first = typeText(state, 'a');
+    expect(first.handled).toBe(true);
+    state = first.state;
+    expect(state.storedMarks?.map((mark) => mark.type.name).sort()).toEqual(['em', 'strong']);
+
+    state = state.apply(state.tr.setStoredMarks([strong]));
+    const second = typeText(state, 'b');
+    expect(second.handled).toBe(true);
+    state = second.state;
+
+    const paragraph = state.doc.firstChild!;
+    expect(paragraph.textContent).toBe('ab');
+    expect(paragraph.child(0).marks.map((mark) => mark.type.name).sort()).toEqual(['em', 'strong']);
+    expect(paragraph.child(1).marks.map((mark) => mark.type.name)).toEqual(['strong']);
+    expect(state.storedMarks?.map((mark) => mark.type.name)).toEqual(['strong']);
+  });
+});
 
 describe('inline mark input rules', () => {
   it('turns **text** into bold and strips the delimiters', () => {
