@@ -9,6 +9,7 @@ const PROSE_SIZE = '18px';
 const COMPACT_UI_SIZE = '14px';
 const ACTION_UI_SIZE = '16px';
 const ICON_SIZE = 20;
+const COMPACT_INLINE_PAD = 10;
 
 async function setTheme(page: Page, theme: ThemeName): Promise<void> {
   await page.evaluate((nextTheme) => {
@@ -74,9 +75,18 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
         expect((await dimensions(toolbarIcon)).width).toBe(ICON_SIZE);
         expect((await dimensions(toolbarIcon)).height).toBe(ICON_SIZE);
         await expect(toolbar.locator('button').first()).toHaveCSS('font-size', COMPACT_UI_SIZE);
-        await expect(capsule.locator('.mobile-action-share .mobile-cap-glyph')).toHaveCSS(
-          'font-size',
-          COMPACT_UI_SIZE,
+        const shareVisual = capsule.locator('.mobile-action-share .mobile-cap-glyph');
+        await expect(shareVisual).toHaveCSS('font-size', COMPACT_UI_SIZE);
+        await expect(shareVisual).toHaveCSS('padding-left', `${COMPACT_INLINE_PAD}px`);
+        await expect(shareVisual).toHaveCSS('padding-right', `${COMPACT_INLINE_PAD}px`);
+        const shareContentWidth = await shareVisual.evaluate((el) => {
+          const icon = el.querySelector('svg')?.getBoundingClientRect().width ?? 0;
+          const label = el.querySelector('.cap-share-label')?.getBoundingClientRect().width ?? 0;
+          const gap = Number.parseFloat(getComputedStyle(el).columnGap || getComputedStyle(el).gap);
+          return icon + label + gap;
+        });
+        expect((await dimensions(shareVisual)).width - shareContentWidth).toBeGreaterThanOrEqual(
+          COMPACT_INLINE_PAD * 2,
         );
 
         await page.getByRole('button', { name: 'More actions', exact: true }).click();
@@ -113,6 +123,14 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
         await expectTouchTarget(capsule.locator('.cap-share'));
         await expectTouchTarget(capsule.locator('.cap-theme button'));
         await expect(capsule.locator('.cap-share')).toHaveCSS('font-size', COMPACT_UI_SIZE);
+        await expect(capsule.locator('.cap-share')).toHaveCSS(
+          'padding-left',
+          `${COMPACT_INLINE_PAD}px`,
+        );
+        await expect(capsule.locator('.cap-share')).toHaveCSS(
+          'padding-right',
+          `${COMPACT_INLINE_PAD}px`,
+        );
 
         const prose = page.locator('.about-doc .ProseMirror');
         await expect(prose).toHaveCSS('font-size', PROSE_SIZE);
