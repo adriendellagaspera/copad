@@ -900,7 +900,7 @@
         {name}
         {color}
         colors={COLORS}
-        size={40}
+        size={36}
         onName={(v) => { name = rememberName(v); }}
         onColor={(c) => { color = c; }}
       />
