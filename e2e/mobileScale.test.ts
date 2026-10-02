@@ -148,3 +148,38 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
     }
   });
 }
+
+
+test.describe('mobile formatting marks', () => {
+  test.use({ viewport: { width: 390, height: 664 }, isMobile: true, hasTouch: true });
+
+  test('armed marks persist, compose, and can be removed independently', async ({ page }) => {
+    await openEditableRoom(page, 'formatting-marks');
+
+    const prose = page.locator('.ProseMirror');
+    await prose.click();
+
+    const toolbar = page.locator('.fixed-toolbar.editing .toolbar');
+    const italic = toolbar.getByRole('button', { name: 'Italic' });
+    const bold = toolbar.getByRole('button', { name: 'Bold' });
+
+    await italic.click();
+    await expect(italic).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.type('ab');
+    expect((await prose.locator('em').allTextContents()).join('')).toBe('ab');
+
+    await bold.click();
+    await expect(italic).toHaveAttribute('aria-pressed', 'true');
+    await expect(bold).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.type('cd');
+
+    await italic.click();
+    await expect(italic).toHaveAttribute('aria-pressed', 'false');
+    await expect(bold).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.type('ef');
+
+    expect(await prose.textContent()).toBe('abcdef');
+    expect((await prose.locator('em').allTextContents()).join('')).toBe('abcd');
+    expect((await prose.locator('strong').allTextContents()).join('')).toBe('cdef');
+  });
+});
