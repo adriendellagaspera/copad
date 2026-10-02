@@ -185,7 +185,7 @@
     if (
       !scrollEl ||
       !toolbar ||
-      !editorView.hasFocus() ||
+      !sessionState.editing ||
       !(selection instanceof TextSelection) ||
       !selection.empty ||
       toolbar.getClientRects().length === 0
