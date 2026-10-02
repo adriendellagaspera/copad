@@ -8,6 +8,11 @@ export default defineConfig({
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'webkit-caret-mobile',
+      testMatch: 'caretVisibility.test.ts',
+      use: { ...devices['iPhone 13'] },
+    },
   ],
   webServer: [
     {
