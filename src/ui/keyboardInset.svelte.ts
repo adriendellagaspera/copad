@@ -1,13 +1,17 @@
-// A keyboard shrinks only the visual viewport; `position: fixed; bottom` uses the layout viewport and can't see it.
-// Consumers read this as `--kb-inset`.
+import { visualViewportBottomInset, type ViewportPx } from './viewportInset.js';
+
+// WebKit can make innerHeight follow visualViewport under the keyboard; clientHeight remains the layout viewport.
 
 let inset = $state(0);
 
 if (typeof window !== 'undefined' && window.visualViewport) {
   const vv = window.visualViewport;
   const update = (): void => {
-    const gap = window.innerHeight - vv.height - vv.offsetTop;
-    inset = gap > 0 ? Math.round(gap) : 0;
+    inset = visualViewportBottomInset({
+      layoutHeight: document.documentElement.clientHeight as ViewportPx,
+      visualHeight: vv.height as ViewportPx,
+      visualOffsetTop: vv.offsetTop as ViewportPx,
+    });
   };
   vv.addEventListener('resize', update);
   vv.addEventListener('scroll', update);
