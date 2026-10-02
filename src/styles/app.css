@@ -637,7 +637,8 @@ header.capsule.mobile-capsule {
 @media (pointer: coarse), (max-width: 900px) {
   header.capsule.mobile-capsule {
     display: flex;
-    /* Last resort so no action is unreachable: the status pill grows with the room's state, so the row can still exceed a 390px phone even at the capsule's standard (non-shrunk) button size. */
+    padding-inline: 8px;
+    /* Match About's capsule edge breathing; overflow remains a last-resort safety net. */
     overflow-x: auto;
     scrollbar-width: none;
   }
@@ -646,14 +647,118 @@ header.capsule.mobile-capsule {
   }
 }
 
-/* Below ~430px the Share chip's label stops fitting alongside the rest of the row; the button keeps its accessible name from the `title` attribute. Buttons themselves stay at the capsule's standard 36px — unlike the old dock, nothing here shrinks touch targets to buy width. */
-@media (max-width: 430px) {
-  .mobile-capsule .cap-share-label {
+@media (pointer: coarse), (max-width: 900px) {
+  /* Keep About's 52px outer capsule / 36–38px inner-control proportions.
+     The 44px boxes below are touch targets, not additional visual pills. */
+  header.capsule.mobile-capsule {
+    column-gap: 4px;
+  }
+
+  header.capsule.mobile-capsule .mobile-cap-glyph {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--r-full);
+    background: transparent;
+    color: var(--text-muted);
+  }
+
+  /* Same branded mark as About. */
+  header.capsule.mobile-capsule .cap-mark .mobile-cap-glyph {
+    background: var(--accent);
+    color: var(--accent-contrast);
+  }
+
+  header.capsule.mobile-capsule .cap-mark,
+  header.capsule.mobile-capsule .cap-btn {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  header.capsule.mobile-capsule .cap-mark,
+  header.capsule.mobile-capsule .cap-identity,
+  header.capsule.mobile-capsule .cap-share {
+    margin: 0;
+  }
+
+  /* Identity is the avatar itself, not an avatar inside another button shape. */
+  header.capsule.mobile-capsule .identity-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 4px;
+    background: transparent;
+  }
+  header.capsule.mobile-capsule .identity-btn .avatar {
+    box-shadow: none;
+  }
+  header.capsule.mobile-capsule .identity-hint {
     display: none;
   }
-  .mobile-capsule .cap-share {
-    margin: 0 2px;
-    padding: 0 11px;
+
+  /* Status is content inside the outer capsule, like About's wordmark/theme:
+     no nested pill. Extra internal spacing keeps connection/storage legible. */
+  header.capsule.mobile-capsule .chip {
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 6px;
+    gap: 6px;
+    border: none;
+    background: transparent;
+  }
+  header.capsule.mobile-capsule .chip .seg {
+    gap: 6px;
+  }
+  header.capsule.mobile-capsule .chip .seg.accent {
+    color: var(--text-muted);
+  }
+
+  /* More is an unboxed toolbar affordance. */
+  header.capsule.mobile-capsule .mobile-action-palette .mobile-cap-glyph {
+    color: var(--text-muted);
+  }
+
+  /* Share is the one contained CTA, using About's 38px visual height. */
+  header.capsule.mobile-capsule .cap-share.mobile-action-share {
+    width: 76px;
+    height: 44px;
+    min-width: 76px;
+    min-height: 44px;
+    padding: 0 2px;
+  }
+  header.capsule.mobile-capsule .mobile-action-share .mobile-cap-glyph {
+    width: 72px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    font-size: var(--fs-300);
+    font-weight: 600;
+  }
+  header.capsule.mobile-capsule .cap-share-label {
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  header.capsule.mobile-capsule .cap-mark,
+  header.capsule.mobile-capsule .cap-share,
+  header.capsule.mobile-capsule .cap-btn,
+  header.capsule.mobile-capsule .identity-btn {
+    background: transparent;
+  }
+  header.capsule.mobile-capsule .cap-mark:hover:not(:disabled),
+  header.capsule.mobile-capsule .cap-share:hover:not(:disabled),
+  header.capsule.mobile-capsule .cap-btn:hover:not(:disabled),
+  header.capsule.mobile-capsule .identity-btn:hover:not(:disabled),
+  header.capsule.mobile-capsule .chip.clickable:hover {
+    background: transparent;
   }
 }
 

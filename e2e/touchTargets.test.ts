@@ -149,6 +149,7 @@ async function measureMobileCapsule(page: Page, viewport: ViewportLabel): Promis
   const capsule = page.locator('.mobile-capsule');
   await expect(capsule).toBeVisible();
 
+  await measure('mobile capsule: About' as ElementName, viewport, capsule.locator('.cap-mark'));
   await measure('mobile capsule: identity avatar' as ElementName, viewport, capsule.locator('.identity-btn'));
   await measure('mobile capsule: status pill (plain)' as ElementName, viewport, capsule.locator('.chip'));
   await measureEach(capsule.locator('.cap-btn'), viewport, 'mobile capsule' as ElementName);
@@ -190,6 +191,8 @@ async function measurePillState(
     width: m.width,
     labelBoxWidth: px(labelBox?.width ?? 0),
   });
+  const row = await capsuleRow(page, `${viewport} ${labels}` as ViewportLabel);
+  expect(row.overflows, `the mobile capsule row overflows in ${labels}`).toBe(false);
 }
 
 /** No signaling socket ever opens: the pill sits on Connecting, then times out to Can't connect. */
@@ -215,6 +218,8 @@ async function mockWebdav(page: Page, putStatus: number, putDelayMs: number): Pr
 }
 
 async function openStorageSettings(page: Page): Promise<void> {
+  const more = page.getByRole('button', { name: 'More actions', exact: true });
+  if (await more.isVisible()) await more.click();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Storage', exact: true }).click();
   const tile = page.getByRole('button', { name: 'WebDAV / Nextcloud' });
@@ -305,7 +310,8 @@ for (const width of [320, 390] as const) {
       const pill = page.locator('.mobile-capsule .chip');
       await expect(pill.locator('.seg.secure')).toHaveCount(1);
       await measure('mobile capsule: status pill (encrypted)' as ElementName, viewport, pill);
-      await capsuleRow(page, `${width}px encrypted` as ViewportLabel);
+      const row = await capsuleRow(page, `${width}px encrypted` as ViewportLabel);
+      expect(row.overflows, 'the mobile capsule row overflows in the encrypted state').toBe(false);
     });
 
     for (const v of VARIANTS) {
@@ -472,11 +478,8 @@ test.describe('header capsule on a fine-pointer viewport', () => {
   });
 });
 
-/*
- * The durable gate #291 asks for. Skipped, not deleted: the numbers above show today's UI
- * fails it, and #287 is the change that makes it pass. Drop `.fixme` when #287 lands.
- */
-test.describe.fixme('touch-target floor of 44px (#291) — enable with #287', () => {
+/* The durable mobile-capsule gate for #291. */
+test.describe('touch-target floor of 44px (#291)', () => {
   for (const width of [320, 390] as const) {
     test.describe(`at ${width}px`, () => {
       test.use({ viewport: { width, height: 664 }, isMobile: true, hasTouch: true });
@@ -484,7 +487,7 @@ test.describe.fixme('touch-target floor of 44px (#291) — enable with #287', ()
       test('every mobile capsule control clears 44x44 and the row does not overflow', async ({ page }) => {
         await openRoom(page, `/?room=gate-capsule-${width}`);
         const capsule = page.locator('.mobile-capsule');
-        const controls = capsule.locator('.identity-btn, .chip, .cap-btn, .cap-share');
+        const controls = capsule.locator('.cap-mark, .identity-btn, .chip, .cap-btn, .cap-share');
         const count = await controls.count();
         expect(count).toBeGreaterThan(0);
         for (let i = 0; i < count; i += 1) {
