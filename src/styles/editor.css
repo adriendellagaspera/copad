@@ -428,7 +428,8 @@
    by that flex layout in WebKit and can leave maxScroll at zero. */
 @media (pointer: coarse), (max-width: 900px) {
   .editor-body {
-    flex: 0 0 100%;
+    flex: 0 0 auto;
+    min-height: 100%;
   }
 
   .editor-scroll-tail {
