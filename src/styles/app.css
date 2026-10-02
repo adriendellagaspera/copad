@@ -733,7 +733,7 @@ header.capsule.mobile-capsule {
   header.capsule.mobile-capsule .cap-share.mobile-action-share {
     width: auto;
     height: var(--tap-min);
-    min-width: 0;
+    min-width: var(--tap-min);
     min-height: var(--tap-min);
     padding: 0;
   }
