@@ -33,7 +33,7 @@ export const keyboardInset = {
 
 /** Collapse immediately on blur instead of waiting for a possibly late visualViewport close event. */
 export function collapseKeyboardInset(): void {
-  if (typeof window !== 'undefined' && pendingFrame !== undefined) {
+  if (pendingFrame !== undefined) {
     window.cancelAnimationFrame(pendingFrame);
     pendingFrame = undefined;
   }
