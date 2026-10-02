@@ -10,6 +10,7 @@ interface SyntheticViewport {
 
 interface SyntheticViewportState extends SyntheticViewport {
   set(next: SyntheticViewport, event: ViewportEvent): void;
+  setAfterEvent(next: SyntheticViewport, event: ViewportEvent): void;
 }
 
 async function installViewportHarness(page: Page): Promise<void> {
@@ -26,6 +27,12 @@ async function installViewportHarness(page: Page): Promise<void> {
         this.height = next.height;
         this.offsetTop = next.offsetTop;
         viewport.dispatchEvent(new Event(event));
+      },
+      setAfterEvent(next, event) {
+        viewport.dispatchEvent(new Event(event));
+        this.innerHeight = next.innerHeight;
+        this.height = next.height;
+        this.offsetTop = next.offsetTop;
       },
     };
 
@@ -60,6 +67,23 @@ async function setViewport(
       ).__copadCaretViewportTest;
       if (!state) throw new Error('visualViewport test harness was not installed');
       state.set(next, event);
+    },
+    { next, event },
+  );
+}
+
+async function setViewportAfterEvent(
+  page: Page,
+  next: SyntheticViewport,
+  event: ViewportEvent,
+): Promise<void> {
+  await page.evaluate(
+    ({ next, event }) => {
+      const state = (
+        window as typeof window & { __copadCaretViewportTest?: SyntheticViewportState }
+      ).__copadCaretViewportTest;
+      if (!state) throw new Error('visualViewport test harness was not installed');
+      state.setAfterEvent(next, event);
     },
     { next, event },
   );
@@ -108,7 +132,8 @@ for (const width of [320, 390] as const) {
       const keyboardHeight = 300;
       const visualHeight = layoutHeight - keyboardHeight;
       const offsetTop = 96;
-      await setViewport(
+      // WebKit can emit resize before visualViewport.height/offsetTop expose their new values.
+      await setViewportAfterEvent(
         page,
         { innerHeight: visualHeight, height: visualHeight, offsetTop },
         'resize',
