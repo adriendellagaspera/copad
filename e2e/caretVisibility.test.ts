@@ -94,8 +94,9 @@ async function enterSoloEditing(page: Page): Promise<Locator> {
   await editor.waitFor({ timeout: 30_000 });
   const writeSolo = page.getByRole('button', { name: 'Write alone anyway' });
   await expect(writeSolo).toBeVisible({ timeout: 30_000 });
-  await writeSolo.click();
-  await editor.click();
+  await writeSolo.evaluate((element) => (element as HTMLButtonElement).click());
+  await editor.evaluate((element) => (element as HTMLElement).focus());
+  await expect(editor).toBeFocused();
   return editor;
 }
 
