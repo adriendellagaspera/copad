@@ -74,6 +74,7 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
         expect((await dimensions(toolbarIcon)).width).toBe(ICON_SIZE);
         expect((await dimensions(toolbarIcon)).height).toBe(ICON_SIZE);
         await expect(toolbar.locator('button').first()).toHaveCSS('font-size', COMPACT_UI_SIZE);
+        await page.screenshot({ path: `test-results/mobile-scale/document-${width}-${theme}.png` });
 
         await page.getByRole('button', { name: 'More actions', exact: true }).click();
         const actions = page.getByRole('dialog', { name: 'Document actions' });
@@ -83,6 +84,7 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
         await expect(actionRow).toHaveCSS('font-size', ACTION_UI_SIZE);
         const actionIcon = actionRow.locator('svg');
         expect((await dimensions(actionIcon)).width).toBe(ICON_SIZE);
+        await page.screenshot({ path: `test-results/mobile-scale/more-${width}-${theme}.png` });
 
         await actions.getByRole('button', { name: 'Search document & commands', exact: true }).click();
         const palette = page.getByRole('dialog', { name: 'Search and commands' });
@@ -94,6 +96,7 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
         await expect(paletteRow).toBeVisible();
         expect((await dimensions(paletteRow)).height).toBeGreaterThanOrEqual(ACTION_ROW);
         await expect(paletteRow.locator('.palette-label')).toHaveCSS('font-size', ACTION_UI_SIZE);
+        await page.screenshot({ path: `test-results/mobile-scale/palette-${width}-${theme}.png` });
 
         await expectNoPageOverflow(page);
       });
@@ -119,6 +122,7 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
         const searchIcon = search.locator('svg');
         expect((await dimensions(searchIcon)).width).toBe(ICON_SIZE);
         expect((await dimensions(searchIcon)).height).toBe(ICON_SIZE);
+        await page.screenshot({ path: `test-results/mobile-scale/about-${width}-${theme}.png` });
 
         await expectNoPageOverflow(page);
       });
