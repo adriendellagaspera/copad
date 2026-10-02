@@ -727,17 +727,20 @@ header.capsule.mobile-capsule {
     color: var(--text-muted);
   }
 
-  /* Share is the one contained CTA; its target stays compact enough for 320px. */
+  /* Share is the one contained CTA. Let content + shared compact padding set
+     its width, like About's Start a document CTA, rather than squeezing it
+     into a fixed budget. */
   header.capsule.mobile-capsule .cap-share.mobile-action-share {
-    width: 76px;
+    width: auto;
     height: var(--tap-min);
-    min-width: 76px;
+    min-width: 0;
     min-height: var(--tap-min);
-    padding: 0 2px;
+    padding: 0;
   }
   header.capsule.mobile-capsule .mobile-action-share .mobile-cap-glyph {
-    width: 72px;
+    width: auto;
     height: calc(var(--mobile-control) - var(--sp-2));
+    padding-inline: var(--mobile-compact-inline-pad);
     display: inline-flex;
     align-items: center;
     justify-content: center;
