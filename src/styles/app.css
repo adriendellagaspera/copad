@@ -637,8 +637,8 @@ header.capsule.mobile-capsule {
 @media (pointer: coarse), (max-width: 900px) {
   header.capsule.mobile-capsule {
     display: flex;
-    padding-inline: 0;
-    /* Last resort only: the tested mobile layouts fit without horizontal panning. */
+    padding-inline: 8px;
+    /* Match About's capsule edge breathing; overflow remains a last-resort safety net. */
     overflow-x: auto;
     scrollbar-width: none;
   }
@@ -663,6 +663,11 @@ header.capsule.mobile-capsule {
     border-radius: var(--r-full);
     background: var(--mobile-action-bg);
     color: var(--text);
+  }
+
+  header.capsule.mobile-capsule .cap-mark .mobile-cap-glyph {
+    background: var(--accent);
+    color: var(--accent-contrast);
   }
 
   header.capsule.mobile-capsule .cap-mark,
@@ -706,15 +711,15 @@ header.capsule.mobile-capsule {
     position: relative;
     isolation: isolate;
     height: 44px;
-    padding: 0 4px;
-    gap: 2px;
+    padding: 0 10px;
+    gap: 4px;
     border: none;
     background: transparent;
   }
   header.capsule.mobile-capsule .chip::before {
     content: '';
     position: absolute;
-    inset: 2px;
+    inset: 2px 0;
     z-index: -1;
     border-radius: var(--r-full);
     background: var(--mobile-action-bg);
