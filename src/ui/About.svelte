@@ -388,7 +388,7 @@
       min-height: var(--tap-min);
       margin: 0;
       padding: 0 10px;
-      font-size: var(--fs-400);
+      font-size: var(--fs-350);
     }
     .about-capsule .cap-theme :global(button) {
       width: var(--tap-min);
@@ -404,7 +404,7 @@
       height: var(--mobile-action-row);
       gap: var(--mobile-control-gap);
       padding: 0 var(--mobile-inline-pad);
-      font-size: var(--fs-400);
+      font-size: var(--fs-350);
     }
     .about-doc .palette-trigger svg {
       width: var(--mobile-icon);
