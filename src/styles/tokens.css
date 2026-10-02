@@ -49,6 +49,7 @@
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", monospace;
 
   --fs-300: 0.8125rem;  /* 13px — meta, status */
+  --fs-350: 0.875rem;   /* 14px — compact controls */
   --fs-400: 1rem;       /* 16px — base UI */
   --fs-500: 1.125rem;   /* 18px — reading body */
   --fs-600: 1.375rem;   /* 22px — h2 */
