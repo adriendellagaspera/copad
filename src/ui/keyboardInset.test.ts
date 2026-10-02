@@ -88,6 +88,13 @@ describe('keyboardInset', () => {
     expect(keyboardInset.px).toBe(204);
   });
 
+  it('collapses safely when browser globals are unavailable', async () => {
+    const { keyboardInset, collapseKeyboardInset } = await import('./keyboardInset.svelte.js');
+
+    expect(() => collapseKeyboardInset()).not.toThrow();
+    expect(keyboardInset.px).toBe(0);
+  });
+
   it('cancels a pending viewport measurement when blur collapses the inset', async () => {
     const harness = installViewportHarness();
     const { keyboardInset, collapseKeyboardInset } = await import('./keyboardInset.svelte.js');
