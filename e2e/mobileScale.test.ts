@@ -75,6 +75,10 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
         expect((await dimensions(toolbarIcon)).height).toBe(ICON_SIZE);
         await expect(toolbar.locator('button').first()).toHaveCSS('font-size', COMPACT_UI_SIZE);
         await page.screenshot({ path: `test-results/mobile-scale/document-${width}-${theme}.png` });
+        await toolbar.evaluate((el) => { el.scrollLeft = 330; });
+        await page.screenshot({ path: `test-results/mobile-scale/toolbar-mid-${width}-${theme}.png` });
+        await toolbar.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
+        await page.screenshot({ path: `test-results/mobile-scale/toolbar-end-${width}-${theme}.png` });
 
         await page.getByRole('button', { name: 'More actions', exact: true }).click();
         const actions = page.getByRole('dialog', { name: 'Document actions' });
