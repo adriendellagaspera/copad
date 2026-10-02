@@ -100,10 +100,12 @@ test.describe('mobile formatting toolbar keyboard anchoring', () => {
     await expect(toolbar).toBeVisible();
 
     const layoutHeight = await page.evaluate(() => document.documentElement.clientHeight);
-    const spacing = await page.evaluate(() =>
-      Number.parseFloat(
-        getComputedStyle(document.documentElement).getPropertyValue('--sp-2'),
-      ),
+    const spacing = await toolbar.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).left),
+    );
+    const closedInset = await toolbar.evaluate(
+      (element, height) => height - element.getBoundingClientRect().bottom,
+      layoutHeight,
     );
     const keyboardHeight = 300;
     const visualHeight = layoutHeight - keyboardHeight;
@@ -146,6 +148,6 @@ test.describe('mobile formatting toolbar keyboard anchoring', () => {
           layoutHeight,
         ),
       )
-      .toBeCloseTo(spacing, 0);
+      .toBeCloseTo(closedInset, 0);
   });
 });
