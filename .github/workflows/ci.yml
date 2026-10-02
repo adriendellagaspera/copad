@@ -178,14 +178,6 @@ jobs:
         env:
           CI: true
 
-      - name: Upload Share visual audit
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: share-visual-audit
-          path: test-results/share-audit/*.png
-          if-no-files-found: error
-
   # Structural guards on deploy/turn/, not a live relay test; deploy/turn/TESTING.md
   # covers the manual tiers that exercise NAT traversal and TLS on a real VPS.
   turn:
