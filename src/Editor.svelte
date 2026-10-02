@@ -10,7 +10,9 @@
   import { slashMenuPlugin, SLASH_ITEMS, menuItems } from './editor/ui/slashMenu.js';
   import { placeholderPlugin, isSoleEmptyBlock } from './editor/ui/placeholder.js';
   import { lineBlockHintPlugin } from './editor/ui/lineBlockHint.js';
+  import { caretScrollDelta } from './editor/ui/caretVisibility.js';
   import { keyboardInset, collapseKeyboardInset } from './ui/keyboardInset.svelte.js';
+  import type { ViewportPx } from './ui/viewportInset.js';
   import Toolbar from './Toolbar.svelte';
   import SelectionToolbar from './editor/ui/SelectionToolbar.svelte';
   import { codecForFilename, extensionOf, knownExtensions } from './format/index.js';
@@ -150,6 +152,7 @@
   bindExport((codec) => Promise.resolve(codec.encode(collab.doc)));
 
   let editorEl = $state<HTMLDivElement | undefined>();
+  let toolbarEl = $state<HTMLDivElement | undefined>();
   let view = $state.raw<EditorView | null>(null);
   let editorState = $state.raw<EditorState | null>(null);
   let users = $state<PeerUser[]>([]);
@@ -167,6 +170,32 @@
   const RETRY_BACKOFF_MS = [3_000, 6_000, 12_000, 30_000] as Milliseconds[];
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let retryAttempt = 0;
+
+  const CARET_CLEARANCE = 8 as ViewportPx;
+
+  function keepLocalCaretVisible(editorView: EditorView): void {
+    const scrollEl = editorEl;
+    const toolbar = toolbarEl;
+    const selection = editorView.state.selection;
+    if (
+      !scrollEl ||
+      !toolbar ||
+      !editorView.hasFocus() ||
+      !(selection instanceof TextSelection) ||
+      !selection.empty ||
+      toolbar.getClientRects().length === 0
+    ) {
+      return;
+    }
+
+    const caret = editorView.coordsAtPos(selection.head, 1);
+    const delta = caretScrollDelta({
+      caretBottom: caret.bottom as ViewportPx,
+      occlusionTop: toolbar.getBoundingClientRect().top as ViewportPx,
+      clearance: CARET_CLEARANCE,
+    });
+    if (delta > 0) scrollEl.scrollTop += delta;
+  }
 
   let canPersist = $state(false);
 
@@ -467,7 +496,10 @@
         editorState = next;
         const isChangeOrigin = !!tr.getMeta(ySyncPluginKey)?.isChangeOrigin;
         regime = nextRegime(regime, { docChanged: tr.docChanged, isChangeOrigin });
-        if (tr.docChanged && !isChangeOrigin) setSessionLocalEdit(now());
+        if (tr.docChanged && !isChangeOrigin) {
+          setSessionLocalEdit(now());
+          keepLocalCaretVisible(self);
+        }
         if (tr.docChanged) setSessionDocEmpty(isSoleEmptyBlock(next.doc) as DocEmpty);
       },
     });
@@ -558,12 +590,13 @@
     class="fixed-toolbar"
     class:editing={sessionState.editing}
     style="--kb-inset: {keyboardInset.px}px"
+    bind:this={toolbarEl}
   >
     <Toolbar {view} {editorState} {toasts} />
   </div>
   <!-- DocTitle must already be in the DOM before `new EditorView(editorEl!, …)`
        runs in onMount: it only ever appendChild()s, never clears the node. -->
-  <div class="content" bind:this={editorEl}>
+  <div class="content" bind:this={editorEl} style="--kb-inset: {keyboardInset.px}px">
     <DocTitle {room} name={roomName.value} onRename={(raw) => renameRoom(parseRoomName(raw))} autofocus={autofocusTitle} />
   </div>
   <div class="status">
