@@ -86,7 +86,7 @@ async function placeCaretLineSafely(page: Page): Promise<void> {
   const content = page.locator('.content');
   const gap = await caretToolbarGap(page);
   await content.evaluate((element, delta) => {
-    element.scrollTop -= delta;
+    element.scrollTop += delta;
   }, 32 - gap);
   await expect.poll(() => caretToolbarGap(page)).toBeGreaterThanOrEqual(31);
 }
