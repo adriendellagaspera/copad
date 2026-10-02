@@ -10,7 +10,9 @@
   import { slashMenuPlugin, SLASH_ITEMS, menuItems } from './editor/ui/slashMenu.js';
   import { placeholderPlugin, isSoleEmptyBlock } from './editor/ui/placeholder.js';
   import { lineBlockHintPlugin } from './editor/ui/lineBlockHint.js';
+  import { caretScrollDelta } from './editor/ui/caretVisibility.js';
   import { keyboardInset, collapseKeyboardInset } from './ui/keyboardInset.svelte.js';
+  import type { ViewportPx } from './ui/viewportInset.js';
   import Toolbar from './Toolbar.svelte';
   import SelectionToolbar from './editor/ui/SelectionToolbar.svelte';
   import { codecForFilename, extensionOf, knownExtensions } from './format/index.js';
@@ -150,6 +152,8 @@
   bindExport((codec) => Promise.resolve(codec.encode(collab.doc)));
 
   let editorEl = $state<HTMLDivElement | undefined>();
+  let editorMountEl = $state<HTMLDivElement | undefined>();
+  let toolbarEl = $state<HTMLDivElement | undefined>();
   let view = $state.raw<EditorView | null>(null);
   let editorState = $state.raw<EditorState | null>(null);
   let users = $state<PeerUser[]>([]);
@@ -167,6 +171,45 @@
   const RETRY_BACKOFF_MS = [3_000, 6_000, 12_000, 30_000] as Milliseconds[];
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let retryAttempt = 0;
+
+  type ToolbarLowering = boolean & { readonly _brand: 'ToolbarLowering' };
+
+  const CARET_CLEARANCE = 8 as ViewportPx;
+  let previousKeyboardInset = 0 as ViewportPx;
+  let toolbarLowering = $state(false as ToolbarLowering);
+  let caretVisibilityFrame: number | undefined;
+
+  function keepLocalCaretVisible(editorView: EditorView): void {
+    const scrollEl = editorEl;
+    const toolbar = toolbarEl;
+    const selection = editorView.state.selection;
+    if (
+      !scrollEl ||
+      !toolbar ||
+      !sessionState.editing ||
+      !(selection instanceof TextSelection) ||
+      !selection.empty ||
+      toolbar.getClientRects().length === 0
+    ) {
+      return;
+    }
+
+    const caret = editorView.coordsAtPos(selection.head, 1);
+    const delta = caretScrollDelta({
+      caretBottom: caret.bottom as ViewportPx,
+      occlusionTop: toolbar.getBoundingClientRect().top as ViewportPx,
+      clearance: CARET_CLEARANCE,
+    });
+    if (delta > 0) scrollEl.scrollTop += delta;
+  }
+
+  function scheduleLocalCaretVisibility(editorView: EditorView): void {
+    if (caretVisibilityFrame !== undefined) return;
+    caretVisibilityFrame = requestAnimationFrame(() => {
+      caretVisibilityFrame = undefined;
+      keepLocalCaretVisible(editorView);
+    });
+  }
 
   let canPersist = $state(false);
 
@@ -258,6 +301,15 @@
   $effect(() => setSessionPresence(users, peers));
   $effect(() => setSessionRoomPresence(roomPresence));
   $effect(() => setSessionSoloBrowser(soloBrowser));
+
+  $effect(() => {
+    const editing = sessionState.editing;
+    const inset = keyboardInset.px as ViewportPx;
+    toolbarLowering = (inset < previousKeyboardInset) as ToolbarLowering;
+    previousKeyboardInset = inset;
+    const editorView = view;
+    if (editing && editorView) scheduleLocalCaretVisibility(editorView);
+  });
 
   // Mobile-only: swaps the bottom dock between nav actions and the formatting toolbar.
   $effect(() => {
@@ -446,7 +498,7 @@
       ],
     });
 
-    view = new EditorView(editorEl!, {
+    view = new EditorView(editorMountEl!, {
       state,
       attributes: {
         lang: untrack(() => lang),
@@ -467,7 +519,10 @@
         editorState = next;
         const isChangeOrigin = !!tr.getMeta(ySyncPluginKey)?.isChangeOrigin;
         regime = nextRegime(regime, { docChanged: tr.docChanged, isChangeOrigin });
-        if (tr.docChanged && !isChangeOrigin) setSessionLocalEdit(now());
+        if (tr.docChanged && !isChangeOrigin) {
+          setSessionLocalEdit(now());
+          scheduleLocalCaretVisibility(self);
+        }
         if (tr.docChanged) setSessionDocEmpty(isSoleEmptyBlock(next.doc) as DocEmpty);
       },
     });
@@ -488,6 +543,7 @@
     clearTimeout(savedTimer);
     clearTimeout(retryTimer);
     clearInterval(fadeTimer);
+    if (caretVisibilityFrame !== undefined) cancelAnimationFrame(caretVisibilityFrame);
     presenceActivity.destroy();
     offStatus();
     offPresence?.();
@@ -557,14 +613,19 @@
   <div
     class="fixed-toolbar"
     class:editing={sessionState.editing}
+    class:lowering={toolbarLowering}
     style="--kb-inset: {keyboardInset.px}px"
+    bind:this={toolbarEl}
   >
     <Toolbar {view} {editorState} {toasts} />
   </div>
-  <!-- DocTitle must already be in the DOM before `new EditorView(editorEl!, …)`
-       runs in onMount: it only ever appendChild()s, never clears the node. -->
-  <div class="content" bind:this={editorEl}>
-    <DocTitle {room} name={roomName.value} onRename={(raw) => renameRoom(parseRoomName(raw))} autofocus={autofocusTitle} />
+  <div class="content" bind:this={editorEl} style="--kb-inset: {keyboardInset.px}px">
+    <!-- Keep the title and ProseMirror in one viewport-sized flex body. EditorView appends its
+         DOM after DocTitle; the separate tail below creates real scroll range on short documents. -->
+    <div class="editor-body" bind:this={editorMountEl}>
+      <DocTitle {room} name={roomName.value} onRename={(raw) => renameRoom(parseRoomName(raw))} autofocus={autofocusTitle} />
+    </div>
+    <div class="editor-scroll-tail" aria-hidden="true"></div>
   </div>
   <div class="status">
     <ShortcutBar {editorState} />

@@ -1,17 +1,24 @@
 import { visualViewportBottomInset, type ViewportPx } from './viewportInset.js';
 
-// WebKit can make innerHeight follow visualViewport under the keyboard; clientHeight remains the layout viewport.
+// WebKit can fire visualViewport events before its geometry reflects the new stable viewport.
+// Read it on the next animation frame (WebKit #254861) and coalesce bursts while the keyboard moves.
 
 let inset = $state(0);
+let pendingFrame: number | undefined;
 
 if (typeof window !== 'undefined' && window.visualViewport) {
   const vv = window.visualViewport;
-  const update = (): void => {
+  const measure = (): void => {
+    pendingFrame = undefined;
     inset = visualViewportBottomInset({
       layoutHeight: document.documentElement.clientHeight as ViewportPx,
       visualHeight: vv.height as ViewportPx,
       visualOffsetTop: vv.offsetTop as ViewportPx,
     });
+  };
+  const update = (): void => {
+    if (pendingFrame !== undefined) return;
+    pendingFrame = window.requestAnimationFrame(measure);
   };
   vv.addEventListener('resize', update);
   vv.addEventListener('scroll', update);
@@ -24,7 +31,11 @@ export const keyboardInset = {
   },
 };
 
-/** Some mobile browsers fire `resize` only after the keyboard's close animation ends, fixing an early zero. */
+/** Collapse immediately on blur instead of waiting for a possibly late visualViewport close event. */
 export function collapseKeyboardInset(): void {
+  if (pendingFrame !== undefined) {
+    window.cancelAnimationFrame(pendingFrame);
+    pendingFrame = undefined;
+  }
   inset = 0;
 }

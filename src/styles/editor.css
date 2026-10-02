@@ -146,6 +146,8 @@
     /* iOS keeps safe-area-inset-bottom under the keyboard, so don't add it to the keyboard offset. */
     bottom: max(env(safe-area-inset-bottom), calc(var(--sp-2) + var(--kb-inset, 0px)));
     z-index: var(--z-menu);
+  }
+  .fixed-toolbar.lowering {
     transition: bottom 0.22s ease-out;
   }
   .fixed-toolbar.editing {
@@ -284,6 +286,17 @@
   outline: none;
 }
 
+.editor-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-scroll-tail {
+  display: none;
+}
+
 .ProseMirror {
   /* flex:1, not min-height:100%: sizes against space actually left below
      DocTitle so a click in the empty area doesn't drag DocTitle off-screen.
@@ -410,12 +423,18 @@
   }
 }
 
-/* Same combined trigger as .fixed-toolbar, so this padding clears it exactly while editing.
-   Applied unconditionally rather than gated on .editing too, so the toolbar's appearance never
-   causes a scroll-position jump at the moment a tap enters the editor. */
+/* The tail is outside the viewport-sized editor body, so it creates actual scroll range even
+   while a short ProseMirror flexes to fill the visible document area. Padding alone is absorbed
+   by that flex layout in WebKit and can leave maxScroll at zero. */
 @media (pointer: coarse), (max-width: 900px) {
-  .content {
-    padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));
+  .editor-body {
+    flex: 0 0 auto;
+    min-height: 100%;
+  }
+
+  .editor-scroll-tail {
+    display: block;
+    flex: 0 0 calc(60px + max(env(safe-area-inset-bottom), var(--kb-inset, 0px)));
   }
 }
 
