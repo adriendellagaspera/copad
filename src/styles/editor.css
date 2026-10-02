@@ -154,7 +154,7 @@
     display: block;
   }
   .fixed-toolbar .toolbar {
-    height: calc(var(--tap-min) + var(--sp-3));
+    height: var(--mobile-action-row);
     padding: 0 6px;
     gap: var(--sp-1);
     border: 1px solid var(--border);
@@ -168,7 +168,7 @@
     min-width: var(--tap-min);
     min-height: var(--tap-min);
     padding: 0 var(--sp-2);
-    font-size: var(--fs-400);
+    font-size: var(--fs-350);
     line-height: 1;
     white-space: nowrap;
   }
@@ -447,7 +447,7 @@
 
   .editor-scroll-tail {
     display: block;
-    flex: 0 0 calc(var(--tap-min) + var(--sp-3) + var(--sp-2) + max(env(safe-area-inset-bottom), var(--kb-inset, 0px)));
+    flex: 0 0 calc(var(--mobile-action-row) + var(--sp-2) + max(env(safe-area-inset-bottom), var(--kb-inset, 0px)));
   }
 }
 
