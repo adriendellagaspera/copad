@@ -204,7 +204,7 @@
   }
 
   function scheduleLocalCaretVisibility(editorView: EditorView): void {
-    if (caretVisibilityFrame !== undefined) cancelAnimationFrame(caretVisibilityFrame);
+    if (caretVisibilityFrame !== undefined) return;
     caretVisibilityFrame = requestAnimationFrame(() => {
       caretVisibilityFrame = undefined;
       keepLocalCaretVisible(editorView);
