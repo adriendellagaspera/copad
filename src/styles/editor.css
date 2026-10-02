@@ -147,6 +147,9 @@
     bottom: max(env(safe-area-inset-bottom), calc(var(--sp-2) + var(--kb-inset, 0px)));
     z-index: var(--z-menu);
   }
+  .fixed-toolbar.lowering {
+    transition: bottom 0.22s ease-out;
+  }
   .fixed-toolbar.editing {
     display: block;
   }
