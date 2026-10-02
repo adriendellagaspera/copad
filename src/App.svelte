@@ -936,7 +936,7 @@
         {name}
         {color}
         colors={COLORS}
-        size={32}
+        size={40}
         onName={(v) => { name = rememberName(v); }}
         onColor={(c) => { color = c; }}
       />
@@ -1070,6 +1070,8 @@
   onJoin={() => (joinOpen = OPENED)}
   onExport={() => (exportOpen = OPENED)}
   onSettings={() => openSettings()}
+  dark={theme.resolved === 'dark'}
+  onToggleTheme={() => theme.toggle()}
   onSearch={() => (paletteOpen = OPENED)}
 />
 
