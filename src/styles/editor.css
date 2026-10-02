@@ -180,9 +180,6 @@
     height: 24px;
     margin: 0 var(--sp-1);
   }
-  .fixed-toolbar .toolbar .spacer {
-    display: none;
-  }
 }
 
 .caret-hint {
