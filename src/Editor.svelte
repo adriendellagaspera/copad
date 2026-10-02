@@ -176,6 +176,7 @@
   const CARET_CLEARANCE = 8 as ViewportPx;
   let previousKeyboardInset = 0 as ViewportPx;
   let toolbarLowering = $state(false as ToolbarLowering);
+  let caretVisibilityFrame: number | undefined;
 
   function keepLocalCaretVisible(editorView: EditorView): void {
     const scrollEl = editorEl;
@@ -199,6 +200,14 @@
       clearance: CARET_CLEARANCE,
     });
     if (delta > 0) scrollEl.scrollTop += delta;
+  }
+
+  function scheduleLocalCaretVisibility(editorView: EditorView): void {
+    if (caretVisibilityFrame !== undefined) cancelAnimationFrame(caretVisibilityFrame);
+    caretVisibilityFrame = requestAnimationFrame(() => {
+      caretVisibilityFrame = undefined;
+      keepLocalCaretVisible(editorView);
+    });
   }
 
   let canPersist = $state(false);
@@ -298,7 +307,7 @@
     toolbarLowering = (inset < previousKeyboardInset) as ToolbarLowering;
     previousKeyboardInset = inset;
     const editorView = view;
-    if (editing && editorView) keepLocalCaretVisible(editorView);
+    if (editing && editorView) scheduleLocalCaretVisibility(editorView);
   });
 
   // Mobile-only: swaps the bottom dock between nav actions and the formatting toolbar.
@@ -511,7 +520,7 @@
         regime = nextRegime(regime, { docChanged: tr.docChanged, isChangeOrigin });
         if (tr.docChanged && !isChangeOrigin) {
           setSessionLocalEdit(now());
-          keepLocalCaretVisible(self);
+          scheduleLocalCaretVisibility(self);
         }
         if (tr.docChanged) setSessionDocEmpty(isSoleEmptyBlock(next.doc) as DocEmpty);
       },
@@ -533,6 +542,7 @@
     clearTimeout(savedTimer);
     clearTimeout(retryTimer);
     clearInterval(fadeTimer);
+    if (caretVisibilityFrame !== undefined) cancelAnimationFrame(caretVisibilityFrame);
     presenceActivity.destroy();
     offStatus();
     offPresence?.();
