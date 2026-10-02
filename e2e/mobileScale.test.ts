@@ -6,7 +6,8 @@ type ViewportWidth = 320 | 390;
 const TOUCH_FLOOR = 44;
 const ACTION_ROW = 52;
 const PROSE_SIZE = '18px';
-const UI_SIZE = '16px';
+const COMPACT_UI_SIZE = '14px';
+const ACTION_UI_SIZE = '16px';
 const ICON_SIZE = 20;
 
 async function setTheme(page: Page, theme: ThemeName): Promise<void> {
@@ -67,19 +68,19 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
         await prose.click();
         const toolbar = page.locator('.fixed-toolbar.editing .toolbar');
         await expect(toolbar).toBeVisible();
-        expect((await dimensions(toolbar)).height).toBe(56);
+        expect((await dimensions(toolbar)).height).toBe(52);
         for (const control of await toolbar.locator('button').all()) await expectTouchTarget(control);
         const toolbarIcon = toolbar.locator('button svg').first();
         expect((await dimensions(toolbarIcon)).width).toBe(ICON_SIZE);
         expect((await dimensions(toolbarIcon)).height).toBe(ICON_SIZE);
-        await expect(toolbar.locator('button').first()).toHaveCSS('font-size', UI_SIZE);
+        await expect(toolbar.locator('button').first()).toHaveCSS('font-size', COMPACT_UI_SIZE);
 
         await page.getByRole('button', { name: 'More actions', exact: true }).click();
         const actions = page.getByRole('dialog', { name: 'Document actions' });
         await expect(actions).toBeVisible();
         const actionRow = actions.locator('.mobile-actions-row').first();
         expect((await dimensions(actionRow)).height).toBeGreaterThanOrEqual(ACTION_ROW);
-        await expect(actionRow).toHaveCSS('font-size', UI_SIZE);
+        await expect(actionRow).toHaveCSS('font-size', ACTION_UI_SIZE);
         const actionIcon = actionRow.locator('svg');
         expect((await dimensions(actionIcon)).width).toBe(ICON_SIZE);
 
@@ -92,7 +93,7 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
         const paletteRow = palette.locator('.palette-row').first();
         await expect(paletteRow).toBeVisible();
         expect((await dimensions(paletteRow)).height).toBeGreaterThanOrEqual(ACTION_ROW);
-        await expect(paletteRow.locator('.palette-label')).toHaveCSS('font-size', UI_SIZE);
+        await expect(paletteRow.locator('.palette-label')).toHaveCSS('font-size', ACTION_UI_SIZE);
 
         await expectNoPageOverflow(page);
       });
@@ -114,7 +115,7 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
 
         const search = page.locator('.about-doc .palette-trigger');
         expect((await dimensions(search)).height).toBeGreaterThanOrEqual(ACTION_ROW);
-        await expect(search).toHaveCSS('font-size', UI_SIZE);
+        await expect(search).toHaveCSS('font-size', COMPACT_UI_SIZE);
         const searchIcon = search.locator('svg');
         expect((await dimensions(searchIcon)).width).toBe(ICON_SIZE);
         expect((await dimensions(searchIcon)).height).toBe(ICON_SIZE);
