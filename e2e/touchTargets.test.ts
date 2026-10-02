@@ -218,6 +218,8 @@ async function mockWebdav(page: Page, putStatus: number, putDelayMs: number): Pr
 }
 
 async function openStorageSettings(page: Page): Promise<void> {
+  const more = page.getByRole('button', { name: 'More actions', exact: true });
+  if (await more.isVisible()) await more.click();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Storage', exact: true }).click();
   const tile = page.getByRole('button', { name: 'WebDAV / Nextcloud' });
