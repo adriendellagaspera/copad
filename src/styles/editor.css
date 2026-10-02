@@ -410,12 +410,12 @@
   }
 }
 
-/* Same combined trigger as .fixed-toolbar, so this padding clears it exactly while editing.
-   Applied unconditionally rather than gated on .editing too, so the toolbar's appearance never
-   causes a scroll-position jump at the moment a tap enters the editor. */
+/* Keep enough scroll room below the document for the mobile toolbar at rest or above the keyboard. */
 @media (pointer: coarse), (max-width: 900px) {
   .content {
-    padding-bottom: calc(60px + env(safe-area-inset-bottom) + var(--sp-4));
+    padding-bottom: calc(
+      60px + max(env(safe-area-inset-bottom), var(--kb-inset, 0px)) + var(--sp-4)
+    );
   }
 }
 
