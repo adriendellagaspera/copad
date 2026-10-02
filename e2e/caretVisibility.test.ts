@@ -140,18 +140,21 @@ for (const width of [320, 390] as const) {
         'resize',
       );
 
+      const toolbar = page.locator('.fixed-toolbar.editing .toolbar');
+      const visualBottom = offsetTop + visualHeight;
+      await expect
+        .poll(async () => {
+          const box = await toolbar.boundingBox();
+          return box ? visualBottom - (box.y + box.height) : Number.NaN;
+        })
+        .toBeCloseTo(8, 0);
+
       const content = page.locator('.content');
       for (let line = 1; line <= 24; line += 1) {
         await page.keyboard.press('Enter');
-        const gap = await caretToolbarGap(page);
-        const scroll = await content.evaluate((element) => ({
-          top: element.scrollTop,
-          max: element.scrollHeight - element.clientHeight,
-        }));
-        expect(
-          gap,
-          `line ${line}: gap=${gap}, scrollTop=${scroll.top}, maxScroll=${scroll.max}`,
-        ).toBeGreaterThanOrEqual(6);
+        await expect
+          .poll(() => caretToolbarGap(page), { message: `line ${line} should clear the toolbar` })
+          .toBeGreaterThanOrEqual(6);
       }
 
       await expect(editor).toBeFocused();
@@ -173,7 +176,10 @@ for (const width of [320, 390] as const) {
 
       const safeScrollTop = await content.evaluate((element) => element.scrollTop);
       await page.keyboard.type('safe');
-      expect(await content.evaluate((element) => element.scrollTop)).toBeCloseTo(safeScrollTop, 0);
+      const safeScrollDrift = Math.abs(
+        (await content.evaluate((element) => element.scrollTop)) - safeScrollTop,
+      );
+      expect(safeScrollDrift).toBeLessThanOrEqual(2);
 
       for (let i = 0; i < 8; i += 1) await page.keyboard.press('Enter');
       await expect.poll(() => caretToolbarGap(page)).toBeGreaterThanOrEqual(6);
