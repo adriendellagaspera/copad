@@ -17,7 +17,7 @@ if (typeof window !== 'undefined' && window.visualViewport) {
     });
   };
   const update = (): void => {
-    if (pendingFrame !== undefined) window.cancelAnimationFrame(pendingFrame);
+    if (pendingFrame !== undefined) return;
     pendingFrame = window.requestAnimationFrame(measure);
   };
   vv.addEventListener('resize', update);
