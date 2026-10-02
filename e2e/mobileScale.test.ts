@@ -88,7 +88,6 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
         expect((await dimensions(shareVisual)).width - shareContentWidth).toBeGreaterThanOrEqual(
           COMPACT_INLINE_PAD * 2,
         );
-        await page.screenshot({ path: `test-results/share-audit/document-${width}-${theme}.png` });
 
         await page.getByRole('button', { name: 'More actions', exact: true }).click();
         const actions = page.getByRole('dialog', { name: 'Document actions' });
@@ -132,7 +131,6 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
           'padding-right',
           `${COMPACT_INLINE_PAD}px`,
         );
-        await page.screenshot({ path: `test-results/share-audit/about-${width}-${theme}.png` });
 
         const prose = page.locator('.about-doc .ProseMirror');
         await expect(prose).toHaveCSS('font-size', PROSE_SIZE);
