@@ -80,7 +80,8 @@ describe('armed inline marks', () => {
     };
     const handler = keepArmedMarksPlugin.props.handleTextInput;
     if (!handler) throw new Error('keepArmedMarksPlugin must handle text input');
-    const handled = handler(
+    const handled = handler.call(
+      keepArmedMarksPlugin,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       view as any,
       state.selection.from,
@@ -88,7 +89,7 @@ describe('armed inline marks', () => {
       text,
       () => state.selection.$from,
     );
-    return { handled, state: next };
+    return { handled: handled === true, state: next };
   }
 
   it('does not intercept plain typing when no marks are armed', () => {
