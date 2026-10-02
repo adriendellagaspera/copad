@@ -143,9 +143,8 @@
     position: fixed;
     left: var(--sp-2);
     right: var(--sp-2);
-    /* --kb-inset can jump straight to 0 on keyboard dismiss instead of
-       animating (mobile browser quirk); this transition smooths that into a slide. */
-    bottom: calc(max(var(--sp-2), env(safe-area-inset-bottom)) + var(--kb-inset, 0px));
+    /* iOS keeps safe-area-inset-bottom under the keyboard, so don't add it to the keyboard offset. */
+    bottom: max(env(safe-area-inset-bottom), calc(var(--sp-2) + var(--kb-inset, 0px)));
     z-index: var(--z-menu);
     transition: bottom 0.22s ease-out;
   }
