@@ -86,7 +86,9 @@ for (const width of [320, 390] as const satisfies readonly ViewportWidth[]) {
         await actions.getByRole('button', { name: 'Search document & commands', exact: true }).click();
         const palette = page.getByRole('dialog', { name: 'Search and commands' });
         await expect(palette).toBeVisible();
-        expect((await dimensions(palette.locator('.palette-input'))).height).toBeGreaterThanOrEqual(ACTION_ROW);
+        const paletteInput = palette.locator('.palette-input');
+        expect((await dimensions(paletteInput)).height).toBeGreaterThanOrEqual(ACTION_ROW);
+        await paletteInput.fill('>Export');
         const paletteRow = palette.locator('.palette-row').first();
         await expect(paletteRow).toBeVisible();
         expect((await dimensions(paletteRow)).height).toBeGreaterThanOrEqual(ACTION_ROW);
