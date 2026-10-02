@@ -288,6 +288,13 @@
   $effect(() => setSessionRoomPresence(roomPresence));
   $effect(() => setSessionSoloBrowser(soloBrowser));
 
+  $effect(() => {
+    const editing = sessionState.editing;
+    const inset = keyboardInset.px;
+    const editorView = view;
+    if (editing && editorView && inset >= 0) keepLocalCaretVisible(editorView);
+  });
+
   // Mobile-only: swaps the bottom dock between nav actions and the formatting toolbar.
   $effect(() => {
     const el = editorEl;
