@@ -744,7 +744,7 @@ header.capsule.mobile-capsule {
     gap: 6px;
     background: var(--accent);
     color: var(--accent-contrast);
-    font-size: var(--fs-400);
+    font-size: var(--fs-350);
     font-weight: 600;
   }
   header.capsule.mobile-capsule .cap-share-label {
