@@ -119,6 +119,24 @@ test.describe('command palette', () => {
       await expect(page.getByRole('combobox')).toBeFocused();
     });
 
+    test('keeps Settings and appearance preferences in More', async ({ page }) => {
+      await page.goto('/');
+
+      await openMenu(page);
+      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Storage', exact: true })).toBeVisible();
+      await page.keyboard.press('Escape');
+
+      const before = await page.evaluate(() => document.documentElement.dataset.theme);
+      await openMenu(page);
+      await page
+        .getByRole('button', { name: before === 'dark' ? 'Light appearance' : 'Dark appearance', exact: true })
+        .click();
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.dataset.theme))
+        .toBe(before === 'dark' ? 'light' : 'dark');
+    });
+
     test('keeps Import directly reachable when the write gate allows it', async ({ page }) => {
       await page.addInitScript(() => {
         Object.defineProperty(window, 'showOpenFilePicker', {
