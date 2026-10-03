@@ -21,6 +21,8 @@ in `docs/architecture.md`.
   unticked acceptance box (`BOXES_SINCE` in the script exempts issues closed before the rule existed).
 - `npm run check:doc-structure` — every doc link/anchor resolves, and every `contract §N.M` citation (docs and
   `src/` comments alike) names a real section.
+- `npm run check:test-discovery` — fails when a Vitest-shaped TypeScript file under `src/` or `scripts/` would
+  be skipped because it is not named `*.test.ts`.
 - `npm run check:mutation-gate` — Stryker on PR-diff `.ts` lines only (`stryker.config.mjs`); a surviving mutant
   means the tests ran the changed code but didn't check it. CI-only, not in the local loop.
 - `npm run check:pr-closes-issues` — PR-body only, not the local loop: every open issue mentioned bare must
@@ -30,7 +32,7 @@ in `docs/architecture.md`.
 - `npm run dev` — Vite dev server; needs `npm run signaling` (WebRTC, default) or `npm run collab` (WebSocket
   transport) running alongside it for collaboration to work locally.
 
-`check:doc-budget`/`check:doc-structure`/`lint`/`check`/`test` are gated automatically
+`check:doc-budget`/`check:doc-structure`/`check:test-discovery`/`lint`/`check`/`test` are gated automatically
 ([`./pre-commit`](./pre-commit), [`./pre-push`](./pre-push)) — never run them by hand first, that only re-plays
 a check a hook already owns. `test:scripts` isn't hooked: run it yourself when you touch `.github/scripts/`.
 `ci.yml` (triggered by the push itself) is the superset — everything above plus `check:audit`/`check:licenses`,
