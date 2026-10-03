@@ -6,7 +6,7 @@ question ("where, and how much").
   per file), not `rg -n` or a full `Read`, unless you already know you need every
   matching line.
 - `node_modules/`, `dist/`, `docs/api/` are already out of ripgrep's default
-  surface (git-ignored); `package-lock.json` is tracked and isn't — pass
-  `-g '!package-lock.json'` when a search isn't actually about the lockfile.
+  surface (git-ignored); root `.rgignore` excludes tracked `package-lock.json` too.
+  Use `rg -u` when a task is intentionally about ignored files such as the lockfile.
 - `npm run docs` regenerates a full TypeDoc index (AGENTS.md "Finding things") —
   prefer it over grepping for a symbol's doc comment and exact export shape.
