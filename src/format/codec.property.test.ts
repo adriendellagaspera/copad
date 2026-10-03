@@ -31,20 +31,31 @@ async function roundTrip(codec: Codec, lines: string[]) {
   return { expected: expected.toJSON(), actual: readPmDoc(restored).toJSON() };
 }
 
-const codecs = [
+const exactCodecs = [
   ['Yjs', yjsCodec],
   ['JSON', jsonCodec],
   ['Markdown', markdownCodec],
-  ['HTML', htmlCodec],
   ['plain text', textCodec],
 ] as const;
 
-describe.each(codecs)('%s codec property', (_name, codec) => {
-  it('round-trips arbitrary plain-paragraph documents without changing their structure', async () => {
+describe.each(exactCodecs)('%s codec property', (_name, codec) => {
+  it('round-trips arbitrary plain-paragraph documents exactly', async () => {
     await fc.assert(
       fc.asyncProperty(documentArbitrary, async (lines) => {
         const { expected, actual } = await roundTrip(codec, lines);
         expect(actual).toEqual(expected);
+      }),
+    );
+  });
+});
+
+describe('HTML codec property', () => {
+  it('round-trips arbitrary plain-paragraph documents modulo HTML whitespace collapsing', async () => {
+    await fc.assert(
+      fc.asyncProperty(documentArbitrary, async (lines) => {
+        const normalizedLines = lines.map((line) => line.replace(/ +/g, ' '));
+        const { actual } = await roundTrip(htmlCodec, lines);
+        expect(actual).toEqual(plainDocument(normalizedLines).toJSON());
       }),
     );
   });
