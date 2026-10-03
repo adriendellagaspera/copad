@@ -626,7 +626,7 @@ button.status-link {
 
 @media (pointer: coarse) {
   button {
-    min-height: 40px;
+    min-height: var(--tap-min);
   }
 }
 
@@ -648,33 +648,39 @@ header.capsule.mobile-capsule {
 }
 
 @media (pointer: coarse), (max-width: 900px) {
-  /* Keep About's 52px outer capsule / 36–38px inner-control proportions.
-     The 44px boxes below are touch targets, not additional visual pills. */
+  /* The 52px outer pill stays compact enough for 320px, while its visible
+     controls move closer to the More sheet's scale. */
   header.capsule.mobile-capsule {
     column-gap: 4px;
   }
 
   header.capsule.mobile-capsule .mobile-cap-glyph {
-    width: 36px;
-    height: 36px;
+    width: calc(var(--mobile-control) - var(--sp-2));
+    height: calc(var(--mobile-control) - var(--sp-2));
     display: grid;
     place-items: center;
     border-radius: var(--r-full);
     background: transparent;
     color: var(--text-muted);
   }
+  header.capsule.mobile-capsule .mobile-cap-glyph svg {
+    width: var(--mobile-icon);
+    height: var(--mobile-icon);
+  }
 
-  /* Same branded mark as About. */
+  /* Same branded mark as About; unlike utility actions, the mark stays visibly filled. */
   header.capsule.mobile-capsule .cap-mark .mobile-cap-glyph {
+    width: var(--tap-min);
+    height: var(--tap-min);
     background: var(--accent);
     color: var(--accent-contrast);
   }
 
   header.capsule.mobile-capsule .cap-mark,
   header.capsule.mobile-capsule .cap-btn {
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
+    width: var(--tap-min);
+    height: var(--tap-min);
+    min-height: var(--tap-min);
   }
 
   header.capsule.mobile-capsule .cap-mark,
@@ -685,11 +691,11 @@ header.capsule.mobile-capsule {
 
   /* Identity is the avatar itself, not an avatar inside another button shape. */
   header.capsule.mobile-capsule .identity-btn {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
-    padding: 4px;
+    width: var(--tap-min);
+    height: var(--tap-min);
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    padding: 2px;
     background: transparent;
   }
   header.capsule.mobile-capsule .identity-btn .avatar {
@@ -699,12 +705,11 @@ header.capsule.mobile-capsule {
     display: none;
   }
 
-  /* Status is content inside the outer capsule, like About's wordmark/theme:
-     no nested pill. Extra internal spacing keeps connection/storage legible. */
+  /* Status is content inside the outer capsule, like About's wordmark/theme. */
   header.capsule.mobile-capsule .chip {
-    min-width: 44px;
-    height: 44px;
-    min-height: 44px;
+    min-width: var(--tap-min);
+    height: var(--tap-min);
+    min-height: var(--tap-min);
     padding: 0 6px;
     gap: 6px;
     border: none;
@@ -722,24 +727,27 @@ header.capsule.mobile-capsule {
     color: var(--text-muted);
   }
 
-  /* Share is the one contained CTA, using About's 38px visual height. */
+  /* Share is the one contained CTA. Let content + shared compact padding set
+     its width, like About's Start a document CTA, rather than squeezing it
+     into a fixed budget. */
   header.capsule.mobile-capsule .cap-share.mobile-action-share {
-    width: 76px;
-    height: 44px;
-    min-width: 76px;
-    min-height: 44px;
-    padding: 0 2px;
+    width: auto;
+    height: var(--tap-min);
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    padding: 0;
   }
   header.capsule.mobile-capsule .mobile-action-share .mobile-cap-glyph {
-    width: 72px;
-    height: 38px;
+    width: auto;
+    height: calc(var(--mobile-control) - var(--sp-2));
+    padding-inline: var(--mobile-compact-inline-pad);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
+    gap: 6px;
     background: var(--accent);
     color: var(--accent-contrast);
-    font-size: var(--fs-300);
+    font-size: var(--fs-350);
     font-weight: 600;
   }
   header.capsule.mobile-capsule .cap-share-label {

@@ -31,6 +31,17 @@ import type { Command, EditorState, Transaction } from 'prosemirror-state';
 import { normalizeHref, isValidHref } from './linkCommands.js';
 import { taskItemCheckboxPlugin } from './taskList.js';
 
+export const keepArmedMarksPlugin = new Plugin({
+  props: {
+    handleTextInput(view, from, to, text) {
+      const marks = view.state.storedMarks;
+      if (marks === null || !view.state.selection.empty) return false;
+      view.dispatch(view.state.tr.insertText(text, from, to).setStoredMarks(marks));
+      return true;
+    },
+  },
+});
+
 // Never mutates the code block (may be deliberately blank) — mirrors Tiptap's exitCode, Backspace/Mod-Alt-c only.
 function exitCodeBlock(tr: Transaction, $pos: ResolvedPos): void {
   const container = $pos.node(-1);
@@ -680,6 +691,7 @@ export function buildPlugins(s: Schema): Plugin[] {
         new InputRule(LINK_RULE, linkRuleHandler(s.marks.link)),
       ],
     }),
+    keepArmedMarksPlugin,
     columnResizing(),
     tableEditing(),
     taskItemCheckboxPlugin,

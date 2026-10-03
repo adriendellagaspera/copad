@@ -3,11 +3,9 @@
   import type { EditorState } from 'prosemirror-state';
   import { isMarkActive, isNodeActive, runCommand, commands, isInTable } from './editor/commands.js';
   import { isLinkActive } from './editor/linkCommands.js';
-  import { docToMarkdown } from './editor/markdown.js';
   import { schema } from './editor/schema.js';
   import TableToolbar from './editor/ui/TableToolbar.svelte';
   import { modKey, altKey, parseOS } from './ui/platform.js';
-  import type { Toasts } from './ui/toasts.svelte.js';
 
   const os = parseOS();
   const mod = modKey(os);
@@ -16,11 +14,10 @@
   type Props = {
     view: EditorView | null;
     editorState: EditorState | null;
-    toasts: Toasts;
     showTableStructure?: boolean;
   };
 
-  let { view, editorState, toasts, showTableStructure = true }: Props = $props();
+  let { view, editorState, showTableStructure = true }: Props = $props();
 
   const bold      = $derived(editorState ? isMarkActive(editorState, schema.marks.strong) : false);
   const italic    = $derived(editorState ? isMarkActive(editorState, schema.marks.em)     : false);
@@ -59,16 +56,6 @@
     view?.dom.dispatchEvent(new CustomEvent('copad:link', { bubbles: true }));
   }
 
-  async function copyMarkdown(): Promise<void> {
-    if (!editorState) return;
-    const md = docToMarkdown(editorState.doc);
-    try {
-      await navigator.clipboard.writeText(md);
-      toasts.success('Copied as Markdown');
-    } catch {
-      toasts.error('Copy failed: your browser blocked clipboard access');
-    }
-  }
 </script>
 
 {#if view}
@@ -130,16 +117,6 @@
     <button onclick={run(commands.redo)} title="Redo ({mod}+Y)" aria-label="Redo">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg>
     </button>
-    <span class="spacer"></span>
-    <button class="md-btn" onclick={copyMarkdown} title="Copy document as Markdown">Copy MD</button>
   </div>
 {/if}
 
-<style>
-  .toolbar .spacer {
-    margin-left: auto;
-  }
-  .md-btn {
-    font-size: 0.78rem;
-  }
-</style>

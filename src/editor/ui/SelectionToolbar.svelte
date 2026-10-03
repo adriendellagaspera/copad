@@ -21,15 +21,13 @@
     type TableSurface,
     type TextSurface,
   } from './floatingSurfaces.js';
-  import type { Toasts } from '../../ui/toasts.svelte.js';
 
   type Props = {
     view: EditorView | null;
     editorState: EditorState | null;
-    toasts: Toasts;
   };
 
-  let { view, editorState, toasts }: Props = $props();
+  let { view, editorState }: Props = $props();
 
   let hostText = $state<HTMLDivElement | undefined>();
   let hostPill = $state<HTMLDivElement | undefined>();
@@ -236,7 +234,7 @@
   onmousedown={(e) => e.preventDefault()}
   role="presentation"
 >
-  <Toolbar {view} {editorState} {toasts} showTableStructure={false} />
+  <Toolbar {view} {editorState} showTableStructure={false} />
 </div>
 <div
   class="caret-hint"

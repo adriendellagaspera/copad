@@ -617,7 +617,7 @@
     style="--kb-inset: {keyboardInset.px}px"
     bind:this={toolbarEl}
   >
-    <Toolbar {view} {editorState} {toasts} />
+    <Toolbar {view} {editorState} />
   </div>
   <div class="content" bind:this={editorEl} style="--kb-inset: {keyboardInset.px}px">
     <!-- Keep the title and ProseMirror in one viewport-sized flex body. EditorView appends its
@@ -634,7 +634,7 @@
     <Outline {view} {headings} />
     <Zoom {zoom} />
   </div>
-  <SelectionToolbar {view} {editorState} {toasts} />
+  <SelectionToolbar {view} {editorState} />
   <SlashMenu {view} {editorState} />
   <LinkPopover {view} {editorState} />
   <CommandPalette

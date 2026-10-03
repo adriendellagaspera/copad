@@ -365,9 +365,58 @@
   @media (pointer: coarse), (max-width: 900px) {
     header.capsule.about-capsule {
       display: flex;
+      padding-inline: var(--sp-2);
+      column-gap: var(--sp-1);
+    }
+    .about-capsule .cap-mark {
+      width: var(--tap-min);
+      height: var(--tap-min);
+      min-width: var(--tap-min);
+      min-height: var(--tap-min);
+      margin-right: var(--sp-1);
+    }
+    .about-capsule .cap-mark svg,
+    .about-capsule .cap-theme :global(svg) {
+      width: var(--mobile-icon);
+      height: var(--mobile-icon);
+    }
+    .about-capsule .cap-fill {
+      width: var(--sp-1);
+    }
+    .about-capsule .cap-share {
+      height: var(--tap-min);
+      min-height: var(--tap-min);
+      margin: 0;
+      padding: 0 var(--mobile-compact-inline-pad);
+      font-size: var(--fs-350);
+    }
+    .about-capsule .cap-theme :global(button) {
+      width: var(--tap-min);
+      height: var(--tap-min);
+      min-width: var(--tap-min);
+      min-height: var(--tap-min);
     }
     .about-doc .content {
       padding-bottom: var(--sp-4);
+    }
+    .about-doc .palette-trigger {
+      min-height: var(--mobile-action-row);
+      height: var(--mobile-action-row);
+      gap: var(--mobile-control-gap);
+      padding: 0 var(--mobile-inline-pad);
+      font-size: var(--fs-350);
+    }
+    .about-doc .palette-trigger svg {
+      width: var(--mobile-icon);
+      height: var(--mobile-icon);
+    }
+    .about-doc .palette-trigger .cap-search-key {
+      font-size: var(--fs-300);
+    }
+  }
+  @media (max-width: 360px) {
+    .about-capsule .wordmark {
+      display: none;
     }
   }
   .wordmark {

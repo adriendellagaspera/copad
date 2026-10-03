@@ -167,10 +167,10 @@
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: 12px;
+    gap: var(--mobile-control-gap);
     width: 100%;
-    min-height: 52px;
-    padding: 0 14px;
+    min-height: var(--mobile-action-row);
+    padding: 0 var(--mobile-inline-pad);
     border: none;
     border-radius: 12px;
     background: transparent;
@@ -190,8 +190,8 @@
   }
 
   .mobile-actions-row svg {
-    width: 20px;
-    height: 20px;
+    width: var(--mobile-icon);
+    height: var(--mobile-icon);
     flex: none;
     fill: none;
     stroke: currentColor;
