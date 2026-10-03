@@ -21,3 +21,6 @@ npm run --silent check:doc-structure
 
 echo "Running architecture-diagram check"
 npm run --silent check:architecture-diagram
+
+echo "Running test-discovery check"
+npm run --silent check:test-discovery
