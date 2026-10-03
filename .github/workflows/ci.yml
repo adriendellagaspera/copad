@@ -90,6 +90,7 @@ jobs:
       - run: npm run check:doc-budget
       - run: npm run check:doc-structure
       - run: npm run check:architecture-diagram
+      - run: npm run check:test-discovery
       - run: npm run format:md:check
 
   audit:
