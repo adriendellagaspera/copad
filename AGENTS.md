@@ -97,10 +97,10 @@ a check a hook already owns. `test:scripts` isn't hooked: run it yourself when y
 
 ## Security
 
-- Storage config and credential handling: [architecture — Config vs. credentials](docs/architecture.md#config-vs-credentials).
-- Cooperative room-encryption limits: [architecture — Implementation notes](docs/architecture.md#implementation-notes).
-- Public TURN credentials and relay hardening: [TURN deployment notes](deploy/turn/README.md).
-- Client-visible deployment values and secret-bearing server-side alternatives: [`.env.example`](.env.example).
+- Storage config and credentials: [architecture](docs/architecture.md#config-vs-credentials).
+- Cooperative room encryption: [implementation notes](docs/architecture.md#implementation-notes).
+- Public TURN credentials: [deployment notes](deploy/turn/README.md).
+- Client-visible values and server-side secrets: [`.env.example`](.env.example).
 
 ## Hexagonal architecture rules
 
