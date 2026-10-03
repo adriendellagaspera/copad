@@ -95,6 +95,13 @@ a check a hook already owns. `test:scripts` isn't hooked: run it yourself when y
   export, its doc comment and its exact location, read straight from the code. Prefer it or `grep`; there is no
   hand-maintained "where things live" doc, on purpose.
 
+## Security
+
+- Storage config and credential handling: [architecture — Config vs. credentials](docs/architecture.md#config-vs-credentials).
+- Cooperative room-encryption limits: [architecture — Implementation notes](docs/architecture.md#implementation-notes).
+- Public TURN credentials and relay hardening: [TURN deployment notes](deploy/turn/README.md).
+- Client-visible deployment values and secret-bearing server-side alternatives: [`.env.example`](.env.example).
+
 ## Hexagonal architecture rules
 
 - Ports live in `types.ts` / `auth.ts` files; adapters implement them elsewhere.
