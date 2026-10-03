@@ -1,4 +1,4 @@
-name: Closed issue audit
+name: Issue tracker audit
 
 # Audits the *existing* state of the issue tracker, not the diff of any one commit — a closed
 # issue's unticked box goes stale when the **issue** closes, which is nobody's push. Failing a
@@ -32,3 +32,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run check:closed-issue-boxes
+
+      - name: Blocked and tracking issues must still describe live work
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run check:issue-triage
