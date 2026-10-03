@@ -89,6 +89,8 @@ a check a hook already owns. `test:scripts` isn't hooked: run it yourself when y
 
 ## Finding things
 
+- Claude Code search/read orientation lives in [`.claude/rules/search-orientation.md`](.claude/rules/search-orientation.md)
+  and [`.claude/rules/big-files.md`](.claude/rules/big-files.md); follow those before broad searches or whole-file reads.
 - `npm run docs` generates a TypeDoc markdown index into `docs/api/` — git-ignored, regenerate on demand: every
   export, its doc comment and its exact location, read straight from the code. Prefer it or `grep`; there is no
   hand-maintained "where things live" doc, on purpose.
