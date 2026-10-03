@@ -16,7 +16,7 @@
     "collab": "y-websocket-server",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:scripts": "bash .github/scripts/deploy-gh-pages.test.sh && bash .github/scripts/check-deploy-drift.test.sh && bash .github/scripts/check-closed-issue-boxes.test.sh && bash .github/scripts/check-pr-closes-issues.test.sh && bash .github/scripts/check-mutation-gate.test.sh && bash .github/scripts/check-architecture-diagram.test.sh",
+    "test:scripts": "bash .github/scripts/deploy-gh-pages.test.sh && bash .github/scripts/check-deploy-drift.test.sh && bash .github/scripts/check-closed-issue-boxes.test.sh && bash .github/scripts/check-pr-closes-issues.test.sh && bash .github/scripts/check-mutation-gate.test.sh && bash .github/scripts/check-architecture-diagram.test.sh && bash .github/scripts/check-test-discovery.test.sh",
     "check:doc-budget": "bash .github/scripts/check-doc-budget.sh",
     "check:audit": "npm audit --audit-level=high",
     "check:licenses": "node .github/scripts/check-license-allowlist.mjs",
@@ -27,7 +27,8 @@
     "check:pr-closes-issues": "node .github/scripts/check-pr-closes-issues.mjs",
     "format:md": "prettier --write AGENTS.md CLAUDE.md README.md docs/architecture.md docs/contract.md",
     "format:md:check": "prettier --check AGENTS.md CLAUDE.md README.md docs/architecture.md docs/contract.md",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "check:test-discovery": "node .github/scripts/check-test-discovery.mjs"
   },
   "dependencies": {
     "docx": "^9.7.1",
