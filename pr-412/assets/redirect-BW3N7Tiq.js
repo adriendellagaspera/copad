@@ -1,0 +1,1 @@
+import{s as e,t}from"./lib-Ba4Ez5UX.js";var n=e(t(),1),r=new URLSearchParams(location.search),i=r.get(`code`);i?(window.opener?.postMessage({type:`oauth-code`,code:i,state:r.get(`state`)},location.origin),window.close()):n.default.oauth.popup();
