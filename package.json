@@ -16,7 +16,7 @@
     "collab": "y-websocket-server",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:scripts": "bash .github/scripts/deploy-gh-pages.test.sh && bash .github/scripts/check-deploy-drift.test.sh && bash .github/scripts/check-closed-issue-boxes.test.sh && bash .github/scripts/check-pr-closes-issues.test.sh && bash .github/scripts/check-mutation-gate.test.sh && bash .github/scripts/check-architecture-diagram.test.sh && bash .github/scripts/check-audit.test.sh && bash .github/scripts/check-test-discovery.test.sh && bash .github/scripts/check-issue-triage.test.sh",
+    "test:scripts": "node .github/scripts/check-mutation-shards.mjs --verify && bash .github/scripts/deploy-gh-pages.test.sh && bash .github/scripts/check-deploy-drift.test.sh && bash .github/scripts/check-closed-issue-boxes.test.sh && bash .github/scripts/check-pr-closes-issues.test.sh && bash .github/scripts/check-mutation-gate.test.sh && bash .github/scripts/check-architecture-diagram.test.sh && bash .github/scripts/check-audit.test.sh && bash .github/scripts/check-test-discovery.test.sh && bash .github/scripts/check-issue-triage.test.sh",
     "check:doc-budget": "bash .github/scripts/check-doc-budget.sh",
     "check:audit": "node .github/scripts/check-audit.mjs",
     "check:licenses": "node .github/scripts/check-license-allowlist.mjs",
